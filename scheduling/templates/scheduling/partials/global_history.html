@@ -1,0 +1,53 @@
+<div class="animate-fade-in-up">
+    <h3 class="text-lg font-bold text-gray-800 mb-4 px-2">Activity Feed</h3>
+
+    <ul class="space-y-0">
+        {% for record in history_records %}
+            <li class="relative pl-4 py-3 border-l border-gray-200 hover:bg-gray-50 transition-colors">
+                <div class="absolute -left-[5px] top-4 h-2.5 w-2.5 rounded-full border border-white
+                    {% if record.instance.order_type == 'PO' %}bg-green-500
+                    {% elif record.instance.order_type == 'REL' %}bg-blue-500
+                    {% else %}bg-red-500{% endif %}">
+                </div>
+                
+                <div class="text-sm px-2">
+                    <p class="text-gray-800">
+                        <span class="font-semibold">{{ record.history_user|default:"System" }}</span>
+                        <span class="text-gray-500">
+                            {% if record.history_type == '+' %}created{% elif record.history_type == '-' %}deleted{% else %}updated{% endif %}
+                        </span>
+                        <span class="font-mono font-bold text-xs text-gray-600">
+                            {{ record.instance.order_type }}-{{ record.number }}
+                        </span>
+                    </p>
+
+                    <p class="text-xs text-gray-400 mb-1">
+                        {{ record.history_date|date:"M d, g:i a" }}
+                    </p>
+
+                    {% if record.prev_record %}
+                        {% if record.scheduled_date != record.prev_record.scheduled_date %}
+                            <div class="text-xs bg-white border rounded p-1 mt-1 inline-block text-gray-600 shadow-sm">
+                                📅 {{ record.prev_record.scheduled_date|default:"Unscheduled" }} 
+                                &rarr; 
+                                <span class="font-semibold">{{ record.scheduled_date|default:"Unscheduled" }}</span>
+                            </div>
+                        {% endif %}
+                        
+                        {% if record.scheduled_truck != record.prev_record.scheduled_truck %}
+                            <div class="text-xs bg-white border rounded p-1 mt-1 inline-block text-gray-600 shadow-sm">
+                                🚛 {{ record.prev_record.scheduled_truck|default:"None" }} 
+                                &rarr; 
+                                <span class="font-semibold">{{ record.scheduled_truck|default:"None" }}</span>
+                            </div>
+                        {% endif %}
+                    {% elif record.history_type == '+' %}
+                         <span class="text-xs text-green-600 italic">New order created</span>
+                    {% endif %}
+                </div>
+            </li>
+        {% empty %}
+            <li class="text-gray-400 text-sm italic p-4">No activity yet.</li>
+        {% endfor %}
+    </ul>
+</div>

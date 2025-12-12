@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raven Schedulizer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <script defer src="https://unpkg.com/alpinejs@3.13.7/dist/cdn.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+    <style>
+        .calendar-grid {
+            display: grid;
+            /* 1 Resource Column + 7 Day Columns */
+            grid-template-columns: 200px repeat(7, minmax(180px, 1fr)); 
+            overflow-x: auto;
+        }
+        /* Hide scrollbar for cleaner look */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans h-screen flex flex-col overflow-hidden" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    
+    <header class="bg-white border-b h-14 flex items-center px-6 justify-between shrink-0 z-20 relative">
+        <h1 class="text-xl font-bold text-gray-800 tracking-tight">RAVEN <span class="text-blue-600 font-light">SCHEDULIZER</span></h1>
+        <div class="text-sm text-gray-500">MVP Build v0.1</div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+</body>
+</html>

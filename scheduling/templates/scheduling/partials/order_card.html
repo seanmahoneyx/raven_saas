@@ -1,0 +1,23 @@
+<div 
+    id="order-{{ order.id }}"
+    class="draggable-card mb-2 p-3 rounded shadow-sm cursor-move border-l-4 text-sm bg-white hover:shadow-md transition-all select-none
+    {% if order.order_type == 'PO' %} border-green-500 {% else %} border-blue-500 {% endif %}"
+    data-order-id="{{ order.id }}"
+    data-order-type="{{ order.order_type }}"
+>
+    <div class="flex justify-between items-start">
+        <span class="font-bold text-gray-800">{{ order.number }}</span>
+        <span class="text-[10px] font-mono px-1 rounded 
+            {% if order.order_type == 'PO' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ order.order_type }}
+        </span>
+    </div>
+    
+    <div class="text-gray-600 truncate text-xs mt-1" title="{{ order.customer.display_name }}{{ order.vendor.display_name }}">
+        {% if order.order_type == 'PO' %}
+            {{ order.vendor.display_name }}
+        {% else %}
+            {{ order.customer.display_name }}
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,15 @@
+<div class="calendar-grid border-b border-gray-200 bg-green-50/30">
+    <div class="p-4 border-r border-gray-200 font-bold text-green-800 text-sm flex items-center sticky left-0 bg-green-50/30">
+        📥 RECEIVING
+    </div>
+    {% for day in week_range %}
+        <div class="sortable-list p-2 border-r border-gray-200 min-h-[120px] hover:bg-green-100/30 transition-colors"
+             data-date="{{ day|date:'Y-m-d' }}" 
+             data-truck="null"> {% for order in scheduled_orders %}
+                {% if order.order_type == 'PO' and order.scheduled_date == day %}
+                    {% include 'scheduling/partials/order_card.html' %}
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+</div>

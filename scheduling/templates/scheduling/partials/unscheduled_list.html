@@ -1,0 +1,7 @@
+<div class="sortable-list min-h-[500px] pb-10" data-date="null" data-truck="null">
+    {% for order in unscheduled_orders %}
+        {% include 'scheduling/partials/order_card.html' %}
+    {% empty %}
+        <div class="text-center text-gray-400 italic mt-10 text-sm">All caught up!</div>
+    {% endfor %}
+</div>
