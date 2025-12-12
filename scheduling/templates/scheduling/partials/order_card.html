@@ -1,23 +1,32 @@
 <div 
     id="order-{{ order.id }}"
-    class="draggable-card mb-2 p-3 rounded shadow-sm cursor-move border-l-4 text-sm bg-white hover:shadow-md transition-all select-none
+    class="draggable-card mb-1 p-2 rounded shadow-sm cursor-move border-l-4 text-xs bg-white hover:shadow-md transition-all select-none relative group h-full min-h-[60px]
     {% if order.order_type == 'PO' %} border-green-500 {% else %} border-blue-500 {% endif %}"
     data-order-id="{{ order.id }}"
     data-order-type="{{ order.order_type }}"
+    @click="historyOpen = true"
+    hx-get="/app/history/{{ order.order_type }}/{{ order.id }}/"
+    hx-target="#history-content"
+    hx-swap="innerHTML"
 >
-    <div class="flex justify-between items-start">
-        <span class="font-bold text-gray-800">{{ order.number }}</span>
-        <span class="text-[10px] font-mono px-1 rounded 
-            {% if order.order_type == 'PO' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
-            {{ order.order_type }}
-        </span>
+    <div class="flex justify-between items-center mb-1">
+        <span class="font-bold text-gray-900">{{ order.number }}</span>
+        <div class="h-1.5 w-1.5 rounded-full 
+            {% if order.status == 'ready' %}bg-yellow-400
+            {% elif order.status == 'complete' %}bg-green-500
+            {% else %}bg-gray-300{% endif %}">
+        </div>
     </div>
     
-    <div class="text-gray-600 truncate text-xs mt-1" title="{{ order.customer.display_name }}{{ order.vendor.display_name }}">
+    <div class="text-gray-500 truncate pr-6 mb-3" title="{{ order.customer.display_name }}{{ order.vendor.display_name }}">
         {% if order.order_type == 'PO' %}
             {{ order.vendor.display_name }}
         {% else %}
             {{ order.customer.display_name }}
         {% endif %}
+    </div>
+
+    <div class="absolute bottom-1 right-1 bg-gray-50 text-gray-500 px-1 rounded border border-gray-200 font-mono font-bold text-[9px]">
+        {{ order.num_pallets|default:"0" }} P
     </div>
 </div>

@@ -15,22 +15,40 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
     <style>
+        /* === THE WEEKLY GRID === */
+        /* Col 1: Resource Name (Fixed 200px) */
+        /* Cols 2-8: The 7 Days (Equal Fractions) */
         .calendar-grid {
             display: grid;
-            /* 1 Resource Column + 7 Day Columns */
-            grid-template-columns: 200px repeat(7, minmax(180px, 1fr)); 
-            overflow-x: auto;
+            grid-template-columns: 200px repeat(7, 1fr); 
+            width: 100%;
+            min-width: 1100px; /* Prevents scrunching on small laptops */
         }
-        /* Hide scrollbar for cleaner look */
+        
+        /* Hide scrollbars for a cleaner look */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Smooth transitions for hover effects */
+        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans h-screen flex flex-col overflow-hidden" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     
-    <header class="bg-white border-b h-14 flex items-center px-6 justify-between shrink-0 z-20 relative">
-        <h1 class="text-xl font-bold text-gray-800 tracking-tight">RAVEN <span class="text-blue-600 font-light">SCHEDULIZER</span></h1>
-        <div class="text-sm text-gray-500">MVP Build v0.1</div>
+    <header class="bg-white border-b h-14 flex items-center px-6 justify-between shrink-0 z-20 relative shadow-sm">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold text-gray-800 tracking-tight">RAVEN <span class="text-blue-600 font-light">SCHEDULIZER</span></h1>
+            
+            <div class="flex items-center text-sm ml-8 bg-gray-100 rounded-md p-1">
+                <a href="?date={{ today|date:'Y-m-d' }}" class="px-3 py-1 bg-white shadow-sm rounded text-gray-700 font-medium hover:text-blue-600">
+                    Jump to Today
+                </a>
+            </div>
+        </div>
+        
+        <div class="text-xs text-gray-500 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span> Live
+        </div>
     </header>
 
     <div class="flex flex-1 overflow-hidden relative">
