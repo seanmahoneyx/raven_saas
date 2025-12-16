@@ -1,0 +1,46 @@
+<div class="animate-fade-in-up">
+    <div class="mb-4 border-b pb-2">
+        <h3 class="text-xl font-bold text-gray-800">{{ order.number }}</h3>
+        <p class="text-sm text-gray-500 font-medium">
+            {% if order.customer %} 
+                {{ order.customer.display_name }} 
+            {% else %} 
+                {{ order.vendor.display_name }} 
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="mb-6 bg-yellow-50 p-3 rounded border border-yellow-200 shadow-sm">
+        <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-bold text-yellow-700 uppercase tracking-wider">Delivery Notes</label>
+            <span id="save-indicator" class="text-[10px] text-yellow-600 italic opacity-0 transition-opacity duration-500">Saved!</span>
+        </div>
+        
+        <textarea 
+            class="w-full text-sm p-2 border border-yellow-300 rounded focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none bg-white placeholder-yellow-200/50"
+            rows="3"
+            placeholder="e.g. Deliver at 6am, Call 1 hour ahead..."
+            name="notes"
+            hx-post="/app/update-note/{{ order.order_type }}/{{ order.id }}/"
+            hx-trigger="keyup changed delay:500ms"
+            hx-on::after-request="document.getElementById('save-indicator').classList.remove('opacity-0'); setTimeout(() => document.getElementById('save-indicator').classList.add('opacity-0'), 2000);"
+        >{{ order.notes|default:'' }}</textarea>
+    </div>
+
+    <div class="opacity-50 hover:opacity-100 transition-opacity">
+        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">History Log</h4>
+        <ul class="space-y-3">
+            {% for record in history_records %}
+                <li class="text-xs text-gray-500 pl-3 border-l-2 border-gray-200">
+                    <span class="font-semibold text-gray-700">
+                        {% if record.history_type == '+' %}Created{% elif record.history_type == '-' %}Deleted{% else %}Updated{% endif %}
+                    </span>
+                    <span class="mx-1">&middot;</span>
+                    {{ record.history_date|date:"M d, g:i a" }}
+                </li>
+            {% empty %}
+                <li class="text-xs text-gray-400 italic">No history yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>

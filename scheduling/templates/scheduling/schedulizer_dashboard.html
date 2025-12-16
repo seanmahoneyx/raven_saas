@@ -54,61 +54,64 @@
                 </svg>
             </button>
         </div>
-
-        <div class="flex-1 overflow-y-auto" x-show="open">
-            <div id="history-feed"
-                 hx-get="/app/global-history/"
-                 hx-trigger="load, historyChanged from:body"
-                 class="h-full">
-                 <div class="p-4 text-center text-gray-400 text-sm animate-pulse">Loading feed...</div>
+        <div class="w-96 bg-white border-l flex flex-col shrink-0 z-10 shadow-lg transition-all duration-300"
+            x-data="{ open: true }"
+            :class="open ? 'w-96' : 'w-12'">
+            
+            <div class="flex-1 overflow-y-auto" x-show="open">
+                <div id="side-panel-content"
+                    hx-get="/app/global-history/"
+                    hx-trigger="load, historyChanged from:body"
+                    class="h-full">
+                    </div>
             </div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Scroll to the 3rd week (Current Week) automatically on load
-            // The 3rd child div corresponds to the "Current Week" because we load 2 past weeks first.
-            const mainCal = document.getElementById('main-calendar');
-            const weekBlocks = mainCal.querySelectorAll('.break-inside-avoid');
-            if (weekBlocks.length >= 3) {
-                // Scroll slightly above the 3rd week so it's centered
-                weekBlocks[2].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Scroll to the 3rd week (Current Week)
+        const mainCal = document.getElementById('main-calendar');
+        const weekBlocks = mainCal.querySelectorAll('.break-inside-avoid');
+        if (weekBlocks.length >= 3) {
+            weekBlocks[2].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
 
-            // Initialize SortableJS
-            const containers = document.querySelectorAll('.sortable-list');
-            containers.forEach(function (container) {
-                new Sortable(container, {
-                    group: 'shared', // Allows dragging between lists
-                    animation: 150,
-                    ghostClass: 'opacity-50', 
-                    delay: 50, // Slight delay prevents accidental drags
-                    delayOnTouchOnly: true,
+        // Initialize SortableJS
+        const containers = document.querySelectorAll('.sortable-list');
+        containers.forEach(function (container) {
+            new Sortable(container, {
+                group: 'shared',
+                animation: 150,
+                ghostClass: 'opacity-50', 
+                delay: 0, 
+                
+                // --- THE CRITICAL FIX ---
+                filter: ".no-drag",  // Ignore elements with this class
+                preventOnFilter: false, // Allow clicks on filtered elements to work normally
+                // ------------------------
+
+                onAdd: function (evt) {
+                    const itemEl = evt.item; 
+                    const newContainer = evt.to;
                     
-                    onAdd: function (evt) {
-                        const itemEl = evt.item; 
-                        const newContainer = evt.to;
-                        
-                        // Extract Data
-                        const orderId = itemEl.getAttribute('data-order-id');
-                        const orderType = itemEl.getAttribute('data-order-type');
-                        const newDate = newContainer.getAttribute('data-date');   // "2025-12-15" or "null"
-                        const newTruck = newContainer.getAttribute('data-truck'); // "1" or "null"
+                    const orderId = itemEl.getAttribute('data-order-id');
+                    const orderType = itemEl.getAttribute('data-order-type');
+                    const newDate = newContainer.getAttribute('data-date');
+                    const newTruck = newContainer.getAttribute('data-truck');
 
-                        // Send PUT request via HTMX
-                        htmx.ajax('PUT', `/app/schedule-update/${orderId}/`, {
-                            target: itemEl,
-                            swap: 'outerHTML',
-                            values: {
-                                new_date: newDate,
-                                new_truck_id: newTruck,
-                                order_type: orderType
-                            }
-                        });
-                    }
-                });
+                    htmx.ajax('PUT', `/app/schedule-update/${orderId}/`, {
+                        target: itemEl,
+                        swap: 'outerHTML',
+                        values: {
+                            new_date: newDate,
+                            new_truck_id: newTruck,
+                            order_type: orderType
+                        }
+                    });
+                }
             });
         });
-    </script>
+    });
+</script>
 {% endblock %}
