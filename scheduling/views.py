@@ -10,59 +10,44 @@ from operator import attrgetter
 from .models import ReleaseOrder, PurchaseOrder
 from warehousing.models import Truck
 
+
 def schedulizer_dashboard(request):
     """
-    Renders the Schedulizer Dashboard.
-    Defaults to showing 2 weeks in the past and 4 weeks in the future (6 weeks total).
+    Renders the Schedulizer Dashboard (Mon-Fri View).
     """
     # 1. Determine Anchor Date (Default to Today)
     anchor_date = date.today()
-    
-    # Check if a specific date was requested via URL (e.g. ?date=2025-01-01)
     if request.GET.get('date'):
         try:
             anchor_date = datetime.strptime(request.GET.get('date'), '%Y-%m-%d').date()
         except ValueError:
-            pass # Fallback to today if invalid
+            pass
 
-    # 2. Calculate Start Date (The Sunday of 2 weeks ago)
-    # This puts "Today" in the 3rd row, allowing you to "scroll up" to see history.
+    # 2. Anchor to the Sunday of 2 weeks ago (to keep alignment)
     days_since_sunday = (anchor_date.weekday() + 1) % 7
     sunday_of_current_week = anchor_date - timedelta(days=days_since_sunday)
-    
-    # Go back 2 more weeks from the current week's Sunday
     start_date = sunday_of_current_week - timedelta(weeks=2)
     
-    # 3. Generate 8 Weeks of Calendar Chunks (2 past, 6 future)
+    # 3. Generate 8 Weeks, BUT only grab Mon-Fri
     weeks = []
     for w in range(8): 
         week_days = []
-        for d in range(7):
+        # Range(1, 6) skips 0 (Sun) and 6 (Sat)
+        # 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri
+        for d in range(1, 6): 
             day_offset = (w * 7) + d
             week_days.append(start_date + timedelta(days=day_offset))
         weeks.append(week_days)
 
-    # 4. Define Data Range
+    # 4. Fetch Orders (Logic unchanged, covers full range)
     end_date = start_date + timedelta(weeks=8)
     
-    # 5. Fetch Orders in Range
-    scheduled_releases = ReleaseOrder.objects.filter(
-        scheduled_date__gte=start_date, 
-        scheduled_date__lte=end_date
-    )
-    scheduled_pos = PurchaseOrder.objects.filter(
-        scheduled_date__gte=start_date, 
-        scheduled_date__lte=end_date
-    )
-    
-    # Combine lists
+    scheduled_releases = ReleaseOrder.objects.filter(scheduled_date__gte=start_date, scheduled_date__lte=end_date)
+    scheduled_pos = PurchaseOrder.objects.filter(scheduled_date__gte=start_date, scheduled_date__lte=end_date)
     scheduled_orders = list(scheduled_releases) + list(scheduled_pos)
     
-    # 6. Fetch Unscheduled Orders & Resources
-    unscheduled_releases = ReleaseOrder.objects.filter(scheduled_date__isnull=True)
-    unscheduled_pos = PurchaseOrder.objects.filter(scheduled_date__isnull=True)
-    
-    unscheduled_orders = list(unscheduled_releases) + list(unscheduled_pos)
+    unscheduled_orders = list(ReleaseOrder.objects.filter(scheduled_date__isnull=True)) + \
+                         list(PurchaseOrder.objects.filter(scheduled_date__isnull=True))
     
     trucks = Truck.objects.filter(is_active=True).order_by('name')
 
