@@ -1,6 +1,7 @@
 <div 
     id="order-{{ order.id }}"
-    class="draggable-card mb-1 pr-1.5 rounded border shadow-sm cursor-move hover:shadow-md transition-all select-none group h-7 flex items-center gap-2 text-[10px] overflow-visible
+    class="draggable-card mb-1 pr-1.5 rounded border shadow-sm cursor-move hover:shadow-md transition-all select-none group h-7 flex items-center gap-2 text-[10px] overflow-visible w-full max-w-full
+    {# --- STATUS COLOR LOGIC (Outer Div) --- #}
     {% if order.status == 'scheduled' %}bg-white border-gray-300
     {% elif order.status == 'picking' %}bg-yellow-200 border-yellow-400
     {% elif order.status == 'shipped' %}bg-green-200 border-green-400
@@ -87,7 +88,7 @@
         </div>
     </div>
 
-    <div class="no-drag flex-1 flex items-center gap-2 overflow-hidden h-full cursor-pointer z-10"
+    <div class="flex-1 flex items-center gap-2 overflow-hidden h-full cursor-pointer z-10"
          @click="historyOpen = true"
          hx-get="/app/side-panel/{{ order.order_type }}/{{ order.id }}/"
          hx-target="#side-panel-content"

@@ -15,22 +15,19 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
     <style>
-        /* === THE WEEKLY GRID === */
-        /* Col 1: Resource Name (Fixed 200px) */
-        /* Cols 2-8: The 7 Days (Equal Fractions) */
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: 200px repeat(5, 1fr); 
-            width: 100%;
-            min-width: 1000px; /* Prevents scrunching on small laptops */
-        }
-        
-        /* Hide scrollbars for a cleaner look */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Smooth transitions for hover effects */
-        .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+    /* === THE WORK WEEK GRID === */
+    /* Applied to EACH ROW now, instead of the parent */
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: 200px repeat(5, minmax(0, 1fr)); 
+        width: 100%;
+        min-width: 1000px;
+    }
+    
+    /* Keep existing styles... */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans h-screen flex flex-col overflow-hidden" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

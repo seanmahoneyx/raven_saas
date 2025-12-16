@@ -5,6 +5,7 @@ from django.views.decorators.http import require_http_methods
 from datetime import date, timedelta, datetime
 from itertools import chain
 from operator import attrgetter
+from django.http import QueryDict
 
 from .models import ReleaseOrder, PurchaseOrder
 from warehousing.models import Truck
@@ -58,13 +59,21 @@ def schedulizer_dashboard(request):
     return render(request, 'scheduling/schedulizer_dashboard.html', context)
 
 
-@require_http_methods(["PUT"])
+# scheduling/views.py
+
+# scheduling/views.py
+
+@require_http_methods(["POST"])
 def schedule_update(request, order_id):
-    """HTMX: Handles drag-and-drop updates."""
-    new_date_str = request.PUT.get('new_date')
-    new_truck_id = request.PUT.get('new_truck_id')
-    order_type = request.PUT.get('order_type')
+    """HTMX: Handles drag-and-drop updates via POST."""
     
+    new_date_str = request.POST.get('new_date')
+    new_truck_id = request.POST.get('new_truck_id')
+    order_type = request.POST.get('order_type')
+    
+    print(f"--- DRAG DROP UPDATE for Order {order_id} ({order_type}) ---")
+    print(f"Truck ID: {new_truck_id}")
+
     if order_type == 'REL':
         OrderModel = ReleaseOrder
     else:
@@ -72,18 +81,20 @@ def schedule_update(request, order_id):
 
     order = get_object_or_404(OrderModel, pk=order_id)
 
-    # Update Date
+    # 1. Update Date
     if new_date_str and new_date_str != 'null':
         order.scheduled_date = date.fromisoformat(new_date_str)
     else:
         order.scheduled_date = None
     
-    # Update Truck (Rel Only)
-    if hasattr(order, 'scheduled_truck'):
-        if new_truck_id and new_truck_id != 'null':
-            order.scheduled_truck_id = int(new_truck_id)
-        else:
-            order.scheduled_truck = None
+    # 2. Update Truck (ALLOWED FOR BOTH NOW)
+    # Check if the truck ID is valid (not 'null', 'None', or empty)
+    if new_truck_id and new_truck_id != 'null' and new_truck_id != 'None':
+        order.scheduled_truck_id = int(new_truck_id)
+        print(f"-> Assigned to Truck ID: {new_truck_id}")
+    else:
+        order.scheduled_truck = None
+        print("-> Unassigned from Truck")
     
     order.save()
     
@@ -104,14 +115,20 @@ def update_order_status(request, order_type, order_id):
     new_status = request.POST.get('status')
     
     if new_status:
-        print(f"Updating Status: {order.number} -> {new_status}")
+        # print(f"Updating Status: {order.number} -> {new_status}") 
         order.status = new_status
         order.save()
         
-    # CRITICAL: Fetch a brand new instance to bypass cache/memory
+    # Fetch fresh instance
     updated_order = Model.objects.get(pk=order.pk)
-        
-    return render(request, 'scheduling/partials/order_card.html', {'order': updated_order})
+    
+    response = render(request, 'scheduling/partials/order_card.html', {'order': updated_order})
+    
+    # === THE FIX: SEND THE SIGNAL ===
+    # This tells the Right Side Panel (and anything else listening) to refresh immediately.
+    response['HX-Trigger'] = 'historyChanged'
+    
+    return response
 
 
 @require_http_methods(["POST"])

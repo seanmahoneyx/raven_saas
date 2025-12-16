@@ -1,17 +1,21 @@
 {% extends 'scheduling/base_schedulizer.html' %}
 
 {% block content %}
-    <div class="w-80 bg-white border-r flex flex-col shrink-0 z-10 shadow-lg h-full">
+    <div class="w-64 bg-white border-r flex flex-col shrink-0 z-10 shadow-lg h-full transition-all duration-300">
         <div class="p-4 border-b bg-gray-50">
-            <h2 class="font-bold text-gray-700">Unscheduled Orders</h2>
+            <h2 class="font-bold text-gray-700 text-sm">Unscheduled</h2>
             <div class="text-xs text-gray-400 mt-1 flex justify-between">
                 <span>Drag to calendar</span>
                 <span class="font-mono bg-gray-200 px-1 rounded">{{ unscheduled_orders|length }}</span>
             </div>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-3 bg-gray-50/50">
-            {% include 'scheduling/partials/unscheduled_list.html' %}
+        <div class="flex-1 overflow-y-auto p-2 bg-gray-50/50 sortable-list" 
+             data-date="null" 
+             data-truck="null">
+            {% for order in unscheduled_orders %}
+                {% include 'scheduling/partials/order_card.html' %}
+            {% endfor %}
         </div>
     </div>
 
@@ -22,7 +26,7 @@
             <div class="bg-white rounded-lg shadow border border-gray-200 min-w-full mb-10 break-inside-avoid">
                 
                 <div class="bg-gray-50 border-b p-2 text-xs font-bold text-gray-500 uppercase tracking-widest text-center flex justify-between px-4">
-                    <!-- <span>Week {{ forloop.counter }}</span> -->
+                    <span>Week {{ forloop.counter }}</span>
                     <span>Starting {{ week_days.0|date:"M d, Y" }}</span>
                 </div>
 
@@ -42,76 +46,71 @@
         <div class="h-20"></div>
     </main>
 
-    <div class="w-96 bg-white border-l flex flex-col shrink-0 z-10 shadow-lg transition-all duration-300"
+    <div class="w-80 bg-white border-l flex flex-col shrink-0 z-10 shadow-lg transition-all duration-300"
          x-data="{ open: true }"
-         :class="open ? 'w-96' : 'w-12'">
+         :class="open ? 'w-80' : 'w-12'">
          
         <div class="p-3 border-b flex justify-between items-center bg-gray-50 h-14">
-            <h2 class="font-bold text-gray-700 truncate pl-2" x-show="open">Activity Feed</h2>
+            <h2 class="font-bold text-gray-700 truncate pl-2 text-sm" x-show="open">Activity Feed</h2>
             <button @click="open = !open" class="text-gray-400 hover:text-blue-600 focus:outline-none">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
                 </svg>
             </button>
         </div>
-        <div class="w-96 bg-white border-l flex flex-col shrink-0 z-10 shadow-lg transition-all duration-300"
-            x-data="{ open: true }"
-            :class="open ? 'w-96' : 'w-12'">
-            
-            <div class="flex-1 overflow-y-auto" x-show="open">
-                <div id="side-panel-content"
-                    hx-get="/app/global-history/"
-                    hx-trigger="load, historyChanged from:body"
-                    class="h-full">
-                    </div>
-            </div>
+
+        <div class="flex-1 overflow-y-auto" x-show="open">
+            <div id="side-panel-content"
+                 hx-get="/app/global-history/"
+                 hx-trigger="load, historyChanged from:body"
+                 class="h-full">
+                 </div>
         </div>
     </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Scroll to the 3rd week (Current Week)
-        const mainCal = document.getElementById('main-calendar');
-        const weekBlocks = mainCal.querySelectorAll('.break-inside-avoid');
-        if (weekBlocks.length >= 3) {
-            weekBlocks[2].scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Scroll to the 3rd week (Current Week)
+            const mainCal = document.getElementById('main-calendar');
+            const weekBlocks = mainCal.querySelectorAll('.break-inside-avoid');
+            if (weekBlocks.length >= 3) {
+                weekBlocks[2].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
 
-        // Initialize SortableJS
-        const containers = document.querySelectorAll('.sortable-list');
-        containers.forEach(function (container) {
-            new Sortable(container, {
-                group: 'shared',
-                animation: 150,
-                ghostClass: 'opacity-50', 
-                delay: 0, 
-                
-                // --- THE CRITICAL FIX ---
-                filter: ".no-drag",  // Ignore elements with this class
-                preventOnFilter: false, // Allow clicks on filtered elements to work normally
-                // ------------------------
-
-                onAdd: function (evt) {
-                    const itemEl = evt.item; 
-                    const newContainer = evt.to;
+            // Initialize SortableJS
+            const containers = document.querySelectorAll('.sortable-list');
+            containers.forEach(function (container) {
+                new Sortable(container, {
+                    group: 'shared',
+                    animation: 150,
+                    ghostClass: 'opacity-50', 
+                    delay: 0, 
                     
-                    const orderId = itemEl.getAttribute('data-order-id');
-                    const orderType = itemEl.getAttribute('data-order-type');
-                    const newDate = newContainer.getAttribute('data-date');
-                    const newTruck = newContainer.getAttribute('data-truck');
+                    filter: ".no-drag", 
+                    preventOnFilter: false, 
 
-                    htmx.ajax('PUT', `/app/schedule-update/${orderId}/`, {
-                        target: itemEl,
-                        swap: 'outerHTML',
-                        values: {
-                            new_date: newDate,
-                            new_truck_id: newTruck,
-                            order_type: orderType
-                        }
-                    });
-                }
+                    onAdd: function (evt) {
+                        const itemEl = evt.item; 
+                        const newContainer = evt.to;
+                        
+                        const orderId = itemEl.getAttribute('data-order-id');
+                        const orderType = itemEl.getAttribute('data-order-type');
+                        const newDate = newContainer.getAttribute('data-date');
+                        const newTruck = newContainer.getAttribute('data-truck');
+
+                        // CHANGED: Use 'POST' instead of 'PUT'
+                        htmx.ajax('POST', `/app/schedule-update/${orderId}/`, {
+                            target: itemEl,
+                            swap: 'outerHTML',
+                            values: {
+                                new_date: newDate,
+                                new_truck_id: newTruck,
+                                order_type: orderType
+                            }
+                        });
+                    }
+                });
             });
         });
-    });
-</script>
+    </script>
 {% endblock %}

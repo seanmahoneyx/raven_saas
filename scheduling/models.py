@@ -61,6 +61,8 @@ class PurchaseOrder(BaseOrder):
     
     # Scheduling Fields
     scheduled_date = models.DateField(null=True, blank=True, default=None)
+
+    scheduled_truck = models.ForeignKey(Truck, on_delete=models.SET_NULL, null=True, blank=True, default=None)
     
     # Audit Trail
     history = HistoricalRecords()
