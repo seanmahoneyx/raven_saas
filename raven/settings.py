@@ -37,8 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # New tenant system
+    # New SaaS apps
     'apps.tenants',
+    'apps.parties',
     # Legacy apps (will be migrated)
     'core',
     'partners',
