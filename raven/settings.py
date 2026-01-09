@@ -37,6 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # New tenant system
+    'apps.tenants',
+    # Legacy apps (will be migrated)
     'core',
     'partners',
     'warehousing',
@@ -62,7 +65,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # CRITICAL: TenantMiddleware must come AFTER auth but BEFORE any app middleware
+    'apps.tenants.middleware.TenantMiddleware',
     'django_browser_reload.middleware.BrowserReloadMiddleware',
+    'simple_history.middleware.HistoryRequestMiddleware',
 ]
 
 ROOT_URLCONF = 'raven.urls'
@@ -133,3 +139,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 AUTH_USER_MODEL = 'users.User'
+
+# Auth Settings
+LOGIN_REDIRECT_URL = 'schedulizer_dashboard' 
+LOGOUT_REDIRECT_URL = 'login'
+LOGIN_URL = 'login'
