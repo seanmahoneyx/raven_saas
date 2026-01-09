@@ -1,0 +1,14 @@
+<div class="calendar-grid bg-gray-50 border-b border-gray-200 text-xs text-gray-500 font-medium">
+    
+    <div class="p-2 border-r border-gray-200 sticky left-0 z-20 bg-gray-50 flex items-center justify-center">
+        <span class="text-[10px] uppercase tracking-wider text-gray-400">Date</span>
+    </div>
+
+    {% for day in week_range %}
+        <div class="p-2 border-r border-gray-200 text-center flex flex-col justify-center
+                    {% if day == today %}bg-blue-50 text-blue-600 font-bold{% endif %}">
+            <span class="uppercase text-[10px]">{{ day|date:"D" }}</span>
+            <span class="text-sm">{{ day|date:"d" }}</span>
+        </div>
+    {% endfor %}
+</div>

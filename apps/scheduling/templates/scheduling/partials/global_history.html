@@ -1,0 +1,117 @@
+<div class="animate-fade-in">
+    <h4 class="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider border-b bg-gray-50 flex justify-between items-center">
+        <span>Recent Activity</span>
+        <button hx-get="/v2/global-history/" hx-target="#side-panel-content" class="hover:text-blue-600" title="Refresh Feed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        </button>
+    </h4>
+    
+    <ul class="divide-y divide-gray-100">
+        {% for record in history_records %}
+            <li class="p-3 hover:bg-gray-50 transition-colors">
+                <div class="flex justify-between items-start">
+                    <span class="font-bold text-gray-700 text-xs flex items-center gap-1">
+                        {% if record.instance.order_type == 'PO' %}
+                            <span class="text-green-600">PO</span>
+                        {% else %}
+                            <span class="text-blue-600">REL</span>
+                        {% endif %}
+                        {{ record.instance.number }}
+                    </span>
+                    <span class="text-[9px] text-gray-400 whitespace-nowrap ml-2">
+                        {{ record.history_date|date:"D g:i a" }}
+                    </span>
+                </div>
+
+                <div class="text-xs text-gray-600 mt-1 leading-snug">
+                    {% if record.history_type == '+' %}
+                        <span class="text-green-600 font-medium">Created Order</span>
+                        
+                    {% elif record.history_type == '-' %}
+                        <span class="text-red-600 font-medium">Deleted Order</span>
+                        
+                    {% else %}
+                        {% with prev=record.prev_record %}
+                            
+                            {% if prev.status != record.status %}
+                                <div class="flex items-center gap-1 mb-1">
+                                    <span class="text-gray-400 text-[10px]">Status:</span>
+                                    <span class="line-through text-gray-400 text-[10px]">{{ prev.status|default:"None" }}</span>
+                                    <span>&rarr;</span>
+                                    <span class="font-bold 
+                                        {% if record.status == 'shipped' %}text-green-600
+                                        {% elif record.status == 'complete' %}text-blue-600
+                                        {% elif record.status == 'picking' %}text-yellow-600
+                                        {% else %}text-gray-800{% endif %}">
+                                        {{ record.status }}
+                                    </span>
+                                </div>
+                            {% endif %}
+
+                            {% if prev.scheduled_date != record.scheduled_date %}
+                                <div class="mb-1">
+                                    {% if prev.scheduled_date %}
+                                        <span class="text-orange-600">Rescheduled</span>
+                                        <span class="text-gray-400 text-[10px]">from {{ prev.scheduled_date|date:"M d" }}</span>
+                                        <span>to</span>
+                                    {% else %}
+                                        <span class="text-green-600">Scheduled</span> for
+                                    {% endif %}
+                                    <span class="font-bold text-gray-800">
+                                        {{ record.scheduled_date|date:"M d"|default:"Unscheduled" }}
+                                    </span>
+                                </div>
+                            {% endif %}
+
+                            {% if prev.scheduled_truck_id != record.scheduled_truck_id %}
+                                <div class="flex items-center gap-1 mb-1 bg-blue-50/50 p-1 rounded -ml-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                                    
+                                    {% if prev.scheduled_truck %}
+                                        <span class="text-gray-500 line-through text-[10px]">{{ prev.scheduled_truck }}</span>
+                                    {% else %}
+                                        <span class="text-gray-400 italic text-[10px]">Unassigned</span>
+                                    {% endif %}
+                                    
+                                    <span class="text-gray-400">&rarr;</span>
+                                    
+                                    {% if record.scheduled_truck %}
+                                        <span class="font-bold text-blue-700">{{ record.scheduled_truck }}</span>
+                                    {% else %}
+                                        <span class="text-red-400 italic">Unassigned</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                            
+                            {% if prev.notes != record.notes %}
+                                <div class="text-[10px] text-gray-400 italic">
+                                    Updated notes
+                                </div>
+                            {% endif %}
+
+                            {% if prev.status == record.status and prev.scheduled_date == record.scheduled_date and prev.scheduled_truck_id == record.scheduled_truck_id and prev.notes == record.notes %}
+                                <span class="text-gray-400">Updated details</span>
+                            {% endif %}
+
+                        {% endwith %}
+                    {% endif %}
+                </div>
+
+                <div class="text-[10px] text-gray-500 mt-1 text-right font-mono flex justify-end items-center gap-1">
+                    <span class="text-gray-300">By:</span>
+                    <span class="font-medium text-gray-600">
+                        {% if record.history_user %}
+                            {{ record.history_user.first_name|default:record.history_user.username }}
+                        {% else %}
+                            System
+                        {% endif %}
+                    </span>
+                </div>
+            </li>
+        {% empty %}
+            <li class="p-8 text-center text-gray-400 text-xs italic">
+                No recent activity found.
+            </li>
+        {% endfor %}
+    </ul>
+</div>
