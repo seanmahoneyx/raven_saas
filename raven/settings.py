@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     # New SaaS apps
     'apps.tenants',
     'apps.parties',
+    'apps.items',
     # Legacy apps (will be migrated)
     'core',
     'partners',
