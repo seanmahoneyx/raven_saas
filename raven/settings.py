@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'apps.parties',
     'apps.items',
     'apps.orders',
+    'apps.pricing',
+    'apps.costing',
     'apps.scheduling',
     # Legacy apps (will be migrated)
     'core',
