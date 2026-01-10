@@ -47,33 +47,36 @@ class TenantIsolationSecurityTests(TransactionTestCase):
             is_active=True
         )
 
-        # Create UOM (shared across tenants, not tenant-specific)
-        self.uom = UnitOfMeasure.objects.create(
-            name="Each",
-            abbreviation="ea"
-        )
+        # Create UOM for tenant 1
+        with TenantContext(self.tenant1):
+            self.uom = UnitOfMeasure.objects.create(
+                name="Each",
+                code="ea",
+                tenant=self.tenant1
+            )
 
         # Create data for Tenant 1
         with TenantContext(self.tenant1):
             self.tenant1_party = Party.objects.create(
-                name="Tenant 1 Party",
+                display_name="Tenant 1 Party",
                 tenant=self.tenant1
             )
             self.tenant1_customer = Customer.objects.create(
                 party=self.tenant1_party,
-                credit_limit=10000.00
+                tenant=self.tenant1
             )
             self.tenant1_location = Location.objects.create(
                 party=self.tenant1_party,
                 name="Tenant 1 Location",
-                address_1="123 First St",
+                address_line1="123 First St",
                 city="City1",
                 state="CA",
-                zip_code="90001",
+                postal_code="90001",
                 tenant=self.tenant1
             )
             self.tenant1_item = Item.objects.create(
                 sku="ITEM-T1-001",
+                name="Tenant 1 Item",
                 description="Tenant 1 Item",
                 base_uom=self.uom,
                 tenant=self.tenant1
@@ -92,24 +95,25 @@ class TenantIsolationSecurityTests(TransactionTestCase):
         # Create data for Tenant 2
         with TenantContext(self.tenant2):
             self.tenant2_party = Party.objects.create(
-                name="Tenant 2 Party",
+                display_name="Tenant 2 Party",
                 tenant=self.tenant2
             )
             self.tenant2_customer = Customer.objects.create(
                 party=self.tenant2_party,
-                credit_limit=20000.00
+                tenant=self.tenant2
             )
             self.tenant2_location = Location.objects.create(
                 party=self.tenant2_party,
                 name="Tenant 2 Location",
-                address_1="456 Second St",
+                address_line1="456 Second St",
                 city="City2",
                 state="NY",
-                zip_code="10001",
+                postal_code="10001",
                 tenant=self.tenant2
             )
             self.tenant2_item = Item.objects.create(
                 sku="ITEM-T2-001",
+                name="Tenant 2 Item",
                 description="Tenant 2 Item",
                 base_uom=self.uom,
                 tenant=self.tenant2
@@ -319,7 +323,7 @@ class TenantIsolationSecurityTests(TransactionTestCase):
         # Verify tenant 2's party was NOT updated
         with TenantContext(self.tenant2):
             tenant2_party = Party.objects.get(id=self.tenant2_party.id)
-            self.assertEqual(tenant2_party.name, "Tenant 2 Party")
+            self.assertEqual(tenant2_party.display_name, "Tenant 2 Party")
 
     def test_aggregate_queries_isolated(self):
         """
@@ -395,11 +399,11 @@ class TenantContextSecurityTests(TestCase):
         """
         with TenantContext(self.tenant1):
             # Create party in tenant 1
-            party1 = Party.objects.create(name="Party 1", tenant=self.tenant1)
+            party1 = Party.objects.create(display_name="Party 1", tenant=self.tenant1)
 
             with TenantContext(self.tenant2):
                 # Create party in tenant 2
-                party2 = Party.objects.create(name="Party 2", tenant=self.tenant2)
+                party2 = Party.objects.create(display_name="Party 2", tenant=self.tenant2)
 
                 # Should only see tenant 2 data
                 self.assertEqual(Party.objects.count(), 1)
@@ -417,11 +421,11 @@ class TenantContextSecurityTests(TestCase):
         Attack: Trigger exception inside tenant context to leave system in wrong tenant.
         """
         with TenantContext(self.tenant1):
-            Party.objects.create(name="Party 1", tenant=self.tenant1)
+            Party.objects.create(display_name="Party 1", tenant=self.tenant1)
 
             try:
                 with TenantContext(self.tenant2):
-                    Party.objects.create(name="Party 2", tenant=self.tenant2)
+                    Party.objects.create(display_name="Party 2", tenant=self.tenant2)
                     # Simulate an error
                     raise ValueError("Test exception")
             except ValueError:
@@ -430,7 +434,7 @@ class TenantContextSecurityTests(TestCase):
             # After exception, should still be in tenant 1 context
             parties = Party.objects.all()
             self.assertEqual(parties.count(), 1)
-            self.assertEqual(parties.first().name, "Party 1")
+            self.assertEqual(parties.first().display_name, "Party 1")
 
     def test_concurrent_tenant_context_isolation(self):
         """
@@ -441,10 +445,10 @@ class TenantContextSecurityTests(TestCase):
         """
         # Create parties in different contexts
         with TenantContext(self.tenant1):
-            Party.objects.create(name="Party 1", tenant=self.tenant1)
+            Party.objects.create(display_name="Party 1", tenant=self.tenant1)
 
         with TenantContext(self.tenant2):
-            Party.objects.create(name="Party 2", tenant=self.tenant2)
+            Party.objects.create(display_name="Party 2", tenant=self.tenant2)
 
         # Verify isolation
         with TenantContext(self.tenant1):

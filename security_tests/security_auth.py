@@ -288,15 +288,15 @@ class AuthorizationSecurityTests(TestCase):
             from apps.orders.models import SalesOrder
             from apps.parties.models import Party, Customer, Location
 
-            party = Party.objects.create(name="Test Party", tenant=self.tenant1)
+            party = Party.objects.create(display_name="Test Party", tenant=self.tenant1)
             customer = Customer.objects.create(party=party)
             location = Location.objects.create(
                 party=party,
                 name="Test Location",
-                address_1="123 Test St",
+                address_line1="123 Test St",
                 city="Test City",
                 state="CA",
-                zip_code="90001",
+                postal_code="90001",
                 tenant=self.tenant1
             )
 

@@ -86,7 +86,7 @@ class SQLInjectionSecurityTests(TestCase):
         """
         with TenantContext(self.tenant):
             # Create test data
-            Party.objects.create(name="Legitimate Party", tenant=self.tenant)
+            Party.objects.create(display_name="Legitimate Party", tenant=self.tenant)
 
             malicious_filters = [
                 "' OR '1'='1",
@@ -115,8 +115,8 @@ class SQLInjectionSecurityTests(TestCase):
         Attack: Use SQL injection in sorting parameters.
         """
         with TenantContext(self.tenant):
-            Party.objects.create(name="Party A", tenant=self.tenant)
-            Party.objects.create(name="Party B", tenant=self.tenant)
+            Party.objects.create(display_name="Party A", tenant=self.tenant)
+            Party.objects.create(display_name="Party B", tenant=self.tenant)
 
             malicious_order_by = [
                 "name; DROP TABLE parties_party; --",
@@ -145,7 +145,7 @@ class SQLInjectionSecurityTests(TestCase):
         Attack: If raw SQL is used anywhere, test parameter binding.
         """
         with TenantContext(self.tenant):
-            Party.objects.create(name="Test Party", tenant=self.tenant)
+            Party.objects.create(display_name="Test Party", tenant=self.tenant)
 
             # Malicious input
             malicious_input = "'; DROP TABLE parties_party; --"
@@ -187,7 +187,7 @@ class SQLInjectionSecurityTests(TestCase):
         Attack: Use SQL injection via extra() queries.
         """
         with TenantContext(self.tenant):
-            Party.objects.create(name="Test Party", tenant=self.tenant)
+            Party.objects.create(display_name="Test Party", tenant=self.tenant)
 
             malicious_where = "1=1 OR '1'='1"
 
@@ -265,12 +265,13 @@ class XSSSecurityTests(TestCase):
         Attack: Inject XSS through product descriptions.
         """
         with TenantContext(self.tenant):
-            uom = UnitOfMeasure.objects.create(name="Each", abbreviation="ea")
+            uom = UnitOfMeasure.objects.create(name="Each", code="ea")
 
             xss_payload = "<script>alert('XSS in description')</script>"
 
             item = Item.objects.create(
                 sku="TEST-001",
+                name="Test Item",
                 description=xss_payload,
                 base_uom=uom,
                 tenant=self.tenant
@@ -292,16 +293,16 @@ class XSSSecurityTests(TestCase):
         with TenantContext(self.tenant):
             from apps.parties.models import Location
 
-            uom = UnitOfMeasure.objects.create(name="Each", abbreviation="ea")
-            party = Party.objects.create(name="Test Party", tenant=self.tenant)
+            uom = UnitOfMeasure.objects.create(name="Each", code="ea")
+            party = Party.objects.create(display_name="Test Party", tenant=self.tenant)
             customer = Customer.objects.create(party=party)
             location = Location.objects.create(
                 party=party,
                 name="Test Location",
-                address_1="123 Test St",
+                address_line1="123 Test St",
                 city="Test",
                 state="CA",
-                zip_code="90001",
+                postal_code="90001",
                 tenant=self.tenant
             )
 

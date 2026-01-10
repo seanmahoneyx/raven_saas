@@ -51,16 +51,16 @@ class SchedulizerEndpointSecurityTests(TestCase):
 
         # Create test data for tenant 1
         with TenantContext(self.tenant1):
-            uom = UnitOfMeasure.objects.create(name="Each", abbreviation="ea")
-            party1 = Party.objects.create(name="Party 1", tenant=self.tenant1)
+            uom = UnitOfMeasure.objects.create(name="Each", code="ea")
+            party1 = Party.objects.create(display_name="Party 1", tenant=self.tenant1)
             customer1 = Customer.objects.create(party=party1)
             location1 = Location.objects.create(
                 party=party1,
                 name="Location 1",
-                address_1="123 St",
+                address_line1="123 St",
                 city="City",
                 state="CA",
-                zip_code="90001",
+                postal_code="90001",
                 tenant=self.tenant1
             )
             self.truck1 = Truck.objects.create(name="Truck 1", tenant=self.tenant1)
@@ -74,15 +74,15 @@ class SchedulizerEndpointSecurityTests(TestCase):
 
         # Create test data for tenant 2
         with TenantContext(self.tenant2):
-            party2 = Party.objects.create(name="Party 2", tenant=self.tenant2)
+            party2 = Party.objects.create(display_name="Party 2", tenant=self.tenant2)
             customer2 = Customer.objects.create(party=party2)
             location2 = Location.objects.create(
                 party=party2,
                 name="Location 2",
-                address_1="456 St",
+                address_line1="456 St",
                 city="City",
                 state="NY",
-                zip_code="10001",
+                postal_code="10001",
                 tenant=self.tenant2
             )
             self.truck2 = Truck.objects.create(name="Truck 2", tenant=self.tenant2)
