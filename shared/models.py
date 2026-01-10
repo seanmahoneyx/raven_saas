@@ -4,9 +4,36 @@ Abstract base models for the entire application.
 
 TenantMixin: Adds automatic tenant scoping to any model
 TimestampMixin: Adds created_at and updated_at timestamps
+TenantContext: Context manager for setting tenant in tests/scripts
 """
 from django.db import models
-from .managers import TenantManager
+from .managers import TenantManager, set_current_tenant, get_current_tenant
+
+
+class TenantContext:
+    """
+    Context manager for temporarily setting the current tenant.
+
+    Useful for testing and management commands that need to operate
+    within a specific tenant's context.
+
+    Example:
+        with TenantContext(tenant):
+            # All queries here are scoped to this tenant
+            customers = Customer.objects.all()
+    """
+    def __init__(self, tenant):
+        self.tenant = tenant
+        self.previous_tenant = None
+
+    def __enter__(self):
+        self.previous_tenant = get_current_tenant()
+        set_current_tenant(self.tenant)
+        return self.tenant
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        set_current_tenant(self.previous_tenant)
+        return False
 
 
 class TenantMixin(models.Model):
