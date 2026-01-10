@@ -1,0 +1,249 @@
+{% extends "orders/base_orders.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div>
+        <h2 class="text-3xl font-bold text-gray-900">Dashboard</h2>
+        <p class="mt-1 text-sm text-gray-500">Welcome to Raven Order Management</p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <a href="{% url 'orders:purchase_order_create' %}"
+           class="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-all border-l-4 border-blue-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Create</p>
+                    <p class="text-lg font-semibold text-gray-900">Purchase Order</p>
+                </div>
+                <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </div>
+        </a>
+
+        <a href="{% url 'orders:sales_order_create' %}"
+           class="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-all border-l-4 border-green-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Create</p>
+                    <p class="text-lg font-semibold text-gray-900">Sales Order</p>
+                </div>
+                <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+            </div>
+        </a>
+
+        <a href="/v2/"
+           class="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-all border-l-4 border-purple-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Open</p>
+                    <p class="text-lg font-semibold text-gray-900">Scheduler</p>
+                </div>
+                <svg class="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+            </div>
+        </a>
+
+        <a href="/admin/"
+           class="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-all border-l-4 border-gray-500">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Open</p>
+                    <p class="text-lg font-semibold text-gray-900">Admin</p>
+                </div>
+                <svg class="w-10 h-10 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </div>
+        </a>
+    </div>
+
+    <!-- Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Purchase Orders -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Purchase Orders</h3>
+                <a href="{% url 'orders:purchase_order_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-3xl font-bold text-gray-900">{{ po_stats.total }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Total Orders</div>
+                </div>
+                <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                    <div class="text-3xl font-bold text-yellow-700">{{ po_stats.unscheduled }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Unscheduled</div>
+                </div>
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                    <div class="text-3xl font-bold text-blue-700">{{ po_stats.this_week }}</div>
+                    <div class="text-sm text-gray-500 mt-1">This Week</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-3xl font-bold text-gray-600">{{ po_stats.draft }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Draft</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales Orders -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Sales Orders</h3>
+                <a href="{% url 'orders:sales_order_list' %}" class="text-sm text-blue-600 hover:text-blue-800">View All →</a>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-3xl font-bold text-gray-900">{{ so_stats.total }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Total Orders</div>
+                </div>
+                <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                    <div class="text-3xl font-bold text-yellow-700">{{ so_stats.unscheduled }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Unscheduled</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                    <div class="text-3xl font-bold text-green-700">{{ so_stats.this_week }}</div>
+                    <div class="text-sm text-gray-500 mt-1">This Week</div>
+                </div>
+                <div class="text-center p-4 bg-gray-50 rounded-lg">
+                    <div class="text-3xl font-bold text-gray-600">{{ so_stats.draft }}</div>
+                    <div class="text-sm text-gray-500 mt-1">Draft</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity & Upcoming -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Purchase Orders -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Purchase Orders</h3>
+            </div>
+            <div class="divide-y divide-gray-200">
+                {% for po in recent_pos %}
+                <a href="{% url 'orders:purchase_order_detail' po.pk %}"
+                   class="block px-6 py-4 hover:bg-gray-50 transition-all">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-blue-600">PO-{{ po.po_number }}</p>
+                            <p class="text-sm text-gray-900 mt-1">{{ po.vendor.party.display_name }}</p>
+                            <p class="text-xs text-gray-500 mt-1">{{ po.created_at|timesince }} ago</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full
+                            {% if po.status == 'draft' %}bg-gray-100 text-gray-800
+                            {% elif po.status == 'confirmed' %}bg-blue-100 text-blue-800
+                            {% elif po.status == 'scheduled' %}bg-yellow-100 text-yellow-800
+                            {% elif po.status == 'complete' %}bg-green-100 text-green-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ po.get_status_display }}
+                        </span>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="px-6 py-8 text-center text-gray-500">
+                    No purchase orders yet.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Recent Sales Orders -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Sales Orders</h3>
+            </div>
+            <div class="divide-y divide-gray-200">
+                {% for so in recent_sos %}
+                <a href="{% url 'orders:sales_order_detail' so.pk %}"
+                   class="block px-6 py-4 hover:bg-gray-50 transition-all">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-green-600">SO-{{ so.order_number }}</p>
+                            <p class="text-sm text-gray-900 mt-1">{{ so.customer.party.display_name }}</p>
+                            <p class="text-xs text-gray-500 mt-1">{{ so.created_at|timesince }} ago</p>
+                        </div>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full
+                            {% if so.status == 'draft' %}bg-gray-100 text-gray-800
+                            {% elif so.status == 'confirmed' %}bg-blue-100 text-blue-800
+                            {% elif so.status == 'scheduled' %}bg-yellow-100 text-yellow-800
+                            {% elif so.status == 'complete' %}bg-green-100 text-green-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ so.get_status_display }}
+                        </span>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="px-6 py-8 text-center text-gray-500">
+                    No sales orders yet.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Upcoming Purchase Orders -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Upcoming POs (Scheduled)</h3>
+            </div>
+            <div class="divide-y divide-gray-200">
+                {% for po in upcoming_pos %}
+                <a href="{% url 'orders:purchase_order_detail' po.pk %}"
+                   class="block px-6 py-4 hover:bg-gray-50 transition-all">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-blue-600">PO-{{ po.po_number }}</p>
+                            <p class="text-sm text-gray-900 mt-1">{{ po.vendor.party.display_name }}</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                {{ po.scheduled_date|date:"M d, Y" }}
+                                {% if po.scheduled_truck %} • Truck {{ po.scheduled_truck.truck_number }}{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="px-6 py-8 text-center text-gray-500">
+                    No scheduled purchase orders.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Upcoming Sales Orders -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900">Upcoming SOs (Scheduled)</h3>
+            </div>
+            <div class="divide-y divide-gray-200">
+                {% for so in upcoming_sos %}
+                <a href="{% url 'orders:sales_order_detail' so.pk %}"
+                   class="block px-6 py-4 hover:bg-gray-50 transition-all">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm font-medium text-green-600">SO-{{ so.order_number }}</p>
+                            <p class="text-sm text-gray-900 mt-1">{{ so.customer.party.display_name }}</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                {{ so.scheduled_date|date:"M d, Y" }}
+                                {% if so.scheduled_truck %} • Truck {{ so.scheduled_truck.truck_number }}{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </a>
+                {% empty %}
+                <div class="px-6 py-8 text-center text-gray-500">
+                    No scheduled sales orders.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -414,3 +414,55 @@ class CalculateLineView(LoginRequiredMixin, View):
             return HttpResponse(f'${total:.2f}')
         except (ValueError, TypeError, Decimal.InvalidOperation):
             return HttpResponse('$0.00')
+
+
+class DashboardView(LoginRequiredMixin, View):
+    """
+    Main dashboard showing key metrics and recent activity.
+    """
+    def get(self, request):
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        today = timezone.now().date()
+        week_ago = today - timedelta(days=7)
+        
+        # Purchase Order Metrics
+        po_stats = {
+            'total': PurchaseOrder.objects.count(),
+            'unscheduled': PurchaseOrder.objects.filter(scheduled_date__isnull=True).count(),
+            'this_week': PurchaseOrder.objects.filter(scheduled_date__gte=today, scheduled_date__lt=today + timedelta(days=7)).count(),
+            'draft': PurchaseOrder.objects.filter(status='draft').count(),
+        }
+        
+        # Sales Order Metrics
+        so_stats = {
+            'total': SalesOrder.objects.count(),
+            'unscheduled': SalesOrder.objects.filter(scheduled_date__isnull=True).count(),
+            'this_week': SalesOrder.objects.filter(scheduled_date__gte=today, scheduled_date__lt=today + timedelta(days=7)).count(),
+            'draft': SalesOrder.objects.filter(status='draft').count(),
+        }
+        
+        # Recent Activity - Last 10 orders created or modified
+        recent_pos = PurchaseOrder.objects.select_related('vendor__party').order_by('-created_at')[:5]
+        recent_sos = SalesOrder.objects.select_related('customer__party').order_by('-created_at')[:5]
+        
+        # Upcoming scheduled orders
+        upcoming_pos = PurchaseOrder.objects.filter(
+            scheduled_date__gte=today
+        ).select_related('vendor__party', 'scheduled_truck').order_by('scheduled_date')[:5]
+        
+        upcoming_sos = SalesOrder.objects.filter(
+            scheduled_date__gte=today
+        ).select_related('customer__party', 'scheduled_truck').order_by('scheduled_date')[:5]
+        
+        context = {
+            'po_stats': po_stats,
+            'so_stats': so_stats,
+            'recent_pos': recent_pos,
+            'recent_sos': recent_sos,
+            'upcoming_pos': upcoming_pos,
+            'upcoming_sos': upcoming_sos,
+        }
+        
+        return render(request, 'orders/dashboard.html', context)

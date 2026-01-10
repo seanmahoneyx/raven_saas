@@ -8,6 +8,9 @@ from . import views
 app_name = 'orders'
 
 urlpatterns = [
+    # Dashboard
+    path('', views.DashboardView.as_view(), name='dashboard'),
+
     # Purchase Orders
     path('purchase/', views.PurchaseOrderListView.as_view(), name='purchase_order_list'),
     path('purchase/create/', views.PurchaseOrderCreateView.as_view(), name='purchase_order_create'),
