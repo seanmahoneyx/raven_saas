@@ -35,14 +35,23 @@
     <header class="bg-white border-b h-14 flex items-center px-6 justify-between shrink-0 z-20 relative shadow-sm">
         <div class="flex items-center gap-4">
             <h1 class="text-xl font-bold text-gray-800 tracking-tight">RAVEN <span class="text-blue-600 font-light">SCHEDULIZER</span></h1>
-            
-            <div class="flex items-center text-sm ml-8 bg-gray-100 rounded-md p-1">
-                <a href="?date={{ today|date:'Y-m-d' }}" class="px-3 py-1 bg-white shadow-sm rounded text-gray-700 font-medium hover:text-blue-600">
+
+            <nav class="flex items-center gap-2 ml-8">
+                <a href="?date={{ today|date:'Y-m-d' }}" class="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm font-medium hover:bg-gray-200 transition-all">
                     Jump to Today
                 </a>
-            </div>
+                <a href="/orders/purchase/" class="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium transition-all">
+                    Purchase Orders
+                </a>
+                <a href="/orders/sales/" class="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium transition-all">
+                    Sales Orders
+                </a>
+                <a href="/admin/" class="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium transition-all">
+                    Admin
+                </a>
+            </nav>
         </div>
-        
+
         <div class="text-xs text-gray-500 flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-green-500"></span> Live
         </div>

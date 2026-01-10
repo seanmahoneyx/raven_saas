@@ -15,5 +15,8 @@ urlpatterns = [
     # New schedulizer (tenant-aware models)
     path('v2/', include('apps.scheduling.urls')),
 
+    # Orders
+    path('orders/', include('apps.orders.urls')),
+
     path('__reload__/', include('django_browser_reload.urls')),
 ]

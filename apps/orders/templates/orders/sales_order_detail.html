@@ -1,0 +1,233 @@
+{% extends "orders/base_orders.html" %}
+
+{% block title %}SO-{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex justify-between items-start">
+        <div>
+            <div class="flex items-center gap-3">
+                <a href="{% url 'orders:sales_order_list' %}" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <h2 class="text-3xl font-bold text-gray-900">SO-{{ order.order_number }}</h2>
+                <span class="px-3 py-1 text-sm font-medium rounded-full
+                    {% if order.status == 'draft' %}bg-gray-100 text-gray-800
+                    {% elif order.status == 'confirmed' %}bg-blue-100 text-blue-800
+                    {% elif order.status == 'scheduled' %}bg-yellow-100 text-yellow-800
+                    {% elif order.status == 'picking' %}bg-purple-100 text-purple-800
+                    {% elif order.status == 'shipped' %}bg-indigo-100 text-indigo-800
+                    {% elif order.status == 'complete' %}bg-green-100 text-green-800
+                    {% elif order.status == 'cancelled' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ order.get_status_display }}
+                </span>
+            </div>
+            <p class="mt-1 text-sm text-gray-500">Created {{ order.created_at|date:"F d, Y \a\t g:i A" }}</p>
+        </div>
+        <a href="/admin/orders/salesorder/{{ order.pk }}/change/"
+           class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all">
+            Edit Order
+        </a>
+    </div>
+
+    <!-- Order Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Customer</div>
+            <div class="text-lg font-semibold text-gray-900">{{ order.customer.party.display_name }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Order Date</div>
+            <div class="text-lg font-semibold text-gray-900">{{ order.order_date|date:"M d, Y" }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Scheduled</div>
+            <div class="text-lg font-semibold text-gray-900">
+                {% if order.scheduled_date %}
+                    {{ order.scheduled_date|date:"M d, Y" }}
+                {% else %}
+                    <span class="text-gray-400">Not scheduled</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Total Value</div>
+            <div class="text-lg font-semibold text-gray-900">${{ order.subtotal|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <!-- Order Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Details -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Line Items -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">Line Items</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Line</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">UOM</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Line Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for line in order.lines.all %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ line.line_number }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900">{{ line.item.name }}</div>
+                                    <div class="text-xs text-gray-500">SKU: {{ line.item.sku }}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ line.quantity_ordered }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ line.uom.code }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">${{ line.unit_price|floatformat:2 }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">${{ line.line_total|floatformat:2 }}</td>
+                            </tr>
+                            {% if line.notes %}
+                            <tr>
+                                <td colspan="6" class="px-6 py-2 text-xs text-gray-600 bg-gray-50">
+                                    <span class="font-medium">Note:</span> {{ line.notes }}
+                                </td>
+                            </tr>
+                            {% endif %}
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                    No line items yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="bg-gray-50">
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 text-right text-sm font-semibold text-gray-900">Subtotal:</td>
+                                <td class="px-6 py-4 text-right text-sm font-bold text-gray-900">${{ order.subtotal|floatformat:2 }}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            {% if order.notes %}
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Order Notes</h3>
+                <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ order.notes }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Scheduling Information -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Scheduling</h3>
+                <div class="space-y-3">
+                    <div>
+                        <div class="text-sm font-medium text-gray-500">Scheduled Date</div>
+                        <div class="text-sm text-gray-900">
+                            {% if order.scheduled_date %}
+                                {{ order.scheduled_date|date:"F d, Y" }}
+                            {% else %}
+                                <span class="text-gray-400">Not scheduled</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-500">Assigned Truck</div>
+                        <div class="text-sm text-gray-900">
+                            {% if order.scheduled_truck %}
+                                {{ order.scheduled_truck.truck_number }}
+                            {% else %}
+                                <span class="text-gray-400">Not assigned</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm font-medium text-gray-500">Priority</div>
+                        <div class="text-sm text-gray-900">{{ order.priority }}</div>
+                    </div>
+                    {% if order.customer_po %}
+                    <div>
+                        <div class="text-sm font-medium text-gray-500">Customer PO</div>
+                        <div class="text-sm text-gray-900">{{ order.customer_po }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if not order.scheduled_date %}
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <a href="/v2/" class="block text-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm">
+                        Schedule in Calendar
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Ship To Location -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Ship To</h3>
+                <div class="text-sm text-gray-700">
+                    <div class="font-medium">{{ order.ship_to.name }}</div>
+                    {% if order.ship_to.address_line1 %}
+                    <div class="mt-1">
+                        {{ order.ship_to.address_line1 }}<br>
+                        {% if order.ship_to.address_line2 %}{{ order.ship_to.address_line2 }}<br>{% endif %}
+                        {{ order.ship_to.city }}, {{ order.ship_to.state }} {{ order.ship_to.postal_code }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Bill To Location -->
+            {% if order.bill_to %}
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Bill To</h3>
+                <div class="text-sm text-gray-700">
+                    <div class="font-medium">{{ order.bill_to.name }}</div>
+                    {% if order.bill_to.address_line1 %}
+                    <div class="mt-1">
+                        {{ order.bill_to.address_line1 }}<br>
+                        {% if order.bill_to.address_line2 %}{{ order.bill_to.address_line2 }}<br>{% endif %}
+                        {{ order.bill_to.city }}, {{ order.bill_to.state }} {{ order.bill_to.postal_code }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Customer Contact -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Customer Contact</h3>
+                <div class="text-sm text-gray-700">
+                    <div class="font-medium">{{ order.customer.party.display_name }}</div>
+                    {% if order.customer.party.email %}
+                    <div class="mt-2">
+                        <a href="mailto:{{ order.customer.party.email }}" class="text-blue-600 hover:text-blue-800">
+                            {{ order.customer.party.email }}
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if order.customer.party.phone %}
+                    <div class="mt-1">
+                        <a href="tel:{{ order.customer.party.phone }}" class="text-blue-600 hover:text-blue-800">
+                            {{ order.customer.party.phone }}
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

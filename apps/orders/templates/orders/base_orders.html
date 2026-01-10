@@ -1,0 +1,71 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Order Management{% endblock %} - Raven</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.13.7/dist/cdn.min.js"></script>
+
+    <style>
+        .transition-all {
+            transition-property: all;
+            transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            transition-duration: 150ms;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    <header class="bg-white border-b shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center gap-8">
+                    <h1 class="text-xl font-bold text-gray-800">
+                        RAVEN <span class="text-blue-600 font-light">ORDERS</span>
+                    </h1>
+
+                    <nav class="flex gap-4">
+                        <a href="{% url 'orders:purchase_order_list' %}"
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if request.resolver_match.url_name == 'purchase_order_list' or request.resolver_match.url_name == 'purchase_order_detail' %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+                            Purchase Orders
+                        </a>
+                        <a href="{% url 'orders:sales_order_list' %}"
+                           class="px-3 py-2 rounded-md text-sm font-medium {% if request.resolver_match.url_name == 'sales_order_list' or request.resolver_match.url_name == 'sales_order_detail' %}bg-blue-100 text-blue-700{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+                            Sales Orders
+                        </a>
+                        <a href="/v2/"
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                            Scheduler
+                        </a>
+                        <a href="/admin/"
+                           class="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-100">
+                            Admin
+                        </a>
+                    </nav>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <span class="text-sm text-gray-600">{{ user.username }}</span>
+                    <a href="{% url 'logout' %}" class="text-sm text-gray-600 hover:text-gray-900">Logout</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+    </script>
+</body>
+</html>
