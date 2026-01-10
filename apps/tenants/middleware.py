@@ -8,8 +8,13 @@ to ensure tenant is set before any database queries are made.
 Resolution order:
 1. HTTP_X_TENANT_ID header (for API requests, mobile app)
 2. Subdomain (e.g., acme.ravensaas.com -> acme)
-3. Default tenant (for development)
+3. Default tenant (DEVELOPMENT ONLY - disabled in production for security)
+
+SECURITY: In production (DEBUG=False), requests without a valid tenant are
+rejected with 403 Forbidden. This prevents data leakage from tenant resolution
+failures.
 """
+from django.conf import settings
 from django.http import HttpResponseForbidden
 from shared.managers import set_current_tenant, get_current_tenant
 from .models import Tenant
@@ -82,6 +87,12 @@ class TenantMiddleware:
                 except Tenant.DoesNotExist:
                     pass
 
-        # Strategy 3: Fallback to default tenant (for development)
-        # This allows local development at http://localhost:8000
-        return Tenant.objects.filter(is_default=True, is_active=True).first()
+        # Strategy 3: Fallback to default tenant (DEVELOPMENT ONLY)
+        # SECURITY: This fallback is DISABLED in production to prevent data leakage
+        # In production, tenant resolution failures result in 403 Forbidden
+        if settings.DEBUG:
+            # Allow default tenant for local development at http://localhost:8000
+            return Tenant.objects.filter(is_default=True, is_active=True).first()
+
+        # In production, no tenant = access denied
+        return None

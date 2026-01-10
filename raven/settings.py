@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-^@*l9o@fn@+^8xzbh!5e-9uf6f^r%q69zsd#m&5q1dk5sp*nk)'
+# In production, set DJANGO_SECRET_KEY environment variable
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-^@*l9o@fn@+^8xzbh!5e-9uf6f^r%q69zsd#m&5q1dk5sp*nk)'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# In production, set DJANGO_DEBUG=False
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+# In production, set DJANGO_ALLOWED_HOSTS="yourdomain.com,*.yourdomain.com"
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
 
 # Application definition
@@ -69,6 +76,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Additional security headers (X-Content-Type-Options, Referrer-Policy, etc.)
+    'shared.middleware.SecurityHeadersMiddleware',
     # CRITICAL: TenantMiddleware must come AFTER auth but BEFORE any app middleware
     'apps.tenants.middleware.TenantMiddleware',
     'django_browser_reload.middleware.BrowserReloadMiddleware',
@@ -106,25 +115,6 @@ DATABASES = {
 }
 
 
-# Password validation
-# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
-
-
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
@@ -145,6 +135,97 @@ STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'users.User'
 
 # Auth Settings
-LOGIN_REDIRECT_URL = 'schedulizer_dashboard' 
+LOGIN_REDIRECT_URL = 'schedulizer_dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
+
+# ==============================================================================
+# SECURITY SETTINGS
+# ==============================================================================
+# These settings are automatically configured based on DEBUG mode.
+# For production deployment, set environment variables:
+#   DJANGO_DEBUG=False
+#   DJANGO_SECRET_KEY=<strong-random-key>
+#   DJANGO_ALLOWED_HOSTS=yourdomain.com,*.yourdomain.com
+
+# Session Security
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access (XSS protection)
+SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+SESSION_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+SESSION_COOKIE_NAME = 'raven_sessionid'  # Obscure cookie name
+
+# CSRF Security
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG  # HTTPS only in production
+CSRF_COOKIE_NAME = 'raven_csrftoken'  # Obscure cookie name
+
+# Security Headers (production only)
+if not DEBUG:
+    # Redirect all HTTP to HTTPS
+    SECURE_SSL_REDIRECT = True
+
+    # HSTS (HTTP Strict Transport Security)
+    # Forces browsers to use HTTPS for 1 year
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+    # Additional security headers
+    SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevent MIME type sniffing
+    SECURE_BROWSER_XSS_FILTER = True  # Enable browser XSS protection
+
+    # Proxy configuration (if behind reverse proxy like nginx)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# X-Frame-Options (already set by middleware, but explicit is better)
+X_FRAME_OPTIONS = 'DENY'  # Prevent clickjacking
+
+# File Upload Security
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+
+# Password Validation (strengthen minimum length)
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 12,  # Increased from default 8
+        }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+# ==============================================================================
+# SECURITY NOTES FOR PRODUCTION DEPLOYMENT
+# ==============================================================================
+#
+# REQUIRED BEFORE PRODUCTION:
+# 1. Set DJANGO_DEBUG=False
+# 2. Generate strong SECRET_KEY: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+# 3. Set DJANGO_SECRET_KEY=<generated-key>
+# 4. Set DJANGO_ALLOWED_HOSTS=yourdomain.com,*.yourdomain.com
+# 5. Use PostgreSQL instead of SQLite (set DATABASE_URL)
+# 6. Configure static file serving (collectstatic + nginx/CDN)
+# 7. Install django-axes for rate limiting: pip install django-axes
+# 8. Review tenant middleware default fallback behavior
+# 9. Set up SSL/TLS certificates (Let's Encrypt recommended)
+# 10. Configure proper logging and monitoring
+#
+# RECOMMENDED:
+# - Install django-csp for Content-Security-Policy headers
+# - Set up Sentry or similar for error tracking
+# - Configure email backend for password resets
+# - Enable database connection pooling
+# - Set up Redis for session storage and caching
+# ==============================================================================
