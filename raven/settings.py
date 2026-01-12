@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'apps.inventory',
     'apps.shipping',
     'apps.invoicing',
+    'apps.reporting',
     'apps.scheduling',
     # Legacy apps (will be migrated)
     'core',
