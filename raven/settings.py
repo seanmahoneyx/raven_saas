@@ -37,6 +37,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Third-party apps
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'drf_spectacular',
+    'corsheaders',
+    'django_filters',
+    'simple_history',
+    'tailwind',
+    'theme',
+    'django_browser_reload',
     # New SaaS apps
     'apps.tenants',
     'apps.parties',
@@ -50,16 +60,13 @@ INSTALLED_APPS = [
     'apps.invoicing',
     'apps.reporting',
     'apps.scheduling',
+    'apps.api',
     # Legacy apps (will be migrated)
     'core',
     'partners',
     'warehousing',
     'scheduling',
     'users',
-    'simple_history',
-    'tailwind',
-    'theme',
-    'django_browser_reload',
 ]
 
 TAILWIND_APP_NAME = 'theme'
@@ -70,6 +77,7 @@ INTERNAL_IPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -152,6 +160,72 @@ STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'users.User'
 
 # Auth Settings
-LOGIN_REDIRECT_URL = 'schedulizer_dashboard' 
+LOGIN_REDIRECT_URL = 'schedulizer_dashboard'
 LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# Simple JWT Configuration
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+# drf-spectacular (OpenAPI/Swagger)
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Raven SaaS API',
+    'DESCRIPTION': 'Multi-tenant ERP/WMS API for managing orders, inventory, shipping, and invoicing.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'TAGS': [
+        {'name': 'auth', 'description': 'Authentication endpoints'},
+        {'name': 'parties', 'description': 'Customers, vendors, and locations'},
+        {'name': 'items', 'description': 'Products and units of measure'},
+        {'name': 'orders', 'description': 'Purchase and sales orders'},
+        {'name': 'pricing', 'description': 'Price lists and customer pricing'},
+        {'name': 'costing', 'description': 'Cost management'},
+        {'name': 'warehousing', 'description': 'Warehouses and bin locations'},
+        {'name': 'inventory', 'description': 'Lots, pallets, and inventory transactions'},
+        {'name': 'shipping', 'description': 'Shipments and bills of lading'},
+        {'name': 'invoicing', 'description': 'Invoices and payments'},
+        {'name': 'reporting', 'description': 'Report definitions and execution'},
+        {'name': 'scheduling', 'description': 'Calendar and order scheduling'},
+    ],
+}
+
+# CORS Configuration (for React frontend)
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',  # Vite default
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+]
+
+CORS_ALLOW_CREDENTIALS = True
