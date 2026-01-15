@@ -53,6 +53,14 @@ class BaseOrder(TenantMixin, TimestampMixin):
         related_name='%(class)s_orders',
         help_text="Truck assigned for delivery/receiving"
     )
+    delivery_run = models.ForeignKey(
+        'new_scheduling.DeliveryRun',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='%(class)s_orders',
+        help_text="Delivery run this order is assigned to"
+    )
     notes = models.TextField(
         blank=True,
         help_text="Operational notes"

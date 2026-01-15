@@ -1,87 +1,117 @@
+import { useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { cn } from '@/lib/utils'
-import type { CalendarOrder } from '@/types/api'
+import type { CalendarOrder, OrderStatus } from '@/types/api'
 import OrderCard from './OrderCard'
-import { Package } from 'lucide-react'
+import { Package, Truck } from 'lucide-react'
 
 interface UnscheduledSidebarProps {
   orders: CalendarOrder[]
   onOrderClick?: (order: CalendarOrder) => void
+  onStatusChange?: (order: CalendarOrder, newStatus: OrderStatus) => void
 }
 
-export default function UnscheduledSidebar({ orders, onOrderClick }: UnscheduledSidebarProps) {
+export default function UnscheduledSidebar({ orders, onOrderClick, onStatusChange }: UnscheduledSidebarProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'unscheduled',
     data: { date: null, truckId: null },
   })
 
-  const orderIds = orders.map((o) => `${o.order_type}-${o.id}`)
-
-  // Separate sales orders and purchase orders
-  const salesOrders = orders.filter((o) => o.order_type === 'SO')
-  const purchaseOrders = orders.filter((o) => o.order_type === 'PO')
+  // Separate POs and SOs
+  const { purchaseOrders, salesOrders } = useMemo(() => {
+    const pos: CalendarOrder[] = []
+    const sos: CalendarOrder[] = []
+    orders.forEach((o) => {
+      if (o.order_type === 'PO') pos.push(o)
+      else sos.push(o)
+    })
+    return { purchaseOrders: pos, salesOrders: sos }
+  }, [orders])
 
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'w-64 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col',
-        isOver && 'bg-blue-50'
+        'w-56 bg-white border-r flex flex-col shrink-0 z-10 shadow-lg h-full relative',
+        isOver && 'ring-2 ring-inset ring-blue-500 bg-blue-50'
       )}
     >
-      <div className="p-3 border-b border-gray-200 bg-white">
-        <h2 className="font-semibold flex items-center gap-2">
-          <Package className="h-4 w-4" />
-          Unscheduled
-        </h2>
-        <p className="text-xs text-gray-500 mt-1">
-          {orders.length} order{orders.length !== 1 ? 's' : ''} waiting
-        </p>
+      {/* Drop zone overlay indicator */}
+      {isOver && (
+        <div className="absolute inset-0 bg-blue-100/50 z-20 flex items-center justify-center pointer-events-none">
+          <div className="bg-blue-500 text-white px-3 py-2 rounded-lg shadow-lg text-sm font-medium">
+            Drop to unschedule
+          </div>
+        </div>
+      )}
+
+      <div className="p-2 border-b bg-gray-50">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold text-gray-700 text-xs uppercase tracking-wide">Unscheduled</h2>
+          <span className="font-mono text-[10px] bg-gray-200 px-1 rounded">{orders.length}</span>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        <SortableContext items={orderIds} strategy={verticalListSortingStrategy}>
-          {salesOrders.length > 0 && (
-            <div className="mb-4">
-              <div className="text-xs font-medium text-gray-500 mb-2 px-1">
-                Sales Orders ({salesOrders.length})
+      <div className="flex-1 overflow-y-auto bg-gray-50/50">
+        {orders.length === 0 ? (
+          <div className="text-center text-gray-400 text-sm py-8">
+            All orders scheduled
+          </div>
+        ) : (
+          <>
+            {/* Purchase Orders Section - Green */}
+            {purchaseOrders.length > 0 && (
+              <div className="border-b border-green-200">
+                <div className="px-2 py-1 bg-green-50 flex items-center gap-1 sticky top-0 z-10">
+                  <Package className="h-3 w-3 text-green-600" />
+                  <span className="text-[10px] font-semibold text-green-700 uppercase">
+                    Inbound POs
+                  </span>
+                  <span className="ml-auto text-[10px] text-green-600 font-mono">
+                    {purchaseOrders.length}
+                  </span>
+                </div>
+                <div className="p-1">
+                  {purchaseOrders.map((order) => (
+                    <OrderCard
+                      key={`${order.order_type}-${order.id}`}
+                      order={order}
+                      onClick={() => onOrderClick?.(order)}
+                      onStatusChange={onStatusChange}
+                      showRequestedDate
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                {salesOrders.map((order) => (
-                  <OrderCard
-                    key={`${order.order_type}-${order.id}`}
-                    order={order}
-                    onClick={() => onOrderClick?.(order)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
-          {purchaseOrders.length > 0 && (
-            <div>
-              <div className="text-xs font-medium text-gray-500 mb-2 px-1">
-                Purchase Orders ({purchaseOrders.length})
+            {/* Sales Orders Section - Blue */}
+            {salesOrders.length > 0 && (
+              <div>
+                <div className="px-2 py-1 bg-blue-50 flex items-center gap-1 sticky top-0 z-10">
+                  <Truck className="h-3 w-3 text-blue-600" />
+                  <span className="text-[10px] font-semibold text-blue-700 uppercase">
+                    Outbound SOs
+                  </span>
+                  <span className="ml-auto text-[10px] text-blue-600 font-mono">
+                    {salesOrders.length}
+                  </span>
+                </div>
+                <div className="p-1">
+                  {salesOrders.map((order) => (
+                    <OrderCard
+                      key={`${order.order_type}-${order.id}`}
+                      order={order}
+                      onClick={() => onOrderClick?.(order)}
+                      onStatusChange={onStatusChange}
+                      showRequestedDate
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1">
-                {purchaseOrders.map((order) => (
-                  <OrderCard
-                    key={`${order.order_type}-${order.id}`}
-                    order={order}
-                    onClick={() => onOrderClick?.(order)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {orders.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-8">
-              All orders scheduled
-            </div>
-          )}
-        </SortableContext>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

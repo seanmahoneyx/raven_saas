@@ -1,11 +1,19 @@
 import { useState, useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, ShoppingCart, Package, Calendar } from 'lucide-react'
+import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
-import { useSalesOrders, usePurchaseOrders } from '@/api/orders'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useSalesOrders, usePurchaseOrders, useDeleteSalesOrder, useDeletePurchaseOrder } from '@/api/orders'
+import { SalesOrderDialog } from '@/components/orders/SalesOrderDialog'
+import { PurchaseOrderDialog } from '@/components/orders/PurchaseOrderDialog'
 import type { SalesOrder, PurchaseOrder, OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 
@@ -25,8 +33,26 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 export default function Orders() {
   const [activeTab, setActiveTab] = useState<Tab>('sales')
 
+  // Dialog states
+  const [salesDialogOpen, setSalesDialogOpen] = useState(false)
+  const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false)
+  const [editingPurchaseOrder, setEditingPurchaseOrder] = useState<PurchaseOrder | null>(null)
+
   const { data: salesData } = useSalesOrders()
   const { data: purchaseData } = usePurchaseOrders()
+  const deleteSalesOrder = useDeleteSalesOrder()
+  const deletePurchaseOrder = useDeletePurchaseOrder()
+
+  const handleAddNew = () => {
+    if (activeTab === 'sales') {
+      setEditingSalesOrder(null)
+      setSalesDialogOpen(true)
+    } else {
+      setEditingPurchaseOrder(null)
+      setPurchaseDialogOpen(true)
+    }
+  }
 
   const salesColumns: ColumnDef<SalesOrder>[] = useMemo(
     () => [
@@ -101,8 +127,43 @@ export default function Orders() {
           )
         },
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const order = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingSalesOrder(order)
+                  setSalesDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this order?')) {
+                      deleteSalesOrder.mutate(order.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteSalesOrder]
   )
 
   const purchaseColumns: ColumnDef<PurchaseOrder>[] = useMemo(
@@ -174,8 +235,43 @@ export default function Orders() {
           </span>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const order = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingPurchaseOrder(order)
+                  setPurchaseDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this purchase order?')) {
+                      deletePurchaseOrder.mutate(order.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deletePurchaseOrder]
   )
 
   const tabs = [
@@ -192,7 +288,7 @@ export default function Orders() {
             Manage sales and purchase orders
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddNew}>
           <Plus className="h-4 w-4 mr-2" />
           New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
         </Button>
@@ -286,6 +382,18 @@ export default function Orders() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <SalesOrderDialog
+        open={salesDialogOpen}
+        onOpenChange={setSalesDialogOpen}
+        order={editingSalesOrder}
+      />
+      <PurchaseOrderDialog
+        open={purchaseDialogOpen}
+        onOpenChange={setPurchaseDialogOpen}
+        order={editingPurchaseOrder}
+      />
     </div>
   )
 }

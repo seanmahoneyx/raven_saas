@@ -191,6 +191,20 @@ export interface SalesOrder {
   updated_at: string
 }
 
+// Delivery Run types
+export interface DeliveryRun {
+  id: number
+  name: string
+  truck_id: number
+  truck_name: string
+  scheduled_date: string
+  sequence: number
+  departure_time: string | null
+  notes: string
+  is_complete: boolean
+  order_count: number
+}
+
 // Calendar types
 export interface CalendarOrder {
   id: number
@@ -201,8 +215,12 @@ export interface CalendarOrder {
   scheduled_date: string | null
   scheduled_truck_id: number | null
   scheduled_truck_name: string | null
+  delivery_run_id: number | null
+  delivery_run_name: string | null
+  requested_date: string | null
   num_lines: number
   total_quantity: number
+  total_pallets?: number
   priority: number
   notes: string
 }
@@ -217,4 +235,21 @@ export interface TruckCalendar {
   truck_id: number | null
   truck_name: string | null
   days: CalendarDay[]
+}
+
+// History types
+export interface HistoryRecord {
+  id: number
+  order_type: 'SO' | 'PO'
+  order_id: number
+  number: string
+  party_name: string
+  history_type: '+' | '~' | '-'
+  history_type_display: string
+  history_date: string
+  history_user: string | null
+  status: OrderStatus
+  scheduled_date: string | null
+  scheduled_truck_id: number | null
+  changed_fields: string[]
 }

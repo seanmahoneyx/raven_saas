@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 import {
   format,
   startOfWeek,
@@ -6,25 +6,37 @@ import {
   addWeeks,
   isToday,
 } from 'date-fns'
-import type { CalendarOrder, TruckCalendar, Truck } from '@/types/api'
+import type { CalendarOrder, TruckCalendar, Truck, DeliveryRun, OrderStatus } from '@/types/api'
 import CalendarCell from './CalendarCell'
 import { cn } from '@/lib/utils'
+import { Truck as TruckIcon, Package } from 'lucide-react'
 
 interface CalendarGridProps {
   trucks: Truck[]
   calendarData: TruckCalendar[]
+  deliveryRuns?: DeliveryRun[]
   anchorDate: Date
   weeksToShow?: number
   onOrderClick?: (order: CalendarOrder) => void
+  onStatusChange?: (order: CalendarOrder, newStatus: OrderStatus) => void
+  draggingOrderType?: 'PO' | 'SO' | null
+  /** Whether a drag is currently active */
+  isDragActive?: boolean
 }
 
 export default function CalendarGrid({
   trucks,
   calendarData,
+  deliveryRuns = [],
   anchorDate,
   weeksToShow = 8,
   onOrderClick,
+  onStatusChange,
+  draggingOrderType,
+  isDragActive,
 }: CalendarGridProps) {
+  const currentWeekRef = useRef<HTMLDivElement>(null)
+
   // Calculate weeks: anchor is at week 3 (0-indexed: week 2), so we show 2 weeks before
   const weeks = useMemo(() => {
     const startWeek = startOfWeek(anchorDate, { weekStartsOn: 1 }) // Monday
@@ -42,6 +54,13 @@ export default function CalendarGrid({
     }
     return result
   }, [anchorDate, weeksToShow])
+
+  // Scroll to current week on mount
+  useEffect(() => {
+    if (currentWeekRef.current) {
+      currentWeekRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [])
 
   // Build a lookup for orders by truck and date
   const orderLookup = useMemo(() => {
@@ -62,91 +81,117 @@ export default function CalendarGrid({
     return orderLookup[key] || []
   }
 
+  // Determine which week is the "current" week (index 2, the anchor week)
+  const currentWeekIdx = 2
+
   return (
-    <div className="overflow-auto">
-      <div className="min-w-[1200px]">
-        {/* Header with weeks and days */}
-        <div className="sticky top-0 bg-white z-10 border-b-2 border-gray-300">
-          <div className="flex">
-            {/* Truck column header */}
-            <div className="w-32 flex-shrink-0 p-2 font-semibold text-sm border-r border-gray-300 bg-gray-50">
-              Resource
+    <div className="p-4 space-y-6 overflow-y-auto h-full bg-gray-100">
+      {weeks.map((weekDays, weekIdx) => (
+        <div
+          key={weekIdx}
+          ref={weekIdx === currentWeekIdx ? currentWeekRef : undefined}
+          className="bg-white border border-gray-200 shadow-sm overflow-x-auto"
+        >
+          {/* Week Header Row */}
+          <div
+            className="grid border-b border-gray-200 bg-gray-50 text-xs text-gray-500 font-medium"
+            style={{ gridTemplateColumns: '140px repeat(5, minmax(0, 1fr))', minWidth: '800px' }}
+          >
+            <div className="px-2 py-1 border-r border-gray-200 flex items-center justify-center sticky left-0 bg-gray-50 z-10">
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                Week of {format(weekDays[0], 'MMM d')}
+              </span>
             </div>
-            {/* Week headers */}
-            {weeks.map((weekDays, weekIdx) => (
-              <div key={weekIdx} className="flex-1 min-w-0">
-                <div className="text-center text-xs font-medium py-1 bg-gray-100 border-b border-gray-200">
-                  Week of {format(weekDays[0], 'MMM d')}
-                </div>
-                <div className="flex">
-                  {weekDays.map((day) => (
-                    <div
-                      key={day.toISOString()}
-                      className={cn(
-                        'flex-1 text-center text-xs py-1 border-r border-gray-200',
-                        isToday(day) && 'bg-blue-100 font-semibold'
-                      )}
-                    >
-                      <div>{format(day, 'EEE')}</div>
-                      <div>{format(day, 'd')}</div>
-                    </div>
-                  ))}
-                </div>
+            {weekDays.map((day) => (
+              <div
+                key={day.toISOString()}
+                className={cn(
+                  'px-1 py-0.5 border-r border-gray-200 text-center flex flex-col justify-center',
+                  isToday(day) && 'bg-blue-50 text-blue-600 font-bold'
+                )}
+              >
+                <span className="uppercase text-[10px]">{format(day, 'EEE')}</span>
+                <span className="text-xs font-medium">{format(day, 'd')}</span>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Truck rows */}
-        {trucks.map((truck) => (
-          <div key={truck.id} className="flex border-b border-gray-200">
-            {/* Truck label */}
-            <div className="w-32 flex-shrink-0 p-2 text-sm font-medium border-r border-gray-300 bg-gray-50">
-              <div className="truncate">{truck.name}</div>
-              {truck.capacity_pallets && (
-                <div className="text-xs text-gray-500">
-                  {truck.capacity_pallets} pallets
-                </div>
-              )}
-            </div>
-            {/* Calendar cells for this truck */}
-            {weeks.map((weekDays) =>
-              weekDays.map((day) => (
-                <div key={`${truck.id}-${day.toISOString()}`} className="flex-1 min-w-0">
-                  <CalendarCell
-                    date={format(day, 'yyyy-MM-dd')}
-                    truckId={truck.id}
-                    orders={getOrdersForCell(truck.id, day)}
-                    isToday={isToday(day)}
-                    onOrderClick={onOrderClick}
-                  />
-                </div>
-              ))
+          {/* Inbound/Receiving Row for POs - First */}
+          <div
+            className={cn(
+              'grid border-b border-gray-200 transition-colors',
+              draggingOrderType === 'PO' && 'bg-green-100/50 ring-2 ring-inset ring-green-400'
             )}
+            style={{ gridTemplateColumns: '140px repeat(5, minmax(0, 1fr))', minWidth: '800px' }}
+          >
+            <div className={cn(
+              'sticky left-0 z-10 border-r border-green-100 px-2 py-1 text-xs font-bold flex items-center gap-1',
+              draggingOrderType === 'PO' ? 'bg-green-100' : 'bg-white'
+            )}>
+              <Package className="h-3.5 w-3.5 text-green-500 shrink-0" />
+              <span className="text-green-700 uppercase tracking-wide text-[10px] truncate">
+                Inbound
+              </span>
+            </div>
+            {weekDays.map((day) => (
+              <CalendarCell
+                key={`inbound-${weekIdx}-${day.toISOString()}`}
+                date={format(day, 'yyyy-MM-dd')}
+                truckId={null}
+                orders={getOrdersForCell(null, day)}
+                isToday={isToday(day)}
+                onOrderClick={onOrderClick}
+                onStatusChange={onStatusChange}
+                variant="inbound"
+                isValidDropTarget={draggingOrderType === 'PO'}
+                isDragActive={isDragActive}
+              />
+            ))}
           </div>
-        ))}
 
-        {/* Inbound/Receiving row for POs */}
-        <div className="flex border-b-2 border-gray-300">
-          <div className="w-32 flex-shrink-0 p-2 text-sm font-medium border-r border-gray-300 bg-amber-50">
-            <div>Inbound</div>
-            <div className="text-xs text-gray-500">Purchase Orders</div>
-          </div>
-          {weeks.map((weekDays) =>
-            weekDays.map((day) => (
-              <div key={`inbound-${day.toISOString()}`} className="flex-1 min-w-0">
+          {/* Truck Rows for SOs */}
+          {trucks.map((truck) => (
+            <div
+              key={truck.id}
+              className={cn(
+                'grid border-b border-gray-100 group transition-colors',
+                draggingOrderType === 'SO' && 'bg-blue-50/50 ring-2 ring-inset ring-blue-400'
+              )}
+              style={{ gridTemplateColumns: '140px repeat(5, minmax(0, 1fr))', minWidth: '800px' }}
+            >
+              <div className={cn(
+                'sticky left-0 z-10 border-r border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 flex items-center gap-1 group-hover:bg-gray-50',
+                draggingOrderType === 'SO' ? 'bg-blue-50' : 'bg-white'
+              )}>
+                <TruckIcon className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                <span className="truncate text-xs">{truck.name}</span>
+                {truck.capacity_pallets && (
+                  <span className="text-[9px] text-gray-400 font-normal shrink-0">
+                    ({truck.capacity_pallets})
+                  </span>
+                )}
+              </div>
+              {weekDays.map((day) => (
                 <CalendarCell
+                  key={`${truck.id}-${weekIdx}-${day.toISOString()}`}
                   date={format(day, 'yyyy-MM-dd')}
-                  truckId={null}
-                  orders={getOrdersForCell(null, day)}
+                  truckId={truck.id}
+                  orders={getOrdersForCell(truck.id, day)}
+                  deliveryRuns={deliveryRuns}
                   isToday={isToday(day)}
                   onOrderClick={onOrderClick}
+                  onStatusChange={onStatusChange}
+                  isValidDropTarget={draggingOrderType === 'SO'}
+                  isDragActive={isDragActive}
                 />
-              </div>
-            ))
-          )}
+              ))}
+            </div>
+          ))}
         </div>
-      </div>
+      ))}
+
+      {/* Spacer at bottom */}
+      <div className="h-20" />
     </div>
   )
 }

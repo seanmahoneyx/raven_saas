@@ -1,11 +1,19 @@
 import { useState, useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Package, Ruler } from 'lucide-react'
+import { Plus, Package, Ruler, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useItems, useUnitsOfMeasure, useDeleteItem } from '@/api/items'
+import { ItemDialog } from '@/components/items/ItemDialog'
+import { UOMDialog } from '@/components/items/UOMDialog'
 import type { Item, UnitOfMeasure } from '@/types/api'
 
 type Tab = 'items' | 'uom'
@@ -13,8 +21,25 @@ type Tab = 'items' | 'uom'
 export default function Items() {
   const [activeTab, setActiveTab] = useState<Tab>('items')
 
+  // Dialog states
+  const [itemDialogOpen, setItemDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [uomDialogOpen, setUomDialogOpen] = useState(false)
+  const [editingUOM, setEditingUOM] = useState<UnitOfMeasure | null>(null)
+
   const { data: itemsData } = useItems()
   const { data: uomData } = useUnitsOfMeasure()
+  const deleteItem = useDeleteItem()
+
+  const handleAddNew = () => {
+    if (activeTab === 'items') {
+      setEditingItem(null)
+      setItemDialogOpen(true)
+    } else {
+      setEditingUOM(null)
+      setUomDialogOpen(true)
+    }
+  }
 
   const itemColumns: ColumnDef<Item>[] = useMemo(
     () => [
@@ -68,8 +93,43 @@ export default function Items() {
           </Badge>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const item = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingItem(item)
+                  setItemDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this item?')) {
+                      deleteItem.mutate(item.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteItem]
   )
 
   const uomColumns: ColumnDef<UnitOfMeasure>[] = useMemo(
@@ -102,6 +162,30 @@ export default function Items() {
           </Badge>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const uom = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingUOM(uom)
+                  setUomDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
     []
   )
@@ -120,7 +204,7 @@ export default function Items() {
             Manage products and units of measure
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddNew}>
           <Plus className="h-4 w-4 mr-2" />
           Add {activeTab === 'items' ? 'Item' : 'UOM'}
         </Button>
@@ -170,6 +254,18 @@ export default function Items() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <ItemDialog
+        open={itemDialogOpen}
+        onOpenChange={setItemDialogOpen}
+        item={editingItem}
+      />
+      <UOMDialog
+        open={uomDialogOpen}
+        onOpenChange={setUomDialogOpen}
+        uom={editingUOM}
+      />
     </div>
   )
 }

@@ -32,7 +32,7 @@ export default function Sidebar() {
   const { logout } = useAuth()
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-sidebar">
+    <aside className="flex h-screen w-48 flex-col border-r bg-sidebar">
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
         <h1 className="text-xl font-bold text-sidebar-foreground">Raven SaaS</h1>

@@ -1,11 +1,22 @@
 import { useState, useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Building2, Users, Truck as TruckIcon, MapPin } from 'lucide-react'
+import { Plus, Building2, Users, Truck as TruckIcon, MapPin, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
-import { useParties, useCustomers, useVendors, useTrucks, useLocations } from '@/api/parties'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useParties, useCustomers, useVendors, useTrucks, useLocations, useDeleteParty, useDeleteTruck } from '@/api/parties'
+import { PartyDialog } from '@/components/parties/PartyDialog'
+import { TruckDialog } from '@/components/parties/TruckDialog'
+import { CustomerDialog } from '@/components/parties/CustomerDialog'
+import { VendorDialog } from '@/components/parties/VendorDialog'
+import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Party, Customer, Vendor, Truck, Location } from '@/types/api'
 
 type Tab = 'parties' | 'customers' | 'vendors' | 'trucks' | 'locations'
@@ -13,11 +24,47 @@ type Tab = 'parties' | 'customers' | 'vendors' | 'trucks' | 'locations'
 export default function Parties() {
   const [activeTab, setActiveTab] = useState<Tab>('parties')
 
+  // Dialog states
+  const [partyDialogOpen, setPartyDialogOpen] = useState(false)
+  const [editingParty, setEditingParty] = useState<Party | null>(null)
+  const [truckDialogOpen, setTruckDialogOpen] = useState(false)
+  const [editingTruck, setEditingTruck] = useState<Truck | null>(null)
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
+  const [vendorDialogOpen, setVendorDialogOpen] = useState(false)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+
   const { data: partiesData } = useParties()
   const { data: customersData } = useCustomers()
   const { data: vendorsData } = useVendors()
   const { data: trucksData } = useTrucks()
   const { data: locationsData } = useLocations()
+
+  const deleteParty = useDeleteParty()
+  const deleteTruck = useDeleteTruck()
+
+  const handleAddNew = () => {
+    switch (activeTab) {
+      case 'parties':
+        setEditingParty(null)
+        setPartyDialogOpen(true)
+        break
+      case 'customers':
+        setCustomerDialogOpen(true)
+        break
+      case 'vendors':
+        setVendorDialogOpen(true)
+        break
+      case 'trucks':
+        setEditingTruck(null)
+        setTruckDialogOpen(true)
+        break
+      case 'locations':
+        setEditingLocation(null)
+        setLocationDialogOpen(true)
+        break
+    }
+  }
 
   const partyColumns: ColumnDef<Party>[] = useMemo(
     () => [
@@ -53,8 +100,43 @@ export default function Parties() {
           </Badge>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const party = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingParty(party)
+                  setPartyDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this party?')) {
+                      deleteParty.mutate(party.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteParty]
   )
 
   const customerColumns: ColumnDef<Customer>[] = useMemo(
@@ -125,8 +207,43 @@ export default function Parties() {
           </Badge>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const truck = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingTruck(truck)
+                  setTruckDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this truck?')) {
+                      deleteTruck.mutate(truck.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteTruck]
   )
 
   const locationColumns: ColumnDef<Location>[] = useMemo(
@@ -166,6 +283,30 @@ export default function Parties() {
           </Badge>
         ),
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const location = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingLocation(location)
+                  setLocationDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
     []
   )
@@ -178,6 +319,16 @@ export default function Parties() {
     { id: 'locations' as Tab, label: 'Locations', icon: MapPin },
   ]
 
+  const getAddButtonLabel = () => {
+    switch (activeTab) {
+      case 'parties': return 'Add Party'
+      case 'customers': return 'Add Customer'
+      case 'vendors': return 'Add Vendor'
+      case 'trucks': return 'Add Truck'
+      case 'locations': return 'Add Location'
+    }
+  }
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
@@ -187,9 +338,9 @@ export default function Parties() {
             Manage customers, vendors, trucks, and locations
           </p>
         </div>
-        <Button>
+        <Button onClick={handleAddNew}>
           <Plus className="h-4 w-4 mr-2" />
-          Add New
+          {getAddButtonLabel()}
         </Button>
       </div>
 
@@ -261,6 +412,31 @@ export default function Parties() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialogs */}
+      <PartyDialog
+        open={partyDialogOpen}
+        onOpenChange={setPartyDialogOpen}
+        party={editingParty}
+      />
+      <TruckDialog
+        open={truckDialogOpen}
+        onOpenChange={setTruckDialogOpen}
+        truck={editingTruck}
+      />
+      <CustomerDialog
+        open={customerDialogOpen}
+        onOpenChange={setCustomerDialogOpen}
+      />
+      <VendorDialog
+        open={vendorDialogOpen}
+        onOpenChange={setVendorDialogOpen}
+      />
+      <LocationDialog
+        open={locationDialogOpen}
+        onOpenChange={setLocationDialogOpen}
+        location={editingLocation}
+      />
     </div>
   )
 }
