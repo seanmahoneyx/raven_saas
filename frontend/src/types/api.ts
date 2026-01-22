@@ -222,6 +222,7 @@ export interface CalendarOrder {
   total_quantity: number
   total_pallets?: number
   priority: number
+  scheduler_sequence: number
   notes: string
 }
 
@@ -235,6 +236,27 @@ export interface TruckCalendar {
   truck_id: number | null
   truck_name: string | null
   days: CalendarDay[]
+}
+
+// Scheduler Note types
+export type NoteColor = 'yellow' | 'blue' | 'green' | 'red' | 'purple' | 'orange'
+export type NoteAttachmentType = 'sales_order' | 'purchase_order' | 'delivery_run' | 'cell' | 'date' | 'floating'
+
+export interface SchedulerNote {
+  id: number
+  content: string
+  color: NoteColor
+  scheduled_date: string | null
+  truck_id: number | null
+  delivery_run_id: number | null
+  sales_order_id: number | null
+  purchase_order_id: number | null
+  created_by: number | null
+  created_by_username: string | null
+  is_pinned: boolean
+  attachment_type: NoteAttachmentType
+  created_at: string
+  updated_at: string
 }
 
 // History types

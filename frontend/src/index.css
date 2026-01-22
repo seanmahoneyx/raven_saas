@@ -96,3 +96,74 @@ body {
 * {
   border-color: var(--color-border);
 }
+
+/* ============================================
+   iOS-Style Jiggle Mode Animations
+   ============================================ */
+
+/* Jiggle animation for edit mode - organic rotation wobble */
+@keyframes jiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(2deg); }
+}
+
+/* Staggered jiggle phases with desynchronized delays to prevent robotic feel */
+.jiggle-phase-1 { animation: jiggle 0.15s ease-in-out infinite; animation-delay: 0ms; }
+.jiggle-phase-2 { animation: jiggle 0.15s ease-in-out infinite; animation-delay: 25ms; }
+.jiggle-phase-3 { animation: jiggle 0.15s ease-in-out infinite; animation-delay: 50ms; }
+.jiggle-phase-4 { animation: jiggle 0.15s ease-in-out infinite; animation-delay: 75ms; }
+.jiggle-phase-5 { animation: jiggle 0.15s ease-in-out infinite; animation-delay: 100ms; }
+
+/* Merge indicator pulse - shows when dwell threshold (600ms) is reached */
+@keyframes merge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(168, 85, 247, 0); }
+}
+.merge-ready {
+  animation: merge-pulse 1s ease-in-out infinite;
+}
+
+/* Merge target expansion - subtle scale increase when merge is ready */
+.merge-target-expanded {
+  transform: scale(1.05);
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Shake animation for conflict rejection */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.conflicted {
+  animation: shake 0.15s ease-in-out 2;
+}
+
+/* Ghost state for locked cards (other users editing) */
+.card-locked {
+  filter: grayscale(100%);
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* Spring physics transition for card reflow during drag */
+.spring-transition {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Accessibility: Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .jiggle-phase-1,
+  .jiggle-phase-2,
+  .jiggle-phase-3,
+  .jiggle-phase-4,
+  .jiggle-phase-5,
+  .merge-ready,
+  .conflicted {
+    animation: none;
+  }
+  .spring-transition {
+    transition: none;
+  }
+}

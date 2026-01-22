@@ -6,34 +6,72 @@ import {
   addWeeks,
   isToday,
 } from 'date-fns'
-import type { CalendarOrder, TruckCalendar, Truck, DeliveryRun, OrderStatus } from '@/types/api'
+import type { CalendarOrder, TruckCalendar, Truck, DeliveryRun, OrderStatus, SchedulerNote, NoteColor } from '@/types/api'
 import CalendarCell from './CalendarCell'
 import { cn } from '@/lib/utils'
 import { Truck as TruckIcon, Package } from 'lucide-react'
+
+// Preview state for iOS-like reordering during drag
+type PreviewState = {
+  // Map of cellId -> ordered list of order IDs in that cell
+  cells: Record<string, string[]>
+  // The ID of the item being dragged
+  activeId: string
+  // The original cell the item came from
+  originalCellId: string
+}
 
 interface CalendarGridProps {
   trucks: Truck[]
   calendarData: TruckCalendar[]
   deliveryRuns?: DeliveryRun[]
+  schedulerNotes?: SchedulerNote[]
   anchorDate: Date
   weeksToShow?: number
   onOrderClick?: (order: CalendarOrder) => void
   onStatusChange?: (order: CalendarOrder, newStatus: OrderStatus) => void
+  onNoteUpdate?: (noteId: number, updates: { content?: string; color?: NoteColor; isPinned?: boolean }) => void
+  onNoteDelete?: (noteId: number) => void
+  onAddNote?: (target: { type: 'cell'; date: string; truckId: number | null } | { type: 'order'; order: CalendarOrder } | { type: 'run'; run: DeliveryRun }, position: { x: number; y: number }) => void
+  /** Callback when clicking the yellow note indicator to view notes */
+  onViewNotes?: (target: { type: 'order'; order: CalendarOrder } | { type: 'run'; run: DeliveryRun }) => void
+  onDissolveRun?: (run: DeliveryRun) => void
   draggingOrderType?: 'PO' | 'SO' | null
   /** Whether a drag is currently active */
   isDragActive?: boolean
+  /** ID of the cell currently being hovered during drag (for drop zone visibility) */
+  hoveredCellId?: string | null
+  /** Preview state for iOS-like reordering during drag */
+  previewState?: PreviewState | null
+  /** Lookup of all orders by ID for preview rendering */
+  allOrdersLookup?: Record<string, CalendarOrder>
+  /** Whether edit mode (jiggle) is active - LOCAL ONLY */
+  isEditMode?: boolean
+  /** ID of the merge target (order-drop-* or run-drop-*) when dwell threshold reached */
+  mergeTargetId?: string | null
 }
 
 export default function CalendarGrid({
   trucks,
   calendarData,
   deliveryRuns = [],
+  schedulerNotes = [],
   anchorDate,
   weeksToShow = 8,
   onOrderClick,
   onStatusChange,
+  onNoteUpdate,
+  onNoteDelete,
+  onAddNote,
+  onViewNotes,
+  onDissolveRun,
   draggingOrderType,
   isDragActive,
+  hoveredCellId,
+  previewState,
+  allOrdersLookup = {},
+  isEditMode = false,
+  mergeTargetId = null,
 }: CalendarGridProps) {
   const currentWeekRef = useRef<HTMLDivElement>(null)
 
@@ -80,6 +118,37 @@ export default function CalendarGrid({
     const key = `${truckId ?? 'inbound'}-${dateStr}`
     return orderLookup[key] || []
   }
+
+  // Build a lookup for notes by date and truck (cell-attached notes only)
+  const noteLookup = useMemo(() => {
+    const lookup: Record<string, SchedulerNote[]> = {}
+    schedulerNotes.forEach((note) => {
+      // Only include notes attached to a date cell (not order/run attached)
+      if (note.scheduled_date && !note.sales_order_id && !note.purchase_order_id && !note.delivery_run_id) {
+        const key = `${note.truck_id ?? 'all'}-${note.scheduled_date}`
+        if (!lookup[key]) {
+          lookup[key] = []
+        }
+        lookup[key].push(note)
+      }
+    })
+    return lookup
+  }, [schedulerNotes])
+
+  const getNotesForCell = (truckId: number | null, date: Date): SchedulerNote[] => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+    // Get notes specifically for this truck + date
+    const truckKey = `${truckId ?? 'all'}-${dateStr}`
+    const truckNotes = noteLookup[truckKey] || []
+    // Also get notes attached to just the date (no truck - shown on all trucks)
+    const dateKey = `all-${dateStr}`
+    const dateNotes = truckId !== null ? (noteLookup[dateKey] || []) : []
+    return [...truckNotes, ...dateNotes]
+  }
+
+  // All notes passed down for order/run note count lookups
+  // These are notes attached to orders or runs (not cells)
+  const allNotesForLookup = schedulerNotes
 
   // Determine which week is the "current" week (index 2, the anchor week)
   const currentWeekIdx = 2
@@ -133,20 +202,36 @@ export default function CalendarGrid({
                 Inbound
               </span>
             </div>
-            {weekDays.map((day) => (
-              <CalendarCell
-                key={`inbound-${weekIdx}-${day.toISOString()}`}
-                date={format(day, 'yyyy-MM-dd')}
-                truckId={null}
-                orders={getOrdersForCell(null, day)}
-                isToday={isToday(day)}
-                onOrderClick={onOrderClick}
-                onStatusChange={onStatusChange}
-                variant="inbound"
-                isValidDropTarget={draggingOrderType === 'PO'}
-                isDragActive={isDragActive}
-              />
-            ))}
+            {weekDays.map((day) => {
+              const dateStr = format(day, 'yyyy-MM-dd')
+              return (
+                <CalendarCell
+                  key={`inbound-${weekIdx}-${day.toISOString()}`}
+                  date={dateStr}
+                  truckId={null}
+                  orders={getOrdersForCell(null, day)}
+                  notes={getNotesForCell(null, day)}
+                  allNotes={allNotesForLookup}
+                  isToday={isToday(day)}
+                  onOrderClick={onOrderClick}
+                  onStatusChange={onStatusChange}
+                  onNoteUpdate={onNoteUpdate}
+                  onNoteDelete={onNoteDelete}
+                  onAddNote={(pos) => onAddNote?.({ type: 'cell', date: dateStr, truckId: null }, pos)}
+                  onAddNoteToOrder={(order, pos) => onAddNote?.({ type: 'order', order }, pos)}
+                  onAddNoteToRun={(run, pos) => onAddNote?.({ type: 'run', run }, pos)}
+                  onViewNotes={onViewNotes}
+                  variant="inbound"
+                  isValidDropTarget={draggingOrderType === 'PO'}
+                  isDragActive={isDragActive}
+                  hoveredCellId={hoveredCellId}
+                  previewState={previewState}
+                  isEditMode={isEditMode}
+                  mergeTargetId={mergeTargetId}
+                  allOrdersLookup={allOrdersLookup}
+                />
+              )
+            })}
           </div>
 
           {/* Truck Rows for SOs */}
@@ -171,20 +256,37 @@ export default function CalendarGrid({
                   </span>
                 )}
               </div>
-              {weekDays.map((day) => (
-                <CalendarCell
-                  key={`${truck.id}-${weekIdx}-${day.toISOString()}`}
-                  date={format(day, 'yyyy-MM-dd')}
-                  truckId={truck.id}
-                  orders={getOrdersForCell(truck.id, day)}
-                  deliveryRuns={deliveryRuns}
-                  isToday={isToday(day)}
-                  onOrderClick={onOrderClick}
-                  onStatusChange={onStatusChange}
-                  isValidDropTarget={draggingOrderType === 'SO'}
-                  isDragActive={isDragActive}
-                />
-              ))}
+              {weekDays.map((day) => {
+                const dateStr = format(day, 'yyyy-MM-dd')
+                return (
+                  <CalendarCell
+                    key={`${truck.id}-${weekIdx}-${day.toISOString()}`}
+                    date={dateStr}
+                    truckId={truck.id}
+                    orders={getOrdersForCell(truck.id, day)}
+                    notes={getNotesForCell(truck.id, day)}
+                    allNotes={allNotesForLookup}
+                    deliveryRuns={deliveryRuns}
+                    isToday={isToday(day)}
+                    onOrderClick={onOrderClick}
+                    onStatusChange={onStatusChange}
+                    onNoteUpdate={onNoteUpdate}
+                    onNoteDelete={onNoteDelete}
+                    onAddNote={(pos) => onAddNote?.({ type: 'cell', date: dateStr, truckId: truck.id }, pos)}
+                    onAddNoteToOrder={(order, pos) => onAddNote?.({ type: 'order', order }, pos)}
+                    onAddNoteToRun={(run, pos) => onAddNote?.({ type: 'run', run }, pos)}
+                    onViewNotes={onViewNotes}
+                    onDissolveRun={onDissolveRun}
+                    isValidDropTarget={draggingOrderType === 'SO'}
+                    isDragActive={isDragActive}
+                    hoveredCellId={hoveredCellId}
+                    previewState={previewState}
+                    allOrdersLookup={allOrdersLookup}
+                    isEditMode={isEditMode}
+                    mergeTargetId={mergeTargetId}
+                  />
+                )
+              })}
             </div>
           ))}
         </div>

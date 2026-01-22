@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(cat:*)",
+      "Bash(python manage.py:*)",
+      "Bash(dir C:UsersSeanraven_saasscheduling)",
+      "Bash(dir C:UsersSeanraven_saascore)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(curl:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd tenant infrastructure: TenantMixin, TenantManager, middleware\n\nCritical multi-tenant foundation with automatic query scoping:\n- TenantManager filters ALL queries by current tenant \\(prevents data leaks\\)\n- TenantMiddleware resolves tenant from header/subdomain/default\n- Tenant, TenantSettings, TenantSequence models\n- Auto-create settings and sequences on tenant creation\n- Default tenant \"Raven Distribution\" for development\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Party models: Party, Customer, Vendor, Location, Truck\n\nPhase 1 party module implementation:\n- Party: Universal entity for customers/vendors with tenant scoping\n- Customer: Customer-specific attributes \\(OneToOne with Party\\)\n- Vendor: Vendor-specific attributes \\(OneToOne with Party\\)\n- Location: Physical addresses with type \\(ship_to, bill_to, warehouse, office\\)\n- Truck: Scheduling resource for deliveries\n\nAll models inherit from TenantMixin for automatic query scoping.\nFull admin interface with inline editing.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(for f in *.html)",
+      "Bash(do sed -i 's|/app/|/v2/|g' \"$f\")",
+      "Bash(done)",
+      "Bash(python -c:*)",
+      "Bash(git checkout:*)",
+      "Read(//c/Users/Sean/raven_saas/**)",
+      "Bash(python -m pip:*)",
+      "Bash(npm install:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY4MzM0MTAxLCJpYXQiOjE3NjgzMzA1MDEsImp0aSI6ImJlZGIyMzdlZTAxNzQxMDRhMjY2NGU1ZGYxOTBmNjdjIiwidXNlcl9pZCI6IjIifQ.HYi3XOZkvMyduAhEKeJIG6SSDA6ZIQ_yjOMdqpUgsYY\":*)",
+      "Bash(npm run test:run:*)",
+      "Bash(npm test:*)"
+    ]
+  }
+}

@@ -4,6 +4,7 @@ Scheduling models for delivery management.
 
 Models:
 - DeliveryRun: A batch of orders assigned to a truck for a specific date
+- SchedulerNote: Sticky notes that can be attached to dates, trucks, orders, or runs
 """
 from django.db import models
 from django.utils import timezone
@@ -67,3 +68,117 @@ class DeliveryRun(TenantMixin, TimestampMixin):
     def order_count(self):
         """Count of orders in this run."""
         return self.sales_orders.count() + self.purchase_orders.count()
+
+
+class SchedulerNote(TenantMixin, TimestampMixin):
+    """
+    A sticky note that can be attached to:
+    - A specific date/truck cell (for general reminders)
+    - A delivery run (for run-specific instructions)
+    - A sales order or purchase order (for order-specific notes)
+
+    Notes appear as cards in the scheduler UI and can be color-coded.
+    """
+    COLOR_CHOICES = [
+        ('yellow', 'Yellow'),
+        ('blue', 'Blue'),
+        ('green', 'Green'),
+        ('red', 'Red'),
+        ('purple', 'Purple'),
+        ('orange', 'Orange'),
+    ]
+
+    content = models.TextField(
+        help_text="Note content/text"
+    )
+    color = models.CharField(
+        max_length=20,
+        choices=COLOR_CHOICES,
+        default='yellow',
+        help_text="Note color for visual distinction"
+    )
+
+    # Optional: attach to a specific date/truck cell
+    scheduled_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date this note is attached to"
+    )
+    truck = models.ForeignKey(
+        'parties.Truck',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='scheduler_notes',
+        help_text="Truck this note is attached to (combine with date for cell attachment)"
+    )
+
+    # Optional: attach to a delivery run
+    delivery_run = models.ForeignKey(
+        'DeliveryRun',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='scheduler_notes',
+        help_text="Delivery run this note is attached to"
+    )
+
+    # Optional: attach to a specific order
+    sales_order = models.ForeignKey(
+        'orders.SalesOrder',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='scheduler_notes',
+        help_text="Sales order this note is attached to"
+    )
+    purchase_order = models.ForeignKey(
+        'orders.PurchaseOrder',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='scheduler_notes',
+        help_text="Purchase order this note is attached to"
+    )
+
+    # Metadata
+    created_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='scheduler_notes',
+        help_text="User who created this note"
+    )
+    is_pinned = models.BooleanField(
+        default=False,
+        help_text="Pinned notes appear at the top"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        ordering = ['-is_pinned', '-created_at']
+        indexes = [
+            models.Index(fields=['tenant', 'scheduled_date']),
+            models.Index(fields=['tenant', 'scheduled_date', 'truck']),
+        ]
+
+    def __str__(self):
+        preview = self.content[:50] + '...' if len(self.content) > 50 else self.content
+        return f"Note: {preview}"
+
+    @property
+    def attachment_type(self):
+        """Returns the type of attachment for this note."""
+        if self.sales_order_id:
+            return 'sales_order'
+        if self.purchase_order_id:
+            return 'purchase_order'
+        if self.delivery_run_id:
+            return 'delivery_run'
+        if self.scheduled_date and self.truck_id:
+            return 'cell'
+        if self.scheduled_date:
+            return 'date'
+        return 'floating'

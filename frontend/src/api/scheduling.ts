@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from './client'
-import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun } from '@/types/api'
+import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun, SchedulerNote, NoteColor } from '@/types/api'
 
 // Fetch calendar data for a date range
 export function useCalendarRange(startDate: string, endDate: string) {
@@ -91,6 +91,8 @@ interface UpdateDeliveryRunParams {
   departureTime?: string | null
   notes?: string
   isComplete?: boolean
+  scheduledDate?: string
+  truckId?: number
 }
 
 export function useUpdateDeliveryRun() {
@@ -104,6 +106,8 @@ export function useUpdateDeliveryRun() {
       if (updates.departureTime !== undefined) payload.departure_time = updates.departureTime
       if (updates.notes !== undefined) payload.notes = updates.notes
       if (updates.isComplete !== undefined) payload.is_complete = updates.isComplete
+      if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate
+      if (updates.truckId !== undefined) payload.truck_id = updates.truckId
 
       const { data } = await api.patch<DeliveryRun>(`/calendar/runs/${runId}/`, payload)
       return data
@@ -135,19 +139,23 @@ interface UpdateScheduleParams {
   scheduledDate: string | null
   scheduledTruckId: number | null
   deliveryRunId?: number | null
+  schedulerSequence?: number
 }
 
 export function useUpdateSchedule() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ orderType, orderId, scheduledDate, scheduledTruckId, deliveryRunId }: UpdateScheduleParams) => {
+    mutationFn: async ({ orderType, orderId, scheduledDate, scheduledTruckId, deliveryRunId, schedulerSequence }: UpdateScheduleParams) => {
       const payload: Record<string, unknown> = {
         scheduled_date: scheduledDate,
         scheduled_truck_id: scheduledTruckId,
       }
       if (deliveryRunId !== undefined) {
         payload.delivery_run_id = deliveryRunId
+      }
+      if (schedulerSequence !== undefined) {
+        payload.scheduler_sequence = schedulerSequence
       }
       const { data } = await api.post<CalendarOrder>(
         `/calendar/update/${orderType}/${orderId}/`,
@@ -157,6 +165,51 @@ export function useUpdateSchedule() {
     },
     onSuccess: () => {
       // Invalidate calendar queries to refetch
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
+}
+
+// Batch update multiple orders' schedules (invalidates once at end)
+interface BatchUpdateScheduleParams {
+  orders: Array<{
+    orderType: 'SO' | 'PO'
+    orderId: number
+    scheduledDate: string | null
+    scheduledTruckId: number | null
+    deliveryRunId?: number | null
+    schedulerSequence?: number
+  }>
+}
+
+export function useBatchUpdateSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orders }: BatchUpdateScheduleParams) => {
+      // Update all orders sequentially without triggering intermediate invalidations
+      const results: CalendarOrder[] = []
+      for (const { orderType, orderId, scheduledDate, scheduledTruckId, deliveryRunId, schedulerSequence } of orders) {
+        const payload: Record<string, unknown> = {
+          scheduled_date: scheduledDate,
+          scheduled_truck_id: scheduledTruckId,
+        }
+        if (deliveryRunId !== undefined) {
+          payload.delivery_run_id = deliveryRunId
+        }
+        if (schedulerSequence !== undefined) {
+          payload.scheduler_sequence = schedulerSequence
+        }
+        const { data } = await api.post<CalendarOrder>(
+          `/calendar/update/${orderType}/${orderId}/`,
+          payload
+        )
+        results.push(data)
+      }
+      return results
+    },
+    onSuccess: () => {
+      // Invalidate calendar queries only once after all updates complete
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
     },
   })
@@ -217,5 +270,103 @@ export function useGlobalHistory(limit = 50) {
       return data
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+  })
+}
+
+// ==================== SCHEDULER NOTES ====================
+
+// Fetch scheduler notes for a date range
+export function useSchedulerNotes(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: ['calendar', 'notes', startDate, endDate],
+    queryFn: async () => {
+      const { data } = await api.get<SchedulerNote[]>('/calendar/notes/', {
+        params: { start_date: startDate, end_date: endDate }
+      })
+      return data
+    },
+    enabled: !!startDate && !!endDate,
+  })
+}
+
+// Create scheduler note
+interface CreateNoteParams {
+  content: string
+  color?: NoteColor
+  scheduledDate?: string | null
+  truckId?: number | null
+  deliveryRunId?: number | null
+  salesOrderId?: number | null
+  purchaseOrderId?: number | null
+  isPinned?: boolean
+}
+
+export function useCreateNote() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (params: CreateNoteParams) => {
+      const payload: Record<string, unknown> = {
+        content: params.content,
+        color: params.color ?? 'yellow',
+        is_pinned: params.isPinned ?? false,
+      }
+      if (params.scheduledDate !== undefined) payload.scheduled_date = params.scheduledDate
+      if (params.truckId !== undefined) payload.truck_id = params.truckId
+      if (params.deliveryRunId !== undefined) payload.delivery_run_id = params.deliveryRunId
+      if (params.salesOrderId !== undefined) payload.sales_order_id = params.salesOrderId
+      if (params.purchaseOrderId !== undefined) payload.purchase_order_id = params.purchaseOrderId
+
+      const { data } = await api.post<SchedulerNote>('/calendar/notes/create/', payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
+    },
+  })
+}
+
+// Update scheduler note
+interface UpdateNoteParams {
+  noteId: number
+  content?: string
+  color?: NoteColor
+  isPinned?: boolean
+  scheduledDate?: string | null
+  truckId?: number | null
+}
+
+export function useUpdateNote() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ noteId, ...updates }: UpdateNoteParams) => {
+      const payload: Record<string, unknown> = {}
+      if (updates.content !== undefined) payload.content = updates.content
+      if (updates.color !== undefined) payload.color = updates.color
+      if (updates.isPinned !== undefined) payload.is_pinned = updates.isPinned
+      if (updates.scheduledDate !== undefined) payload.scheduled_date = updates.scheduledDate
+      if (updates.truckId !== undefined) payload.truck_id = updates.truckId
+
+      const { data } = await api.patch<SchedulerNote>(`/calendar/notes/${noteId}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
+    },
+  })
+}
+
+// Delete scheduler note
+export function useDeleteNote() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (noteId: number) => {
+      await api.delete(`/calendar/notes/${noteId}/delete/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
+    },
   })
 }

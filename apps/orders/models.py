@@ -69,6 +69,10 @@ class BaseOrder(TenantMixin, TimestampMixin):
         default=5,
         help_text="Priority 1 (high) to 10 (low)"
     )
+    scheduler_sequence = models.PositiveIntegerField(
+        default=0,
+        help_text="Display order within a scheduler cell (0 = auto/end)"
+    )
 
     class Meta:
         abstract = True

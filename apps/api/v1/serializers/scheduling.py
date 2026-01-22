@@ -8,7 +8,7 @@ calendar-focused data structures.
 from rest_framework import serializers
 from apps.orders.models import SalesOrder, PurchaseOrder
 from apps.parties.models import Truck
-from apps.scheduling.models import DeliveryRun  # app label: new_scheduling
+from apps.scheduling.models import DeliveryRun, SchedulerNote  # app label: new_scheduling
 from .base import TenantModelSerializer
 
 
@@ -28,6 +28,7 @@ class CalendarOrderSerializer(serializers.Serializer):
     num_lines = serializers.IntegerField()
     total_quantity = serializers.IntegerField()
     priority = serializers.IntegerField()
+    scheduler_sequence = serializers.IntegerField()
     notes = serializers.CharField(allow_blank=True)
 
 
@@ -61,6 +62,7 @@ class ScheduleUpdateSerializer(serializers.Serializer):
     scheduled_date = serializers.DateField(allow_null=True, required=False)
     scheduled_truck_id = serializers.IntegerField(allow_null=True, required=False)
     delivery_run_id = serializers.IntegerField(allow_null=True, required=False)
+    scheduler_sequence = serializers.IntegerField(required=False)
 
 
 class CalendarDaySerializer(serializers.Serializer):
@@ -75,3 +77,38 @@ class TruckCalendarSerializer(serializers.Serializer):
     truck_id = serializers.IntegerField(allow_null=True)
     truck_name = serializers.CharField(allow_null=True)
     days = CalendarDaySerializer(many=True)
+
+
+class SchedulerNoteSerializer(TenantModelSerializer):
+    """Serializer for scheduler notes."""
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
+    attachment_type = serializers.CharField(read_only=True)
+    truck_id = serializers.IntegerField(source='truck.id', read_only=True, allow_null=True)
+    delivery_run_id = serializers.IntegerField(source='delivery_run.id', read_only=True, allow_null=True)
+    sales_order_id = serializers.IntegerField(source='sales_order.id', read_only=True, allow_null=True)
+    purchase_order_id = serializers.IntegerField(source='purchase_order.id', read_only=True, allow_null=True)
+
+    class Meta:
+        model = SchedulerNote
+        fields = [
+            'id', 'content', 'color', 'scheduled_date',
+            'truck_id', 'delivery_run_id', 'sales_order_id', 'purchase_order_id',
+            'created_by', 'created_by_username', 'is_pinned',
+            'attachment_type', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+
+class SchedulerNoteCreateSerializer(serializers.Serializer):
+    """Serializer for creating scheduler notes."""
+    content = serializers.CharField()
+    color = serializers.ChoiceField(
+        choices=['yellow', 'blue', 'green', 'red', 'purple', 'orange'],
+        default='yellow'
+    )
+    scheduled_date = serializers.DateField(required=False, allow_null=True)
+    truck_id = serializers.IntegerField(required=False, allow_null=True)
+    delivery_run_id = serializers.IntegerField(required=False, allow_null=True)
+    sales_order_id = serializers.IntegerField(required=False, allow_null=True)
+    purchase_order_id = serializers.IntegerField(required=False, allow_null=True)
+    is_pinned = serializers.BooleanField(default=False)

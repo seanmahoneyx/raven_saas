@@ -9,6 +9,7 @@ from collections import defaultdict
 from itertools import chain
 from operator import attrgetter
 
+from django.db import models
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,11 +18,12 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.orders.models import SalesOrder, PurchaseOrder
 from apps.parties.models import Truck
-from apps.scheduling.models import DeliveryRun  # app label: new_scheduling
+from apps.scheduling.models import DeliveryRun, SchedulerNote  # app label: new_scheduling
 from apps.api.v1.serializers.scheduling import (
     CalendarOrderSerializer, ScheduleUpdateSerializer,
     CalendarDaySerializer, TruckCalendarSerializer,
     DeliveryRunSerializer, DeliveryRunCreateSerializer,
+    SchedulerNoteSerializer, SchedulerNoteCreateSerializer,
 )
 from apps.api.v1.serializers.parties import TruckSerializer
 
@@ -54,6 +56,7 @@ def order_to_calendar_dict(order, order_type):
         'num_lines': order.lines.count(),
         'total_quantity': sum(line.quantity_ordered for line in order.lines.all()),
         'priority': order.priority,
+        'scheduler_sequence': order.scheduler_sequence,
         'notes': order.notes,
     }
 
@@ -136,8 +139,8 @@ class CalendarViewSet(viewsets.ViewSet):
             current_date = start_date
             while current_date <= end_date:
                 day_orders = [o for o in truck_orders if o['scheduled_date'] == current_date]
-                # Sort by priority
-                day_orders.sort(key=lambda x: x['priority'])
+                # Sort by scheduler_sequence (for user-defined order), then priority as fallback
+                day_orders.sort(key=lambda x: (x['scheduler_sequence'], x['priority']))
                 days.append({
                     'date': current_date,
                     'orders': day_orders,
@@ -179,8 +182,8 @@ class CalendarViewSet(viewsets.ViewSet):
         for po in purchase_orders:
             result.append(order_to_calendar_dict(po, 'PO'))
 
-        # Sort by priority
-        result.sort(key=lambda x: x['priority'])
+        # Sort by scheduler_sequence, then priority as fallback
+        result.sort(key=lambda x: (x['scheduler_sequence'], x['priority']))
 
         return Response(result)
 
@@ -256,6 +259,9 @@ class CalendarViewSet(viewsets.ViewSet):
                     )
             else:
                 order.delivery_run = None
+
+        if 'scheduler_sequence' in serializer.validated_data:
+            order.scheduler_sequence = serializer.validated_data['scheduler_sequence']
 
         order.save()
 
@@ -499,8 +505,31 @@ class CalendarViewSet(viewsets.ViewSet):
             run.notes = request.data['notes']
         if 'is_complete' in request.data:
             run.is_complete = request.data['is_complete']
+        if 'scheduled_date' in request.data:
+            run.scheduled_date = request.data['scheduled_date']
+        if 'truck_id' in request.data:
+            truck_id = request.data['truck_id']
+            try:
+                truck = Truck.objects.get(pk=truck_id)
+                run.truck = truck
+            except Truck.DoesNotExist:
+                return Response(
+                    {'error': f'Truck with id {truck_id} not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         run.save()
+
+        # If date or truck changed, update all orders in this run to match
+        if 'scheduled_date' in request.data or 'truck_id' in request.data:
+            SalesOrder.objects.filter(delivery_run=run).update(
+                scheduled_date=run.scheduled_date,
+                scheduled_truck=run.truck
+            )
+            PurchaseOrder.objects.filter(delivery_run=run).update(
+                scheduled_date=run.scheduled_date,
+                scheduled_truck=run.truck
+            )
 
         return Response({
             'id': run.id,
@@ -536,4 +565,234 @@ class CalendarViewSet(viewsets.ViewSet):
         PurchaseOrder.objects.filter(delivery_run=run).update(delivery_run=None)
 
         run.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ==================== SCHEDULER NOTES ====================
+
+    @extend_schema(
+        tags=['scheduling'],
+        summary='Get scheduler notes for a date range',
+        parameters=[
+            OpenApiParameter('start_date', str, description='Start date (YYYY-MM-DD)'),
+            OpenApiParameter('end_date', str, description='End date (YYYY-MM-DD)'),
+        ],
+        responses={200: SchedulerNoteSerializer(many=True)}
+    )
+    @action(detail=False, methods=['get'], url_path='notes')
+    def scheduler_notes(self, request):
+        """Get scheduler notes for a date range."""
+        start_str = request.query_params.get('start_date')
+        end_str = request.query_params.get('end_date')
+
+        queryset = SchedulerNote.objects.select_related(
+            'truck', 'delivery_run', 'sales_order', 'purchase_order', 'created_by'
+        )
+
+        if start_str:
+            try:
+                start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+                queryset = queryset.filter(
+                    models.Q(scheduled_date__gte=start_date) |
+                    models.Q(scheduled_date__isnull=True)
+                )
+            except ValueError:
+                pass
+
+        if end_str:
+            try:
+                end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+                queryset = queryset.filter(
+                    models.Q(scheduled_date__lte=end_date) |
+                    models.Q(scheduled_date__isnull=True)
+                )
+            except ValueError:
+                pass
+
+        queryset = queryset.order_by('-is_pinned', '-created_at')
+
+        result = []
+        for note in queryset:
+            result.append({
+                'id': note.id,
+                'content': note.content,
+                'color': note.color,
+                'scheduled_date': note.scheduled_date,
+                'truck_id': note.truck_id,
+                'delivery_run_id': note.delivery_run_id,
+                'sales_order_id': note.sales_order_id,
+                'purchase_order_id': note.purchase_order_id,
+                'created_by': note.created_by_id,
+                'created_by_username': note.created_by.username if note.created_by else None,
+                'is_pinned': note.is_pinned,
+                'attachment_type': note.attachment_type,
+                'created_at': note.created_at.isoformat(),
+                'updated_at': note.updated_at.isoformat(),
+            })
+
+        return Response(result)
+
+    @extend_schema(
+        tags=['scheduling'],
+        summary='Create a scheduler note',
+        request=SchedulerNoteCreateSerializer,
+        responses={201: SchedulerNoteSerializer}
+    )
+    @action(detail=False, methods=['post'], url_path='notes/create')
+    def create_note(self, request):
+        """Create a new scheduler note."""
+        serializer = SchedulerNoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Get tenant from request
+        tenant = getattr(request, 'tenant', None)
+        if not tenant:
+            return Response(
+                {'error': 'No tenant context available'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Build note data
+        note_data = {
+            'tenant': tenant,
+            'content': serializer.validated_data['content'],
+            'color': serializer.validated_data.get('color', 'yellow'),
+            'scheduled_date': serializer.validated_data.get('scheduled_date'),
+            'is_pinned': serializer.validated_data.get('is_pinned', False),
+            'created_by': request.user if request.user.is_authenticated else None,
+        }
+
+        # Handle foreign keys
+        truck_id = serializer.validated_data.get('truck_id')
+        if truck_id:
+            try:
+                note_data['truck'] = Truck.objects.get(pk=truck_id)
+            except Truck.DoesNotExist:
+                return Response(
+                    {'error': f'Truck with id {truck_id} not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        delivery_run_id = serializer.validated_data.get('delivery_run_id')
+        if delivery_run_id:
+            try:
+                note_data['delivery_run'] = DeliveryRun.objects.get(pk=delivery_run_id)
+            except DeliveryRun.DoesNotExist:
+                return Response(
+                    {'error': f'DeliveryRun with id {delivery_run_id} not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        sales_order_id = serializer.validated_data.get('sales_order_id')
+        if sales_order_id:
+            try:
+                note_data['sales_order'] = SalesOrder.objects.get(pk=sales_order_id)
+            except SalesOrder.DoesNotExist:
+                return Response(
+                    {'error': f'SalesOrder with id {sales_order_id} not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        purchase_order_id = serializer.validated_data.get('purchase_order_id')
+        if purchase_order_id:
+            try:
+                note_data['purchase_order'] = PurchaseOrder.objects.get(pk=purchase_order_id)
+            except PurchaseOrder.DoesNotExist:
+                return Response(
+                    {'error': f'PurchaseOrder with id {purchase_order_id} not found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+        note = SchedulerNote.objects.create(**note_data)
+
+        return Response({
+            'id': note.id,
+            'content': note.content,
+            'color': note.color,
+            'scheduled_date': note.scheduled_date,
+            'truck_id': note.truck_id,
+            'delivery_run_id': note.delivery_run_id,
+            'sales_order_id': note.sales_order_id,
+            'purchase_order_id': note.purchase_order_id,
+            'created_by': note.created_by_id,
+            'created_by_username': note.created_by.username if note.created_by else None,
+            'is_pinned': note.is_pinned,
+            'attachment_type': note.attachment_type,
+            'created_at': note.created_at.isoformat(),
+            'updated_at': note.updated_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        tags=['scheduling'],
+        summary='Update a scheduler note',
+        responses={200: SchedulerNoteSerializer}
+    )
+    @action(detail=False, methods=['patch'], url_path='notes/(?P<note_id>[0-9]+)')
+    def update_note(self, request, note_id=None):
+        """Update a scheduler note."""
+        try:
+            note = SchedulerNote.objects.select_related('created_by').get(pk=note_id)
+        except SchedulerNote.DoesNotExist:
+            return Response(
+                {'error': f'SchedulerNote with id {note_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Update fields if provided
+        if 'content' in request.data:
+            note.content = request.data['content']
+        if 'color' in request.data:
+            note.color = request.data['color']
+        if 'is_pinned' in request.data:
+            note.is_pinned = request.data['is_pinned']
+        if 'scheduled_date' in request.data:
+            note.scheduled_date = request.data['scheduled_date']
+        if 'truck_id' in request.data:
+            truck_id = request.data['truck_id']
+            if truck_id:
+                try:
+                    note.truck = Truck.objects.get(pk=truck_id)
+                except Truck.DoesNotExist:
+                    return Response(
+                        {'error': f'Truck with id {truck_id} not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                note.truck = None
+
+        note.save()
+
+        return Response({
+            'id': note.id,
+            'content': note.content,
+            'color': note.color,
+            'scheduled_date': note.scheduled_date,
+            'truck_id': note.truck_id,
+            'delivery_run_id': note.delivery_run_id,
+            'sales_order_id': note.sales_order_id,
+            'purchase_order_id': note.purchase_order_id,
+            'created_by': note.created_by_id,
+            'created_by_username': note.created_by.username if note.created_by else None,
+            'is_pinned': note.is_pinned,
+            'attachment_type': note.attachment_type,
+            'created_at': note.created_at.isoformat(),
+            'updated_at': note.updated_at.isoformat(),
+        })
+
+    @extend_schema(
+        tags=['scheduling'],
+        summary='Delete a scheduler note',
+        responses={204: None}
+    )
+    @action(detail=False, methods=['delete'], url_path='notes/(?P<note_id>[0-9]+)/delete')
+    def delete_note(self, request, note_id=None):
+        """Delete a scheduler note."""
+        try:
+            note = SchedulerNote.objects.get(pk=note_id)
+        except SchedulerNote.DoesNotExist:
+            return Response(
+                {'error': f'SchedulerNote with id {note_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

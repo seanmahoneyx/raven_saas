@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Schedulizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen flex items-center justify-center font-sans">
+    <div class="w-full max-w-sm bg-white p-8 rounded-lg shadow-lg border border-gray-200">
+        <div class="text-center mb-8">
+            <h1 class="text-2xl font-bold text-gray-800 tracking-tight">Schedulizer</h1>
+            <p class="text-xs text-gray-400 uppercase tracking-widest mt-1">Raven Logistics</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+                <div class="mb-4 p-3 bg-red-50 text-red-600 text-xs rounded border border-red-100">
+                    Invalid username or password.
+                </div>
+            {% endif %}
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Username</label>
+                <input type="text" name="username" autofocus required class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Password</label>
+                <input type="password" name="password" required class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:outline-none">
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-sm text-sm transition-colors">
+                Sign In
+            </button>
+        </form>
+    </div>
+</body>
+</html>
