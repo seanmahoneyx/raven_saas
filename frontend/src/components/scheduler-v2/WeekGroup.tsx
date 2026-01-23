@@ -29,11 +29,11 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
     <div
       className={`
         relative px-2 py-1 text-xs font-bold text-center border-b border-r select-none
-        ${isLocked ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white text-slate-700 border-slate-200'}
+        ${isLocked ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white text-stone-700 border-stone-200'}
       `}
     >
       <div>{dayLabel}</div>
-      <div className="text-[10px] font-normal text-slate-500">{date.slice(5)}</div>
+      <div className="text-[10px] font-normal text-stone-500">{date.slice(5)}</div>
       <button
         type="button"
         onClick={handleToggle}
@@ -42,7 +42,7 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
           transition-colors
           ${isLocked
             ? 'bg-red-200 text-red-700 hover:bg-red-300'
-            : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+            : 'text-stone-300 hover:text-stone-500 hover:bg-stone-100'
           }
         `}
         title={isLocked ? 'Unlock day' : 'Lock day'}
@@ -75,10 +75,10 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         w-24 min-w-[96px] flex items-start justify-center
         px-1 py-2 text-[11px] font-bold border-r border-b
         ${isInbound
-          ? 'bg-slate-700 text-white border-slate-600'
+          ? 'bg-stone-800 text-white border-stone-700'
           : truckId === 'unassigned'
             ? 'bg-teal-100 text-teal-800 border-teal-200'
-            : 'bg-white text-slate-700 border-slate-200'
+            : 'bg-white text-stone-700 border-stone-200'
         }
       `}
     >
@@ -143,10 +143,7 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
       {/* Week Band Label */}
       <div className={`
         px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b
-        ${isCurrentWeek
-          ? 'bg-blue-600 text-white border-blue-700'
-          : 'bg-slate-700 text-slate-200 border-slate-600'
-        }
+        bg-[#C9A227] text-white border-[#A88620]
       `}>
         {weekLabel}
       </div>
@@ -157,7 +154,7 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
         style={{ gridTemplateColumns: `96px repeat(${dates.length}, minmax(160px, 1fr))` }}
       >
         {/* Corner Cell */}
-        <div className="bg-slate-800 border-b border-r border-slate-600" />
+        <div className="bg-stone-900 border-b border-r border-stone-700" />
 
         {/* Date Headers */}
         {dates.map((date, idx) => (

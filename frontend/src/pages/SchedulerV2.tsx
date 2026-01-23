@@ -167,10 +167,10 @@ export default function SchedulerV2() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="flex items-center px-4 py-2 border-b bg-white shrink-0">
+      <div className="flex items-center px-4 py-2 border-b border-amber-200 bg-white shrink-0">
         <div>
-          <h1 className="text-lg font-bold text-slate-800">Scheduler V2</h1>
-          <p className="text-xs text-slate-500">
+          <h1 className="text-lg font-bold text-stone-900">Scheduler V2</h1>
+          <p className="text-xs text-stone-500">
             Multi-Week Workbench — Drag to cell = loose. Drag to run = committed. Right-click for notes/lock.
           </p>
         </div>

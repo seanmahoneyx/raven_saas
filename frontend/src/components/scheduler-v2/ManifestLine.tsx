@@ -88,13 +88,13 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
       <div ref={setNodeRef} style={style} {...attributes} {...listeners}
         onContextMenu={handleContextMenu}
         onDoubleClick={onExplode}
-        className="flex items-center gap-1.5 px-1.5 py-[3px] rounded text-xs select-none bg-slate-100 border border-slate-200 cursor-pointer"
+        className="flex items-center gap-1.5 px-1.5 py-[3px] rounded text-xs select-none bg-stone-100 border border-stone-200 cursor-pointer"
         title="Double-click to expand"
       >
-        <div className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
-        <span className="font-bold text-slate-700 truncate">[{collapsed.customerCode}]</span>
-        <span className="text-slate-500">({collapsed.orderCount})</span>
-        <span className="ml-auto tabular-nums text-slate-600 font-medium shrink-0">{collapsed.totalPallets}P</span>
+        <div className="w-2 h-2 rounded-full bg-stone-400 shrink-0" />
+        <span className="font-bold text-stone-700 truncate">[{collapsed.customerCode}]</span>
+        <span className="text-stone-500">({collapsed.orderCount})</span>
+        <span className="ml-auto tabular-nums text-stone-600 font-medium shrink-0">{collapsed.totalPallets}P</span>
       </div>
     )
   }
@@ -110,17 +110,17 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
         onDoubleClick={onCollapse}
         className={`
           flex items-center gap-1.5 px-1.5 py-[3px] rounded text-xs select-none
-          border border-transparent hover:border-slate-300
+          border border-transparent hover:border-stone-300
           ${STATUS_ROW_BG[order.status]}
-          ${isDragging ? 'shadow-lg ring-2 ring-blue-400 z-50' : ''}
+          ${isDragging ? 'shadow-lg ring-2 ring-purple-400 z-50' : ''}
           ${order.isReadOnly ? 'opacity-60' : ''}
           ${isLoose ? 'border-l-2 border-l-amber-400' : ''}
         `}
       >
         <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[order.status]}`} />
-        <span className="font-mono font-semibold text-slate-800 truncate min-w-0">{order.orderNumber}</span>
-        <span className="font-bold text-slate-600 truncate">{order.customerCode}</span>
-        <span className="ml-auto tabular-nums text-slate-700 font-medium shrink-0">{order.palletCount}P</span>
+        <span className="font-mono font-semibold text-stone-800 truncate min-w-0">{order.orderNumber}</span>
+        <span className="font-bold text-stone-600 truncate">{order.customerCode}</span>
+        <span className="ml-auto tabular-nums text-stone-700 font-medium shrink-0">{order.palletCount}P</span>
         {order.notes && (
           <div className="w-3 h-3 rounded-full bg-amber-300 flex items-center justify-center shrink-0" title={order.notes}>
             <span className="text-[8px] text-amber-900 font-bold">!</span>
@@ -137,13 +137,13 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
           onContextMenu={(e) => { e.preventDefault(); setShowNoteMenu(false) }}
         >
           <div
-            className="absolute bg-white rounded shadow-lg border border-slate-200 p-2 w-52"
+            className="absolute bg-white rounded shadow-lg border border-stone-200 p-2 w-52"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Order Note — {order.orderNumber}</div>
+            <div className="text-[10px] font-bold text-stone-500 uppercase mb-1">Order Note — {order.orderNumber}</div>
             <textarea
-              className="w-full border border-slate-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full border border-stone-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-purple-400"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
@@ -153,14 +153,14 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
             <div className="flex justify-end gap-1 mt-1">
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-700"
+                className="px-2 py-0.5 text-[10px] text-stone-500 hover:text-stone-700"
                 onClick={() => setShowNoteMenu(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] bg-indigo-500 text-white rounded hover:bg-indigo-600"
+                className="px-2 py-0.5 text-[10px] bg-purple-600 text-white rounded hover:bg-purple-700"
                 onClick={handleNoteSave}
               >
                 Save

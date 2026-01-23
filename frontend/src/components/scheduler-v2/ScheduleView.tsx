@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState, memo } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef, memo } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -16,14 +16,14 @@ import { ManifestLine } from './ManifestLine'
 
 // ─── Date Utility ─────────────────────────────────────────────────────────────
 
-function getWeekBands(visibleWeeks: number): { dates: string[]; label: string; isCurrentWeek: boolean }[] {
+function getWeekBands(startOffset: number, endOffset: number): { dates: string[]; label: string; isCurrentWeek: boolean }[] {
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
   const monday = new Date(today)
   monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
 
   const bands: { dates: string[]; label: string; isCurrentWeek: boolean }[] = []
-  for (let w = 0; w < visibleWeeks; w++) {
+  for (let w = startOffset; w <= endOffset; w++) {
     const week: string[] = []
     for (let d = 0; d < 5; d++) { // Mon-Fri only
       const day = new Date(monday)
@@ -31,7 +31,7 @@ function getWeekBands(visibleWeeks: number): { dates: string[]; label: string; i
       week.push(day.toISOString().slice(0, 10))
     }
     const isCurrentWeek = week.includes(todayStr)
-    const label = `Week ${w + 1} — ${week[0].slice(5)} to ${week[4].slice(5)}`
+    const label = `Week of ${week[0].slice(5)} to ${week[4].slice(5)}`
     bands.push({ dates: week, label, isCurrentWeek })
   }
   return bands
@@ -40,7 +40,6 @@ function getWeekBands(visibleWeeks: number): { dates: string[]; label: string; i
 // ─── ScheduleView ─────────────────────────────────────────────────────────────
 
 export const ScheduleView = memo(function ScheduleView() {
-  const visibleWeeks = useSchedulerStore((s) => s.visibleWeeks)
   const moveOrder = useSchedulerStore((s) => s.moveOrder)
   const moveOrderLoose = useSchedulerStore((s) => s.moveOrderLoose)
   const moveRun = useSchedulerStore((s) => s.moveRun)
@@ -48,11 +47,54 @@ export const ScheduleView = memo(function ScheduleView() {
   const reorderRunsInCell = useSchedulerStore((s) => s.reorderRunsInCell)
   const [activeDrag, setActiveDrag] = useState<{ type: 'order' | 'run'; id: string } | null>(null)
 
+  // Infinite scroll: week range relative to current week (0 = this week)
+  const [weekRange, setWeekRange] = useState({ start: 0, end: 3 })
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const topSentinelRef = useRef<HTMLDivElement>(null)
+  const bottomSentinelRef = useRef<HTMLDivElement>(null)
+  const prevScrollHeightRef = useRef(0)
+  const isPrependingRef = useRef(false)
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   )
 
-  const weekBands = useMemo(() => getWeekBands(visibleWeeks), [visibleWeeks])
+  const weekBands = useMemo(() => getWeekBands(weekRange.start, weekRange.end), [weekRange])
+
+  // IntersectionObserver for loading more weeks
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (!scrollEl) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          if (entry.target === bottomSentinelRef.current) {
+            setWeekRange((prev) => ({ ...prev, end: prev.end + 2 }))
+          } else if (entry.target === topSentinelRef.current) {
+            isPrependingRef.current = true
+            prevScrollHeightRef.current = scrollEl.scrollHeight
+            setWeekRange((prev) => ({ ...prev, start: prev.start - 2 }))
+          }
+        }
+      },
+      { root: scrollEl, rootMargin: '100px' }
+    )
+
+    if (topSentinelRef.current) observer.observe(topSentinelRef.current)
+    if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  // Fix scroll position after prepending weeks
+  useEffect(() => {
+    if (isPrependingRef.current && scrollRef.current) {
+      const diff = scrollRef.current.scrollHeight - prevScrollHeightRef.current
+      scrollRef.current.scrollTop += diff
+      isPrependingRef.current = false
+    }
+  })
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const data = event.active.data.current as { type: string; orderId?: string; runId?: string } | undefined
@@ -160,7 +202,8 @@ export const ScheduleView = memo(function ScheduleView() {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="overflow-auto h-full w-full bg-slate-50">
+      <div ref={scrollRef} className="overflow-auto h-full w-full bg-stone-50">
+        <div ref={topSentinelRef} className="h-1" />
         {weekBands.map((band) => (
           <WeekGroup
             key={band.dates[0]}
@@ -169,6 +212,7 @@ export const ScheduleView = memo(function ScheduleView() {
             isCurrentWeek={band.isCurrentWeek}
           />
         ))}
+        <div ref={bottomSentinelRef} className="h-1" />
       </div>
 
       <DragOverlay dropAnimation={null}>

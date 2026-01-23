@@ -40,11 +40,11 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
     <div
       ref={setNodeRef}
       className={`
-        min-h-[40px] p-0.5 border-r border-b border-slate-200 relative flex flex-col
-        ${isInbound ? 'bg-slate-100' : ''}
+        min-h-[40px] p-0.5 border-r border-b border-stone-200 relative flex flex-col
+        ${isInbound ? 'bg-stone-100' : ''}
         ${isUnassigned ? 'bg-teal-100' : ''}
         ${isLocked && !isInbound ? 'bg-[repeating-linear-gradient(-45deg,transparent,transparent_5px,rgba(239,68,68,0.18)_5px,rgba(239,68,68,0.18)_7px)]' : ''}
-        ${isOver ? 'ring-2 ring-inset ring-blue-400' : ''}
+        ${isOver ? 'ring-2 ring-inset ring-purple-400' : ''}
       `}
     >
       {/* Section A: Committed Runs */}
@@ -56,7 +56,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
 
       {/* Separator (only if runs exist) */}
       {runIds.length > 0 && (
-        <div className="border-t border-dashed border-slate-300 my-0.5" />
+        <div className="border-t border-dashed border-stone-300 my-0.5" />
       )}
 
       {/* Section B: Loose Orders Drop Zone (always visible for non-inbound) */}
@@ -68,7 +68,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
             ))}
           </SortableContext>
           {/* Empty slot — always visible, same height as an order line */}
-          <div className={`h-[22px] mt-0.5 rounded ${isOver ? 'bg-blue-50' : ''}`} />
+          <div className={`h-[22px] mt-0.5 rounded ${isOver ? 'bg-purple-50' : ''}`} />
         </div>
       )}
 
@@ -78,9 +78,9 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
           type="button"
           onClick={handleAddRun}
           className="
-            w-full pt-0.5 pb-0.5 text-[9px] text-indigo-400
-            hover:text-indigo-600 hover:bg-indigo-50 rounded
-            border border-dashed border-transparent hover:border-indigo-300
+            w-full pt-0.5 pb-0.5 text-[9px] text-purple-400
+            hover:text-purple-600 hover:bg-purple-50 rounded
+            border border-dashed border-transparent hover:border-purple-300
             transition-colors select-none
           "
         >

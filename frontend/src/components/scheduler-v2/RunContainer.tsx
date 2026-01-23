@@ -128,8 +128,8 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
           flex items-center gap-1 px-1.5 py-0.5 rounded-t
           text-[10px] font-bold uppercase tracking-wide select-none
           ${isInbound
-            ? 'bg-slate-600 text-slate-300'
-            : 'bg-indigo-100 text-indigo-700 border border-b-0 border-indigo-200 cursor-grab'
+            ? 'bg-stone-700 text-stone-300'
+            : 'bg-purple-600 text-white border border-b-0 border-purple-700 cursor-grab'
           }
         `}
       >
@@ -148,8 +148,8 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
       <div className={`
         rounded-b px-0.5 py-0.5 min-h-[20px]
         ${isInbound
-          ? 'bg-slate-200/50'
-          : 'border border-t-0 border-indigo-200 bg-white'
+          ? 'bg-stone-200/50'
+          : 'border border-t-0 border-purple-200 bg-white'
         }
       `}>
         <SortableContext items={sortableOrderIds} strategy={verticalListSortingStrategy}>
@@ -182,13 +182,13 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
           onContextMenu={(e) => { e.preventDefault(); setShowNoteMenu(false) }}
         >
           <div
-            className="absolute bg-white rounded shadow-lg border border-slate-200 p-2 w-52"
+            className="absolute bg-white rounded shadow-lg border border-stone-200 p-2 w-52"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Run Note</div>
+            <div className="text-[10px] font-bold text-stone-500 uppercase mb-1">Run Note</div>
             <textarea
-              className="w-full border border-slate-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              className="w-full border border-stone-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-purple-400"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
@@ -198,14 +198,14 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
             <div className="flex justify-end gap-1 mt-1">
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-700"
+                className="px-2 py-0.5 text-[10px] text-stone-500 hover:text-stone-700"
                 onClick={() => setShowNoteMenu(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] bg-indigo-500 text-white rounded hover:bg-indigo-600"
+                className="px-2 py-0.5 text-[10px] bg-purple-600 text-white rounded hover:bg-purple-700"
                 onClick={handleNoteSave}
               >
                 Save
