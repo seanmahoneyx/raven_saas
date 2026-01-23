@@ -84,30 +84,30 @@ const SEED_ORDERS: Order[] = [
 
 const SEED_RUNS: DeliveryRun[] = [
   // Week 1 inbound
-  { id: 'inbound-w1-mon', name: 'Receiving', orderIds: ['po-1'] },
-  { id: 'inbound-w1-tue', name: 'Receiving', orderIds: ['po-2'] },
+  { id: 'inbound-w1-mon', name: 'Receiving', orderIds: ['po-1'], notes: null },
+  { id: 'inbound-w1-tue', name: 'Receiving', orderIds: ['po-2'], notes: null },
 
   // Week 1: TR-01 Mon (2 runs — multi-run)
-  { id: 'run-A', name: 'Run 1', orderIds: ['so-1', 'so-2', 'so-3'] },
-  { id: 'run-B', name: 'Run 2', orderIds: ['so-4', 'so-5'] },
+  { id: 'run-A', name: 'Run 1', orderIds: ['so-1', 'so-2', 'so-3'], notes: null },
+  { id: 'run-B', name: 'Run 2', orderIds: ['so-4', 'so-5'], notes: 'Check dock availability' },
 
   // Week 1: TR-01 Tue
-  { id: 'run-D', name: 'Run 1', orderIds: ['so-14'] },
+  { id: 'run-D', name: 'Run 1', orderIds: ['so-14'], notes: null },
 
   // Week 1: TR-02 Mon
-  { id: 'run-C', name: 'Run 1', orderIds: ['so-6', 'so-7'] },
+  { id: 'run-C', name: 'Run 1', orderIds: ['so-6', 'so-7'], notes: null },
 
   // Week 1: TR-02 Tue
-  { id: 'run-E', name: 'Run 1', orderIds: ['so-8'] },
+  { id: 'run-E', name: 'Run 1', orderIds: ['so-8'], notes: null },
 
   // Week 1: TR-03 Mon
-  { id: 'run-F', name: 'Run 1', orderIds: ['so-9'] },
+  { id: 'run-F', name: 'Run 1', orderIds: ['so-9'], notes: null },
 
   // Week 2 inbound
-  { id: 'inbound-w2-mon', name: 'Receiving', orderIds: ['po-3'] },
+  { id: 'inbound-w2-mon', name: 'Receiving', orderIds: ['po-3'], notes: null },
 
   // Week 2: TR-01 Mon
-  { id: 'run-G', name: 'Run 1', orderIds: ['so-35', 'so-36'] },
+  { id: 'run-G', name: 'Run 1', orderIds: ['so-35', 'so-36'], notes: null },
 ]
 
 const SEED_CELLS: Record<string, CellData> = {
@@ -167,20 +167,12 @@ export default function SchedulerV2() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-white shrink-0">
+      <div className="flex items-center px-4 py-2 border-b bg-white shrink-0">
         <div>
           <h1 className="text-lg font-bold text-slate-800">Scheduler V2</h1>
           <p className="text-xs text-slate-500">
-            Multi-Week Workbench — Drag to cell = loose. Drag to run = committed. Right-click dates to lock.
+            Multi-Week Workbench — Drag to cell = loose. Drag to run = committed. Right-click for notes/lock.
           </p>
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-400" /> Unscheduled</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400" /> Picked</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-400" /> Packed</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" /> Shipped</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-violet-400" /> Invoiced</span>
-          <span className="flex items-center gap-1 ml-2"><span className="w-2.5 h-0.5 bg-amber-400" /> Loose</span>
         </div>
       </div>
 

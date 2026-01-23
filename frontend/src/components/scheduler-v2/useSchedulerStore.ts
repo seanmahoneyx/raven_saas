@@ -23,6 +23,7 @@ export interface DeliveryRun {
   id: string
   name: string
   orderIds: string[]
+  notes?: string | null
 }
 
 export interface CellData {
@@ -91,6 +92,8 @@ interface SchedulerState {
   toggleDateLock: (date: string) => void
   reorderInRun: (runId: string, fromIndex: number, toIndex: number) => void
   reorderRunsInCell: (cellId: CellId, fromIndex: number, toIndex: number) => void
+  updateOrderNotes: (orderId: string, notes: string | null) => void
+  updateRunNotes: (runId: string, notes: string | null) => void
 }
 
 export interface HydratePayload {
@@ -133,7 +136,7 @@ export const useSchedulerStore = create<SchedulerState>()(
 
       // Normalize runs
       for (const run of data.runs) {
-        runsMap[run.id] = { ...run }
+        runsMap[run.id] = { ...run, notes: run.notes ?? null }
         for (const orderId of run.orderIds) {
           orderToRun[orderId] = run.id
         }
@@ -410,7 +413,7 @@ export const useSchedulerStore = create<SchedulerState>()(
       const runName = name ?? `Run ${runCount + 1}`
 
       set((prev) => {
-        const newRun: DeliveryRun = { id: newRunId, name: runName, orderIds: [] }
+        const newRun: DeliveryRun = { id: newRunId, name: runName, orderIds: [], notes: null }
         const nextRuns = { ...prev.runs, [newRunId]: newRun }
         const nextCells = { ...prev.cells }
         const nextRunToCell = { ...prev.runToCell }
@@ -525,6 +528,22 @@ export const useSchedulerStore = create<SchedulerState>()(
         next.splice(toIndex, 0, moved)
 
         return { cells: { ...prev.cells, [cellId]: { ...cell, runIds: next } } }
+      })
+    },
+
+    updateOrderNotes: (orderId, notes) => {
+      set((prev) => {
+        const order = prev.orders[orderId]
+        if (!order) return prev
+        return { orders: { ...prev.orders, [orderId]: { ...order, notes } } }
+      })
+    },
+
+    updateRunNotes: (runId, notes) => {
+      set((prev) => {
+        const run = prev.runs[runId]
+        if (!run) return prev
+        return { runs: { ...prev.runs, [runId]: { ...run, notes } } }
       })
     },
   }))

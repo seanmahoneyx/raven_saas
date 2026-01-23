@@ -21,27 +21,42 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
   const isLocked = useSchedulerStore(selectIsDateLocked(date))
   const toggleDateLock = useSchedulerStore((s) => s.toggleDateLock)
 
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      toggleDateLock(date)
-    },
-    [date, toggleDateLock]
-  )
+  const handleToggle = useCallback(() => {
+    toggleDateLock(date)
+  }, [date, toggleDateLock])
 
   return (
     <div
-      onContextMenu={handleContextMenu}
       className={`
-        px-2 py-1 text-xs font-bold text-center border-b border-r
-        select-none cursor-context-menu
+        relative px-2 py-1 text-xs font-bold text-center border-b border-r select-none
         ${isLocked ? 'bg-red-50 text-red-700 border-red-200' : 'bg-white text-slate-700 border-slate-200'}
       `}
-      title={isLocked ? `${date} — LOCKED (right-click to unlock)` : `${date} (right-click to lock)`}
     >
       <div>{dayLabel}</div>
       <div className="text-[10px] font-normal text-slate-500">{date.slice(5)}</div>
-      {isLocked && <div className="text-[9px] text-red-500 font-semibold mt-0.5">LOCKED</div>}
+      <button
+        type="button"
+        onClick={handleToggle}
+        className={`
+          absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center rounded
+          transition-colors
+          ${isLocked
+            ? 'bg-red-200 text-red-700 hover:bg-red-300'
+            : 'text-slate-300 hover:text-slate-500 hover:bg-slate-100'
+          }
+        `}
+        title={isLocked ? 'Unlock day' : 'Lock day'}
+      >
+        {isLocked ? (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-2.5 h-2.5">
+            <path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-2.5 h-2.5">
+            <path fillRule="evenodd" d="M14.5 1A4.5 4.5 0 0 0 10 5.5V9H3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5V5.5a3 3 0 1 1 6 0v3a.75.75 0 0 0 1.5 0v-3A4.5 4.5 0 0 0 14.5 1Z" clipRule="evenodd" />
+          </svg>
+        )}
+      </button>
     </div>
   )
 })
@@ -62,7 +77,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         ${isInbound
           ? 'bg-slate-700 text-white border-slate-600'
           : truckId === 'unassigned'
-            ? 'bg-amber-50 text-amber-800 border-amber-200'
+            ? 'bg-teal-100 text-teal-800 border-teal-200'
             : 'bg-white text-slate-700 border-slate-200'
         }
       `}
@@ -83,12 +98,13 @@ interface GridRowProps {
 }
 
 const GridRow = memo(function GridRow({ truckId, isInbound, dates }: GridRowProps) {
+  const isUnassigned = truckId === 'unassigned'
   return (
     <>
       <RowLabel truckId={truckId} isInbound={isInbound} />
       {dates.map((date) => {
         const cellId: CellId = `${truckId}|${date}`
-        return <ManifestCell key={cellId} cellId={cellId} isInbound={isInbound} />
+        return <ManifestCell key={cellId} cellId={cellId} isInbound={isInbound} isUnassigned={isUnassigned} />
       })}
     </>
   )

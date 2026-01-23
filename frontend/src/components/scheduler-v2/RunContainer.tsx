@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState, useCallback } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -14,6 +14,11 @@ interface RunContainerProps {
 
 export const RunContainer = memo(function RunContainer({ runId, isInbound }: RunContainerProps) {
   const run = useSchedulerStore(selectRun(runId))
+  const updateRunNotes = useSchedulerStore((s) => s.updateRunNotes)
+  const [showNoteMenu, setShowNoteMenu] = useState(false)
+  const [noteInput, setNoteInput] = useState('')
+  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+  const [explodedGroups, setExplodedGroups] = useState<Set<string>>(new Set())
 
   // Make the run itself sortable (for reordering runs within a cell)
   const {
@@ -35,7 +40,7 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
     opacity: isDragging ? 0.4 : 1,
   }
 
-  // Build render list: collapse same-customer groups
+  // Build render list: collapse same-customer groups (unless exploded)
   const renderItems = useMemo(() => {
     if (!run || run.orderIds.length === 0) return []
     const orders = useSchedulerStore.getState().orders
@@ -55,7 +60,8 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
       }
 
       const groupSize = j - i
-      if (groupSize >= 2) {
+      const groupKey = run.orderIds[i]
+      if (groupSize >= 2 && !explodedGroups.has(groupKey)) {
         let totalPallets = 0
         for (let k = i; k < j; k++) {
           const o = orders[run.orderIds[k]]
@@ -63,9 +69,15 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
         }
         items.push({
           type: 'collapsed',
-          orderId: run.orderIds[i],
+          orderId: groupKey,
           collapsed: { customerCode: order.customerCode, orderCount: groupSize, totalPallets },
         })
+        i = j
+      } else if (groupSize >= 2 && explodedGroups.has(groupKey)) {
+        // Exploded group — render individually but track the groupKey
+        for (let k = i; k < j; k++) {
+          items.push({ type: 'order', orderId: run.orderIds[k], groupKey })
+        }
         i = j
       } else {
         items.push({ type: 'order', orderId: run.orderIds[i] })
@@ -73,7 +85,33 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
       }
     }
     return items
+  }, [run, explodedGroups])
+
+  // Total pallet count for the run
+  const totalPallets = useMemo(() => {
+    if (!run) return 0
+    const orders = useSchedulerStore.getState().orders
+    let total = 0
+    for (const oid of run.orderIds) {
+      const o = orders[oid]
+      if (o) total += o.palletCount
+    }
+    return total
   }, [run])
+
+  const handleRunContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!run) return
+    setNoteInput(run.notes || '')
+    setMenuPos({ x: e.clientX, y: e.clientY })
+    setShowNoteMenu(true)
+  }, [run])
+
+  const handleNoteSave = useCallback(() => {
+    updateRunNotes(runId, noteInput || null)
+    setShowNoteMenu(false)
+  }, [runId, noteInput, updateRunNotes])
 
   if (!run) return null
 
@@ -85,6 +123,7 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
       <div
         {...attributes}
         {...listeners}
+        onContextMenu={handleRunContextMenu}
         className={`
           flex items-center gap-1 px-1.5 py-0.5 rounded-t
           text-[10px] font-bold uppercase tracking-wide select-none
@@ -95,8 +134,13 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
         `}
       >
         <span>{run.name}</span>
+        {run.notes && (
+          <div className="w-3 h-3 rounded-full bg-amber-300 flex items-center justify-center shrink-0" title={run.notes}>
+            <span className="text-[7px] text-amber-900 font-bold">!</span>
+          </div>
+        )}
         <span className="ml-auto font-normal text-[9px] opacity-70">
-          {run.orderIds.length} orders
+          {totalPallets}P &middot; {run.orderIds.length} orders
         </span>
       </div>
 
@@ -114,10 +158,62 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
               key={item.orderId}
               orderId={item.orderId}
               collapsed={item.collapsed}
+              onExplode={item.collapsed ? () => {
+                setExplodedGroups((prev) => new Set(prev).add(item.orderId))
+              } : undefined}
+              onCollapse={item.groupKey ? () => {
+                setExplodedGroups((prev) => {
+                  const next = new Set(prev)
+                  next.delete(item.groupKey!)
+                  return next
+                })
+              } : undefined}
             />
           ))}
         </SortableContext>
       </div>
+
+      {/* Context Menu for Run Notes */}
+      {showNoteMenu && (
+        <div
+          className="fixed inset-0 z-[9999]"
+          onClick={() => setShowNoteMenu(false)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onContextMenu={(e) => { e.preventDefault(); setShowNoteMenu(false) }}
+        >
+          <div
+            className="absolute bg-white rounded shadow-lg border border-slate-200 p-2 w-52"
+            style={{ left: menuPos.x, top: menuPos.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Run Note</div>
+            <textarea
+              className="w-full border border-slate-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              value={noteInput}
+              onChange={(e) => setNoteInput(e.target.value)}
+              onPointerDown={(e) => e.stopPropagation()}
+              placeholder="Add a note..."
+              autoFocus
+            />
+            <div className="flex justify-end gap-1 mt-1">
+              <button
+                type="button"
+                className="px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-700"
+                onClick={() => setShowNoteMenu(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-2 py-0.5 text-[10px] bg-indigo-500 text-white rounded hover:bg-indigo-600"
+                onClick={handleNoteSave}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 })
@@ -126,4 +222,5 @@ type RenderItem = {
   type: 'order' | 'collapsed'
   orderId: string
   collapsed?: CollapsedGroup
+  groupKey?: string  // set on individual orders that belong to an exploded group
 }
