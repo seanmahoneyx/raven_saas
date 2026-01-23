@@ -13,6 +13,7 @@ import Inventory from '@/pages/Inventory'
 import Shipping from '@/pages/Shipping'
 import Invoices from '@/pages/Invoices'
 import Reports from '@/pages/Reports'
+import SchedulerV2 from '@/pages/SchedulerV2'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -60,6 +61,7 @@ function App() {
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/scheduler" element={<Scheduler />} />
+              <Route path="/scheduler-v2" element={<SchedulerV2 />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
             </Route>
           </Routes>
