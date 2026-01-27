@@ -48,7 +48,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
       setFormData({
         sku: item.sku,
         name: item.name,
-        description: item.description,
+        description: item.description ?? '',
         base_uom: String(item.base_uom),
         is_inventory: item.is_inventory,
         is_active: item.is_active,

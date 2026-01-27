@@ -40,7 +40,7 @@ class ItemListSerializer(TenantModelSerializer):
     class Meta:
         model = Item
         fields = [
-            'id', 'sku', 'name', 'base_uom', 'base_uom_code',
+            'id', 'sku', 'name', 'description', 'base_uom', 'base_uom_code',
             'is_inventory', 'is_active',
         ]
 
