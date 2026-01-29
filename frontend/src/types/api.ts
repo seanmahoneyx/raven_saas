@@ -92,18 +92,136 @@ export interface UnitOfMeasure {
   updated_at: string
 }
 
+export type DivisionType = 'corrugated' | 'packaging' | 'tooling' | 'janitorial' | 'misc'
+export type TestType = 'ect29' | 'ect32' | 'ect40' | 'ect44' | 'ect48' | 'ect51' | 'ect55' | 'ect112' | '200t'
+export type FluteType = 'a' | 'b' | 'c' | 'e' | 'f' | 'bc' | 'eb' | 'tw'
+export type PaperType = 'k' | 'mw'
+export type ItemType = 'base' | 'corrugated' | 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele'
+
 export interface Item {
   id: number
   sku: string
   name: string
+  division: DivisionType
+  revision: number | null
   description: string
+  purch_desc: string
+  sell_desc: string
   base_uom: number
   base_uom_code: string
-  base_uom_name: string
+  base_uom_name?: string
+  customer: number | null
+  customer_code?: string | null
+  customer_name?: string | null
+  // Unitizing
+  units_per_layer: number | null
+  layers_per_pallet: number | null
+  units_per_pallet: number | null
+  unit_height: string | null
+  pallet_height: string | null
+  pallet_footprint: string
+  // Flags
   is_inventory: boolean
+  is_active: boolean
+  attachment: string | null
+  // Type indicator
+  item_type?: ItemType
+  // Nested (detail view)
+  uom_conversions?: ItemUOM[]
+  vendors?: ItemVendor[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemUOM {
+  id: number
+  item: number
+  uom: number
+  uom_code: string
+  uom_name: string
+  multiplier_to_base: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemVendor {
+  id: number
+  item: number
+  vendor: number
+  vendor_code: string
+  vendor_name: string
+  mpn: string
+  lead_time_days: number | null
+  min_order_qty: number | null
+  is_preferred: boolean
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+// Corrugated Feature types
+export interface CorrugatedFeature {
+  id: number
+  code: string
+  name: string
+  requires_details: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ItemFeature {
+  id: number
+  corrugated_item: number
+  feature: number
+  feature_code: string
+  feature_name: string
+  requires_details: boolean
+  details: string
+}
+
+// Corrugated Item types
+export interface CorrugatedItem extends Item {
+  test: TestType | ''
+  flute: FluteType | ''
+  paper: PaperType | ''
+  is_printed: boolean
+  panels_printed: number | null
+  colors_printed: number | null
+  ink_list: string
+  item_features?: ItemFeature[]
+}
+
+export interface DCItem extends CorrugatedItem {
+  length: string
+  width: string
+  blank_length: string | null
+  blank_width: string | null
+  out_per_rotary: number | null
+}
+
+export interface RSCItem extends CorrugatedItem {
+  length: string
+  width: string
+  height: string
+}
+
+export interface HSCItem extends CorrugatedItem {
+  length: string
+  width: string
+  height: string
+}
+
+export interface FOLItem extends CorrugatedItem {
+  length: string
+  width: string
+  height: string
+}
+
+export interface TeleItem extends CorrugatedItem {
+  length: string
+  width: string
+  height: string
 }
 
 // Order types
@@ -163,8 +281,18 @@ export interface SalesOrderLine {
   line_total: string
   quantity_in_base_uom: number
   notes: string
+  // Contract reference (for lines released from contracts)
+  contract_id?: number | null
+  contract_number?: string | null
   created_at: string
   updated_at: string
+}
+
+// Contract reference for order-level summary
+export interface ContractReference {
+  contract_id: number
+  contract_number: string
+  blanket_po?: string
 }
 
 export interface SalesOrder {
@@ -187,6 +315,8 @@ export interface SalesOrder {
   subtotal: string
   is_editable: boolean
   lines?: SalesOrderLine[]
+  // Contract reference (from first line's contract release)
+  contract_reference?: ContractReference | null
   created_at: string
   updated_at: string
 }
@@ -224,6 +354,9 @@ export interface CalendarOrder {
   priority: number
   scheduler_sequence: number
   notes: string
+  // Contract reference (for orders released from contracts)
+  contract_id?: number | null
+  contract_number?: string | null
 }
 
 export interface CalendarDay {
@@ -257,6 +390,101 @@ export interface SchedulerNote {
   attachment_type: NoteAttachmentType
   created_at: string
   updated_at: string
+}
+
+// Contract types
+export type ContractStatus = 'draft' | 'active' | 'complete' | 'cancelled' | 'expired'
+
+export interface ContractRelease {
+  id: number
+  contract_line: number
+  sales_order_line: number
+  sales_order_number: string
+  sales_order_id: number
+  sales_order_status: OrderStatus
+  quantity_ordered: number
+  release_date: string
+  balance_before: number
+  balance_after: number
+  notes: string
+  warning?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractLine {
+  id: number
+  contract: number
+  line_number: number
+  item: number
+  item_sku: string
+  item_name: string
+  blanket_qty: number
+  uom: number
+  uom_code: string
+  unit_price: string | null
+  notes: string
+  released_qty: number
+  remaining_qty: number
+  is_fully_released: boolean
+  releases?: ContractRelease[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Contract {
+  id: number
+  contract_number: string
+  blanket_po: string
+  status: ContractStatus
+  customer: number
+  customer_code: string
+  customer_name: string
+  issue_date: string
+  start_date: string | null
+  end_date: string | null
+  ship_to: number | null
+  ship_to_name: string | null
+  notes: string
+  is_active: boolean
+  total_committed_qty: number
+  total_released_qty: number
+  total_remaining_qty: number
+  completion_percentage: number
+  num_lines: number
+  lines?: ContractLine[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractLineInput {
+  line_number?: number
+  item: number
+  blanket_qty: number
+  uom: number
+  unit_price?: string | null
+  notes?: string
+}
+
+export interface ContractInput {
+  blanket_po?: string
+  status?: ContractStatus
+  customer: number
+  issue_date?: string
+  start_date?: string | null
+  end_date?: string | null
+  ship_to?: number | null
+  notes?: string
+  lines?: ContractLineInput[]
+}
+
+export interface CreateReleasePayload {
+  contract_line_id: number
+  quantity: number
+  ship_to_id?: number | null
+  scheduled_date?: string | null
+  unit_price?: string | null
+  notes?: string
 }
 
 // History types

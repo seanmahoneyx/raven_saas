@@ -19,6 +19,7 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 from apps.orders.models import SalesOrder, PurchaseOrder
 from apps.parties.models import Truck
 from apps.scheduling.models import DeliveryRun, SchedulerNote  # app label: new_scheduling
+from apps.contracts.models import ContractRelease
 from apps.api.v1.serializers.scheduling import (
     CalendarOrderSerializer, ScheduleUpdateSerializer,
     CalendarDaySerializer, TruckCalendarSerializer,
@@ -41,6 +42,21 @@ def order_to_calendar_dict(order, order_type):
         # POs use expected_date as the requested date
         requested_date = order.expected_date
 
+    # Get contract reference for sales orders
+    contract_id = None
+    contract_number = None
+    if order_type == 'SO':
+        # Check first line for contract release
+        first_line = order.lines.first()
+        if first_line:
+            try:
+                release = first_line.contract_release
+                contract = release.contract_line.contract
+                contract_id = contract.id
+                contract_number = contract.contract_number
+            except ContractRelease.DoesNotExist:
+                pass
+
     return {
         'id': order.id,
         'order_type': order_type,
@@ -58,6 +74,8 @@ def order_to_calendar_dict(order, order_type):
         'priority': order.priority,
         'scheduler_sequence': order.scheduler_sequence,
         'notes': order.notes,
+        'contract_id': contract_id,
+        'contract_number': contract_number,
     }
 
 

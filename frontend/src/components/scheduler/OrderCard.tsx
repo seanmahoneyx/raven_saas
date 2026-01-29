@@ -341,6 +341,16 @@ export default function OrderCard({ order, onClick, onStatusChange, onAddNote, o
               {order.party_name}
             </span>
 
+            {/* Contract badge - shows when order released from contract */}
+            {order.contract_number && (
+              <span
+                className="text-[9px] text-purple-600 bg-purple-100 px-1 rounded font-medium shrink-0"
+                title={`Released from contract CTR-${order.contract_number}`}
+              >
+                CTR
+              </span>
+            )}
+
             {/* Order number - can truncate but shows at least some chars */}
             <span className="text-gray-500 font-mono shrink-0 max-w-[50px] truncate">
               {order.number}

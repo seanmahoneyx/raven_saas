@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Menu, Save, ArrowLeft, Clock, Truck, Package } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Menu, Save, ArrowLeft, Clock, Truck, Package, FileText } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import type { CalendarOrder, OrderStatus, HistoryRecord } from '@/types/api'
 import { useUpdateStatus, useUpdateNotes, useGlobalHistory } from '@/api/scheduling'
@@ -254,6 +255,22 @@ export default function OrderDetailPanel({
                   {order.scheduled_date}
                   {order.scheduled_truck_name && ` - ${order.scheduled_truck_name}`}
                 </span>
+              </div>
+            )}
+
+            {/* Contract Reference */}
+            {order.contract_number && (
+              <div className="text-sm p-2 bg-purple-50 rounded border border-purple-200">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-purple-600" />
+                  <span className="text-gray-500">Released from:</span>
+                  <Link
+                    to={`/contracts/${order.contract_id}`}
+                    className="font-medium text-purple-600 hover:text-purple-800 hover:underline"
+                  >
+                    CTR-{order.contract_number}
+                  </Link>
+                </div>
               </div>
             )}
 

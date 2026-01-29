@@ -7,6 +7,7 @@ from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
     SalesOrder, SalesOrderLine,
 )
+from apps.contracts.models import ContractRelease
 from .base import TenantModelSerializer
 
 
@@ -141,6 +142,19 @@ class SalesOrderLineSerializer(TenantModelSerializer):
     uom_code = serializers.CharField(source='uom.code', read_only=True)
     line_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     quantity_in_base_uom = serializers.IntegerField(read_only=True)
+    # Contract reference fields (from linked ContractRelease)
+    contract_number = serializers.CharField(
+        source='contract_release.contract_line.contract.contract_number',
+        read_only=True,
+        allow_null=True,
+        default=None
+    )
+    contract_id = serializers.IntegerField(
+        source='contract_release.contract_line.contract.id',
+        read_only=True,
+        allow_null=True,
+        default=None
+    )
 
     class Meta:
         model = SalesOrderLine
@@ -149,7 +163,8 @@ class SalesOrderLineSerializer(TenantModelSerializer):
             'item', 'item_sku', 'item_name',
             'quantity_ordered', 'uom', 'uom_code',
             'unit_price', 'line_total', 'quantity_in_base_uom',
-            'notes', 'created_at', 'updated_at',
+            'notes', 'contract_number', 'contract_id',
+            'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 
@@ -199,6 +214,7 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
     num_lines = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
+    contract_reference = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
@@ -207,9 +223,26 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
             'order_date', 'scheduled_date', 'scheduled_truck',
             'ship_to', 'ship_to_name', 'bill_to', 'bill_to_name',
             'customer_po', 'notes', 'priority', 'lines', 'num_lines', 'subtotal', 'is_editable',
+            'contract_reference',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_contract_reference(self, obj):
+        """Get contract info from the first line's contract release (if any)."""
+        first_line = obj.lines.first()
+        if first_line:
+            try:
+                release = first_line.contract_release
+                contract = release.contract_line.contract
+                return {
+                    'contract_id': contract.id,
+                    'contract_number': contract.contract_number,
+                    'blanket_po': contract.blanket_po,
+                }
+            except ContractRelease.DoesNotExist:
+                pass
+        return None
 
 
 class SalesOrderWriteSerializer(TenantModelSerializer):
