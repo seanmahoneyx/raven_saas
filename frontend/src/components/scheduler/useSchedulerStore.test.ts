@@ -51,6 +51,7 @@ function makeSeedPayload(): HydratePayload {
       'inbound|2025-01-06': { runIds: ['r4'], looseOrderIds: [] },
     } as Record<string, CellData>,
     trucks: ['TR-01', 'TR-02'],
+    truckNames: { 'TR-01': 'Truck 1', 'TR-02': 'Truck 2' },
   }
 }
 

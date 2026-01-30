@@ -2,6 +2,7 @@ import { memo, useMemo, useCallback } from 'react'
 import {
   useSchedulerStore,
   selectIsDateLocked,
+  selectTruckName,
   type CellId,
 } from './useSchedulerStore'
 import { ManifestCell } from './ManifestCell'
@@ -69,6 +70,8 @@ interface RowLabelProps {
 }
 
 const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
+  const truckName = useSchedulerStore(selectTruckName(truckId))
+
   return (
     <div
       className={`
@@ -83,7 +86,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
       `}
     >
       <span className="truncate">
-        {isInbound ? 'INBOUND' : truckId === 'unassigned' ? 'UNSCHEDULED' : truckId}
+        {isInbound ? 'INBOUND' : truckId === 'unassigned' ? 'UNSCHEDULED' : truckName}
       </span>
     </div>
   )

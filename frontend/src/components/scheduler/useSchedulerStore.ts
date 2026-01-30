@@ -74,6 +74,7 @@ interface SchedulerState {
   cells: Record<CellId, CellData>
   blockedDates: Set<string>
   trucks: string[]
+  truckNames: Record<string, string>  // truckId → truck name
   visibleWeeks: number
 
   // Reverse-lookup indices
@@ -101,6 +102,7 @@ export interface HydratePayload {
   runs: DeliveryRun[]
   cells: Record<CellId, CellData>
   trucks: string[]
+  truckNames: Record<string, string>  // truckId → truck name
   visibleWeeks?: number
 }
 
@@ -113,6 +115,7 @@ export const useSchedulerStore = create<SchedulerState>()(
     cells: {},
     blockedDates: new Set(),
     trucks: [],
+    truckNames: {},
     visibleWeeks: 4,
     orderToRun: {},
     runToCell: {},
@@ -162,6 +165,7 @@ export const useSchedulerStore = create<SchedulerState>()(
         runs: runsMap,
         cells: cellsCopy,
         trucks: data.trucks,
+        truckNames: data.truckNames,
         visibleWeeks: data.visibleWeeks ?? 4,
         orderToRun,
         runToCell,
@@ -565,5 +569,8 @@ export const selectCellLooseOrderIds = (cellId: CellId) => (state: SchedulerStat
 
 export const selectIsDateLocked = (date: string) => (state: SchedulerState) =>
   state.blockedDates.has(date)
+
+export const selectTruckName = (truckId: string) => (state: SchedulerState) =>
+  state.truckNames[truckId] ?? truckId
 
 const EMPTY_ARRAY: string[] = []
