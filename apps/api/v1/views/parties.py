@@ -50,6 +50,47 @@ class PartyViewSet(viewsets.ModelViewSet):
             return PartyDetailSerializer
         return PartySerializer
 
+    def perform_create(self, serializer):
+        """
+        Create Party and automatically create associated Customer/Vendor records
+        based on party_type.
+        """
+        party = serializer.save()
+
+        # Auto-create Customer record for CUSTOMER or BOTH party types
+        if party.party_type in ('CUSTOMER', 'BOTH'):
+            Customer.objects.get_or_create(
+                party=party,
+                defaults={'tenant': party.tenant}
+            )
+
+        # Auto-create Vendor record for VENDOR or BOTH party types
+        if party.party_type in ('VENDOR', 'BOTH'):
+            Vendor.objects.get_or_create(
+                party=party,
+                defaults={'tenant': party.tenant}
+            )
+
+    def perform_update(self, serializer):
+        """
+        Update Party and ensure Customer/Vendor records exist if party_type changes.
+        """
+        party = serializer.save()
+
+        # Ensure Customer record exists if party_type includes CUSTOMER
+        if party.party_type in ('CUSTOMER', 'BOTH'):
+            Customer.objects.get_or_create(
+                party=party,
+                defaults={'tenant': party.tenant}
+            )
+
+        # Ensure Vendor record exists if party_type includes VENDOR
+        if party.party_type in ('VENDOR', 'BOTH'):
+            Vendor.objects.get_or_create(
+                party=party,
+                defaults={'tenant': party.tenant}
+            )
+
     @extend_schema(tags=['parties'], summary='List customers only')
     @action(detail=False, methods=['get'])
     def customers(self, request):
