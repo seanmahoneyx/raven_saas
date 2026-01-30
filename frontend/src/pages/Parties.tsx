@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useParties, useCustomers, useVendors, useTrucks, useLocations, useDeleteParty, useDeleteTruck } from '@/api/parties'
+import { useParties, useCustomers, useVendors, useTrucks, useLocations, useDeleteParty, useDeleteTruck, useDeleteCustomer, useDeleteVendor } from '@/api/parties'
 import { PartyDialog } from '@/components/parties/PartyDialog'
 import { TruckDialog } from '@/components/parties/TruckDialog'
 import { CustomerDialog } from '@/components/parties/CustomerDialog'
@@ -30,7 +30,9 @@ export default function Parties() {
   const [truckDialogOpen, setTruckDialogOpen] = useState(false)
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null)
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false)
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
   const [locationDialogOpen, setLocationDialogOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
 
@@ -42,6 +44,8 @@ export default function Parties() {
 
   const deleteParty = useDeleteParty()
   const deleteTruck = useDeleteTruck()
+  const deleteCustomer = useDeleteCustomer()
+  const deleteVendor = useDeleteVendor()
 
   const handleAddNew = () => {
     switch (activeTab) {
@@ -50,9 +54,11 @@ export default function Parties() {
         setPartyDialogOpen(true)
         break
       case 'customers':
+        setEditingCustomer(null)
         setCustomerDialogOpen(true)
         break
       case 'vendors':
+        setEditingVendor(null)
         setVendorDialogOpen(true)
         break
       case 'trucks':
@@ -156,8 +162,43 @@ export default function Parties() {
         accessorKey: 'payment_terms',
         header: 'Payment Terms',
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const customer = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingCustomer(customer)
+                  setCustomerDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this customer?')) {
+                      deleteCustomer.mutate(customer.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteCustomer]
   )
 
   const vendorColumns: ColumnDef<Vendor>[] = useMemo(
@@ -177,8 +218,43 @@ export default function Parties() {
         accessorKey: 'payment_terms',
         header: 'Payment Terms',
       },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const vendor = row.original
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => {
+                  setEditingVendor(vendor)
+                  setVendorDialogOpen(true)
+                }}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete this vendor?')) {
+                      deleteVendor.mutate(vendor.id)
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )
+        },
+      },
     ],
-    []
+    [deleteVendor]
   )
 
   const truckColumns: ColumnDef<Truck>[] = useMemo(
@@ -426,11 +502,19 @@ export default function Parties() {
       />
       <CustomerDialog
         open={customerDialogOpen}
-        onOpenChange={setCustomerDialogOpen}
+        onOpenChange={(open) => {
+          setCustomerDialogOpen(open)
+          if (!open) setEditingCustomer(null)
+        }}
+        customer={editingCustomer}
       />
       <VendorDialog
         open={vendorDialogOpen}
-        onOpenChange={setVendorDialogOpen}
+        onOpenChange={(open) => {
+          setVendorDialogOpen(open)
+          if (!open) setEditingVendor(null)
+        }}
+        vendor={editingVendor}
       />
       <LocationDialog
         open={locationDialogOpen}

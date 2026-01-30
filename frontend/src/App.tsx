@@ -14,6 +14,8 @@ import Shipping from '@/pages/Shipping'
 import Invoices from '@/pages/Invoices'
 import Reports from '@/pages/Reports'
 import SchedulerV2 from '@/pages/SchedulerV2'
+import Contracts from '@/pages/Contracts'
+import ContractDetail from '@/pages/ContractDetail'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -54,6 +56,8 @@ function App() {
             >
               <Route path="/" element={<Dashboard />} />
               <Route path="/parties" element={<Parties />} />
+              <Route path="/contracts" element={<Contracts />} />
+              <Route path="/contracts/:id" element={<ContractDetail />} />
               <Route path="/items" element={<Items />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/inventory" element={<Inventory />} />

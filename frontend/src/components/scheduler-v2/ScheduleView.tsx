@@ -110,7 +110,6 @@ export const ScheduleView = memo(function ScheduleView() {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const activeId = String(active.id)
     const overId = String(over.id)
     const activeData = active.data.current as { type: string; orderId?: string; runId?: string } | undefined
 

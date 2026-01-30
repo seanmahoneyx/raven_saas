@@ -14,8 +14,10 @@ import {
   type DragOverEvent,
   type CollisionDetection,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/sortable'
+// import { arrayMove } from '@dnd-kit/sortable'
 import { format, addWeeks, startOfWeek } from 'date-fns'
+import { Package, StickyNote, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import CalendarGrid from '@/components/scheduler/CalendarGrid'
 import UnscheduledSidebar from '@/components/scheduler/UnscheduledSidebar'
 import OrderDetailPanel from '@/components/scheduler/OrderDetailPanel'
@@ -23,15 +25,17 @@ import OrderCard from '@/components/scheduler/OrderCard'
 import NoteCard from '@/components/scheduler/NoteCard'
 import StickyNotePopup from '@/components/scheduler/StickyNotePopup'
 import NoteListDialog, { type ViewNotesTarget } from '@/components/scheduler/NoteListDialog'
+// import TemplateToolbar from '@/components/scheduler/TemplateToolbar'
 import { useCalendarRange, useUnscheduledOrders, useTrucks, useDeliveryRuns, useUpdateSchedule, useUpdateStatus, useCreateDeliveryRun, useUpdateDeliveryRun, useDeleteDeliveryRun, useBatchUpdateSchedule, useSchedulerNotes, useCreateNote, useUpdateNote, useDeleteNote } from '@/api/scheduling'
 import type { CalendarOrder, DeliveryRun, OrderStatus, SchedulerNote } from '@/types/api'
 
-// Type for active drag state - order, run group, combined customer orders, or note
+// Type for active drag state - order, run group, combined customer orders, note, or template
 type ActiveDragItem =
   | { type: 'order'; order: CalendarOrder }
   | { type: 'run'; run: DeliveryRun; orders: CalendarOrder[] }
   | { type: 'combined'; orders: CalendarOrder[]; partyName: string }
   | { type: 'note'; note: SchedulerNote }
+  | { type: 'template'; templateType: 'container' | 'note' }
 
 /**
  * Build set of droppable IDs to exclude (self and children)
@@ -126,16 +130,7 @@ const SCROLL_EDGE_THRESHOLD = 60 // pixels from edge to trigger
 const SCROLL_DELAY_MS = 800 // delay before scrolling starts
 const SCROLL_SPEED = 3 // pixels per frame
 
-// Preview state for iOS-like reordering
-// Tracks the temporary position of items during drag for visual feedback
-type PreviewState = {
-  // Map of cellId -> ordered list of order IDs in that cell
-  cells: Record<string, string[]>
-  // The ID of the item being dragged
-  activeId: string
-  // The original cell the item came from
-  originalCellId: string
-}
+// Scratch-style: no preview state needed - drag overlay handles visual feedback
 
 // Type for note creation target
 type NoteTarget =
@@ -153,23 +148,8 @@ export default function Scheduler() {
   const [viewNotesTarget, setViewNotesTarget] = useState<ViewNotesTarget | null>(null)
   const [hoveredCellId, setHoveredCellId] = useState<string | null>(null)
 
-  // Preview state for iOS-like reordering during drag
-  const [previewState, setPreviewState] = useState<PreviewState | null>(null)
-
-  // Edit mode state (LOCAL ONLY - jiggle animation for current user only)
-  const [isEditMode, setIsEditMode] = useState(false)
-
-  // Dwell timer for merge detection (600ms hover to trigger grouping)
-  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [dwellTarget, setDwellTarget] = useState<{
-    targetId: string
-    targetType: 'order' | 'run'
-  } | null>(null)
-  const [isMergeReady, setIsMergeReady] = useState(false)
-  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null)
-
-  // Ref to track last over ID to prevent infinite loops
-  const lastOverIdRef = useRef<string | null>(null)
+  // Scratch-style state: track expanded/collapsed containers
+  const [expandedContainers, setExpandedContainers] = useState<Set<number>>(new Set())
 
   // Auto-scroll refs for delayed scrolling
   const scrollDelayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -187,12 +167,17 @@ export default function Scheduler() {
     }
   }, [])
 
-  // Clear dwell timer for grouping detection
-  const clearDwellTimer = useCallback(() => {
-    if (dwellTimerRef.current) {
-      clearTimeout(dwellTimerRef.current)
-      dwellTimerRef.current = null
-    }
+  // Scratch-style helper: toggle container expand/collapse
+  const handleToggleExpanded = useCallback((runId: number) => {
+    setExpandedContainers((prev) => {
+      const next = new Set(prev)
+      if (next.has(runId)) {
+        next.delete(runId)
+      } else {
+        next.add(runId)
+      }
+      return next
+    })
   }, [])
 
   // Calculate date range for API query (8 weeks, starting 2 weeks before anchor)
@@ -248,12 +233,11 @@ export default function Scheduler() {
     return lookup
   }, [unscheduledOrders, calendarData])
 
-  // DnD sensors - iOS-style long-press activation (500ms delay)
+  // DnD sensors - instant activation (distance-based)
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        delay: 500, // 500ms long-press to activate jiggle mode
-        tolerance: 5, // Allow 5px movement during press
+        distance: 5, // Instant activation after 5px movement
       },
     })
   )
@@ -272,57 +256,26 @@ export default function Scheduler() {
     return `cell-${truckId ?? 'inbound'}-${date}`
   }, [])
 
-  // Find which cell an order belongs to (by its current scheduled position)
-  const findCellForOrder = useCallback((orderId: string): string | null => {
-    const order = allOrdersLookup[orderId]
-    if (!order) return null
-    if (!order.scheduled_date) return 'unscheduled'
-    return buildCellId(order.scheduled_truck_id ?? null, order.scheduled_date)
-  }, [allOrdersLookup, buildCellId])
-
-  // Build initial cell orders map for preview state
-  const buildCellOrdersMap = useCallback((): Record<string, string[]> => {
-    const cellOrders: Record<string, string[]> = {}
-
-    // Build from calendar data
-    calendarData.forEach((truck) => {
-      truck.days.forEach((day) => {
-        const cellId = buildCellId(truck.truck_id, day.date)
-        const orderIds = day.orders
-          .filter((o) => {
-            // For truck rows, include orders scheduled to this truck
-            // For inbound (truck_id is null in the URL but the truck object has it), match correctly
-            if (truck.truck_id === null) {
-              return o.scheduled_truck_id === null || o.scheduled_truck_id === undefined
-            }
-            return o.scheduled_truck_id === truck.truck_id
-          })
-          .sort((a, b) => (a.scheduler_sequence ?? 0) - (b.scheduler_sequence ?? 0))
-          .map((o) => `${o.order_type}-${o.id}`)
-        if (orderIds.length > 0) {
-          cellOrders[cellId] = orderIds
-        }
-      })
-    })
-
-    return cellOrders
-  }, [calendarData, buildCellId])
+  // Preview state for optimistic drag feedback
+  const [previewState, setPreviewState] = useState<{
+    orderId: string
+    targetCellId: string
+    insertIndex: number
+  } | null>(null)
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
       const activeId = String(event.active.id)
 
-      // Enter edit mode (jiggle animation - LOCAL ONLY)
-      setIsEditMode(true)
-
-      // Reset dwell state
-      clearDwellTimer()
-      setDwellTarget(null)
-      setIsMergeReady(false)
-      setMergeTargetId(null)
-
-      // Reset last over ref
-      lastOverIdRef.current = null
+      // Check if this is a template being dragged
+      if (activeId.startsWith('template-')) {
+        const templateType = activeId.replace('template-', '')
+        setActiveDragItem({
+          type: 'template',
+          templateType: templateType as 'container' | 'note'
+        })
+        return
+      }
 
       // Check if this is a run group being dragged
       if (activeId.startsWith('run-')) {
@@ -351,28 +304,16 @@ export default function Scheduler() {
         }
       }
 
-      // Otherwise it's a single order - initialize preview state for iOS-like reordering
+      // Otherwise it's a single order
       const order = allOrdersLookup[activeId]
       if (order) {
         setActiveDragItem({ type: 'order', order })
-
-        // Initialize preview state for single order drags
-        const originalCellId = findCellForOrder(activeId)
-        if (originalCellId && originalCellId !== 'unscheduled') {
-          const cellOrders = buildCellOrdersMap()
-          setPreviewState({
-            cells: cellOrders,
-            activeId,
-            originalCellId,
-          })
-        }
       }
     },
-    [allOrdersLookup, allNotesLookup, findCellForOrder, buildCellOrdersMap, clearDwellTimer]
+    [allOrdersLookup, allNotesLookup]
   )
 
-  // Track which cell the cursor is over during drag + custom auto-scroll with delay
-  // Also handles DWELL-BASED GROUPING detection (600ms hover to merge)
+  // Track which cell the cursor is over during drag + custom auto-scroll
   const handleDragMove = useCallback((event: DragMoveEvent) => {
     const { collisions, activatorEvent } = event
 
@@ -382,42 +323,6 @@ export default function Scheduler() {
     } else {
       const cellCollision = collisions.find((c) => String(c.id).startsWith('cell-'))
       setHoveredCellId(cellCollision ? String(cellCollision.id) : null)
-    }
-
-    // DWELL-BASED GROUPING DETECTION
-    // Check if hovering over an order-drop or run-drop target
-    const mergeCollision = collisions?.find((c) =>
-      String(c.id).startsWith('order-drop-') || String(c.id).startsWith('run-drop-')
-    )
-
-    if (mergeCollision) {
-      const targetId = String(mergeCollision.id)
-
-      // Start dwell timer if hovering over a NEW target
-      if (!dwellTarget || dwellTarget.targetId !== targetId) {
-        // Clear any existing timer
-        clearDwellTimer()
-
-        setDwellTarget({
-          targetId,
-          targetType: targetId.startsWith('order-drop-') ? 'order' : 'run'
-        })
-        setIsMergeReady(false)
-
-        // Start 600ms dwell timer
-        dwellTimerRef.current = setTimeout(() => {
-          setIsMergeReady(true)
-          setMergeTargetId(targetId)
-        }, 600) // 600ms dwell to trigger merge mode
-      }
-    } else {
-      // Not over a merge target - clear dwell state
-      if (dwellTarget) {
-        clearDwellTimer()
-        setDwellTarget(null)
-        setIsMergeReady(false)
-        setMergeTargetId(null)
-      }
     }
 
     // Custom auto-scroll with delay
@@ -448,115 +353,15 @@ export default function Scheduler() {
       // Not near edges, clear timers
       clearScrollTimers()
     }
-  }, [clearScrollTimers, clearDwellTimer, dwellTarget])
+  }, [clearScrollTimers])
 
-  // Handle drag over for iOS-like real-time reordering preview
+  // Handle drag over - minimal Scratch-style (no preview state needed)
   const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const { active, over } = event
-      if (!over) return
-
-      const activeId = String(active.id)
-      const overId = String(over.id)
-
-      // Skip if same as last over to prevent loops
-      if (overId === lastOverIdRef.current) return
-      lastOverIdRef.current = overId
-
-      // Only process single order drags for reordering preview
-      if (!previewState || activeId !== previewState.activeId) return
-
-      // Skip non-order targets (unscheduled, notes, etc.)
-      if (overId === 'unscheduled' || overId.startsWith('note-')) return
-
-      // Determine target cell
-      let targetCellId: string | null = null
-      let targetOrderId: string | null = null
-
-      if (overId.startsWith('order-drop-')) {
-        // Hovering over another order
-        targetOrderId = overId.replace('order-drop-', '')
-        targetCellId = findCellForOrder(targetOrderId)
-      } else if (overId.startsWith('cell-') && !overId.includes('-top-') && !overId.includes('-bottom-')) {
-        // Hovering over a cell directly
-        targetCellId = overId
-      } else if (overId.startsWith('cell-top-') || overId.startsWith('cell-bottom-')) {
-        // Hovering over top/bottom zones - extract cell ID
-        targetCellId = overId.replace('-top-', '-').replace('-bottom-', '-').replace('cell-', 'cell-')
-        // Actually reconstruct properly
-        const parts = overId.split('-')
-        // Format: cell-top-{truckId|inbound}-{date} or cell-bottom-{truckId|inbound}-{date}
-        if (parts.length >= 4) {
-          const truckPart = parts[2]
-          const datePart = parts.slice(3).join('-')
-          targetCellId = `cell-${truckPart}-${datePart}`
-        }
-      }
-
-      if (!targetCellId) return
-
-      // Validate: POs can only go to inbound, SOs can only go to trucks
-      const draggedOrder = allOrdersLookup[activeId]
-      if (draggedOrder) {
-        const isInbound = targetCellId.includes('-inbound-')
-        if (draggedOrder.order_type === 'PO' && !isInbound) return
-        if (draggedOrder.order_type === 'SO' && isInbound) return
-      }
-
-      setPreviewState((prev) => {
-        if (!prev) return null
-
-        const newCells = { ...prev.cells }
-
-        // Find current cell containing the active item
-        let currentCellId: string | null = null
-        for (const [cellId, orderIds] of Object.entries(newCells)) {
-          if (orderIds.includes(activeId)) {
-            currentCellId = cellId
-            break
-          }
-        }
-
-        // If moving within the same cell
-        if (currentCellId === targetCellId && targetOrderId) {
-          const cellOrders = [...(newCells[targetCellId] || [])]
-          const activeIndex = cellOrders.indexOf(activeId)
-          const overIndex = cellOrders.indexOf(targetOrderId)
-
-          if (activeIndex !== -1 && overIndex !== -1 && activeIndex !== overIndex) {
-            newCells[targetCellId] = arrayMove(cellOrders, activeIndex, overIndex)
-          }
-        }
-        // If moving to a different cell
-        else if (currentCellId !== targetCellId) {
-          // Remove from current cell
-          if (currentCellId && newCells[currentCellId]) {
-            newCells[currentCellId] = newCells[currentCellId].filter((id) => id !== activeId)
-            if (newCells[currentCellId].length === 0) {
-              delete newCells[currentCellId]
-            }
-          }
-
-          // Add to target cell
-          const targetOrders = [...(newCells[targetCellId] || [])]
-          if (targetOrderId) {
-            const overIndex = targetOrders.indexOf(targetOrderId)
-            if (overIndex !== -1) {
-              targetOrders.splice(overIndex, 0, activeId)
-            } else {
-              targetOrders.push(activeId)
-            }
-          } else {
-            // No specific target order, add at end
-            targetOrders.push(activeId)
-          }
-          newCells[targetCellId] = targetOrders
-        }
-
-        return { ...prev, cells: newCells }
-      })
+    (_event: DragOverEvent) => {
+      // Scratch-style: no real-time preview, drag overlay handles visual feedback
+      // Can add drop indicators here in the future if needed
     },
-    [previewState, findCellForOrder, allOrdersLookup]
+    []
   )
 
   const handleDragEnd = useCallback(
@@ -564,32 +369,60 @@ export default function Scheduler() {
       // Clear auto-scroll timers
       clearScrollTimers()
 
-      // Clear dwell timer and exit edit mode
-      clearDwellTimer()
-      setIsEditMode(false)
-      setDwellTarget(null)
-      setMergeTargetId(null)
-
-      // Capture merge ready state before clearing
-      const wasMergeReady = isMergeReady
-      setIsMergeReady(false)
-
-      // Clear preview state
-      setPreviewState(null)
-      lastOverIdRef.current = null
-
       const currentDragItem = activeDragItem
-      setActiveDragItem(null)
+      // DON'T clear activeDragItem yet - keep visual state during async operations
       setHoveredCellId(null)
       const { active, over } = event
 
-      if (!over) return
+      if (!over) {
+        setActiveDragItem(null)
+        return
+      }
 
       const activeId = String(active.id)
 
       const overId = String(over.id)
 
-      // Handle run group drag
+      // ============================================
+      // SCENARIO 1: Template Instantiation (Toolbar → Grid)
+      // ============================================
+      if (activeId.startsWith('template-')) {
+        const templateType = activeId.replace('template-', '')
+
+        // Only allow dropping on calendar cells
+        if (overId.startsWith('cell-')) {
+          const dropData = over.data.current as { date: string; truckId: number | null } | undefined
+
+          if (templateType === 'container' && dropData?.date) {
+            // Create new delivery run (container)
+            // Only allow on truck rows (not inbound)
+            if (dropData.truckId !== null) {
+              try {
+                const newRun = await createDeliveryRun.mutateAsync({
+                  name: `Run ${deliveryRuns.length + 1}`,
+                  truckId: dropData.truckId,
+                  scheduledDate: dropData.date,
+                })
+                // Expand the new container
+                setExpandedContainers(prev => new Set([...prev, newRun.id]))
+              } catch (error) {
+                console.error('Failed to create delivery run:', error)
+              }
+            }
+          } else if (templateType === 'note' && dropData?.date) {
+            // Create new note
+            setNoteTarget({ type: 'cell', date: dropData.date, truckId: dropData.truckId })
+            setNotePopupPosition({ x: window.innerWidth / 2 - 130, y: 200 })
+            setIsNoteDialogOpen(true)
+          }
+        }
+        setTimeout(() => setActiveDragItem(null), 100)
+        return
+      }
+
+      // ============================================
+      // SCENARIO 2: Run Group Drag (Moving entire delivery run)
+      // ============================================
       if (activeId.startsWith('run-') && currentDragItem?.type === 'run') {
         const { run: sourceRun, orders: sourceOrders } = currentDragItem
 
@@ -613,6 +446,7 @@ export default function Scheduler() {
             } catch (error) {
               console.error('Failed to merge delivery runs:', error)
             }
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
         }
@@ -622,7 +456,6 @@ export default function Scheduler() {
         if (overId.startsWith('cell-')) {
           const dropData = over.data.current as { date: string; truckId: number | null } | undefined
           if (!dropData || !dropData.date) {
-            console.error('Cell drop missing data:', overId, over.data.current)
             return
           }
 
@@ -630,7 +463,6 @@ export default function Scheduler() {
 
           // Runs contain SOs, so they can only go to truck rows (not inbound)
           if (truckId === null) {
-            console.log('Runs cannot be dropped on inbound row')
             return
           }
 
@@ -645,6 +477,7 @@ export default function Scheduler() {
             console.error('Failed to move delivery run:', error)
           }
         }
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
@@ -667,6 +500,7 @@ export default function Scheduler() {
           } catch (error) {
             console.error('Failed to unschedule combined orders:', error)
           }
+          setTimeout(() => setActiveDragItem(null), 100)
           return
         }
 
@@ -674,7 +508,7 @@ export default function Scheduler() {
         if (overId.startsWith('cell-')) {
           const dropData = over.data.current as { date: string; truckId: number | null; position?: 'top' | 'bottom' | 'cell' } | undefined
           if (!dropData || !dropData.date) {
-            console.error('Cell drop missing data:', overId, over.data.current)
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -683,11 +517,11 @@ export default function Scheduler() {
           // Validate: POs can only go to inbound (truckId === null), SOs can only go to trucks
           const orderType = combinedOrders[0]?.order_type
           if (orderType === 'PO' && truckId !== null) {
-            console.log('POs can only be dropped on inbound row')
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
           if (orderType === 'SO' && truckId === null) {
-            console.log('SOs can only be dropped on truck rows')
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -723,6 +557,7 @@ export default function Scheduler() {
             }))
 
             batchUpdateSchedule.mutate({ orders: batchUpdates })
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -737,6 +572,7 @@ export default function Scheduler() {
             })),
           })
         }
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
@@ -755,12 +591,79 @@ export default function Scheduler() {
             })
           }
         }
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
       // Handle individual order drag
       const draggedOrder = allOrdersLookup[activeId]
-      if (!draggedOrder) return
+      if (!draggedOrder) {
+        setTimeout(() => setActiveDragItem(null), 100)
+        return
+      }
+
+      // ============================================
+      // SPECIAL CASE: Unscheduled Order from Sidebar → Grid (SCHEDULING)
+      // ============================================
+      // Detect if this is an UNSCHEDULED order being scheduled for the first time
+      if (draggedOrder.scheduled_date === null && overId !== 'unscheduled') {
+        // This is an unscheduled order being dropped on the grid - SCHEDULE it!
+
+        // Check if dropping on a container
+        if (overId.startsWith('container-drop-')) {
+          const targetRunId = overId.replace('container-drop-', '')
+          const targetRun = deliveryRuns.find((r) => r.id === parseInt(targetRunId))
+
+          if (targetRun && draggedOrder.order_type === 'SO') {
+            // Schedule order directly into the container
+            updateSchedule.mutate({
+              orderType: draggedOrder.order_type,
+              orderId: draggedOrder.id,
+              scheduledDate: targetRun.scheduled_date,
+              scheduledTruckId: targetRun.truck_id,
+              deliveryRunId: targetRun.id,
+            })
+            setTimeout(() => setActiveDragItem(null), 100)
+            return
+          }
+        }
+
+        // Check if dropping on a calendar cell
+        if (overId.startsWith('cell-')) {
+          const dropData = over.data.current as { date: string; truckId: number | null } | undefined
+          if (dropData?.date !== undefined) {
+            // Validate: POs can only go to inbound, SOs can only go to trucks
+            if (draggedOrder.order_type === 'PO' && dropData.truckId !== null) {
+              setTimeout(() => setActiveDragItem(null), 100)
+              return
+            }
+            if (draggedOrder.order_type === 'SO' && dropData.truckId === null) {
+              setTimeout(() => setActiveDragItem(null), 100)
+              return
+            }
+
+            // Schedule the order!
+            updateSchedule.mutate({
+              orderType: draggedOrder.order_type,
+              orderId: draggedOrder.id,
+              scheduledDate: dropData.date,
+              scheduledTruckId: dropData.truckId,
+              deliveryRunId: null, // Not in a container yet
+            })
+            setTimeout(() => setActiveDragItem(null), 100)
+            return
+          }
+        }
+
+        // If we got here, invalid drop target for unscheduled order
+        setTimeout(() => setActiveDragItem(null), 100)
+        return
+      }
+
+      // ============================================
+      // Already Scheduled Order Movement (grid → grid or grid → unscheduled)
+      // ============================================
+      // From here on, we're handling orders that are already on the grid
 
       // Check for unscheduled drop FIRST - any order can be unscheduled from any location
       if (over.id === 'unscheduled') {
@@ -771,18 +674,20 @@ export default function Scheduler() {
           scheduledTruckId: null,
           deliveryRunId: null,
         })
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
       // Check if dropping on a run group (order-on-run to add to run)
-      // IMPORTANT: Only execute MERGE if dwell threshold (600ms) was reached
-      if (overId.startsWith('run-drop-') && wasMergeReady) {
+      // Scratch-style: instant drop, no dwell timer needed
+      if (overId.startsWith('run-drop-')) {
         const targetRunData = over.data.current as { type: string; run: DeliveryRun; orders: CalendarOrder[] } | undefined
         if (targetRunData?.type === 'run') {
           const targetRun = targetRunData.run
 
           // Only SOs can be added to runs
           if (draggedOrder.order_type !== 'SO') {
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -794,14 +699,14 @@ export default function Scheduler() {
             scheduledTruckId: targetRun.truck_id,
             deliveryRunId: targetRun.id,
           })
+          setTimeout(() => setActiveDragItem(null), 100)
           return
         }
       }
 
       // Check if dropping on another order (order-on-order to create/add to run)
-      // IMPORTANT: Only execute MERGE if dwell threshold (600ms) was reached
-      // Otherwise, this is just a reorder operation (handled by preview state)
-      if (overId.startsWith('order-drop-') && wasMergeReady) {
+      // Scratch-style: instant drop, no dwell timer needed
+      if (overId.startsWith('order-drop-')) {
         const dropData = over.data.current as { type: string; order: CalendarOrder } | undefined
 
         if (dropData?.type === 'order') {
@@ -809,16 +714,19 @@ export default function Scheduler() {
 
           // Only allow grouping SOs with SOs (not POs)
           if (draggedOrder.order_type !== 'SO' || targetOrder.order_type !== 'SO') {
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
           // Don't drop on itself
           if (draggedOrder.id === targetOrder.id) {
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
           // Target must be scheduled (have a truck and date)
           if (!targetOrder.scheduled_truck_id || !targetOrder.scheduled_date) {
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -831,6 +739,7 @@ export default function Scheduler() {
               scheduledTruckId: targetOrder.scheduled_truck_id,
               deliveryRunId: targetOrder.delivery_run_id,
             })
+            setTimeout(() => setActiveDragItem(null), 100)
             return
           }
 
@@ -862,13 +771,17 @@ export default function Scheduler() {
           } catch (error) {
             console.error('Failed to create delivery run:', error)
           }
+          setTimeout(() => setActiveDragItem(null), 100)
           return
         }
       }
 
       // For calendar cell drops, we need the drop data
       const dropData = over.data.current as { date: string | null; truckId: number | null; position?: 'top' | 'bottom' | 'cell' } | undefined
-      if (!dropData) return
+      if (!dropData) {
+        setTimeout(() => setActiveDragItem(null), 100)
+        return
+      }
 
       const { date, truckId, position } = dropData
 
@@ -876,10 +789,12 @@ export default function Scheduler() {
       // and SOs on truck rows (truckId !== null)
       if (draggedOrder.order_type === 'PO' && truckId !== null) {
         // POs should only go to inbound row
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
       if (draggedOrder.order_type === 'SO' && truckId === null) {
         // SOs should only go to truck rows
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
@@ -919,6 +834,7 @@ export default function Scheduler() {
         }))
 
         batchUpdateSchedule.mutate({ orders: batchUpdates })
+        setTimeout(() => setActiveDragItem(null), 100)
         return
       }
 
@@ -930,8 +846,11 @@ export default function Scheduler() {
         scheduledTruckId: truckId,
         deliveryRunId: null,
       })
+
+      // Clear drag state after operation completes
+      setTimeout(() => setActiveDragItem(null), 100)
     },
-    [activeDragItem, allOrdersLookup, calendarData, updateSchedule, batchUpdateSchedule, createDeliveryRun, updateDeliveryRun, updateNote, clearScrollTimers, clearDwellTimer, isMergeReady]
+    [activeDragItem, allOrdersLookup, calendarData, updateSchedule, batchUpdateSchedule, createDeliveryRun, updateDeliveryRun, updateNote, clearScrollTimers, deliveryRuns, setExpandedContainers]
   )
 
   const handleOrderClick = useCallback((order: CalendarOrder) => {
@@ -1102,10 +1021,9 @@ export default function Scheduler() {
                 draggingOrderType={activeDragItem?.type === 'order' ? activeDragItem.order.order_type : 'SO'}
                 isDragActive={activeDragItem !== null}
                 hoveredCellId={hoveredCellId}
-                previewState={previewState}
                 allOrdersLookup={allOrdersLookup}
-                isEditMode={isEditMode}
-                mergeTargetId={mergeTargetId}
+                expandedContainers={expandedContainers}
+                onToggleExpanded={handleToggleExpanded}
               />
             )}
           </main>
@@ -1120,12 +1038,16 @@ export default function Scheduler() {
         </div>
       </div>
 
-      {/* Drag overlay - iOS-like with drop shadow and smooth animation */}
+      {/* Drag overlay - instant disappear for templates, smooth animation for others */}
       <DragOverlay
-        dropAnimation={{
-          duration: 200,
-          easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-        }}
+        dropAnimation={
+          // Templates should instantly disappear on drop (they "become" the new grid item)
+          // Other items animate back if drop fails
+          activeDragItem?.type === 'template' ? null : {
+            duration: 200,
+            easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+          }
+        }
         style={{
           filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.15))',
         }}
@@ -1199,6 +1121,29 @@ export default function Scheduler() {
         ) : activeDragItem?.type === 'note' ? (
           <div className="scale-[1.02]">
             <NoteCard note={activeDragItem.note} isOverlay disableDrag />
+          </div>
+        ) : activeDragItem?.type === 'template' ? (
+          <div className="scale-[1.05]">
+            <div className={cn(
+              'flex items-center gap-2 px-3 py-2.5 rounded-xl border-3 border-dashed',
+              'font-bold text-xs shadow-[0_8px_16px_rgba(0,0,0,0.4)]',
+              activeDragItem.templateType === 'container'
+                ? 'bg-gradient-to-br from-purple-100 to-purple-200 border-purple-500 text-purple-800'
+                : 'bg-gradient-to-br from-yellow-100 to-yellow-200 border-yellow-500 text-yellow-800'
+            )}>
+              {activeDragItem.templateType === 'container' ? (
+                <>
+                  <Package className="w-4 h-4" />
+                  <span>Truck Run</span>
+                </>
+              ) : (
+                <>
+                  <StickyNote className="w-4 h-4" />
+                  <span>Note</span>
+                </>
+              )}
+              <Plus className="w-4 h-4 ml-auto opacity-70" />
+            </div>
           </div>
         ) : null}
       </DragOverlay>

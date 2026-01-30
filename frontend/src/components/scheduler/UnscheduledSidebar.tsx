@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useDroppable } from '@dnd-kit/core'
+import { useDroppable, useDraggable } from '@dnd-kit/core'
 import { cn } from '@/lib/utils'
 import type { CalendarOrder, OrderStatus } from '@/types/api'
 import OrderCard from './OrderCard'
-import { Truck, ArrowUpDown } from 'lucide-react'
+import { Truck, ArrowUpDown, Package, StickyNote, Plus } from 'lucide-react'
 import { parseISO, compareAsc } from 'date-fns'
 
 type SortOption = 'customer' | 'dueDate'
@@ -14,6 +14,41 @@ interface UnscheduledSidebarProps {
   onStatusChange?: (order: CalendarOrder, newStatus: OrderStatus) => void
   /** Callback when clicking the yellow note indicator to view notes */
   onViewNotes?: (order: CalendarOrder) => void
+}
+
+// Template block component (Scratch-style)
+interface TemplateBlockProps {
+  id: string
+  icon: React.ReactNode
+  label: string
+  color: 'purple' | 'yellow'
+}
+
+function TemplateBlock({ id, icon, label, color }: TemplateBlockProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    data: { type: 'template', templateType: id.replace('template-', '') },
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        'relative flex items-center gap-2 px-3 py-2.5 rounded-xl border-3 border-dashed cursor-grab active:cursor-grabbing transition-all',
+        'font-bold text-xs shadow-[0_3px_6px_rgba(0,0,0,0.3)] hover:shadow-[0_4px_8px_rgba(0,0,0,0.35)] hover:translate-y-[-2px]',
+        isDragging && 'opacity-0',
+        color === 'purple' && 'bg-gradient-to-br from-purple-100 to-purple-200 border-purple-500 text-purple-800',
+        color === 'yellow' && 'bg-gradient-to-br from-yellow-100 to-yellow-200 border-yellow-500 text-yellow-800'
+      )}
+      title={`Drag to create ${label}`}
+    >
+      <div className="shrink-0">{icon}</div>
+      <span className="flex-1">{label}</span>
+      <Plus className="w-4 h-4 shrink-0 opacity-70" />
+    </div>
+  )
 }
 
 // Sort function for orders
@@ -83,6 +118,25 @@ export default function UnscheduledSidebar({ orders, onOrderClick, onStatusChang
           <ArrowUpDown className="h-3 w-3" />
           <span>Sort: {sortBy === 'customer' ? 'Customer' : 'Due Date'}</span>
         </button>
+      </div>
+
+      {/* Scratch-style Template Blocks */}
+      <div className="p-2 border-b bg-white space-y-2">
+        <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-2">
+          Create:
+        </div>
+        <TemplateBlock
+          id="template-container"
+          icon={<Package className="w-4 h-4" />}
+          label="Truck Run"
+          color="purple"
+        />
+        <TemplateBlock
+          id="template-note"
+          icon={<StickyNote className="w-4 h-4" />}
+          label="Note"
+          color="yellow"
+        />
       </div>
 
       <div className="flex-1 overflow-y-auto bg-gray-50/50">

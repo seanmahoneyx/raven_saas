@@ -118,7 +118,7 @@ interface WeekGroupProps {
   isCurrentWeek: boolean
 }
 
-export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWeek }: WeekGroupProps) {
+export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWeek: _isCurrentWeek }: WeekGroupProps) {
   const trucks = useSchedulerStore((s) => s.trucks)
 
   const dayLabels = useMemo(() => {

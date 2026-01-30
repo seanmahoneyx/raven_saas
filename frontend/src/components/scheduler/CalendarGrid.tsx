@@ -11,16 +11,6 @@ import CalendarCell from './CalendarCell'
 import { cn } from '@/lib/utils'
 import { Truck as TruckIcon, Package } from 'lucide-react'
 
-// Preview state for iOS-like reordering during drag
-type PreviewState = {
-  // Map of cellId -> ordered list of order IDs in that cell
-  cells: Record<string, string[]>
-  // The ID of the item being dragged
-  activeId: string
-  // The original cell the item came from
-  originalCellId: string
-}
-
 interface CalendarGridProps {
   trucks: Truck[]
   calendarData: TruckCalendar[]
@@ -41,14 +31,12 @@ interface CalendarGridProps {
   isDragActive?: boolean
   /** ID of the cell currently being hovered during drag (for drop zone visibility) */
   hoveredCellId?: string | null
-  /** Preview state for iOS-like reordering during drag */
-  previewState?: PreviewState | null
-  /** Lookup of all orders by ID for preview rendering */
+  /** Lookup of all orders by ID */
   allOrdersLookup?: Record<string, CalendarOrder>
-  /** Whether edit mode (jiggle) is active - LOCAL ONLY */
-  isEditMode?: boolean
-  /** ID of the merge target (order-drop-* or run-drop-*) when dwell threshold reached */
-  mergeTargetId?: string | null
+  /** Set of expanded container IDs */
+  expandedContainers?: Set<number>
+  /** Toggle container expand/collapse */
+  onToggleExpanded?: (runId: number) => void
 }
 
 export default function CalendarGrid({
@@ -68,10 +56,9 @@ export default function CalendarGrid({
   draggingOrderType,
   isDragActive,
   hoveredCellId,
-  previewState,
   allOrdersLookup = {},
-  isEditMode = false,
-  mergeTargetId = null,
+  expandedContainers = new Set(),
+  onToggleExpanded,
 }: CalendarGridProps) {
   const currentWeekRef = useRef<HTMLDivElement>(null)
 
@@ -225,10 +212,9 @@ export default function CalendarGrid({
                   isValidDropTarget={draggingOrderType === 'PO'}
                   isDragActive={isDragActive}
                   hoveredCellId={hoveredCellId}
-                  previewState={previewState}
-                  isEditMode={isEditMode}
-                  mergeTargetId={mergeTargetId}
                   allOrdersLookup={allOrdersLookup}
+                  expandedContainers={expandedContainers}
+                  onToggleExpanded={onToggleExpanded}
                 />
               )
             })}
@@ -280,10 +266,9 @@ export default function CalendarGrid({
                     isValidDropTarget={draggingOrderType === 'SO'}
                     isDragActive={isDragActive}
                     hoveredCellId={hoveredCellId}
-                    previewState={previewState}
                     allOrdersLookup={allOrdersLookup}
-                    isEditMode={isEditMode}
-                    mergeTargetId={mergeTargetId}
+                    expandedContainers={expandedContainers}
+                    onToggleExpanded={onToggleExpanded}
                   />
                 )
               })}

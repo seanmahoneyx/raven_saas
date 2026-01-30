@@ -71,7 +71,8 @@ describe('OrderCard', () => {
       render(<OrderCard order={order} />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('bg-blue-50')
+      // SOs have blue border color
+      expect(card).toHaveClass('border-blue-400')
     })
 
     it('applies green styling for purchase orders', () => {
@@ -79,7 +80,8 @@ describe('OrderCard', () => {
       render(<OrderCard order={order} />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('bg-green-50')
+      // POs have green border color
+      expect(card).toHaveClass('border-green-400')
     })
 
     it('applies red styling for cancelled orders', () => {
@@ -87,7 +89,8 @@ describe('OrderCard', () => {
       render(<OrderCard order={order} />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('bg-red-50')
+      // Cancelled orders have red background
+      expect(card).toHaveClass('bg-red-100')
     })
   })
 
@@ -99,6 +102,7 @@ describe('OrderCard', () => {
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
       const statusDot = card?.querySelector('.rounded-full')
       expect(statusDot).toHaveClass('bg-white')
+      expect(statusDot).toHaveClass('border')
       expect(statusDot).toHaveClass('border-gray-400')
     })
 
@@ -139,20 +143,22 @@ describe('OrderCard', () => {
       expect(card).toHaveAttribute('data-order-id', 'SO-42')
     })
 
-    it('applies cursor-move when draggable', () => {
+    it('applies cursor-grab on drag handle when draggable', () => {
       const order = createMockOrder()
       render(<OrderCard order={order} disableDrag={false} />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('cursor-move')
+      const dragHandle = card?.querySelector('.cursor-grab')
+      expect(dragHandle).toBeInTheDocument()
     })
 
-    it('applies cursor-pointer when drag disabled', () => {
+    it('applies cursor-pointer on content when drag disabled', () => {
       const order = createMockOrder()
       render(<OrderCard order={order} disableDrag={true} />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('cursor-pointer')
+      const content = card?.querySelector('.cursor-pointer')
+      expect(content).toBeInTheDocument()
     })
   })
 
@@ -178,7 +184,7 @@ describe('OrderCard', () => {
       render(<OrderCard order={order} isDragging />, { wrapper: DndWrapper })
 
       const card = screen.getByText(order.party_name).closest('[data-order-card]')
-      expect(card).toHaveClass('opacity-40')
+      expect(card).toHaveClass('opacity-30')
     })
   })
 })

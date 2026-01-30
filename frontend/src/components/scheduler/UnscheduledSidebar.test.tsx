@@ -43,25 +43,19 @@ describe('UnscheduledSidebar', () => {
       createMockPurchaseOrder({ id: 4, order_type: 'PO', number: 'PO-002', party_name: 'Vendor Y', scheduled_date: null }),
     ]
 
-    it('shows total count', () => {
+    it('shows count of sales orders only', () => {
+      // Sidebar only shows SOs, so count should be 2 even with 4 total orders
       render(<UnscheduledSidebar orders={[...salesOrders, ...purchaseOrders]} />, { wrapper: DndWrapper })
 
-      expect(screen.getByText('4')).toBeInTheDocument()
+      // Count appears in header (displayed as "2" for SO count only, not all 4 orders)
+      const countElements = screen.getAllByText('2')
+      expect(countElements.length).toBeGreaterThan(0)
     })
 
-    it('separates POs and SOs into sections', () => {
-      render(<UnscheduledSidebar orders={[...salesOrders, ...purchaseOrders]} />, { wrapper: DndWrapper })
+    it('shows SO section header', () => {
+      render(<UnscheduledSidebar orders={salesOrders} />, { wrapper: DndWrapper })
 
-      expect(screen.getByText('Inbound POs')).toBeInTheDocument()
       expect(screen.getByText('Outbound SOs')).toBeInTheDocument()
-    })
-
-    it('shows PO count in section header', () => {
-      render(<UnscheduledSidebar orders={purchaseOrders} />, { wrapper: DndWrapper })
-
-      // Should show count next to "Inbound POs"
-      const poSection = screen.getByText('Inbound POs').closest('div')
-      expect(poSection).toHaveTextContent('2')
     })
 
     it('shows SO count in section header', () => {
@@ -72,7 +66,7 @@ describe('UnscheduledSidebar', () => {
       expect(soSection).toHaveTextContent('2')
     })
 
-    it('renders order cards for each order', () => {
+    it('renders order cards for sales orders', () => {
       render(<UnscheduledSidebar orders={salesOrders} />, { wrapper: DndWrapper })
 
       expect(screen.getByText('Customer A')).toBeInTheDocument()
@@ -81,18 +75,19 @@ describe('UnscheduledSidebar', () => {
       expect(screen.getByText('SO-002')).toBeInTheDocument()
     })
 
-    it('only shows PO section when only POs exist', () => {
-      render(<UnscheduledSidebar orders={purchaseOrders} />, { wrapper: DndWrapper })
+    it('does not render purchase orders', () => {
+      // POs are not shown in the unscheduled sidebar
+      render(<UnscheduledSidebar orders={[...salesOrders, ...purchaseOrders]} />, { wrapper: DndWrapper })
 
-      expect(screen.getByText('Inbound POs')).toBeInTheDocument()
-      expect(screen.queryByText('Outbound SOs')).not.toBeInTheDocument()
+      expect(screen.queryByText('Vendor X')).not.toBeInTheDocument()
+      expect(screen.queryByText('Vendor Y')).not.toBeInTheDocument()
     })
 
-    it('only shows SO section when only SOs exist', () => {
-      render(<UnscheduledSidebar orders={salesOrders} />, { wrapper: DndWrapper })
+    it('shows empty state when only POs exist', () => {
+      // Since sidebar only shows SOs, having only POs means empty state
+      render(<UnscheduledSidebar orders={purchaseOrders} />, { wrapper: DndWrapper })
 
-      expect(screen.queryByText('Inbound POs')).not.toBeInTheDocument()
-      expect(screen.getByText('Outbound SOs')).toBeInTheDocument()
+      expect(screen.getByText('All orders scheduled')).toBeInTheDocument()
     })
   })
 

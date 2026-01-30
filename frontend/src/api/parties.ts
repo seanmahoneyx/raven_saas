@@ -98,6 +98,33 @@ export function useCreateCustomer() {
   })
 }
 
+export function useUpdateCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...customer }: Partial<Customer> & { id: number }) => {
+      const { data } = await api.patch<Customer>(`/customers/${id}/`, customer)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+    },
+  })
+}
+
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/customers/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+    },
+  })
+}
+
 // Vendors
 export function useVendors(params?: { search?: string }) {
   return useQuery({
@@ -126,6 +153,33 @@ export function useCreateVendor() {
     mutationFn: async (vendor: Partial<Vendor>) => {
       const { data } = await api.post<Vendor>('/vendors/', vendor)
       return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+    },
+  })
+}
+
+export function useUpdateVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...vendor }: Partial<Vendor> & { id: number }) => {
+      const { data } = await api.patch<Vendor>(`/vendors/${id}/`, vendor)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+    },
+  })
+}
+
+export function useDeleteVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/vendors/${id}/`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })

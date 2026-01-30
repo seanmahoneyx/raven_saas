@@ -15,11 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateCustomer, useParties } from '@/api/parties'
+import { useCreateCustomer, useUpdateCustomer, useParties } from '@/api/parties'
+import type { Customer } from '@/types/api'
 
 interface CustomerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  customer?: Customer | null
 }
 
 const PAYMENT_TERMS = [
@@ -31,7 +33,9 @@ const PAYMENT_TERMS = [
   { value: 'PREPAID', label: 'Prepaid' },
 ]
 
-export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
+export function CustomerDialog({ open, onOpenChange, customer }: CustomerDialogProps) {
+  const isEditing = !!customer
+
   const [formData, setFormData] = useState({
     party: '',
     payment_terms: 'NET30',
@@ -39,27 +43,42 @@ export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
 
   const { data: partiesData } = useParties({ party_type: 'CUSTOMER' })
   const createCustomer = useCreateCustomer()
+  const updateCustomer = useUpdateCustomer()
 
   useEffect(() => {
     if (open) {
-      setFormData({
-        party: '',
-        payment_terms: 'NET30',
-      })
+      if (customer) {
+        setFormData({
+          party: String(customer.party),
+          payment_terms: customer.payment_terms || 'NET30',
+        })
+      } else {
+        setFormData({
+          party: '',
+          payment_terms: 'NET30',
+        })
+      }
     }
-  }, [open])
+  }, [open, customer])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     try {
-      await createCustomer.mutateAsync({
-        party: Number(formData.party),
-        payment_terms: formData.payment_terms,
-      })
+      if (isEditing) {
+        await updateCustomer.mutateAsync({
+          id: customer.id,
+          payment_terms: formData.payment_terms,
+        })
+      } else {
+        await createCustomer.mutateAsync({
+          party: Number(formData.party),
+          payment_terms: formData.payment_terms,
+        })
+      }
       onOpenChange(false)
     } catch (error) {
-      console.error('Failed to create customer:', error)
+      console.error(`Failed to ${isEditing ? 'update' : 'create'} customer:`, error)
     }
   }
 
@@ -68,11 +87,13 @@ export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
     (p) => p.party_type === 'CUSTOMER' || p.party_type === 'BOTH'
   ) ?? []
 
+  const isPending = createCustomer.isPending || updateCustomer.isPending
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Customer</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Customer' : 'Add Customer'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
@@ -81,6 +102,7 @@ export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
               <Select
                 value={formData.party}
                 onValueChange={(value) => setFormData({ ...formData, party: value })}
+                disabled={isEditing}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a party..." />
@@ -93,9 +115,11 @@ export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground">
-                Select an existing party or create a new party first.
-              </p>
+              {!isEditing && (
+                <p className="text-sm text-muted-foreground">
+                  Select an existing party or create a new party first.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -122,8 +146,8 @@ export function CustomerDialog({ open, onOpenChange }: CustomerDialogProps) {
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={createCustomer.isPending || !formData.party}>
-              {createCustomer.isPending ? 'Creating...' : 'Create'}
+            <Button type="submit" disabled={isPending || !formData.party}>
+              {isPending ? (isEditing ? 'Updating...' : 'Creating...') : (isEditing ? 'Update' : 'Create')}
             </Button>
           </DialogFooter>
         </form>

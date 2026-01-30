@@ -16,7 +16,11 @@ from .views.parties import (
     PartyViewSet, CustomerViewSet, VendorViewSet,
     LocationViewSet, TruckViewSet,
 )
-from .views.items import UnitOfMeasureViewSet, ItemViewSet
+from .views.items import (
+    UnitOfMeasureViewSet, ItemViewSet, ItemVendorViewSet,
+    CorrugatedFeatureViewSet, CorrugatedItemViewSet,
+    DCItemViewSet, RSCItemViewSet, HSCItemViewSet, FOLItemViewSet, TeleItemViewSet,
+)
 from .views.orders import PurchaseOrderViewSet, SalesOrderViewSet
 from .views.pricing import PriceListViewSet
 from .views.costing import CostListViewSet
@@ -32,6 +36,7 @@ from .views.reporting import (
     SavedReportViewSet, ReportFavoriteViewSet,
 )
 from .views.scheduling import CalendarViewSet
+from .views.contracts import ContractViewSet
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -46,6 +51,16 @@ router.register(r'trucks', TruckViewSet, basename='truck')
 # Items
 router.register(r'uom', UnitOfMeasureViewSet, basename='uom')
 router.register(r'items', ItemViewSet, basename='item')
+router.register(r'item-vendors', ItemVendorViewSet, basename='itemvendor')
+router.register(r'corrugated-features', CorrugatedFeatureViewSet, basename='corrugatedfeature')
+
+# Corrugated Items
+router.register(r'corrugated-items', CorrugatedItemViewSet, basename='corrugateditem')
+router.register(r'dc-items', DCItemViewSet, basename='dcitem')
+router.register(r'rsc-items', RSCItemViewSet, basename='rscitem')
+router.register(r'hsc-items', HSCItemViewSet, basename='hscitem')
+router.register(r'fol-items', FOLItemViewSet, basename='folitem')
+router.register(r'tele-items', TeleItemViewSet, basename='teleitem')
 
 # Orders
 router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchaseorder')
@@ -81,6 +96,9 @@ router.register(r'reports/favorites', ReportFavoriteViewSet, basename='reportfav
 
 # Scheduling/Calendar
 router.register(r'calendar', CalendarViewSet, basename='calendar')
+
+# Contracts
+router.register(r'contracts', ContractViewSet, basename='contract')
 
 urlpatterns = [
     # JWT Authentication endpoints

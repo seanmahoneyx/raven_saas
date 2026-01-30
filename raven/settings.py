@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'apps.invoicing',
     'apps.reporting',
     'apps.scheduling',
+    'apps.contracts',
     'apps.api',
     # Legacy apps (will be migrated)
     'core',
