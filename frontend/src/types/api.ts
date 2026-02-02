@@ -488,6 +488,12 @@ export interface CreateReleasePayload {
 }
 
 // History types
+export interface HistoryChange {
+  field: string
+  old: string
+  new: string
+}
+
 export interface HistoryRecord {
   id: number
   order_type: 'SO' | 'PO'
@@ -502,4 +508,5 @@ export interface HistoryRecord {
   scheduled_date: string | null
   scheduled_truck_id: number | null
   changed_fields: string[]
+  changes?: HistoryChange[]
 }

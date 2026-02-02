@@ -58,11 +58,24 @@ class TenantMiddleware:
             Tenant instance or None
         """
         # Strategy 1: Try header first (for API/mobile app)
+        # SECURITY: Must validate that authenticated user belongs to requested tenant
         tenant_id = request.META.get('HTTP_X_TENANT_ID')
         if tenant_id:
             try:
-                return Tenant.objects.filter(id=tenant_id, is_active=True).first()
-            except (Tenant.DoesNotExist, ValueError):
+                tenant_id_int = int(tenant_id)
+                # Only allow header-based tenant selection if:
+                # 1. User is authenticated AND belongs to that tenant, OR
+                # 2. User is a superuser (can access any tenant)
+                user = getattr(request, 'user', None)
+                if user and user.is_authenticated:
+                    if user.is_superuser:
+                        return Tenant.objects.filter(id=tenant_id_int, is_active=True).first()
+                    # Regular user must belong to the requested tenant
+                    user_tenant_id = getattr(user, 'tenant_id', None)
+                    if user_tenant_id == tenant_id_int:
+                        return Tenant.objects.filter(id=tenant_id_int, is_active=True).first()
+                # If validation fails, fall through to other strategies (don't return None yet)
+            except (ValueError, TypeError):
                 pass
 
         # Strategy 2: Try subdomain (e.g., acme.ravensaas.com)

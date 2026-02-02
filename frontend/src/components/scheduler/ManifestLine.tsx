@@ -1,24 +1,17 @@
-import { memo, useState, useCallback } from 'react'
+import { memo, useState, useCallback, useMemo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useSchedulerStore, selectOrder, type Order } from './useSchedulerStore'
+import { useSchedulerStore, selectOrder, selectOrderMatchesFilter, type Order } from './useSchedulerStore'
+import { useUpdateNotes } from '@/api/scheduling'
 
 // ─── Status Visual Maps ──────────────────────────────────────────────────────
 
-const STATUS_DOT: Record<Order['status'], string> = {
-  unscheduled: 'bg-gray-400',
-  picked: 'bg-yellow-400',
-  packed: 'bg-green-400',
-  shipped: 'bg-blue-400',
-  invoiced: 'bg-violet-400',
-}
-
-const STATUS_ROW_BG: Record<Order['status'], string> = {
-  unscheduled: 'bg-gray-50',
-  picked: 'bg-yellow-50',
-  packed: 'bg-green-50',
-  shipped: 'bg-blue-50',
-  invoiced: 'bg-violet-50',
+const STATUS_CONFIG: Record<Order['status'], { dot: string; bg: string; border: string }> = {
+  unscheduled: { dot: 'bg-slate-400', bg: 'bg-slate-50', border: 'border-slate-200' },
+  picked: { dot: 'bg-amber-400', bg: 'bg-amber-50', border: 'border-amber-200' },
+  packed: { dot: 'bg-emerald-400', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+  shipped: { dot: 'bg-sky-400', bg: 'bg-sky-50', border: 'border-sky-200' },
+  invoiced: { dot: 'bg-violet-400', bg: 'bg-violet-50', border: 'border-violet-200' },
 }
 
 // ─── Collapsed Customer Group ────────────────────────────────────────────────
@@ -39,9 +32,16 @@ interface ManifestLineProps {
   onCollapse?: () => void
 }
 
-export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isLoose, onExplode, onCollapse }: ManifestLineProps) {
-  const order = useSchedulerStore(selectOrder(orderId))
+export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isLoose, onExplode, onCollapse: _onCollapse }: ManifestLineProps) {
+  // Memoize selectors to prevent infinite re-renders
+  const selectOrderMemo = useMemo(() => selectOrder(orderId), [orderId])
+  const selectMatchesMemo = useMemo(() => selectOrderMatchesFilter(orderId), [orderId])
+
+  const order = useSchedulerStore(selectOrderMemo)
+  const matchesFilter = useSchedulerStore(selectMatchesMemo)
   const updateOrderNotes = useSchedulerStore((s) => s.updateOrderNotes)
+  const setSelectedOrderId = useSchedulerStore((s) => s.setSelectedOrderId)
+  const updateNotesMutation = useUpdateNotes()
   const [showNoteMenu, setShowNoteMenu] = useState(false)
   const [noteInput, setNoteInput] = useState('')
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
@@ -62,8 +62,7 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : 1,
-    cursor: order?.isReadOnly ? 'default' : 'grab',
+    opacity: isDragging ? 0.4 : 1,
   }
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -76,25 +75,45 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
   }, [order])
 
   const handleNoteSave = useCallback(() => {
+    if (!order) return
+    // Optimistic update in local store
     updateOrderNotes(orderId, noteInput || null)
+    // Persist to API
+    updateNotesMutation.mutate({
+      orderType: order.type,
+      orderId: parseInt(orderId, 10),
+      notes: noteInput || '',
+    })
     setShowNoteMenu(false)
-  }, [orderId, noteInput, updateOrderNotes])
+  }, [orderId, noteInput, updateOrderNotes, updateNotesMutation, order])
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    // If collapsed group, explode it; otherwise open detail modal
+    if (collapsed && onExplode) {
+      onExplode()
+    } else {
+      setSelectedOrderId(orderId)
+    }
+  }, [collapsed, onExplode, orderId, setSelectedOrderId])
 
   if (!order) return null
+
+  const statusConfig = STATUS_CONFIG[order.status]
 
   // Collapsed multi-order line
   if (collapsed) {
     return (
       <div ref={setNodeRef} style={style} {...attributes} {...listeners}
         onContextMenu={handleContextMenu}
-        onDoubleClick={onExplode}
-        className="flex items-center gap-1.5 px-1.5 py-[3px] rounded text-xs select-none bg-stone-100 border border-stone-200 cursor-pointer"
+        onDoubleClick={handleDoubleClick}
+        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs select-none bg-slate-100 border border-slate-200 cursor-pointer hover:bg-slate-150 hover:border-slate-300 transition-colors"
         title="Double-click to expand"
       >
-        <div className="w-2 h-2 rounded-full bg-stone-400 shrink-0" />
-        <span className="font-bold text-stone-700 truncate">[{collapsed.customerCode}]</span>
-        <span className="text-stone-500">({collapsed.orderCount})</span>
-        <span className="ml-auto tabular-nums text-stone-600 font-medium shrink-0">{collapsed.totalPallets}P</span>
+        <div className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
+        <span className="font-semibold text-slate-700 truncate">[{collapsed.customerCode}]</span>
+        <span className="text-slate-500 text-[10px]">{collapsed.orderCount} orders</span>
+        <span className="ml-auto tabular-nums text-slate-600 font-semibold text-[11px] shrink-0">{collapsed.totalPallets}P</span>
       </div>
     )
   }
@@ -107,24 +126,45 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
         {...attributes}
         {...listeners}
         onContextMenu={handleContextMenu}
-        onDoubleClick={onCollapse}
+        onDoubleClick={handleDoubleClick}
         className={`
-          flex items-center gap-1.5 px-1.5 py-[3px] rounded text-xs select-none
-          border border-transparent hover:border-stone-300
-          ${STATUS_ROW_BG[order.status]}
-          ${isDragging ? 'shadow-lg ring-2 ring-purple-400 z-50' : ''}
-          ${order.isReadOnly ? 'opacity-60' : ''}
-          ${isLoose ? 'border-l-2 border-l-amber-400' : ''}
+          group flex items-center gap-1.5 px-2 py-1 rounded-md text-xs select-none
+          border transition-all duration-150 cursor-grab
+          ${statusConfig.bg} ${statusConfig.border}
+          ${isDragging ? 'shadow-lg ring-2 ring-amber-400 z-50 scale-[1.02]' : 'hover:shadow-sm'}
+          ${order.isReadOnly ? 'opacity-50 cursor-default' : 'hover:border-slate-300'}
+          ${isLoose ? 'border-l-[3px] border-l-amber-400' : ''}
+          ${!matchesFilter ? 'opacity-25' : ''}
         `}
       >
-        <div className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[order.status]}`} />
-        <span className="font-mono font-semibold text-stone-800 truncate min-w-0">{order.orderNumber}</span>
-        <span className="font-bold text-stone-600 truncate">{order.customerCode}</span>
-        <span className="ml-auto tabular-nums text-stone-700 font-medium shrink-0">{order.palletCount}P</span>
+        {/* Status dot */}
+        <div className={`w-2 h-2 rounded-full shrink-0 ${statusConfig.dot}`} />
+
+        {/* Order number */}
+        <span className="font-mono font-semibold text-slate-800 truncate text-[11px]">{order.orderNumber}</span>
+
+        {/* Customer code */}
+        <span className="font-medium text-slate-500 truncate text-[10px]">{order.customerCode}</span>
+
+        {/* Pallet count */}
+        <span className="ml-auto tabular-nums text-slate-700 font-semibold text-[11px] shrink-0 bg-white/60 px-1.5 py-0.5 rounded">
+          {order.palletCount}P
+        </span>
+
+        {/* Notes indicator */}
         {order.notes && (
-          <div className="w-3 h-3 rounded-full bg-amber-300 flex items-center justify-center shrink-0" title={order.notes}>
-            <span className="text-[8px] text-amber-900 font-bold">!</span>
+          <div className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-sm" title={order.notes}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 text-amber-900">
+              <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+            </svg>
           </div>
+        )}
+
+        {/* Locked indicator */}
+        {order.isReadOnly && (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-slate-400 shrink-0">
+            <path fillRule="evenodd" d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7A1.5 1.5 0 0 0 3 8.5v5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 11.5 7V4.5A3.5 3.5 0 0 0 8 1Zm2 6V4.5a2 2 0 1 0-4 0V7h4Z" clipRule="evenodd" />
+          </svg>
         )}
       </div>
 
@@ -137,30 +177,37 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
           onContextMenu={(e) => { e.preventDefault(); setShowNoteMenu(false) }}
         >
           <div
-            className="absolute bg-white rounded shadow-lg border border-stone-200 p-2 w-52"
+            className="absolute bg-white rounded-xl shadow-xl border border-slate-200 p-3 w-60"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[10px] font-bold text-stone-500 uppercase mb-1">Order Note — {order.orderNumber}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-2 h-2 rounded-full ${statusConfig.dot}`} />
+              <span className="text-xs font-semibold text-slate-700">{order.orderNumber}</span>
+              <span className="text-[10px] text-slate-400">Note</span>
+            </div>
             <textarea
-              className="w-full border border-stone-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               placeholder="Add a note..."
               autoFocus
             />
-            <div className="flex justify-end gap-1 mt-1">
+            <div className="flex justify-end gap-2 mt-2">
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] text-stone-500 hover:text-stone-700"
+                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 font-medium transition-colors"
                 onClick={() => setShowNoteMenu(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] bg-purple-600 text-white rounded hover:bg-purple-700"
+                className="px-3 py-1.5 text-xs bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium transition-colors"
                 onClick={handleNoteSave}
               >
                 Save

@@ -4,6 +4,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useSchedulerStore, selectRun } from './useSchedulerStore'
 import { ManifestLine, type CollapsedGroup } from './ManifestLine'
+import { useUpdateDeliveryRun, useDeleteDeliveryRun } from '@/api/scheduling'
 
 // ─── RunContainer ────────────────────────────────────────────────────────────
 
@@ -13,9 +14,14 @@ interface RunContainerProps {
 }
 
 export const RunContainer = memo(function RunContainer({ runId, isInbound }: RunContainerProps) {
-  const run = useSchedulerStore(selectRun(runId))
-  const updateRunNotes = useSchedulerStore((s) => s.updateRunNotes)
+  const selectRunMemo = useMemo(() => selectRun(runId), [runId])
+  const run = useSchedulerStore(selectRunMemo)
+  const updateRunNotesStore = useSchedulerStore((s) => s.updateRunNotes)
+  const deleteRunStore = useSchedulerStore((s) => s.deleteRun)
+  const updateRunMutation = useUpdateDeliveryRun()
+  const deleteRunMutation = useDeleteDeliveryRun()
   const [showNoteMenu, setShowNoteMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [noteInput, setNoteInput] = useState('')
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
   const [explodedGroups, setExplodedGroups] = useState<Set<string>>(new Set())
@@ -109,47 +115,103 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
   }, [run])
 
   const handleNoteSave = useCallback(() => {
-    updateRunNotes(runId, noteInput || null)
+    // Optimistic update
+    updateRunNotesStore(runId, noteInput || null)
+    // Persist to API
+    updateRunMutation.mutate({
+      runId: parseInt(runId, 10),
+      notes: noteInput || '',
+    })
     setShowNoteMenu(false)
-  }, [runId, noteInput, updateRunNotes])
+  }, [runId, noteInput, updateRunNotesStore, updateRunMutation])
+
+  const handleDeleteRun = useCallback(() => {
+    // Check if run is empty (local state already checked in UI)
+    const numericId = parseInt(runId, 10)
+
+    // If runId is a valid number, it's from the database - call API
+    // If it's NaN (e.g., "run-1234567890-1"), it's a local-only run
+    if (!isNaN(numericId)) {
+      // Delete from API first, then update local store
+      deleteRunMutation.mutate(numericId, {
+        onSuccess: () => {
+          deleteRunStore(runId)
+        },
+      })
+    } else {
+      // Local-only run - just delete from store
+      deleteRunStore(runId)
+    }
+    setShowDeleteConfirm(false)
+  }, [runId, deleteRunMutation, deleteRunStore])
 
   if (!run) return null
+
+  const isEmptyRun = run.orderIds.length === 0
 
   const sortableOrderIds = run.orderIds
 
   return (
-    <div ref={setNodeRef} style={style} className="mb-1">
+    <div ref={setNodeRef} style={style} className="mb-1.5">
       {/* Run Header */}
       <div
         {...attributes}
         {...listeners}
         onContextMenu={handleRunContextMenu}
         className={`
-          flex items-center gap-1 px-1.5 py-0.5 rounded-t
-          text-[10px] font-bold uppercase tracking-wide select-none
+          flex items-center gap-1.5 px-2 py-1 rounded-t-lg
+          text-[10px] font-semibold uppercase tracking-wider select-none
+          transition-all duration-150
           ${isInbound
-            ? 'bg-stone-700 text-stone-300'
-            : 'bg-purple-600 text-white border border-b-0 border-purple-700 cursor-grab'
+            ? 'bg-gradient-to-r from-rose-500 to-rose-400 text-white shadow-sm'
+            : 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm cursor-grab hover:from-indigo-700 hover:to-indigo-600'
           }
         `}
       >
+        {/* Run icon */}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 opacity-70">
+          <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h5A1.5 1.5 0 0 1 12 3.5V5h.25A2.75 2.75 0 0 1 15 7.75v4.5A2.75 2.75 0 0 1 12.25 15h-8.5A2.75 2.75 0 0 1 1 12.25v-4.5A2.75 2.75 0 0 1 3.75 5H4V3.5Zm1.5 0V5h5V3.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5Z" />
+        </svg>
         <span>{run.name}</span>
         {run.notes && (
-          <div className="w-3 h-3 rounded-full bg-amber-300 flex items-center justify-center shrink-0" title={run.notes}>
-            <span className="text-[7px] text-amber-900 font-bold">!</span>
+          <div className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-inner" title={run.notes}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 text-amber-900">
+              <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+            </svg>
           </div>
         )}
-        <span className="ml-auto font-normal text-[9px] opacity-70">
-          {totalPallets}P &middot; {run.orderIds.length} orders
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] font-medium">
+            {totalPallets}P
+          </span>
+          <span className="text-[9px] opacity-70">
+            {run.orderIds.length} orders
+          </span>
+          {/* Delete button - only shown for empty runs */}
+          {isEmptyRun && !isInbound && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowDeleteConfirm(true)
+              }}
+              className="p-0.5 rounded hover:bg-white/20 transition-colors"
+              title="Delete empty run"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 opacity-70 hover:opacity-100">
+                <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Order List */}
       <div className={`
-        rounded-b px-0.5 py-0.5 min-h-[20px]
+        rounded-b-lg px-1 py-1 min-h-[24px] space-y-0.5
         ${isInbound
-          ? 'bg-stone-200/50'
-          : 'border border-t-0 border-purple-200 bg-white'
+          ? 'bg-rose-50/80 border border-t-0 border-rose-200'
+          : 'bg-indigo-50/50 border border-t-0 border-indigo-200'
         }
       `}>
         <SortableContext items={sortableOrderIds} strategy={verticalListSortingStrategy}>
@@ -182,33 +244,90 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
           onContextMenu={(e) => { e.preventDefault(); setShowNoteMenu(false) }}
         >
           <div
-            className="absolute bg-white rounded shadow-lg border border-stone-200 p-2 w-52"
+            className="absolute bg-white rounded-xl shadow-xl border border-slate-200 p-3 w-64"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-[10px] font-bold text-stone-500 uppercase mb-1">Run Note</div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-indigo-600">
+                  <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+                </svg>
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-700">Run Note</span>
+                <span className="text-[10px] text-slate-400 ml-1.5">{run.name}</span>
+              </div>
+            </div>
             <textarea
-              className="w-full border border-stone-300 rounded px-1.5 py-1 text-xs resize-none h-16 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
-              placeholder="Add a note..."
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              placeholder="Add a note about this run..."
               autoFocus
             />
-            <div className="flex justify-end gap-1 mt-1">
+            <div className="flex justify-end gap-2 mt-3">
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] text-stone-500 hover:text-stone-700"
+                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 font-medium transition-colors"
                 onClick={() => setShowNoteMenu(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="px-2 py-0.5 text-[10px] bg-purple-600 text-white rounded hover:bg-purple-700"
+                className="px-3 py-1.5 text-xs bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium transition-colors"
                 onClick={handleNoteSave}
               >
-                Save
+                Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-72"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-5 h-5 text-red-600">
+                  <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800">Delete Run?</h3>
+                <p className="text-xs text-slate-500">{run.name}</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-600 mb-4">
+              Are you sure you want to delete this empty run? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800 font-medium transition-colors"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+                onClick={handleDeleteRun}
+              >
+                Delete Run
               </button>
             </div>
           </div>

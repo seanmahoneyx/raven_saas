@@ -37,6 +37,8 @@ from .views.reporting import (
 )
 from .views.scheduling import CalendarViewSet
 from .views.contracts import ContractViewSet
+from .views.websocket import get_websocket_ticket
+from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -101,10 +103,18 @@ router.register(r'calendar', CalendarViewSet, basename='calendar')
 router.register(r'contracts', ContractViewSet, basename='contract')
 
 urlpatterns = [
-    # JWT Authentication endpoints
+    # JWT Authentication endpoints (legacy - tokens in response body)
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+
+    # Cookie-based JWT Authentication (preferred - httpOnly cookies)
+    path('auth/login/', CookieTokenObtainPairView.as_view(), name='cookie_login'),
+    path('auth/refresh/', CookieTokenRefreshView.as_view(), name='cookie_refresh'),
+    path('auth/logout/', CookieLogoutView.as_view(), name='cookie_logout'),
+
+    # WebSocket authentication ticket
+    path('ws/ticket/', get_websocket_ticket, name='websocket_ticket'),
 
     # Router URLs (all ViewSets)
     path('', include(router.urls)),

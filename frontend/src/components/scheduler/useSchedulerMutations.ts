@@ -32,6 +32,14 @@ export function useSchedulerMutations() {
   const runs = useSchedulerStore((s) => s.runs)
   const runToCell = useSchedulerStore((s) => s.runToCell)
 
+  // Dirty state management for multi-user collaboration
+  const markOrderDirty = useSchedulerStore((s) => s.markOrderDirty)
+  const markOrderClean = useSchedulerStore((s) => s.markOrderClean)
+  const markRunDirty = useSchedulerStore((s) => s.markRunDirty)
+  const markRunClean = useSchedulerStore((s) => s.markRunClean)
+  const incrementPendingApiCalls = useSchedulerStore((s) => s.incrementPendingApiCalls)
+  const decrementPendingApiCalls = useSchedulerStore((s) => s.decrementPendingApiCalls)
+
   // API mutations
   const updateScheduleMutation = useUpdateSchedule()
   const batchUpdateMutation = useBatchUpdateSchedule()
@@ -47,9 +55,17 @@ export function useSchedulerMutations() {
     const parsed = parseCellId(cellId)
     if (!parsed) return { success: false, reason: 'Invalid cell' }
 
+    // Mark dirty and increment pending calls (prevents polling from overwriting)
+    markOrderDirty(orderId)
+    incrementPendingApiCalls()
+
     // Optimistic update
     const result = moveOrderLoose(orderId, cellId)
-    if (!result.success) return result
+    if (!result.success) {
+      markOrderClean(orderId)
+      decrementPendingApiCalls()
+      return result
+    }
 
     // API call
     try {
@@ -60,13 +76,18 @@ export function useSchedulerMutations() {
         scheduledTruckId: parsed.truckId,
         deliveryRunId: null,
       })
+      // Success - clean up dirty state
+      markOrderClean(orderId)
+      decrementPendingApiCalls()
       return { success: true }
     } catch (error) {
       // Refetch to revert
+      markOrderClean(orderId)
+      decrementPendingApiCalls()
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       return { success: false, reason: 'API error' }
     }
-  }, [orders, moveOrderLoose, updateScheduleMutation, queryClient])
+  }, [orders, moveOrderLoose, updateScheduleMutation, queryClient, markOrderDirty, markOrderClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   // Add order to a run
   const addOrderToRun = useCallback(async (orderId: string, runId: string, insertIndex?: number) => {
@@ -78,9 +99,19 @@ export function useSchedulerMutations() {
     const parsed = cellId ? parseCellId(cellId) : null
     if (!parsed) return { success: false, reason: 'Invalid cell' }
 
+    // Mark dirty (both order and run are affected)
+    markOrderDirty(orderId)
+    markRunDirty(runId)
+    incrementPendingApiCalls()
+
     // Optimistic update
     const result = moveOrder(orderId, runId, insertIndex)
-    if (!result.success) return result
+    if (!result.success) {
+      markOrderClean(orderId)
+      markRunClean(runId)
+      decrementPendingApiCalls()
+      return result
+    }
 
     // API call
     try {
@@ -91,12 +122,18 @@ export function useSchedulerMutations() {
         scheduledTruckId: parsed.truckId,
         deliveryRunId: parseInt(runId, 10),
       })
+      markOrderClean(orderId)
+      markRunClean(runId)
+      decrementPendingApiCalls()
       return { success: true }
     } catch (error) {
+      markOrderClean(orderId)
+      markRunClean(runId)
+      decrementPendingApiCalls()
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       return { success: false, reason: 'API error' }
     }
-  }, [orders, runs, runToCell, moveOrder, updateScheduleMutation, queryClient])
+  }, [orders, runs, runToCell, moveOrder, updateScheduleMutation, queryClient, markOrderDirty, markOrderClean, markRunDirty, markRunClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   // Unschedule an order (remove from calendar)
   const unscheduleOrder = useCallback(async (orderId: string) => {
@@ -127,9 +164,23 @@ export function useSchedulerMutations() {
     const parsed = parseCellId(targetCellId)
     if (!parsed) return { success: false, reason: 'Invalid cell' }
 
+    // Mark dirty (run and all its orders)
+    markRunDirty(runId)
+    for (const oid of run.orderIds) {
+      markOrderDirty(oid)
+    }
+    incrementPendingApiCalls()
+
     // Optimistic update
     const result = moveRun(runId, targetCellId)
-    if (!result.success) return result
+    if (!result.success) {
+      markRunClean(runId)
+      for (const oid of run.orderIds) {
+        markOrderClean(oid)
+      }
+      decrementPendingApiCalls()
+      return result
+    }
 
     // API call to update run's date/truck
     try {
@@ -153,12 +204,23 @@ export function useSchedulerMutations() {
         })
         await batchUpdateMutation.mutateAsync({ orders: orderUpdates })
       }
+      // Success - clean up dirty state
+      markRunClean(runId)
+      for (const oid of run.orderIds) {
+        markOrderClean(oid)
+      }
+      decrementPendingApiCalls()
       return { success: true }
     } catch (error) {
+      markRunClean(runId)
+      for (const oid of run.orderIds) {
+        markOrderClean(oid)
+      }
+      decrementPendingApiCalls()
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       return { success: false, reason: 'API error' }
     }
-  }, [runs, orders, moveRun, updateRunMutation, batchUpdateMutation, queryClient])
+  }, [runs, orders, moveRun, updateRunMutation, batchUpdateMutation, queryClient, markRunDirty, markRunClean, markOrderDirty, markOrderClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   // Create a new run in a cell
   const createRun = useCallback(async (cellId: CellId, name?: string) => {
@@ -184,6 +246,13 @@ export function useSchedulerMutations() {
     const run = runs[runId]
     if (!run) return { success: false, reason: 'Run not found' }
 
+    // Mark dirty
+    markRunDirty(runId)
+    for (const oid of run.orderIds) {
+      markOrderDirty(oid)
+    }
+    incrementPendingApiCalls()
+
     // First unassign all orders from the run
     if (run.orderIds.length > 0) {
       const cellId = runToCell[runId]
@@ -203,6 +272,11 @@ export function useSchedulerMutations() {
       try {
         await batchUpdateMutation.mutateAsync({ orders: orderUpdates })
       } catch (error) {
+        markRunClean(runId)
+        for (const oid of run.orderIds) {
+          markOrderClean(oid)
+        }
+        decrementPendingApiCalls()
         return { success: false, reason: 'Failed to unassign orders' }
       }
     }
@@ -210,12 +284,23 @@ export function useSchedulerMutations() {
     // Then delete the run
     try {
       await deleteRunMutation.mutateAsync(parseInt(runId, 10))
+      // Success - clean up dirty state
+      markRunClean(runId)
+      for (const oid of run.orderIds) {
+        markOrderClean(oid)
+      }
+      decrementPendingApiCalls()
       return { success: true }
     } catch (error) {
+      markRunClean(runId)
+      for (const oid of run.orderIds) {
+        markOrderClean(oid)
+      }
+      decrementPendingApiCalls()
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       return { success: false, reason: 'API error' }
     }
-  }, [runs, orders, runToCell, batchUpdateMutation, deleteRunMutation, queryClient])
+  }, [runs, orders, runToCell, batchUpdateMutation, deleteRunMutation, queryClient, markRunDirty, markRunClean, markOrderDirty, markOrderClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   return {
     scheduleOrderToCell,

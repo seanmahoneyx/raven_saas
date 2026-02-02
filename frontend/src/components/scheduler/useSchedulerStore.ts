@@ -5,6 +5,18 @@ import { subscribeWithSelector } from 'zustand/middleware'
 
 export type OrderStatus = 'unscheduled' | 'picked' | 'packed' | 'shipped' | 'invoiced'
 export type OrderType = 'PO' | 'SO'
+export type NoteColor = 'yellow' | 'blue' | 'green' | 'red' | 'purple' | 'orange'
+
+export interface SchedulerNote {
+  id: string
+  content: string
+  color: NoteColor
+  scheduledDate: string | null
+  truckId: string | null
+  deliveryRunId: string | null
+  isPinned: boolean
+  createdBy: string | null
+}
 
 export interface Order {
   id: string
@@ -17,6 +29,16 @@ export interface Order {
   type: OrderType
   isReadOnly: boolean
   date: string // YYYY-MM-DD (updated on cross-week moves)
+  // Multi-user collaboration fields
+  updatedAt?: string // ISO timestamp from server for conflict detection
+}
+
+// Dirty state tracking for optimistic updates
+export interface DirtyState {
+  orders: Set<string>      // Order IDs with local uncommitted changes
+  runs: Set<string>        // Run IDs with local uncommitted changes
+  notes: Set<string>       // Note IDs with local uncommitted changes
+  pendingApiCalls: number  // Count of in-flight API calls
 }
 
 export interface DeliveryRun {
@@ -72,6 +94,7 @@ interface SchedulerState {
   orders: Record<string, Order>
   runs: Record<string, DeliveryRun>
   cells: Record<CellId, CellData>
+  notes: Record<string, SchedulerNote>
   blockedDates: Set<string>
   trucks: string[]
   truckNames: Record<string, string>  // truckId → truck name
@@ -81,20 +104,56 @@ interface SchedulerState {
   orderToRun: Record<string, string>        // orderId → runId (for committed orders)
   runToCell: Record<string, CellId>         // runId → cellId
   looseOrderToCell: Record<string, CellId>  // orderId → cellId (for loose orders)
+  noteToCell: Record<string, CellId>        // noteId → cellId
+
+  // Multi-user collaboration state
+  dirty: DirtyState                         // Track locally modified items
+
+  // Filter state
+  filterCustomerCode: string | null
+  filterStatus: OrderStatus | null
+
+  // UI state
+  selectedOrderId: string | null
 
   // Actions
   hydrate: (data: HydratePayload) => void
+  mergeHydrate: (data: HydratePayload) => void  // Merge-based hydration for polling
   moveOrder: (orderId: string, targetRunId: string, insertIndex?: number) => MoveResult
   moveOrderLoose: (orderId: string, targetCellId: CellId) => MoveResult
   commitOrderToRun: (orderId: string, targetRunId: string, insertIndex?: number) => MoveResult
   moveRun: (runId: string, targetCellId: CellId, insertIndex?: number) => MoveResult
   createRun: (cellId: CellId, name?: string) => string | null
   dissolveRun: (runId: string) => boolean
+  deleteRun: (runId: string) => boolean
   toggleDateLock: (date: string) => void
   reorderInRun: (runId: string, fromIndex: number, toIndex: number) => void
   reorderRunsInCell: (cellId: CellId, fromIndex: number, toIndex: number) => void
   updateOrderNotes: (orderId: string, notes: string | null) => void
   updateRunNotes: (runId: string, notes: string | null) => void
+  setFilterCustomerCode: (code: string | null) => void
+  setFilterStatus: (status: OrderStatus | null) => void
+  setSelectedOrderId: (orderId: string | null) => void
+  // Note actions
+  hydrateNotes: (notes: SchedulerNote[]) => void
+  addNote: (note: SchedulerNote) => void
+  updateNote: (noteId: string, updates: Partial<SchedulerNote>) => void
+  deleteNote: (noteId: string) => void
+  moveNote: (noteId: string, targetCellId: CellId) => void
+  // Dirty state management
+  markOrderDirty: (orderId: string) => void
+  markOrderClean: (orderId: string) => void
+  markRunDirty: (runId: string) => void
+  markRunClean: (runId: string) => void
+  markNoteDirty: (noteId: string) => void
+  markNoteClean: (noteId: string) => void
+  incrementPendingApiCalls: () => void
+  decrementPendingApiCalls: () => void
+  clearAllDirty: () => void
+  // WebSocket real-time update handlers
+  applyOrderUpdate: (action: string, orderData: Record<string, unknown>) => void
+  applyRunUpdate: (action: string, runData: Record<string, unknown>) => void
+  applyNoteUpdate: (action: string, noteData: Record<string, unknown>) => void
 }
 
 export interface HydratePayload {
@@ -113,6 +172,7 @@ export const useSchedulerStore = create<SchedulerState>()(
     orders: {},
     runs: {},
     cells: {},
+    notes: {},
     blockedDates: new Set(),
     trucks: [],
     truckNames: {},
@@ -120,6 +180,16 @@ export const useSchedulerStore = create<SchedulerState>()(
     orderToRun: {},
     runToCell: {},
     looseOrderToCell: {},
+    noteToCell: {},
+    dirty: {
+      orders: new Set(),
+      runs: new Set(),
+      notes: new Set(),
+      pendingApiCalls: 0,
+    },
+    filterCustomerCode: null,
+    filterStatus: null,
+    selectedOrderId: null,
 
     hydrate: (data) => {
       const ordersMap: Record<string, Order> = {}
@@ -157,6 +227,191 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
         for (const orderId of (cellData.looseOrderIds || [])) {
           looseOrderToCell[orderId] = cellId
+        }
+      }
+
+      set({
+        orders: ordersMap,
+        runs: runsMap,
+        cells: cellsCopy,
+        trucks: data.trucks,
+        truckNames: data.truckNames,
+        visibleWeeks: data.visibleWeeks ?? 4,
+        orderToRun,
+        runToCell,
+        looseOrderToCell,
+        // Clear dirty state on full hydrate (initial load)
+        dirty: {
+          orders: new Set(),
+          runs: new Set(),
+          notes: new Set(),
+          pendingApiCalls: 0,
+        },
+      })
+    },
+
+    /**
+     * Merge-based hydration for polling updates.
+     * Preserves locally modified (dirty) items to avoid overwriting in-progress changes.
+     * This enables multi-user collaboration without losing local state.
+     */
+    mergeHydrate: (data) => {
+      const state = get()
+      const { dirty } = state
+
+      // Skip merge entirely if there are pending API calls (user is actively making changes)
+      if (dirty.pendingApiCalls > 0) {
+        return
+      }
+
+      const ordersMap: Record<string, Order> = { ...state.orders }
+      const runsMap: Record<string, DeliveryRun> = { ...state.runs }
+      const orderToRun: Record<string, string> = {}
+      const runToCell: Record<string, CellId> = {}
+      const looseOrderToCell: Record<string, CellId> = {}
+
+      // Track which orders/runs exist in new data (for detecting deletions)
+      const incomingOrderIds = new Set<string>()
+      const incomingRunIds = new Set<string>()
+
+      // Merge orders: only update if not dirty
+      for (const order of data.orders) {
+        incomingOrderIds.add(order.id)
+
+        if (dirty.orders.has(order.id)) {
+          // Keep local version - it has uncommitted changes
+          continue
+        }
+
+        const existingOrder = state.orders[order.id]
+
+        // Check if order actually changed (compare key fields)
+        if (existingOrder) {
+          const hasChanged =
+            existingOrder.date !== order.date ||
+            existingOrder.status !== order.status ||
+            existingOrder.notes !== order.notes ||
+            existingOrder.palletCount !== order.palletCount
+
+          if (!hasChanged) {
+            // No change, keep existing to preserve reference stability
+            continue
+          }
+        }
+
+        // Update with server data
+        ordersMap[order.id] = {
+          ...order,
+          color: getStatusColor(order.status),
+          isReadOnly: order.status === 'shipped' || order.status === 'invoiced',
+        }
+      }
+
+      // Remove orders that no longer exist on server (unless dirty)
+      for (const orderId of Object.keys(ordersMap)) {
+        if (!incomingOrderIds.has(orderId) && !dirty.orders.has(orderId)) {
+          delete ordersMap[orderId]
+        }
+      }
+
+      // Merge runs: only update if not dirty
+      for (const run of data.runs) {
+        incomingRunIds.add(run.id)
+
+        if (dirty.runs.has(run.id)) {
+          // Keep local version
+          const existingRun = state.runs[run.id]
+          if (existingRun) {
+            runsMap[run.id] = existingRun
+            for (const orderId of existingRun.orderIds) {
+              orderToRun[orderId] = run.id
+            }
+          }
+          continue
+        }
+
+        const existingRun = state.runs[run.id]
+
+        // Check if run actually changed
+        if (existingRun) {
+          const orderIdsMatch =
+            existingRun.orderIds.length === run.orderIds.length &&
+            existingRun.orderIds.every((id, i) => id === run.orderIds[i])
+          const notesMatch = existingRun.notes === (run.notes ?? null)
+
+          if (orderIdsMatch && notesMatch && existingRun.name === run.name) {
+            // No change, keep existing
+            runsMap[run.id] = existingRun
+            for (const orderId of existingRun.orderIds) {
+              orderToRun[orderId] = run.id
+            }
+            continue
+          }
+        }
+
+        // Update with server data
+        runsMap[run.id] = { ...run, notes: run.notes ?? null }
+        for (const orderId of run.orderIds) {
+          orderToRun[orderId] = run.id
+        }
+      }
+
+      // Remove runs that no longer exist on server (unless dirty)
+      for (const runId of Object.keys(runsMap)) {
+        if (!incomingRunIds.has(runId) && !dirty.runs.has(runId)) {
+          delete runsMap[runId]
+        }
+      }
+
+      // Build cells - merge carefully to preserve local order arrangements
+      const cellsCopy: Record<CellId, CellData> = {}
+
+      for (const [cellId, cellData] of Object.entries(data.cells)) {
+        const existingCell = state.cells[cellId]
+
+        // Check if any runs in this cell are dirty
+        const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
+        const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
+
+        if (existingCell && (hasDirtyRuns || hasDirtyLooseOrders)) {
+          // Preserve existing cell structure if it has dirty items
+          cellsCopy[cellId] = {
+            runIds: [...existingCell.runIds],
+            looseOrderIds: [...existingCell.looseOrderIds],
+          }
+        } else {
+          cellsCopy[cellId] = {
+            runIds: [...cellData.runIds],
+            looseOrderIds: [...(cellData.looseOrderIds || [])],
+          }
+        }
+
+        for (const runId of cellsCopy[cellId].runIds) {
+          runToCell[runId] = cellId
+        }
+        for (const orderId of cellsCopy[cellId].looseOrderIds) {
+          looseOrderToCell[orderId] = cellId
+        }
+      }
+
+      // Preserve cells that have dirty items but aren't in incoming data
+      for (const [cellId, cellData] of Object.entries(state.cells)) {
+        if (!cellsCopy[cellId]) {
+          const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
+          const hasDirtyLooseOrders = cellData.looseOrderIds.some(id => dirty.orders.has(id))
+
+          if (hasDirtyRuns || hasDirtyLooseOrders) {
+            cellsCopy[cellId] = {
+              runIds: [...cellData.runIds],
+              looseOrderIds: [...cellData.looseOrderIds],
+            }
+            for (const runId of cellData.runIds) {
+              runToCell[runId] = cellId
+            }
+            for (const orderId of cellData.looseOrderIds) {
+              looseOrderToCell[orderId] = cellId
+            }
+          }
         }
       }
 
@@ -495,6 +750,44 @@ export const useSchedulerStore = create<SchedulerState>()(
       return true
     },
 
+    /**
+     * Delete an empty run completely. Returns false if run has orders.
+     */
+    deleteRun: (runId) => {
+      const state = get()
+      const run = state.runs[runId]
+      if (!run) return false
+
+      // Only allow deleting empty runs
+      if (run.orderIds.length > 0) return false
+
+      const cellId = state.runToCell[runId]
+      if (!cellId) return false
+
+      set((prev) => {
+        const nextRuns = { ...prev.runs }
+        const nextCells = { ...prev.cells }
+        const nextRunToCell = { ...prev.runToCell }
+
+        // Remove run from cell
+        const cell = prev.cells[cellId]
+        if (cell) {
+          nextCells[cellId] = {
+            ...cell,
+            runIds: cell.runIds.filter((id) => id !== runId),
+          }
+        }
+
+        // Remove run from store
+        delete nextRuns[runId]
+        delete nextRunToCell[runId]
+
+        return { runs: nextRuns, cells: nextCells, runToCell: nextRunToCell }
+      })
+
+      return true
+    },
+
     toggleDateLock: (date) => {
       set((prev) => {
         const next = new Set(prev.blockedDates)
@@ -550,6 +843,439 @@ export const useSchedulerStore = create<SchedulerState>()(
         return { runs: { ...prev.runs, [runId]: { ...run, notes } } }
       })
     },
+
+    setFilterCustomerCode: (code) => {
+      set({ filterCustomerCode: code })
+    },
+
+    setFilterStatus: (status) => {
+      set({ filterStatus: status })
+    },
+
+    setSelectedOrderId: (orderId) => {
+      set({ selectedOrderId: orderId })
+    },
+
+    hydrateNotes: (notesArr) => {
+      const notesMap: Record<string, SchedulerNote> = {}
+      const noteToCell: Record<string, CellId> = {}
+
+      for (const note of notesArr) {
+        notesMap[note.id] = note
+        // Build cellId from note's truck and date
+        if (note.scheduledDate) {
+          const truckId = note.truckId ?? 'unassigned'
+          const cellId: CellId = `${truckId}|${note.scheduledDate}`
+          noteToCell[note.id] = cellId
+        }
+      }
+
+      set({ notes: notesMap, noteToCell })
+    },
+
+    addNote: (note) => {
+      set((prev) => {
+        const nextNotes = { ...prev.notes, [note.id]: note }
+        const nextNoteToCell = { ...prev.noteToCell }
+
+        if (note.scheduledDate) {
+          const truckId = note.truckId ?? 'unassigned'
+          nextNoteToCell[note.id] = `${truckId}|${note.scheduledDate}`
+        }
+
+        return { notes: nextNotes, noteToCell: nextNoteToCell }
+      })
+    },
+
+    updateNote: (noteId, updates) => {
+      set((prev) => {
+        const note = prev.notes[noteId]
+        if (!note) return prev
+
+        const updatedNote = { ...note, ...updates }
+        const nextNotes = { ...prev.notes, [noteId]: updatedNote }
+        const nextNoteToCell = { ...prev.noteToCell }
+
+        // Update cell mapping if date or truck changed
+        if (updatedNote.scheduledDate) {
+          const truckId = updatedNote.truckId ?? 'unassigned'
+          nextNoteToCell[noteId] = `${truckId}|${updatedNote.scheduledDate}`
+        } else {
+          delete nextNoteToCell[noteId]
+        }
+
+        return { notes: nextNotes, noteToCell: nextNoteToCell }
+      })
+    },
+
+    deleteNote: (noteId) => {
+      set((prev) => {
+        const nextNotes = { ...prev.notes }
+        const nextNoteToCell = { ...prev.noteToCell }
+        delete nextNotes[noteId]
+        delete nextNoteToCell[noteId]
+        return { notes: nextNotes, noteToCell: nextNoteToCell }
+      })
+    },
+
+    moveNote: (noteId, targetCellId) => {
+      const parsed = parseCellId(targetCellId)
+      if (!parsed) return
+
+      set((prev) => {
+        const note = prev.notes[noteId]
+        if (!note) return prev
+
+        const updatedNote: SchedulerNote = {
+          ...note,
+          scheduledDate: parsed.date,
+          truckId: parsed.truckId === 'unassigned' ? null : parsed.truckId,
+        }
+
+        return {
+          notes: { ...prev.notes, [noteId]: updatedNote },
+          noteToCell: { ...prev.noteToCell, [noteId]: targetCellId },
+        }
+      })
+    },
+
+    // ─── Dirty State Management ─────────────────────────────────────────────────
+    // These actions track locally modified items to preserve them during polling sync
+
+    markOrderDirty: (orderId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.orders)
+        next.add(orderId)
+        return { dirty: { ...prev.dirty, orders: next } }
+      })
+    },
+
+    markOrderClean: (orderId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.orders)
+        next.delete(orderId)
+        return { dirty: { ...prev.dirty, orders: next } }
+      })
+    },
+
+    markRunDirty: (runId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.runs)
+        next.add(runId)
+        return { dirty: { ...prev.dirty, runs: next } }
+      })
+    },
+
+    markRunClean: (runId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.runs)
+        next.delete(runId)
+        return { dirty: { ...prev.dirty, runs: next } }
+      })
+    },
+
+    markNoteDirty: (noteId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.notes)
+        next.add(noteId)
+        return { dirty: { ...prev.dirty, notes: next } }
+      })
+    },
+
+    markNoteClean: (noteId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.notes)
+        next.delete(noteId)
+        return { dirty: { ...prev.dirty, notes: next } }
+      })
+    },
+
+    incrementPendingApiCalls: () => {
+      set((prev) => ({
+        dirty: { ...prev.dirty, pendingApiCalls: prev.dirty.pendingApiCalls + 1 },
+      }))
+    },
+
+    decrementPendingApiCalls: () => {
+      set((prev) => ({
+        dirty: { ...prev.dirty, pendingApiCalls: Math.max(0, prev.dirty.pendingApiCalls - 1) },
+      }))
+    },
+
+    clearAllDirty: () => {
+      set({
+        dirty: {
+          orders: new Set(),
+          runs: new Set(),
+          notes: new Set(),
+          pendingApiCalls: 0,
+        },
+      })
+    },
+
+    // ─── WebSocket Real-Time Update Handlers ────────────────────────────────────
+    // These actions apply incremental updates from WebSocket messages
+
+    applyOrderUpdate: (action, orderData) => {
+      const state = get()
+      const orderId = String(orderData.id)
+
+      // Skip if this order is dirty (user is actively editing it)
+      if (state.dirty.orders.has(orderId)) {
+        if (import.meta.env.DEV) console.log(`[WS] Skipping order update for dirty order ${orderId}`)
+        return
+      }
+
+      if (action === 'deleted') {
+        // Remove order from store
+        set((prev) => {
+          const { [orderId]: _, ...restOrders } = prev.orders
+          const nextOrderToRun = { ...prev.orderToRun }
+          const nextLooseOrderToCell = { ...prev.looseOrderToCell }
+          delete nextOrderToRun[orderId]
+          delete nextLooseOrderToCell[orderId]
+
+          // Also remove from any runs
+          const nextRuns = { ...prev.runs }
+          for (const [runId, run] of Object.entries(nextRuns)) {
+            if (run.orderIds.includes(orderId)) {
+              nextRuns[runId] = {
+                ...run,
+                orderIds: run.orderIds.filter((id) => id !== orderId),
+              }
+            }
+          }
+
+          // Remove from cell loose lists
+          const nextCells = { ...prev.cells }
+          for (const [cellId, cell] of Object.entries(nextCells)) {
+            if (cell.looseOrderIds.includes(orderId)) {
+              nextCells[cellId] = {
+                ...cell,
+                looseOrderIds: cell.looseOrderIds.filter((id) => id !== orderId),
+              }
+            }
+          }
+
+          return {
+            orders: restOrders,
+            orderToRun: nextOrderToRun,
+            looseOrderToCell: nextLooseOrderToCell,
+            runs: nextRuns,
+            cells: nextCells,
+          }
+        })
+      } else {
+        // Transform server data to client format and upsert
+        const transformed: Order = {
+          id: orderId,
+          orderNumber: String(orderData.number || ''),
+          customerCode: String(orderData.party_name || ''),
+          palletCount: Number(orderData.total_pallets) || 0,
+          status: (orderData.status as OrderStatus) || 'unscheduled',
+          color: getStatusColor((orderData.status as OrderStatus) || 'unscheduled'),
+          notes: orderData.notes as string | null,
+          type: (orderData.order_type as OrderType) || 'SO',
+          isReadOnly: orderData.status === 'shipped' || orderData.status === 'invoiced',
+          date: orderData.scheduled_date ? String(orderData.scheduled_date) : '',
+        }
+
+        set((prev) => {
+          const nextOrders = { ...prev.orders, [orderId]: transformed }
+          const nextOrderToRun = { ...prev.orderToRun }
+          const nextLooseOrderToCell = { ...prev.looseOrderToCell }
+          const nextCells = { ...prev.cells }
+
+          // Update run membership if delivery_run_id changed
+          const runId = orderData.delivery_run_id ? String(orderData.delivery_run_id) : null
+          const truckId = orderData.scheduled_truck_id ? String(orderData.scheduled_truck_id) : 'unassigned'
+          const date = orderData.scheduled_date ? String(orderData.scheduled_date) : null
+
+          // Remove from old run if necessary (handled by run updates from server)
+          const oldRunId = prev.orderToRun[orderId]
+          if (oldRunId && oldRunId !== runId) {
+            // Run membership changes are handled by server-side run updates
+          }
+
+          if (runId) {
+            nextOrderToRun[orderId] = runId
+            delete nextLooseOrderToCell[orderId]
+          } else if (date) {
+            // Order is loose (no run) but has a date
+            delete nextOrderToRun[orderId]
+            const cellId = `${truckId}|${date}`
+            nextLooseOrderToCell[orderId] = cellId
+
+            // Ensure cell exists and contains this order
+            if (!nextCells[cellId]) {
+              nextCells[cellId] = { runIds: [], looseOrderIds: [orderId] }
+            } else if (!nextCells[cellId].looseOrderIds.includes(orderId)) {
+              nextCells[cellId] = {
+                ...nextCells[cellId],
+                looseOrderIds: [...nextCells[cellId].looseOrderIds, orderId],
+              }
+            }
+          } else {
+            // Unscheduled order
+            delete nextOrderToRun[orderId]
+            delete nextLooseOrderToCell[orderId]
+          }
+
+          return {
+            orders: nextOrders,
+            orderToRun: nextOrderToRun,
+            looseOrderToCell: nextLooseOrderToCell,
+            cells: nextCells,
+          }
+        })
+      }
+    },
+
+    applyRunUpdate: (action, runData) => {
+      const state = get()
+      const runId = String(runData.id)
+
+      // Skip if this run is dirty (user is actively editing it)
+      if (state.dirty.runs.has(runId)) {
+        if (import.meta.env.DEV) console.log(`[WS] Skipping run update for dirty run ${runId}`)
+        return
+      }
+
+      if (action === 'deleted') {
+        set((prev) => {
+          const { [runId]: _, ...restRuns } = prev.runs
+          const nextRunToCell = { ...prev.runToCell }
+          const nextOrderToRun = { ...prev.orderToRun }
+          delete nextRunToCell[runId]
+
+          // Clear run reference from orders
+          for (const [orderId, oRunId] of Object.entries(prev.orderToRun)) {
+            if (oRunId === runId) {
+              delete nextOrderToRun[orderId]
+            }
+          }
+
+          // Remove from cells
+          const nextCells = { ...prev.cells }
+          for (const [cellId, cell] of Object.entries(nextCells)) {
+            if (cell.runIds.includes(runId)) {
+              nextCells[cellId] = {
+                ...cell,
+                runIds: cell.runIds.filter((id) => id !== runId),
+              }
+            }
+          }
+
+          return {
+            runs: restRuns,
+            runToCell: nextRunToCell,
+            orderToRun: nextOrderToRun,
+            cells: nextCells,
+          }
+        })
+      } else {
+        // Transform and upsert run
+        const transformed: DeliveryRun = {
+          id: runId,
+          name: String(runData.name || ''),
+          orderIds: [], // Order membership comes from order updates
+          notes: runData.notes as string | null ?? null,
+        }
+
+        // Preserve existing orderIds if we have them (server doesn't always send full order list)
+        const existingRun = state.runs[runId]
+        if (existingRun) {
+          transformed.orderIds = existingRun.orderIds
+        }
+
+        set((prev) => {
+          const nextRuns = { ...prev.runs, [runId]: transformed }
+          const nextRunToCell = { ...prev.runToCell }
+          const nextCells = { ...prev.cells }
+
+          // Build cell ID from run data
+          const truckId = runData.truck_id ? String(runData.truck_id) : 'unassigned'
+          const date = runData.scheduled_date ? String(runData.scheduled_date) : null
+
+          if (date) {
+            const cellId = `${truckId}|${date}`
+
+            // Remove from old cell if moved
+            const oldCellId = prev.runToCell[runId]
+            if (oldCellId && oldCellId !== cellId && nextCells[oldCellId]) {
+              nextCells[oldCellId] = {
+                ...nextCells[oldCellId],
+                runIds: nextCells[oldCellId].runIds.filter((id) => id !== runId),
+              }
+            }
+
+            // Add to new cell
+            nextRunToCell[runId] = cellId
+            if (!nextCells[cellId]) {
+              nextCells[cellId] = { runIds: [runId], looseOrderIds: [] }
+            } else if (!nextCells[cellId].runIds.includes(runId)) {
+              nextCells[cellId] = {
+                ...nextCells[cellId],
+                runIds: [...nextCells[cellId].runIds, runId],
+              }
+            }
+          }
+
+          return {
+            runs: nextRuns,
+            runToCell: nextRunToCell,
+            cells: nextCells,
+          }
+        })
+      }
+    },
+
+    applyNoteUpdate: (action, noteData) => {
+      const state = get()
+      const noteId = String(noteData.id)
+
+      // Skip if this note is dirty (user is actively editing it)
+      if (state.dirty.notes.has(noteId)) {
+        if (import.meta.env.DEV) console.log(`[WS] Skipping note update for dirty note ${noteId}`)
+        return
+      }
+
+      if (action === 'deleted') {
+        set((prev) => {
+          const { [noteId]: _, ...restNotes } = prev.notes
+          const nextNoteToCell = { ...prev.noteToCell }
+          delete nextNoteToCell[noteId]
+          return { notes: restNotes, noteToCell: nextNoteToCell }
+        })
+      } else {
+        // Transform and upsert note
+        const transformed: SchedulerNote = {
+          id: noteId,
+          content: String(noteData.content || ''),
+          color: (noteData.color as NoteColor) || 'yellow',
+          scheduledDate: noteData.scheduled_date ? String(noteData.scheduled_date) : null,
+          truckId: noteData.truck_id ? String(noteData.truck_id) : null,
+          deliveryRunId: noteData.delivery_run_id ? String(noteData.delivery_run_id) : null,
+          isPinned: Boolean(noteData.is_pinned),
+          createdBy: noteData.created_by ? String(noteData.created_by) : null,
+        }
+
+        set((prev) => {
+          const nextNotes = { ...prev.notes, [noteId]: transformed }
+          const nextNoteToCell = { ...prev.noteToCell }
+
+          // Update cell mapping
+          if (transformed.scheduledDate) {
+            const truckId = transformed.truckId ?? 'unassigned'
+            nextNoteToCell[noteId] = `${truckId}|${transformed.scheduledDate}`
+          } else {
+            delete nextNoteToCell[noteId]
+          }
+
+          return { notes: nextNotes, noteToCell: nextNoteToCell }
+        })
+      }
+    },
   }))
 )
 
@@ -572,5 +1298,61 @@ export const selectIsDateLocked = (date: string) => (state: SchedulerState) =>
 
 export const selectTruckName = (truckId: string) => (state: SchedulerState) =>
   state.truckNames[truckId] ?? truckId
+
+export const selectFilterCustomerCode = (state: SchedulerState) =>
+  state.filterCustomerCode
+
+export const selectFilterStatus = (state: SchedulerState) =>
+  state.filterStatus
+
+export const selectUniqueCustomerCodes = (state: SchedulerState) => {
+  const codes = new Set<string>()
+  for (const order of Object.values(state.orders)) {
+    if (order.customerCode) {
+      codes.add(order.customerCode)
+    }
+  }
+  return Array.from(codes).sort()
+}
+
+export const selectOrderMatchesFilter = (orderId: string) => (state: SchedulerState) => {
+  const order = state.orders[orderId]
+  if (!order) return true
+
+  const { filterCustomerCode, filterStatus } = state
+  if (!filterCustomerCode && !filterStatus) return true
+
+  if (filterCustomerCode && order.customerCode !== filterCustomerCode) return false
+  if (filterStatus && order.status !== filterStatus) return false
+
+  return true
+}
+
+export const selectNotesForCell = (cellId: CellId) => (state: SchedulerState) => {
+  const noteIds: string[] = []
+  for (const [noteId, noteCellId] of Object.entries(state.noteToCell)) {
+    if (noteCellId === cellId) {
+      noteIds.push(noteId)
+    }
+  }
+  return noteIds
+}
+
+export const selectNote = (noteId: string) => (state: SchedulerState) =>
+  state.notes[noteId]
+
+export const selectSelectedOrderId = (state: SchedulerState) =>
+  state.selectedOrderId
+
+export const selectSelectedOrder = (state: SchedulerState) =>
+  state.selectedOrderId ? state.orders[state.selectedOrderId] : null
+
+export const selectDirtyState = (state: SchedulerState) => state.dirty
+
+export const selectHasPendingChanges = (state: SchedulerState) =>
+  state.dirty.orders.size > 0 ||
+  state.dirty.runs.size > 0 ||
+  state.dirty.notes.size > 0 ||
+  state.dirty.pendingApiCalls > 0
 
 const EMPTY_ARRAY: string[] = []

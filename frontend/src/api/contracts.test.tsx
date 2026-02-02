@@ -65,6 +65,7 @@ const mockContract: Contract = {
   ship_to: null,
   ship_to_name: null,
   notes: 'Test contract notes',
+  is_active: false,
   total_committed_qty: 100,
   total_released_qty: 25,
   total_remaining_qty: 75,
@@ -97,12 +98,15 @@ const mockContractLine: ContractLine = {
   remaining_qty: 75,
   is_fully_released: false,
   releases: [],
+  created_at: '2025-01-15T00:00:00Z',
+  updated_at: '2025-01-15T00:00:00Z',
 }
 
 const mockContractRelease: ContractRelease = {
   id: 1,
   contract_line: 1,
-  sales_order: 1,
+  sales_order_line: 1,
+  sales_order_id: 1,
   sales_order_number: '00001',
   sales_order_status: 'confirmed',
   quantity_ordered: 25,
@@ -110,6 +114,8 @@ const mockContractRelease: ContractRelease = {
   balance_before: 100,
   balance_after: 75,
   notes: '',
+  created_at: '2025-01-20T00:00:00Z',
+  updated_at: '2025-01-20T00:00:00Z',
 }
 
 // =============================================================================

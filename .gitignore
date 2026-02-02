@@ -17,7 +17,15 @@ node_modules/
 # OMC and Claude Code state
 .omc/
 .playwright-mcp/
+.claude/settings.local.json
 
 # Debug/temp files
 *_context.txt
 *_debug_context.txt
+
+# Utility scripts (local development only)
+pack_code.py
+
+# Root-level node files (frontend has its own)
+/package.json
+/package-lock.json

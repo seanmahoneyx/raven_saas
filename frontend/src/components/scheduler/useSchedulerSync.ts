@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useCalendarRange, useUnscheduledOrders, useTrucks, useDeliveryRuns, useSchedulerNotes } from '@/api/scheduling'
 import { useSchedulerStore } from './useSchedulerStore'
 import { transformApiToHydratePayload } from './transforms'
@@ -30,6 +30,11 @@ interface UseSchedulerSyncResult {
 
 export function useSchedulerSync({ startDate, endDate }: UseSchedulerSyncOptions): UseSchedulerSyncResult {
   const hydrate = useSchedulerStore((state) => state.hydrate)
+  const mergeHydrate = useSchedulerStore((state) => state.mergeHydrate)
+  const hydrateNotes = useSchedulerStore((state) => state.hydrateNotes)
+
+  // Track if initial hydration has been done
+  const isInitialHydrateDone = useRef(false)
 
   // Fetch data from API
   const calendarQuery = useCalendarRange(startDate, endDate)
@@ -44,6 +49,7 @@ export function useSchedulerSync({ startDate, endDate }: UseSchedulerSyncOptions
   const error = calendarQuery.error || trucksQuery.error || runsQuery.error
 
   // Hydrate store when data changes
+  // Use full hydrate for initial load, then mergeHydrate for polling updates
   useEffect(() => {
     if (calendarQuery.data && trucksQuery.data && runsQuery.data) {
       const payload = transformApiToHydratePayload(
@@ -51,9 +57,34 @@ export function useSchedulerSync({ startDate, endDate }: UseSchedulerSyncOptions
         runsQuery.data,
         trucksQuery.data
       )
-      hydrate(payload)
+
+      if (!isInitialHydrateDone.current) {
+        // First load: full hydrate to initialize state
+        hydrate(payload)
+        isInitialHydrateDone.current = true
+      } else {
+        // Subsequent polling updates: merge to preserve local changes
+        mergeHydrate(payload)
+      }
     }
-  }, [calendarQuery.data, trucksQuery.data, runsQuery.data, hydrate])
+  }, [calendarQuery.data, trucksQuery.data, runsQuery.data, hydrate, mergeHydrate])
+
+  // Hydrate notes when available
+  useEffect(() => {
+    if (notesQuery.data) {
+      const transformedNotes = notesQuery.data.map((note) => ({
+        id: note.id.toString(),
+        content: note.content,
+        color: note.color,
+        scheduledDate: note.scheduled_date,
+        truckId: note.truck_id?.toString() ?? null,
+        deliveryRunId: note.delivery_run_id?.toString() ?? null,
+        isPinned: note.is_pinned,
+        createdBy: note.created_by_username,
+      }))
+      hydrateNotes(transformedNotes)
+    }
+  }, [notesQuery.data, hydrateNotes])
 
   // Refetch all queries
   const refetch = () => {

@@ -2,15 +2,16 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
 const API_BASE_URL = '/api/v1'
 
-// Create axios instance
+// Create axios instance with credentials for httpOnly cookie support
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,  // Include cookies in cross-origin requests
 })
 
-// Token storage
+// Token storage (for legacy support - new auth uses httpOnly cookies)
 const TOKEN_KEY = 'raven_access_token'
 const REFRESH_TOKEN_KEY = 'raven_refresh_token'
 
@@ -24,6 +25,9 @@ export const tokenStorage = {
     localStorage.removeItem(REFRESH_TOKEN_KEY)
   },
 }
+
+// Track if using cookie-based auth (set after successful login)
+let usingCookieAuth = false
 
 // Request interceptor - add auth token
 apiClient.interceptors.request.use(
@@ -40,7 +44,7 @@ apiClient.interceptors.request.use(
 // Response interceptor - handle token refresh
 let isRefreshing = false
 let failedQueue: Array<{
-  resolve: (token: string) => void
+  resolve: (token: string | null) => void
   reject: (error: Error) => void
 }> = []
 
@@ -49,7 +53,7 @@ const processQueue = (error: Error | null, token: string | null = null) => {
     if (error) {
       prom.reject(error)
     } else {
-      prom.resolve(token!)
+      prom.resolve(token)
     }
   })
   failedQueue = []
@@ -66,7 +70,9 @@ apiClient.interceptors.response.use(
           failedQueue.push({ resolve, reject })
         })
           .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`
+            if (token) {
+              originalRequest.headers.Authorization = `Bearer ${token}`
+            }
             return apiClient(originalRequest)
           })
           .catch((err) => Promise.reject(err))
@@ -75,15 +81,24 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing = true
 
-      const refreshToken = tokenStorage.getRefreshToken()
-
-      if (!refreshToken) {
-        tokenStorage.clearTokens()
-        window.location.href = '/login'
-        return Promise.reject(error)
-      }
-
       try {
+        // Try cookie-based refresh first (preferred)
+        if (usingCookieAuth) {
+          await axios.post(`${API_BASE_URL}/auth/refresh/`, {}, { withCredentials: true })
+          // Cookie refreshed automatically, retry original request
+          processQueue(null, null)
+          return apiClient(originalRequest)
+        }
+
+        // Fall back to legacy token refresh
+        const refreshToken = tokenStorage.getRefreshToken()
+
+        if (!refreshToken) {
+          tokenStorage.clearTokens()
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+
         const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
           refresh: refreshToken,
         })
@@ -97,6 +112,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError as Error, null)
         tokenStorage.clearTokens()
+        usingCookieAuth = false
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {
@@ -108,23 +124,46 @@ apiClient.interceptors.response.use(
   }
 )
 
-// Auth API
+// Auth API - supports both cookie-based (preferred) and localStorage (legacy)
 export const authApi = {
   login: async (username: string, password: string) => {
-    const response = await apiClient.post('/auth/token/', { username, password })
-    const { access, refresh } = response.data
-    tokenStorage.setAccessToken(access)
-    tokenStorage.setRefreshToken(refresh)
-    return response.data
+    try {
+      // Try cookie-based login first (preferred, more secure)
+      const response = await apiClient.post('/auth/login/', { username, password })
+      usingCookieAuth = true
+      // Tokens are in httpOnly cookies, not in response body
+      return response.data
+    } catch (error) {
+      // Fall back to legacy token-based auth
+      const response = await apiClient.post('/auth/token/', { username, password })
+      const { access, refresh } = response.data
+      tokenStorage.setAccessToken(access)
+      tokenStorage.setRefreshToken(refresh)
+      usingCookieAuth = false
+      return response.data
+    }
   },
 
-  logout: () => {
+  logout: async () => {
+    try {
+      // Try cookie-based logout first
+      await apiClient.post('/auth/logout/')
+    } catch {
+      // Ignore errors - may not be using cookie auth
+    }
+    // Always clear localStorage tokens as well
     tokenStorage.clearTokens()
+    usingCookieAuth = false
   },
 
   isAuthenticated: () => {
-    return !!tokenStorage.getAccessToken()
+    // With cookie auth, we can't check directly - rely on API responses
+    // For legacy, check localStorage
+    return usingCookieAuth || !!tokenStorage.getAccessToken()
   },
+
+  // Check if currently using secure cookie auth
+  isUsingCookieAuth: () => usingCookieAuth,
 }
 
 export default apiClient

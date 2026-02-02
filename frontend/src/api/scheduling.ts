@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from './client'
 import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun, SchedulerNote, NoteColor } from '@/types/api'
 
+// Polling interval as fallback when WebSocket is unavailable (30 seconds)
+// Primary real-time updates come via WebSocket connection
+const SYNC_INTERVAL = 30000
+
 // Fetch calendar data for a date range
 export function useCalendarRange(startDate: string, endDate: string) {
   return useQuery({
@@ -13,6 +17,7 @@ export function useCalendarRange(startDate: string, endDate: string) {
       return data
     },
     enabled: !!startDate && !!endDate,
+    refetchInterval: SYNC_INTERVAL,
   })
 }
 
@@ -24,6 +29,7 @@ export function useUnscheduledOrders() {
       const { data } = await api.get<CalendarOrder[]>('/calendar/unscheduled/')
       return data
     },
+    refetchInterval: SYNC_INTERVAL,
   })
 }
 
@@ -49,6 +55,7 @@ export function useDeliveryRuns(startDate: string, endDate: string) {
       return data
     },
     enabled: !!startDate && !!endDate,
+    refetchInterval: SYNC_INTERVAL,
   })
 }
 
@@ -269,7 +276,7 @@ export function useGlobalHistory(limit = 50) {
       })
       return data
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time audit trail
   })
 }
 
@@ -286,6 +293,7 @@ export function useSchedulerNotes(startDate: string, endDate: string) {
       return data
     },
     enabled: !!startDate && !!endDate,
+    refetchInterval: SYNC_INTERVAL,
   })
 }
 

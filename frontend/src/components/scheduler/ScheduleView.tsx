@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { useSchedulerStore } from './useSchedulerStore'
+import { useSchedulerMutations } from './useSchedulerMutations'
 import { WeekGroup } from './WeekGroup'
 import { RunContainer } from './RunContainer'
 import { ManifestLine } from './ManifestLine'
@@ -40,11 +41,13 @@ function getWeekBands(startOffset: number, endOffset: number): { dates: string[]
 // ─── ScheduleView ─────────────────────────────────────────────────────────────
 
 export const ScheduleView = memo(function ScheduleView() {
-  const moveOrder = useSchedulerStore((s) => s.moveOrder)
-  const moveOrderLoose = useSchedulerStore((s) => s.moveOrderLoose)
-  const moveRun = useSchedulerStore((s) => s.moveRun)
+  // Store actions for local reordering (no API needed for same-container reorder)
   const reorderInRun = useSchedulerStore((s) => s.reorderInRun)
   const reorderRunsInCell = useSchedulerStore((s) => s.reorderRunsInCell)
+
+  // Mutations hook for API-persisted operations
+  const { scheduleOrderToCell, addOrderToRun, moveRunToCell } = useSchedulerMutations()
+
   const [activeDrag, setActiveDrag] = useState<{ type: 'order' | 'run'; id: string } | null>(null)
 
   // Infinite scroll: week range relative to current week (0 = this week)
@@ -128,7 +131,7 @@ export const ScheduleView = memo(function ScheduleView() {
         const targetRunId = state.orderToRun[overOrderId]
 
         if (sourceRunId && targetRunId && sourceRunId === targetRunId) {
-          // Reorder within same run
+          // Reorder within same run (local only, no API needed)
           const run = state.runs[sourceRunId]
           if (run) {
             const fromIdx = run.orderIds.indexOf(orderId)
@@ -138,24 +141,24 @@ export const ScheduleView = memo(function ScheduleView() {
             }
           }
         } else if (targetRunId) {
-          // Move to different run, at the position of the over order
+          // Move to different run - use API mutation
           const targetRun = state.runs[targetRunId]
           const insertIdx = targetRun ? targetRun.orderIds.indexOf(overOrderId) : undefined
-          moveOrder(orderId, targetRunId, insertIdx !== -1 ? insertIdx : undefined)
+          addOrderToRun(orderId, targetRunId, insertIdx !== -1 ? insertIdx : undefined)
         }
         return
       }
 
-      // Dropping on a cell (droppable) → LOOSE
+      // Dropping on a cell (droppable) → LOOSE - use API mutation
       if (overId.includes('|') && !overId.startsWith('run:')) {
-        moveOrderLoose(orderId, overId)
+        scheduleOrderToCell(orderId, overId)
         return
       }
 
-      // Dropping on a run container → COMMITTED
+      // Dropping on a run container → COMMITTED - use API mutation
       if (overId.startsWith('run:')) {
         const targetRunId = overId.slice(4)
-        moveOrder(orderId, targetRunId)
+        addOrderToRun(orderId, targetRunId)
         return
       }
     }
@@ -163,9 +166,9 @@ export const ScheduleView = memo(function ScheduleView() {
     if (activeData.type === 'run' && activeData.runId) {
       const runId = activeData.runId
 
-      // Dropping run on a cell
+      // Dropping run on a cell - use API mutation
       if (overId.includes('|') && !overId.startsWith('run:')) {
-        moveRun(runId, overId)
+        moveRunToCell(runId, overId)
         return
       }
 
@@ -176,6 +179,7 @@ export const ScheduleView = memo(function ScheduleView() {
         const targetCellId = state.runToCell[overRunId]
 
         if (sourceCellId && targetCellId && sourceCellId === targetCellId) {
+          // Reorder within same cell (local only)
           const cell = state.cells[sourceCellId]
           if (cell) {
             const fromIdx = cell.runIds.indexOf(runId)
@@ -185,11 +189,12 @@ export const ScheduleView = memo(function ScheduleView() {
             }
           }
         } else if (targetCellId) {
-          moveRun(runId, targetCellId)
+          // Move to different cell - use API mutation
+          moveRunToCell(runId, targetCellId)
         }
       }
     }
-  }, [moveOrder, moveOrderLoose, moveRun, reorderInRun, reorderRunsInCell])
+  }, [scheduleOrderToCell, addOrderToRun, moveRunToCell, reorderInRun, reorderRunsInCell])
 
   const handleDragCancel = useCallback(() => { setActiveDrag(null) }, [])
 

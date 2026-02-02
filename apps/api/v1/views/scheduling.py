@@ -4,16 +4,14 @@ ViewSets for Scheduling/Calendar functionality.
 
 Provides REST API endpoints for the Schedulizer calendar interface.
 """
-from datetime import date, timedelta, datetime
-from collections import defaultdict
-from itertools import chain
+import math
+from datetime import timedelta, datetime
 from operator import attrgetter
 
-from django.db import models
+from django.db import models, transaction
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.orders.models import SalesOrder, PurchaseOrder
@@ -27,6 +25,7 @@ from apps.api.v1.serializers.scheduling import (
     SchedulerNoteSerializer, SchedulerNoteCreateSerializer,
 )
 from apps.api.v1.serializers.parties import TruckSerializer
+from apps.api.broadcasts import broadcast_order_update, broadcast_run_update, broadcast_note_update
 
 
 def order_to_calendar_dict(order, order_type):
@@ -57,6 +56,18 @@ def order_to_calendar_dict(order, order_type):
             except ContractRelease.DoesNotExist:
                 pass
 
+    # Calculate total pallets from line items
+    # Each line's pallets = ceil(quantity_ordered / item.units_per_pallet) if units_per_pallet > 0
+    total_pallets = 0
+    for line in order.lines.all():
+        item = line.item
+        units_per_pallet = getattr(item, 'units_per_pallet', None)
+        if units_per_pallet and units_per_pallet > 0:
+            total_pallets += math.ceil(line.quantity_ordered / units_per_pallet)
+        else:
+            # Fallback: treat each line as 1 pallet if no unitizing info
+            total_pallets += 1
+
     return {
         'id': order.id,
         'order_type': order_type,
@@ -71,6 +82,7 @@ def order_to_calendar_dict(order, order_type):
         'requested_date': requested_date,
         'num_lines': order.lines.count(),
         'total_quantity': sum(line.quantity_ordered for line in order.lines.all()),
+        'total_pallets': total_pallets,
         'priority': order.priority,
         'scheduler_sequence': order.scheduler_sequence,
         'notes': order.notes,
@@ -126,12 +138,12 @@ class CalendarViewSet(viewsets.ViewSet):
         sales_orders = SalesOrder.objects.filter(
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date
-        ).select_related('customer__party', 'scheduled_truck').prefetch_related('lines')
+        ).select_related('customer__party', 'scheduled_truck', 'delivery_run').prefetch_related('lines__item')
 
         purchase_orders = PurchaseOrder.objects.filter(
             scheduled_date__gte=start_date,
             scheduled_date__lte=end_date
-        ).select_related('vendor__party', 'scheduled_truck').prefetch_related('lines')
+        ).select_related('vendor__party', 'scheduled_truck', 'delivery_run').prefetch_related('lines__item')
 
         # Convert to dicts
         all_orders = []
@@ -186,13 +198,13 @@ class CalendarViewSet(viewsets.ViewSet):
             scheduled_date__isnull=True
         ).exclude(
             status__in=['complete', 'cancelled']
-        ).select_related('customer__party').prefetch_related('lines')
+        ).select_related('customer__party', 'delivery_run').prefetch_related('lines__item')
 
         purchase_orders = PurchaseOrder.objects.filter(
             scheduled_date__isnull=True
         ).exclude(
             status__in=['complete', 'cancelled']
-        ).select_related('vendor__party').prefetch_related('lines')
+        ).select_related('vendor__party', 'delivery_run').prefetch_related('lines__item')
 
         result = []
         for so in sales_orders:
@@ -229,7 +241,8 @@ class CalendarViewSet(viewsets.ViewSet):
             )
 
         try:
-            order = Model.objects.get(pk=order_id)
+            # SECURITY: Explicit tenant filtering to prevent IDOR
+            order = Model.objects.filter(tenant=request.tenant).get(pk=order_id)
         except Model.DoesNotExist:
             return Response(
                 {'error': f'{order_type} with id {order_id} not found'},
@@ -291,9 +304,15 @@ class CalendarViewSet(viewsets.ViewSet):
                 old_run.purchaseorder_orders.count()
             )
             if remaining_count == 0:
+                # Broadcast run deletion before deleting
+                broadcast_run_update(old_run.id, 'deleted', {'id': old_run.id}, tenant_id=request.tenant.id)
                 old_run.delete()
 
-        return Response(order_to_calendar_dict(order, order_type))
+        # Broadcast the order update to all connected WebSocket clients
+        order_data = order_to_calendar_dict(order, order_type)
+        broadcast_order_update(order.id, 'updated', order_data, tenant_id=request.tenant.id)
+
+        return Response(order_data)
 
     @extend_schema(
         tags=['scheduling'],
@@ -322,7 +341,10 @@ class CalendarViewSet(viewsets.ViewSet):
         Returns recent changes to sales orders and purchase orders,
         sorted by most recent first.
         """
-        limit = int(request.query_params.get('limit', 50))
+        try:
+            limit = min(int(request.query_params.get('limit', 50)), 500)  # Cap at 500 to prevent DoS
+        except (ValueError, TypeError):
+            limit = 50
 
         # Get history from both order types, ordered by most recent first
         sales_history = list(SalesOrder.history.select_related(
@@ -359,12 +381,49 @@ class CalendarViewSet(viewsets.ViewSet):
                 except Exception:
                     party_name = 'Unknown'
 
-            # Get changed fields
+            # Get changed fields with old/new values
             changed_fields = []
+            changes_detail = []
             if record.history_type == '~':  # Changed
                 if record.prev_record:
                     delta = record.diff_against(record.prev_record)
                     changed_fields = [c.field for c in delta.changes]
+                    for change in delta.changes:
+                        old_val = change.old
+                        new_val = change.new
+                        field_name = change.field
+
+                        # Resolve truck IDs to truck names
+                        if field_name == 'scheduled_truck_id' or field_name == 'scheduled_truck':
+                            field_name = 'scheduled_truck'
+                            if old_val:
+                                try:
+                                    old_truck = Truck.objects.get(pk=old_val)
+                                    old_val = old_truck.name
+                                except Truck.DoesNotExist:
+                                    old_val = f'Truck #{old_val}'
+                            if new_val:
+                                try:
+                                    new_truck = Truck.objects.get(pk=new_val)
+                                    new_val = new_truck.name
+                                except Truck.DoesNotExist:
+                                    new_val = f'Truck #{new_val}'
+
+                        # Format dates nicely
+                        if hasattr(old_val, 'strftime'):
+                            old_val = old_val.strftime('%a %m/%d')
+                        if hasattr(new_val, 'strftime'):
+                            new_val = new_val.strftime('%a %m/%d')
+                        # Convert None to readable string
+                        if old_val is None:
+                            old_val = 'None'
+                        if new_val is None:
+                            new_val = 'None'
+                        changes_detail.append({
+                            'field': field_name,
+                            'old': str(old_val),
+                            'new': str(new_val),
+                        })
 
             result.append({
                 'id': record.history_id,
@@ -384,6 +443,7 @@ class CalendarViewSet(viewsets.ViewSet):
                 'scheduled_date': str(record.scheduled_date) if record.scheduled_date else None,
                 'scheduled_truck_id': record.scheduled_truck_id,
                 'changed_fields': changed_fields,
+                'changes': changes_detail,
             })
 
         return Response(result)
@@ -412,14 +472,20 @@ class CalendarViewSet(viewsets.ViewSet):
                 start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
                 queryset = queryset.filter(scheduled_date__gte=start_date)
             except ValueError:
-                pass
+                return Response(
+                    {'error': 'Invalid start_date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         if end_str:
             try:
                 end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
                 queryset = queryset.filter(scheduled_date__lte=end_date)
             except ValueError:
-                pass
+                return Response(
+                    {'error': 'Invalid end_date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         if truck_id:
             queryset = queryset.filter(truck_id=truck_id)
@@ -483,7 +549,7 @@ class CalendarViewSet(viewsets.ViewSet):
             notes=serializer.validated_data.get('notes', ''),
         )
 
-        return Response({
+        run_data = {
             'id': run.id,
             'name': run.name,
             'truck_id': run.truck_id,
@@ -494,7 +560,12 @@ class CalendarViewSet(viewsets.ViewSet):
             'notes': run.notes,
             'is_complete': run.is_complete,
             'order_count': 0,
-        }, status=status.HTTP_201_CREATED)
+        }
+
+        # Broadcast the run creation to all connected WebSocket clients
+        broadcast_run_update(run.id, 'created', run_data, tenant_id=request.tenant.id)
+
+        return Response(run_data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         tags=['scheduling'],
@@ -505,7 +576,8 @@ class CalendarViewSet(viewsets.ViewSet):
     def update_run(self, request, run_id=None):
         """Update a delivery run."""
         try:
-            run = DeliveryRun.objects.select_related('truck').get(pk=run_id)
+            # SECURITY: Explicit tenant filtering to prevent IDOR
+            run = DeliveryRun.objects.filter(tenant=request.tenant).select_related('truck').get(pk=run_id)
         except DeliveryRun.DoesNotExist:
             return Response(
                 {'error': f'DeliveryRun with id {run_id} not found'},
@@ -536,20 +608,22 @@ class CalendarViewSet(viewsets.ViewSet):
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-        run.save()
+        # Wrap save and cascading updates in a transaction for consistency
+        with transaction.atomic():
+            run.save()
 
-        # If date or truck changed, update all orders in this run to match
-        if 'scheduled_date' in request.data or 'truck_id' in request.data:
-            SalesOrder.objects.filter(delivery_run=run).update(
-                scheduled_date=run.scheduled_date,
-                scheduled_truck=run.truck
-            )
-            PurchaseOrder.objects.filter(delivery_run=run).update(
-                scheduled_date=run.scheduled_date,
-                scheduled_truck=run.truck
-            )
+            # If date or truck changed, update all orders in this run to match
+            if 'scheduled_date' in request.data or 'truck_id' in request.data:
+                SalesOrder.objects.filter(delivery_run=run).update(
+                    scheduled_date=run.scheduled_date,
+                    scheduled_truck=run.truck
+                )
+                PurchaseOrder.objects.filter(delivery_run=run).update(
+                    scheduled_date=run.scheduled_date,
+                    scheduled_truck=run.truck
+                )
 
-        return Response({
+        run_data = {
             'id': run.id,
             'name': run.name,
             'truck_id': run.truck_id,
@@ -560,7 +634,12 @@ class CalendarViewSet(viewsets.ViewSet):
             'notes': run.notes,
             'is_complete': run.is_complete,
             'order_count': run.salesorder_orders.count() + run.purchaseorder_orders.count(),
-        })
+        }
+
+        # Broadcast the run update to all connected WebSocket clients
+        broadcast_run_update(run.id, 'updated', run_data, tenant_id=request.tenant.id)
+
+        return Response(run_data)
 
     @extend_schema(
         tags=['scheduling'],
@@ -571,7 +650,8 @@ class CalendarViewSet(viewsets.ViewSet):
     def delete_run(self, request, run_id=None):
         """Delete a delivery run. Orders in this run will have their delivery_run cleared."""
         try:
-            run = DeliveryRun.objects.get(pk=run_id)
+            # SECURITY: Explicit tenant filtering to prevent IDOR
+            run = DeliveryRun.objects.filter(tenant=request.tenant).get(pk=run_id)
         except DeliveryRun.DoesNotExist:
             return Response(
                 {'error': f'DeliveryRun with id {run_id} not found'},
@@ -581,6 +661,9 @@ class CalendarViewSet(viewsets.ViewSet):
         # Clear delivery_run from orders before deleting
         SalesOrder.objects.filter(delivery_run=run).update(delivery_run=None)
         PurchaseOrder.objects.filter(delivery_run=run).update(delivery_run=None)
+
+        # Broadcast the run deletion before actually deleting
+        broadcast_run_update(run.id, 'deleted', {'id': run.id}, tenant_id=request.tenant.id)
 
         run.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -614,7 +697,10 @@ class CalendarViewSet(viewsets.ViewSet):
                     models.Q(scheduled_date__isnull=True)
                 )
             except ValueError:
-                pass
+                return Response(
+                    {'error': 'Invalid start_date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         if end_str:
             try:
@@ -624,7 +710,10 @@ class CalendarViewSet(viewsets.ViewSet):
                     models.Q(scheduled_date__isnull=True)
                 )
             except ValueError:
-                pass
+                return Response(
+                    {'error': 'Invalid end_date format. Use YYYY-MM-DD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         queryset = queryset.order_by('-is_pinned', '-created_at')
 
@@ -722,7 +811,7 @@ class CalendarViewSet(viewsets.ViewSet):
 
         note = SchedulerNote.objects.create(**note_data)
 
-        return Response({
+        note_response = {
             'id': note.id,
             'content': note.content,
             'color': note.color,
@@ -737,7 +826,12 @@ class CalendarViewSet(viewsets.ViewSet):
             'attachment_type': note.attachment_type,
             'created_at': note.created_at.isoformat(),
             'updated_at': note.updated_at.isoformat(),
-        }, status=status.HTTP_201_CREATED)
+        }
+
+        # Broadcast the note creation to all connected WebSocket clients
+        broadcast_note_update(note.id, 'created', note_response, tenant_id=request.tenant.id)
+
+        return Response(note_response, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         tags=['scheduling'],
@@ -748,11 +842,19 @@ class CalendarViewSet(viewsets.ViewSet):
     def update_note(self, request, note_id=None):
         """Update a scheduler note."""
         try:
-            note = SchedulerNote.objects.select_related('created_by').get(pk=note_id)
+            # SECURITY: Explicit tenant filtering to prevent IDOR
+            note = SchedulerNote.objects.filter(tenant=request.tenant).select_related('created_by').get(pk=note_id)
         except SchedulerNote.DoesNotExist:
             return Response(
                 {'error': f'SchedulerNote with id {note_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
+            )
+
+        # SECURITY: Object-level permission - only creator or staff can modify
+        if note.created_by and note.created_by != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'You do not have permission to modify this note'},
+                status=status.HTTP_403_FORBIDDEN
             )
 
         # Update fields if provided
@@ -779,7 +881,7 @@ class CalendarViewSet(viewsets.ViewSet):
 
         note.save()
 
-        return Response({
+        note_response = {
             'id': note.id,
             'content': note.content,
             'color': note.color,
@@ -794,7 +896,12 @@ class CalendarViewSet(viewsets.ViewSet):
             'attachment_type': note.attachment_type,
             'created_at': note.created_at.isoformat(),
             'updated_at': note.updated_at.isoformat(),
-        })
+        }
+
+        # Broadcast the note update to all connected WebSocket clients
+        broadcast_note_update(note.id, 'updated', note_response, tenant_id=request.tenant.id)
+
+        return Response(note_response)
 
     @extend_schema(
         tags=['scheduling'],
@@ -805,12 +912,23 @@ class CalendarViewSet(viewsets.ViewSet):
     def delete_note(self, request, note_id=None):
         """Delete a scheduler note."""
         try:
-            note = SchedulerNote.objects.get(pk=note_id)
+            # SECURITY: Explicit tenant filtering to prevent IDOR
+            note = SchedulerNote.objects.filter(tenant=request.tenant).select_related('created_by').get(pk=note_id)
         except SchedulerNote.DoesNotExist:
             return Response(
                 {'error': f'SchedulerNote with id {note_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        # SECURITY: Object-level permission - only creator or staff can delete
+        if note.created_by and note.created_by != request.user and not request.user.is_staff:
+            return Response(
+                {'error': 'You do not have permission to delete this note'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Broadcast the note deletion before actually deleting
+        broadcast_note_update(note.id, 'deleted', {'id': note.id}, tenant_id=request.tenant.id)
 
         note.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
