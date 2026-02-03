@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Play, FileText, Clock, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,8 @@ import { format } from 'date-fns'
 type Tab = 'reports' | 'history' | 'schedules'
 
 export default function Reports() {
+  usePageTitle('Reports')
+
   const [activeTab, setActiveTab] = useState<Tab>('reports')
 
   const { data: definitionsData } = useReportDefinitions()

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Truck, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,8 @@ const bolStatusVariant: Record<string, 'default' | 'secondary' | 'destructive' |
 }
 
 export default function Shipping() {
+  usePageTitle('Shipping')
+
   const [activeTab, setActiveTab] = useState<Tab>('shipments')
 
   const { data: shipmentsData } = useShipments()

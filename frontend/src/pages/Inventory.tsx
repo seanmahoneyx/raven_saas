@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Package, Layers, BarChart3, History } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +27,8 @@ const palletStatusVariant: Record<string, 'default' | 'secondary' | 'destructive
 }
 
 export default function Inventory() {
+  usePageTitle('Inventory')
+
   const [activeTab, setActiveTab] = useState<Tab>('balances')
 
   const { data: balancesData } = useInventoryBalances()

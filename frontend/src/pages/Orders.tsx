@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -31,6 +32,8 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 }
 
 export default function Orders() {
+  usePageTitle('Orders')
+
   const [activeTab, setActiveTab] = useState<Tab>('sales')
 
   // Dialog states

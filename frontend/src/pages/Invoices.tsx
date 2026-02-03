@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, FileText, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,8 @@ const invoiceStatusVariant: Record<string, 'default' | 'secondary' | 'destructiv
 }
 
 export default function Invoices() {
+  usePageTitle('Invoices')
+
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
 
   const { data: invoicesData } = useInvoices()

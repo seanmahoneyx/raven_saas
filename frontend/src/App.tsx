@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { AuthProvider } from '@/hooks/useAuth'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
@@ -28,6 +29,8 @@ const queryClient = new QueryClient({
 
 // Placeholder pages
 function PlaceholderPage({ title }: { title: string }) {
+  usePageTitle(title)
+
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold">{title}</h1>

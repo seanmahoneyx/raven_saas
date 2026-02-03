@@ -1,7 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShoppingCart, Package, Truck, FileText } from 'lucide-react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 
 export default function Dashboard() {
+  usePageTitle('Dashboard')
+
   return (
     <div className="p-8">
       <div className="mb-8">

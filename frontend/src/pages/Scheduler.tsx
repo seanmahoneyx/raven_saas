@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ScheduleView } from '@/components/scheduler/ScheduleView'
 import { FilterBar } from '@/components/scheduler/FilterBar'
@@ -9,6 +10,8 @@ import { useSchedulerWebSocket } from '@/hooks/useSchedulerWebSocket'
 import { format, addWeeks, startOfWeek } from 'date-fns'
 
 export default function Scheduler() {
+  usePageTitle('Scheduler')
+
   // Calculate date range (4 weeks from start of current week)
   const { startDate, endDate } = useMemo(() => {
     const today = new Date()

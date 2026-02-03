@@ -37,19 +37,13 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
 
   // Use stable selectors - get cell data once, then extract arrays
   const cell = useSchedulerStore((s) => s.cells[cellId])
-  const noteToCell = useSchedulerStore((s) => s.noteToCell)
+  const cellLooseItemOrder = useSchedulerStore((s) => s.cellLooseItemOrder[cellId])
   const isLocked = useSchedulerStore((s) => s.blockedDates.has(date))
 
   // Memoize arrays to prevent re-renders
   const runIds = useMemo(() => cell?.runIds ?? EMPTY_IDS, [cell?.runIds])
-  const looseOrderIds = useMemo(() => cell?.looseOrderIds ?? EMPTY_IDS, [cell?.looseOrderIds])
-  const noteIds = useMemo(() => {
-    const ids: string[] = []
-    for (const [noteId, noteCellId] of Object.entries(noteToCell)) {
-      if (noteCellId === cellId) ids.push(noteId)
-    }
-    return ids.length > 0 ? ids : EMPTY_IDS
-  }, [noteToCell, cellId])
+  // Unified loose items (notes + orders interleaved)
+  const looseItems = useMemo(() => cellLooseItemOrder ?? EMPTY_IDS, [cellLooseItemOrder])
   const createRun = useSchedulerStore((s) => s.createRun)
   const addNote = useSchedulerStore((s) => s.addNote)
   const { setNodeRef, isOver } = useDroppable({ id: cellId })
@@ -67,11 +61,8 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
     [runIds]
   )
 
-  // Sortable IDs for notes (prefixed with "note:")
-  const sortableNoteIds = useMemo(
-    () => noteIds.map((id) => `note:${id}`),
-    [noteIds]
-  )
+  // Loose items are already prefixed ("note:123" or "order:456")
+  // They serve as their own sortable IDs
 
   const handleAddRun = () => {
     createRun(cellId)
@@ -144,31 +135,27 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
         </div>
       </SortableContext>
 
-      {/* Separator (only if runs exist) */}
-      {runIds.length > 0 && looseOrderIds.length > 0 && (
+      {/* Separator (only if runs exist and there are loose items) */}
+      {runIds.length > 0 && looseItems.length > 0 && (
         <div className="border-t border-dashed border-slate-200 my-1" />
       )}
 
-      {/* Section B: Notes */}
-      {noteIds.length > 0 && (
-        <div className="space-y-0.5 mb-1">
-          <SortableContext items={sortableNoteIds} strategy={verticalListSortingStrategy}>
-            {noteIds.map((noteId) => (
-              <NoteCard key={noteId} noteId={noteId} originalCellId={cellId} />
-            ))}
-          </SortableContext>
-        </div>
-      )}
-
-      {/* Section C: Loose Orders Drop Zone (always visible for non-inbound) */}
+      {/* Unified loose items section: Notes and Orders interleaved */}
       {!isInbound && (
         <div className="flex-1 flex flex-col space-y-0.5">
-          <SortableContext items={looseOrderIds} strategy={verticalListSortingStrategy}>
-            {looseOrderIds.map((orderId) => (
-              <ManifestLine key={orderId} orderId={orderId} isLoose />
-            ))}
+          <SortableContext items={looseItems} strategy={verticalListSortingStrategy}>
+            {looseItems.map((item) => {
+              if (item.startsWith('note:')) {
+                const noteId = item.slice(5)
+                return <NoteCard key={item} noteId={noteId} originalCellId={cellId} />
+              } else if (item.startsWith('order:')) {
+                const orderId = item.slice(6)
+                return <ManifestLine key={item} orderId={orderId} isLoose />
+              }
+              return null
+            })}
           </SortableContext>
-          {/* Always show a drop slot below orders - same height as an order line */}
+          {/* Always show a drop slot below items - same height as an order line */}
           <div className={`min-h-[28px] rounded-md transition-colors ${isOver ? 'border border-dashed border-amber-300 bg-amber-50/50' : ''}`} />
         </div>
       )}
@@ -212,13 +199,21 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
               <span className="text-xs font-semibold text-slate-700">Add Note</span>
             </div>
             <textarea
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors text-slate-900 bg-white placeholder:text-slate-400"
               value={noteContent}
               onChange={(e) => setNoteContent(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (noteContent.trim()) handleCreateNote()
+                } else if (e.key === 'Escape') {
+                  setShowNoteDialog(false)
+                }
+              }}
               placeholder="Enter note content..."
               autoFocus
             />

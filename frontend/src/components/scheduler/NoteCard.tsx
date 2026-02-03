@@ -142,13 +142,21 @@ export const NoteCard = memo(function NoteCard({ noteId, originalCellId }: NoteC
                   <span className="text-xs font-semibold text-slate-700">Edit Note</span>
                 </div>
                 <textarea
-                  className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
+                  className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors text-slate-900 bg-white placeholder:text-slate-400"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation()
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSave()
+                    } else if (e.key === 'Escape') {
+                      handleCancel()
+                    }
+                  }}
                   autoFocus
                 />
                 <div className="flex justify-end gap-2 mt-3">

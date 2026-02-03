@@ -32,7 +32,7 @@ interface ManifestLineProps {
   onCollapse?: () => void
 }
 
-export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isLoose, onExplode, onCollapse: _onCollapse }: ManifestLineProps) {
+export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isLoose, onExplode, onCollapse }: ManifestLineProps) {
   // Memoize selectors to prevent infinite re-renders
   const selectOrderMemo = useMemo(() => selectOrder(orderId), [orderId])
   const selectMatchesMemo = useMemo(() => selectOrderMatchesFilter(orderId), [orderId])
@@ -46,6 +46,9 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
   const [noteInput, setNoteInput] = useState('')
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
 
+  // For loose orders in unified list, use prefixed ID; for orders in runs, use plain orderId
+  const sortableId = isLoose ? `order:${orderId}` : orderId
+
   const {
     attributes,
     listeners,
@@ -54,7 +57,7 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
     transition,
     isDragging,
   } = useSortable({
-    id: orderId,
+    id: sortableId,
     disabled: order?.isReadOnly || order?.type === 'PO',
     data: { type: 'order', orderId },
   })
@@ -89,13 +92,17 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    // If collapsed group, explode it; otherwise open detail modal
+    // If collapsed group, explode it
     if (collapsed && onExplode) {
       onExplode()
+    // If part of an exploded group, re-collapse it
+    } else if (onCollapse) {
+      onCollapse()
+    // Otherwise open detail modal
     } else {
       setSelectedOrderId(orderId)
     }
-  }, [collapsed, onExplode, orderId, setSelectedOrderId])
+  }, [collapsed, onExplode, onCollapse, orderId, setSelectedOrderId])
 
   if (!order) return null
 
@@ -134,7 +141,7 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
           ${isDragging ? 'shadow-lg ring-2 ring-amber-400 z-50 scale-[1.02]' : 'hover:shadow-sm'}
           ${order.isReadOnly ? 'opacity-50 cursor-default' : 'hover:border-slate-300'}
           ${isLoose ? 'border-l-[3px] border-l-amber-400' : ''}
-          ${!matchesFilter ? 'opacity-25' : ''}
+          ${!matchesFilter ? 'opacity-20 grayscale scale-95 pointer-events-none' : ''}
         `}
       >
         {/* Status dot */}
@@ -151,13 +158,26 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
           {order.palletCount}P
         </span>
 
-        {/* Notes indicator */}
+        {/* Notes indicator - clickable to open note menu */}
         {order.notes && (
-          <div className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-sm" title={order.notes}>
+          <button
+            type="button"
+            className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-sm hover:bg-amber-500 transition-colors cursor-pointer"
+            title={order.notes}
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              setNoteInput(order.notes || '')
+              setMenuPos({ x: e.clientX, y: e.clientY })
+              setShowNoteMenu(true)
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 text-amber-900">
               <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
             </svg>
-          </div>
+          </button>
         )}
 
         {/* Locked indicator */}
@@ -187,13 +207,21 @@ export const ManifestLine = memo(function ManifestLine({ orderId, collapsed, isL
               <span className="text-[10px] text-slate-400">Note</span>
             </div>
             <textarea
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors"
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors text-slate-900 bg-white placeholder:text-slate-400"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleNoteSave()
+                } else if (e.key === 'Escape') {
+                  setShowNoteMenu(false)
+                }
+              }}
               placeholder="Add a note..."
               autoFocus
             />

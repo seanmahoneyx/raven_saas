@@ -81,6 +81,35 @@ function generateRunId(): string {
   return `run-${Date.now()}-${++_runCounter}`
 }
 
+/**
+ * Find optimal insert position for an order within a run.
+ * Groups orders by customer - inserts next to same-customer orders if any exist.
+ * Returns undefined to append to end if no same-customer orders found.
+ */
+function findSmartInsertPosition(
+  orderIds: string[],
+  orders: Record<string, Order>,
+  customerCode: string
+): number | undefined {
+  // Find existing orders from the same customer
+  let lastSameCustomerIndex = -1
+
+  for (let i = 0; i < orderIds.length; i++) {
+    const order = orders[orderIds[i]]
+    if (order?.customerCode === customerCode) {
+      lastSameCustomerIndex = i
+    }
+  }
+
+  // If same-customer orders exist, insert after the last one
+  if (lastSameCustomerIndex >= 0) {
+    return lastSameCustomerIndex + 1
+  }
+
+  // No same-customer orders - return undefined to append at end
+  return undefined
+}
+
 // ─── Result Types ────────────────────────────────────────────────────────────
 
 export type MoveResult =
@@ -105,6 +134,8 @@ interface SchedulerState {
   runToCell: Record<string, CellId>         // runId → cellId
   looseOrderToCell: Record<string, CellId>  // orderId → cellId (for loose orders)
   noteToCell: Record<string, CellId>        // noteId → cellId
+  cellNoteOrders: Record<CellId, string[]>  // cellId → ordered noteIds (legacy, kept for compatibility)
+  cellLooseItemOrder: Record<CellId, string[]>  // cellId → unified order of loose items (prefixed: "note:123", "order:456")
 
   // Multi-user collaboration state
   dirty: DirtyState                         // Track locally modified items
@@ -119,9 +150,9 @@ interface SchedulerState {
   // Actions
   hydrate: (data: HydratePayload) => void
   mergeHydrate: (data: HydratePayload) => void  // Merge-based hydration for polling
-  moveOrder: (orderId: string, targetRunId: string, insertIndex?: number) => MoveResult
+  moveOrder: (orderId: string, targetRunId: string, insertIndex?: number, forcePosition?: boolean) => MoveResult
   moveOrderLoose: (orderId: string, targetCellId: CellId) => MoveResult
-  commitOrderToRun: (orderId: string, targetRunId: string, insertIndex?: number) => MoveResult
+  commitOrderToRun: (orderId: string, targetRunId: string, insertIndex?: number, forcePosition?: boolean) => MoveResult
   moveRun: (runId: string, targetCellId: CellId, insertIndex?: number) => MoveResult
   createRun: (cellId: CellId, name?: string) => string | null
   dissolveRun: (runId: string) => boolean
@@ -139,7 +170,12 @@ interface SchedulerState {
   addNote: (note: SchedulerNote) => void
   updateNote: (noteId: string, updates: Partial<SchedulerNote>) => void
   deleteNote: (noteId: string) => void
-  moveNote: (noteId: string, targetCellId: CellId) => void
+  moveNote: (noteId: string, targetCellId: CellId, insertIndex?: number) => void
+  reorderNotesInCell: (cellId: CellId, fromIndex: number, toIndex: number) => void
+  getCellNoteIds: (cellId: CellId) => string[]
+  // Unified loose item ordering (notes + loose orders interleaved)
+  reorderLooseItem: (cellId: CellId, fromIndex: number, toIndex: number) => void
+  getCellLooseItemOrder: (cellId: CellId) => string[]
   // Dirty state management
   markOrderDirty: (orderId: string) => void
   markOrderClean: (orderId: string) => void
@@ -181,6 +217,8 @@ export const useSchedulerStore = create<SchedulerState>()(
     runToCell: {},
     looseOrderToCell: {},
     noteToCell: {},
+    cellNoteOrders: {},
+    cellLooseItemOrder: {},
     dirty: {
       orders: new Set(),
       runs: new Set(),
@@ -230,6 +268,14 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
+      // Build initial cellLooseItemOrder from existing cell loose orders
+      // Notes will be added when hydrateNotes is called
+      const cellLooseItemOrder: Record<CellId, string[]> = {}
+      for (const [cellId, cellData] of Object.entries(cellsCopy)) {
+        // Start with loose orders prefixed
+        cellLooseItemOrder[cellId] = (cellData.looseOrderIds || []).map(id => `order:${id}`)
+      }
+
       set({
         orders: ordersMap,
         runs: runsMap,
@@ -240,6 +286,7 @@ export const useSchedulerStore = create<SchedulerState>()(
         orderToRun,
         runToCell,
         looseOrderToCell,
+        cellLooseItemOrder,
         // Clear dirty state on full hydrate (initial load)
         dirty: {
           orders: new Set(),
@@ -431,8 +478,10 @@ export const useSchedulerStore = create<SchedulerState>()(
     /**
      * Move an order into a target run (commit it).
      * Removes from loose if previously loose, or from source run.
+     * By default, uses smart positioning to group same-customer orders together.
+     * Pass forcePosition=true to use exact insertIndex (e.g., Shift+drag).
      */
-    moveOrder: (orderId, targetRunId, insertIndex) => {
+    moveOrder: (orderId, targetRunId, insertIndex, forcePosition) => {
       const state = get()
       const order = state.orders[orderId]
       if (!order) return { success: false, reason: 'READ_ONLY' }
@@ -487,9 +536,23 @@ export const useSchedulerStore = create<SchedulerState>()(
         // Add to target run
         if (nextRuns[targetRunId]) {
           const newOrderIds = [...nextRuns[targetRunId].orderIds]
-          const idx = insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrderIds.length
-            ? insertIndex
-            : newOrderIds.length
+
+          // Determine insert position
+          let idx: number
+          if (forcePosition && insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrderIds.length) {
+            // Shift+drag: use exact position specified
+            idx = insertIndex
+          } else if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrderIds.length) {
+            // Explicit position given but not forced - use smart positioning
+            // Find if there are same-customer orders, insert near them
+            const smartIdx = findSmartInsertPosition(newOrderIds, prev.orders, order.customerCode)
+            idx = smartIdx !== undefined ? smartIdx : insertIndex
+          } else {
+            // No position specified - use smart positioning or append
+            const smartIdx = findSmartInsertPosition(newOrderIds, prev.orders, order.customerCode)
+            idx = smartIdx !== undefined ? smartIdx : newOrderIds.length
+          }
+
           newOrderIds.splice(idx, 0, orderId)
           nextRuns[targetRunId] = { ...nextRuns[targetRunId], orderIds: newOrderIds }
         }
@@ -538,6 +601,8 @@ export const useSchedulerStore = create<SchedulerState>()(
         const nextOrderToRun = { ...prev.orderToRun }
         const nextLooseOrderToCell = { ...prev.looseOrderToCell }
         const nextOrders = { ...prev.orders }
+        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
+        const orderItem = `order:${orderId}`
 
         // Remove from source run (if committed)
         const sourceRunId = prev.orderToRun[orderId]
@@ -556,6 +621,10 @@ export const useSchedulerStore = create<SchedulerState>()(
             ...nextCells[prevLooseCellId],
             looseOrderIds: nextCells[prevLooseCellId].looseOrderIds.filter((id) => id !== orderId),
           }
+          // Also remove from unified order
+          if (nextCellLooseItemOrder[prevLooseCellId]) {
+            nextCellLooseItemOrder[prevLooseCellId] = nextCellLooseItemOrder[prevLooseCellId].filter(item => item !== orderItem)
+          }
         }
 
         // Add to target cell as loose
@@ -568,13 +637,21 @@ export const useSchedulerStore = create<SchedulerState>()(
           }
         }
 
+        // Add to unified loose item order at the end
+        if (!nextCellLooseItemOrder[targetCellId]) {
+          nextCellLooseItemOrder[targetCellId] = []
+        }
+        if (!nextCellLooseItemOrder[targetCellId].includes(orderItem)) {
+          nextCellLooseItemOrder[targetCellId] = [...nextCellLooseItemOrder[targetCellId], orderItem]
+        }
+
         // Update order date
         if (nextOrders[orderId]) {
           nextOrders[orderId] = { ...nextOrders[orderId], date: parsed.date }
         }
 
         nextLooseOrderToCell[orderId] = targetCellId
-        return { runs: nextRuns, cells: nextCells, orderToRun: nextOrderToRun, looseOrderToCell: nextLooseOrderToCell, orders: nextOrders }
+        return { runs: nextRuns, cells: nextCells, orderToRun: nextOrderToRun, looseOrderToCell: nextLooseOrderToCell, orders: nextOrders, cellLooseItemOrder: nextCellLooseItemOrder }
       })
 
       return { success: true }
@@ -584,8 +661,8 @@ export const useSchedulerStore = create<SchedulerState>()(
      * Commit a loose order into a run. Alias for moveOrder but semantically
      * explicit about the loose → committed transition.
      */
-    commitOrderToRun: (orderId, targetRunId, insertIndex) => {
-      return get().moveOrder(orderId, targetRunId, insertIndex)
+    commitOrderToRun: (orderId, targetRunId, insertIndex, forcePosition) => {
+      return get().moveOrder(orderId, targetRunId, insertIndex, forcePosition)
     },
 
     /**
@@ -857,8 +934,12 @@ export const useSchedulerStore = create<SchedulerState>()(
     },
 
     hydrateNotes: (notesArr) => {
+      const state = get()
       const notesMap: Record<string, SchedulerNote> = {}
       const noteToCell: Record<string, CellId> = {}
+      const cellNoteOrders: Record<CellId, string[]> = {}
+      // Build a map of notes per cell for unified ordering
+      const notesByCell: Record<CellId, string[]> = {}
 
       for (const note of notesArr) {
         notesMap[note.id] = note
@@ -867,23 +948,64 @@ export const useSchedulerStore = create<SchedulerState>()(
           const truckId = note.truckId ?? 'unassigned'
           const cellId: CellId = `${truckId}|${note.scheduledDate}`
           noteToCell[note.id] = cellId
+          // Track order per cell
+          if (!cellNoteOrders[cellId]) {
+            cellNoteOrders[cellId] = []
+          }
+          cellNoteOrders[cellId].push(note.id)
+          // Also track for unified ordering
+          if (!notesByCell[cellId]) {
+            notesByCell[cellId] = []
+          }
+          notesByCell[cellId].push(note.id)
         }
       }
 
-      set({ notes: notesMap, noteToCell })
+      // Build unified cellLooseItemOrder: notes first, then existing orders
+      const cellLooseItemOrder: Record<CellId, string[]> = { ...state.cellLooseItemOrder }
+      for (const [cellId, noteIds] of Object.entries(notesByCell)) {
+        const existingItems = cellLooseItemOrder[cellId] || []
+        // Filter out any existing note entries (shouldn't happen on fresh hydrate)
+        const orderItems = existingItems.filter(item => item.startsWith('order:'))
+        // Notes go first, then orders
+        cellLooseItemOrder[cellId] = [
+          ...noteIds.map(id => `note:${id}`),
+          ...orderItems,
+        ]
+      }
+
+      set({ notes: notesMap, noteToCell, cellNoteOrders, cellLooseItemOrder })
     },
 
     addNote: (note) => {
       set((prev) => {
         const nextNotes = { ...prev.notes, [note.id]: note }
         const nextNoteToCell = { ...prev.noteToCell }
+        const nextCellNoteOrders = { ...prev.cellNoteOrders }
+        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
 
         if (note.scheduledDate) {
           const truckId = note.truckId ?? 'unassigned'
-          nextNoteToCell[note.id] = `${truckId}|${note.scheduledDate}`
+          const cellId: CellId = `${truckId}|${note.scheduledDate}`
+          nextNoteToCell[note.id] = cellId
+          // Add to end of cell's note order (legacy)
+          if (!nextCellNoteOrders[cellId]) {
+            nextCellNoteOrders[cellId] = []
+          }
+          if (!nextCellNoteOrders[cellId].includes(note.id)) {
+            nextCellNoteOrders[cellId] = [...nextCellNoteOrders[cellId], note.id]
+          }
+          // Add to unified loose item order at the END
+          const noteItem = `note:${note.id}`
+          if (!nextCellLooseItemOrder[cellId]) {
+            nextCellLooseItemOrder[cellId] = []
+          }
+          if (!nextCellLooseItemOrder[cellId].includes(noteItem)) {
+            nextCellLooseItemOrder[cellId] = [...nextCellLooseItemOrder[cellId], noteItem]
+          }
         }
 
-        return { notes: nextNotes, noteToCell: nextNoteToCell }
+        return { notes: nextNotes, noteToCell: nextNoteToCell, cellNoteOrders: nextCellNoteOrders, cellLooseItemOrder: nextCellLooseItemOrder }
       })
     },
 
@@ -912,19 +1034,71 @@ export const useSchedulerStore = create<SchedulerState>()(
       set((prev) => {
         const nextNotes = { ...prev.notes }
         const nextNoteToCell = { ...prev.noteToCell }
+        const nextCellNoteOrders = { ...prev.cellNoteOrders }
+        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
+
+        // Remove from cell order
+        const cellId = prev.noteToCell[noteId]
+        if (cellId) {
+          if (nextCellNoteOrders[cellId]) {
+            nextCellNoteOrders[cellId] = nextCellNoteOrders[cellId].filter(id => id !== noteId)
+          }
+          // Remove from unified loose item order
+          if (nextCellLooseItemOrder[cellId]) {
+            nextCellLooseItemOrder[cellId] = nextCellLooseItemOrder[cellId].filter(item => item !== `note:${noteId}`)
+          }
+        }
+
         delete nextNotes[noteId]
         delete nextNoteToCell[noteId]
-        return { notes: nextNotes, noteToCell: nextNoteToCell }
+        return { notes: nextNotes, noteToCell: nextNoteToCell, cellNoteOrders: nextCellNoteOrders, cellLooseItemOrder: nextCellLooseItemOrder }
       })
     },
 
-    moveNote: (noteId, targetCellId) => {
+    moveNote: (noteId, targetCellId, insertIndex) => {
       const parsed = parseCellId(targetCellId)
       if (!parsed) return
 
       set((prev) => {
         const note = prev.notes[noteId]
         if (!note) return prev
+
+        const sourceCellId = prev.noteToCell[noteId]
+        const nextCellNoteOrders = { ...prev.cellNoteOrders }
+        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
+        const noteItem = `note:${noteId}`
+
+        // Remove from source cell order (legacy)
+        if (sourceCellId && nextCellNoteOrders[sourceCellId]) {
+          nextCellNoteOrders[sourceCellId] = nextCellNoteOrders[sourceCellId].filter(id => id !== noteId)
+        }
+
+        // Remove from source cell's unified order
+        if (sourceCellId && nextCellLooseItemOrder[sourceCellId]) {
+          nextCellLooseItemOrder[sourceCellId] = nextCellLooseItemOrder[sourceCellId].filter(item => item !== noteItem)
+        }
+
+        // Add to target cell order at specified position or end (legacy)
+        if (!nextCellNoteOrders[targetCellId]) {
+          nextCellNoteOrders[targetCellId] = []
+        }
+        if (!nextCellNoteOrders[targetCellId].includes(noteId)) {
+          nextCellNoteOrders[targetCellId] = [...nextCellNoteOrders[targetCellId], noteId]
+        }
+
+        // Add to target cell's unified order at specified position or end
+        if (!nextCellLooseItemOrder[targetCellId]) {
+          nextCellLooseItemOrder[targetCellId] = []
+        }
+        if (!nextCellLooseItemOrder[targetCellId].includes(noteItem)) {
+          const newOrder = [...nextCellLooseItemOrder[targetCellId]]
+          if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrder.length) {
+            newOrder.splice(insertIndex, 0, noteItem)
+          } else {
+            newOrder.push(noteItem)
+          }
+          nextCellLooseItemOrder[targetCellId] = newOrder
+        }
 
         const updatedNote: SchedulerNote = {
           ...note,
@@ -935,8 +1109,52 @@ export const useSchedulerStore = create<SchedulerState>()(
         return {
           notes: { ...prev.notes, [noteId]: updatedNote },
           noteToCell: { ...prev.noteToCell, [noteId]: targetCellId },
+          cellNoteOrders: nextCellNoteOrders,
+          cellLooseItemOrder: nextCellLooseItemOrder,
         }
       })
+    },
+
+    reorderNotesInCell: (cellId, fromIndex, toIndex) => {
+      set((prev) => {
+        const noteIds = prev.cellNoteOrders[cellId]
+        if (!noteIds) return prev
+        if (fromIndex < 0 || fromIndex >= noteIds.length) return prev
+        if (toIndex < 0 || toIndex >= noteIds.length) return prev
+        if (fromIndex === toIndex) return prev
+
+        const next = [...noteIds]
+        const [moved] = next.splice(fromIndex, 1)
+        next.splice(toIndex, 0, moved)
+
+        return { cellNoteOrders: { ...prev.cellNoteOrders, [cellId]: next } }
+      })
+    },
+
+    getCellNoteIds: (cellId) => {
+      const state = get()
+      return state.cellNoteOrders[cellId] ?? []
+    },
+
+    reorderLooseItem: (cellId, fromIndex, toIndex) => {
+      set((prev) => {
+        const items = prev.cellLooseItemOrder[cellId]
+        if (!items) return prev
+        if (fromIndex < 0 || fromIndex >= items.length) return prev
+        if (toIndex < 0 || toIndex >= items.length) return prev
+        if (fromIndex === toIndex) return prev
+
+        const next = [...items]
+        const [moved] = next.splice(fromIndex, 1)
+        next.splice(toIndex, 0, moved)
+
+        return { cellLooseItemOrder: { ...prev.cellLooseItemOrder, [cellId]: next } }
+      })
+    },
+
+    getCellLooseItemOrder: (cellId) => {
+      const state = get()
+      return state.cellLooseItemOrder[cellId] ?? []
     },
 
     // ─── Dirty State Management ─────────────────────────────────────────────────
@@ -1329,14 +1547,12 @@ export const selectOrderMatchesFilter = (orderId: string) => (state: SchedulerSt
 }
 
 export const selectNotesForCell = (cellId: CellId) => (state: SchedulerState) => {
-  const noteIds: string[] = []
-  for (const [noteId, noteCellId] of Object.entries(state.noteToCell)) {
-    if (noteCellId === cellId) {
-      noteIds.push(noteId)
-    }
-  }
-  return noteIds
+  // Use ordered note IDs if available, otherwise fall back to unordered
+  return state.cellNoteOrders[cellId] ?? []
 }
+
+export const selectCellNoteOrders = (cellId: CellId) => (state: SchedulerState) =>
+  state.cellNoteOrders[cellId] ?? EMPTY_ARRAY
 
 export const selectNote = (noteId: string) => (state: SchedulerState) =>
   state.notes[noteId]

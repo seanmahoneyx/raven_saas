@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft,
   Plus,
@@ -184,6 +185,8 @@ function ContractLineRow({
 }
 
 export default function ContractDetail() {
+  usePageTitle('Contract Details')
+
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const contractId = parseInt(id || '0', 10)

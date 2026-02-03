@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Package, Ruler, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,8 @@ import type { Item, UnitOfMeasure } from '@/types/api'
 type Tab = 'items' | 'uom'
 
 export default function Items() {
+  usePageTitle('Items')
+
   const [activeTab, setActiveTab] = useState<Tab>('items')
 
   // Dialog states

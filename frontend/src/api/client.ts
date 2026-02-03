@@ -26,8 +26,9 @@ export const tokenStorage = {
   },
 }
 
-// Track if using cookie-based auth (set after successful login)
-let usingCookieAuth = false
+// Track if using cookie-based auth (persisted to survive refresh)
+const AUTH_MODE_KEY = 'raven_auth_mode'
+let usingCookieAuth = localStorage.getItem(AUTH_MODE_KEY) === 'cookie'
 
 // Request interceptor - add auth token
 apiClient.interceptors.request.use(
@@ -112,6 +113,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError as Error, null)
         tokenStorage.clearTokens()
+        localStorage.removeItem(AUTH_MODE_KEY)
         usingCookieAuth = false
         window.location.href = '/login'
         return Promise.reject(refreshError)
@@ -131,6 +133,7 @@ export const authApi = {
       // Try cookie-based login first (preferred, more secure)
       const response = await apiClient.post('/auth/login/', { username, password })
       usingCookieAuth = true
+      localStorage.setItem(AUTH_MODE_KEY, 'cookie')
       // Tokens are in httpOnly cookies, not in response body
       return response.data
     } catch (error) {
@@ -140,6 +143,7 @@ export const authApi = {
       tokenStorage.setAccessToken(access)
       tokenStorage.setRefreshToken(refresh)
       usingCookieAuth = false
+      localStorage.setItem(AUTH_MODE_KEY, 'token')
       return response.data
     }
   },
@@ -151,8 +155,9 @@ export const authApi = {
     } catch {
       // Ignore errors - may not be using cookie auth
     }
-    // Always clear localStorage tokens as well
+    // Always clear localStorage tokens and auth mode
     tokenStorage.clearTokens()
+    localStorage.removeItem(AUTH_MODE_KEY)
     usingCookieAuth = false
   },
 

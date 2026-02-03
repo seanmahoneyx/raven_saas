@@ -90,7 +90,8 @@ export function useSchedulerMutations() {
   }, [orders, moveOrderLoose, updateScheduleMutation, queryClient, markOrderDirty, markOrderClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   // Add order to a run
-  const addOrderToRun = useCallback(async (orderId: string, runId: string, insertIndex?: number) => {
+  // forcePosition: if true, uses exact insertIndex (Shift+drag); otherwise uses smart grouping
+  const addOrderToRun = useCallback(async (orderId: string, runId: string, insertIndex?: number, forcePosition?: boolean) => {
     const order = orders[orderId]
     const run = runs[runId]
     if (!order || !run) return { success: false, reason: 'Not found' }
@@ -104,8 +105,8 @@ export function useSchedulerMutations() {
     markRunDirty(runId)
     incrementPendingApiCalls()
 
-    // Optimistic update
-    const result = moveOrder(orderId, runId, insertIndex)
+    // Optimistic update (uses smart grouping unless forcePosition is true)
+    const result = moveOrder(orderId, runId, insertIndex, forcePosition)
     if (!result.success) {
       markOrderClean(orderId)
       markRunClean(runId)

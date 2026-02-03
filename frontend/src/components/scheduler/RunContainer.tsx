@@ -145,6 +145,42 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
     setShowDeleteConfirm(false)
   }, [runId, deleteRunMutation, deleteRunStore])
 
+  // Compute all potential group keys (first order ID of each same-customer group)
+  const allGroupKeys = useMemo(() => {
+    if (!run || run.orderIds.length === 0) return []
+    const orders = useSchedulerStore.getState().orders
+    const keys: string[] = []
+    let i = 0
+    while (i < run.orderIds.length) {
+      const order = orders[run.orderIds[i]]
+      if (!order) { i++; continue }
+      let j = i + 1
+      while (j < run.orderIds.length) {
+        const next = orders[run.orderIds[j]]
+        if (!next || next.customerCode !== order.customerCode) break
+        j++
+      }
+      const groupSize = j - i
+      if (groupSize >= 2) {
+        keys.push(run.orderIds[i])
+      }
+      i = j > i ? j : i + 1
+    }
+    return keys
+  }, [run])
+
+  const hasCollapsibleGroups = allGroupKeys.length > 0
+  const hasExplodedGroups = allGroupKeys.some(key => explodedGroups.has(key))
+  const hasCollapsedGroups = allGroupKeys.some(key => !explodedGroups.has(key))
+
+  const handleExplodeAll = useCallback(() => {
+    setExplodedGroups(new Set(allGroupKeys))
+  }, [allGroupKeys])
+
+  const handleCollapseAll = useCallback(() => {
+    setExplodedGroups(new Set())
+  }, [])
+
   if (!run) return null
 
   const isEmptyRun = run.orderIds.length === 0
@@ -187,6 +223,41 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
           <span className="text-[9px] opacity-70">
             {run.orderIds.length} orders
           </span>
+          {/* Explode/Collapse All buttons - shown when there are collapsible groups */}
+          {hasCollapsibleGroups && !isInbound && (
+            <>
+              {hasCollapsedGroups && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleExplodeAll()
+                  }}
+                  className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                  title="Explode all customer groups"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 opacity-70 hover:opacity-100">
+                    <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              {hasExplodedGroups && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleCollapseAll()
+                  }}
+                  className="p-0.5 rounded hover:bg-white/20 transition-colors"
+                  title="Collapse all customer groups"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 opacity-70 hover:opacity-100">
+                    <path fillRule="evenodd" d="M11.78 9.78a.75.75 0 0 1-1.06 0L8 7.06 5.28 9.78a.75.75 0 0 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+            </>
+          )}
           {/* Delete button - only shown for empty runs */}
           {isEmptyRun && !isInbound && (
             <button
@@ -260,13 +331,21 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
               </div>
             </div>
             <textarea
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
+              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors text-slate-900 bg-white placeholder:text-slate-400"
               value={noteInput}
               onChange={(e) => setNoteInput(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleNoteSave()
+                } else if (e.key === 'Escape') {
+                  setShowNoteMenu(false)
+                }
+              }}
               placeholder="Add a note about this run..."
               autoFocus
             />

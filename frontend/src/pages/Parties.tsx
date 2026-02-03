@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Building2, Users, Truck as TruckIcon, MapPin, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,8 @@ import type { Party, Customer, Vendor, Truck, Location } from '@/types/api'
 type Tab = 'parties' | 'customers' | 'vendors' | 'trucks' | 'locations'
 
 export default function Parties() {
+  usePageTitle('Parties')
+
   const [activeTab, setActiveTab] = useState<Tab>('parties')
 
   // Dialog states

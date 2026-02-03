@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,8 @@ const statusLabels: Record<ContractStatus, string> = {
 }
 
 export default function Contracts() {
+  usePageTitle('Contracts')
+
   const navigate = useNavigate()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
