@@ -101,7 +101,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         w-32 min-w-[128px] flex items-center gap-2
         px-2.5 py-2.5 text-[11px] font-semibold border-r border-b
         ${isInbound
-          ? 'bg-gradient-to-r from-rose-100 to-rose-50 text-rose-700 border-rose-200'
+          ? 'bg-gradient-to-r from-rose-200 to-rose-100 text-rose-900 border-rose-300'
           : isPickup
             ? 'bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border-purple-200'
             : isUnassigned

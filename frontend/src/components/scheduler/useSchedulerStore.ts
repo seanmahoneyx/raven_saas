@@ -524,28 +524,44 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
-      // Rebuild cellLooseItemOrder from merged cells data
-      // Preserve existing note entries, update order entries from cells
+      // RECONCILE cellLooseItemOrder - preserve user's manual sort order
+      // Instead of rebuilding from scratch (which destroys sort order),
+      // we reconcile: keep existing order, remove deleted items, append new items
       const prevCellLooseItemOrder = state.cellLooseItemOrder
       const cellLooseItemOrder: Record<CellId, string[]> = {}
 
       for (const [cellId, cellData] of Object.entries(cellsCopy)) {
         const isInboundCell = cellId.startsWith('inbound|')
         const existingItems = prevCellLooseItemOrder[cellId] || []
-        // Keep existing notes (prefixed with "note:")
-        const noteItems = existingItems.filter(item => item.startsWith('note:'))
-        // Build new order items from cell's looseOrderIds
-        // IMPORTANT: Filter out non-PO orders from inbound cells
-        const orderItems = (cellData.looseOrderIds || [])
-          .filter(id => {
+
+        // Build set of valid items that SHOULD be in this cell
+        const validOrderIds = new Set(
+          (cellData.looseOrderIds || []).filter(id => {
             if (!isInboundCell) return true
             // For inbound cells, only include POs
             const order = ordersMap[id]
             return order?.type === 'PO'
           })
-          .map(id => `order:${id}`)
-        // Combine: notes first, then orders
-        cellLooseItemOrder[cellId] = [...noteItems, ...orderItems]
+        )
+        const validOrderItems = new Set([...validOrderIds].map(id => `order:${id}`))
+
+        // Step 1: Start with previous order, keep items that still exist
+        // This preserves the user's manual sort order
+        const reconciledItems = existingItems.filter(item => {
+          if (item.startsWith('note:')) return true // Always keep notes
+          if (item.startsWith('order:')) return validOrderItems.has(item)
+          return false
+        })
+
+        // Step 2: Find new items not in previous order and append them
+        const existingSet = new Set(reconciledItems)
+        for (const orderItem of validOrderItems) {
+          if (!existingSet.has(orderItem)) {
+            reconciledItems.push(orderItem)
+          }
+        }
+
+        cellLooseItemOrder[cellId] = reconciledItems
       }
 
       // Also preserve cellLooseItemOrder for cells not in incoming data (dirty cells)

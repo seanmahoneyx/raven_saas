@@ -115,7 +115,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
       className={`
         min-h-[48px] p-1 border-r border-b relative flex flex-col transition-colors
         ${isInbound
-          ? 'bg-rose-50/50 border-rose-100'
+          ? 'bg-rose-100 border-rose-200'
           : isPickup
             ? 'bg-purple-50/50 border-purple-100'
             : isUnassigned
