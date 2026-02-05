@@ -1228,8 +1228,8 @@ export const useSchedulerStore = create<SchedulerState>()(
       const notesMap: Record<string, SchedulerNote> = {}
       const noteToCell: Record<string, CellId> = {}
       const cellNoteOrders: Record<CellId, string[]> = {}
-      // Build a map of notes per cell for unified ordering
-      const notesByCell: Record<CellId, string[]> = {}
+      // Build a map of notes per cell
+      const notesByCell: Record<CellId, Set<string>> = {}
 
       for (const note of notesArr) {
         notesMap[note.id] = note
@@ -1238,39 +1238,53 @@ export const useSchedulerStore = create<SchedulerState>()(
           const truckId = note.truckId ?? 'unassigned'
           const cellId: CellId = `${truckId}|${note.scheduledDate}`
           noteToCell[note.id] = cellId
-          // Track order per cell
+          // Track order per cell (legacy)
           if (!cellNoteOrders[cellId]) {
             cellNoteOrders[cellId] = []
           }
           cellNoteOrders[cellId].push(note.id)
-          // Also track for unified ordering
+          // Track for unified ordering
           if (!notesByCell[cellId]) {
-            notesByCell[cellId] = []
+            notesByCell[cellId] = new Set()
           }
-          notesByCell[cellId].push(note.id)
+          notesByCell[cellId].add(note.id)
         }
       }
 
-      // Build unified cellLooseItemOrder: notes first, then existing orders
+      // RECONCILE notes into cellLooseItemOrder (preserve position, append new at END)
+      // Notes are "loose" items just like orders - they can be anywhere in the list
       const cellLooseItemOrder: Record<CellId, string[]> = { ...state.cellLooseItemOrder }
-      for (const [cellId, noteIds] of Object.entries(notesByCell)) {
-        const isInboundCell = cellId.startsWith('inbound|')
+
+      // Process all cells that have notes
+      for (const [cellId, noteIdSet] of Object.entries(notesByCell)) {
         const existingItems = cellLooseItemOrder[cellId] || []
-        // Filter out any existing note entries (shouldn't happen on fresh hydrate)
-        // IMPORTANT: Also filter out non-PO orders from inbound cells
-        const orderItems = existingItems.filter(item => {
-          if (!item.startsWith('order:')) return false
-          if (!isInboundCell) return true
-          // For inbound cells, only keep POs
-          const orderId = item.slice(6) // Remove "order:" prefix
-          const order = state.orders[orderId]
-          return order?.type === 'PO'
+
+        // Step 1: Keep existing items, but remove notes that no longer exist
+        const validNoteIds = noteIdSet as Set<string>
+        const preserved = existingItems.filter(item => {
+          if (item.startsWith('note:')) {
+            const noteId = item.slice(5)
+            return validNoteIds.has(noteId)
+          }
+          return true // Keep all orders
         })
-        // Notes go first, then orders
-        cellLooseItemOrder[cellId] = [
-          ...noteIds.map(id => `note:${id}`),
-          ...orderItems,
-        ]
+
+        // Step 2: Find NEW notes (not already in the list) and append at END
+        const existingNoteIds = new Set(
+          preserved.filter(i => i.startsWith('note:')).map(i => i.slice(5))
+        )
+        const newNotes = [...validNoteIds]
+          .filter(id => !existingNoteIds.has(id))
+          .map(id => `note:${id}`)
+
+        cellLooseItemOrder[cellId] = [...preserved, ...newNotes]
+      }
+
+      // Also ensure notes are added to cells that don't exist yet in cellLooseItemOrder
+      for (const [cellId, noteIdSet] of Object.entries(notesByCell)) {
+        if (!cellLooseItemOrder[cellId] || cellLooseItemOrder[cellId].length === 0) {
+          cellLooseItemOrder[cellId] = [...noteIdSet].map(id => `note:${id}`)
+        }
       }
 
       set({ notes: notesMap, noteToCell, cellNoteOrders, cellLooseItemOrder })
