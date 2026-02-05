@@ -516,22 +516,32 @@ export const useSchedulerStore = create<SchedulerState>()(
           // STANDARD CELLS: Reconcile to preserve user's sort order
           // ═══════════════════════════════════════════════════════════════════
           const existingItems = prevCellLooseItemOrder[cellId] || []
-          const currentSet = new Set(cellData.looseOrderIds || [])
 
-          // Keep existing items that still exist in cell
+          // DEFENSIVE: Filter out POs - they belong ONLY in Inbound row
+          const validLooseOrderIds = (cellData.looseOrderIds || []).filter(id => {
+            const order = ordersMap[id]
+            return order?.type !== 'PO' // Exclude POs from truck cells
+          })
+          const currentSet = new Set(validLooseOrderIds)
+
+          // Keep existing items that still exist in cell (and aren't POs)
           const preserved = existingItems.filter(item => {
             if (item.startsWith('note:')) return true // Notes managed separately
             if (item.startsWith('order:')) {
-              return currentSet.has(item.slice(6))
+              const orderId = item.slice(6)
+              // Must exist in current set AND not be a PO
+              if (!currentSet.has(orderId)) return false
+              const order = ordersMap[orderId]
+              return order?.type !== 'PO'
             }
             return false
           })
 
-          // Append new items from server
+          // Append new items from server (excluding POs)
           const preservedIds = new Set(
             preserved.filter(i => i.startsWith('order:')).map(i => i.slice(6))
           )
-          const newItems = (cellData.looseOrderIds || [])
+          const newItems = validLooseOrderIds
             .filter(id => !preservedIds.has(id))
             .map(id => `order:${id}`)
 
