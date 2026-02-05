@@ -27,6 +27,7 @@ interface PurchaseOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order?: PurchaseOrder | null
+  onSuccess?: (order: PurchaseOrder) => void
 }
 
 interface OrderLineForm {
@@ -46,7 +47,7 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-export function PurchaseOrderDialog({ open, onOpenChange, order }: PurchaseOrderDialogProps) {
+export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: PurchaseOrderDialogProps) {
   const [formData, setFormData] = useState({
     po_number: '',
     status: 'draft' as OrderStatus,
@@ -161,12 +162,14 @@ export function PurchaseOrderDialog({ open, onOpenChange, order }: PurchaseOrder
     }
 
     try {
+      let result: PurchaseOrder
       if (isEditing && order) {
-        await updateOrder.mutateAsync({ id: order.id, ...payload } as any)
+        result = await updateOrder.mutateAsync({ id: order.id, ...payload } as any)
       } else {
-        await createOrder.mutateAsync(payload as any)
+        result = await createOrder.mutateAsync(payload as any)
       }
       onOpenChange(false)
+      onSuccess?.(result)
     } catch (error) {
       console.error('Failed to save order:', error)
     }

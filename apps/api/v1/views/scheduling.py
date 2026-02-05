@@ -252,6 +252,19 @@ class CalendarViewSet(viewsets.ViewSet):
         serializer = ScheduleUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # POs cannot be assigned to trucks or delivery runs - they are inbound only
+        if order_type == 'PO':
+            if serializer.validated_data.get('scheduled_truck_id'):
+                return Response(
+                    {'error': 'Purchase Orders cannot be assigned to trucks. They belong to the Inbound row only.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if serializer.validated_data.get('delivery_run_id'):
+                return Response(
+                    {'error': 'Purchase Orders cannot be assigned to delivery runs.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         # Track old run for potential cleanup
         old_run = order.delivery_run
 
@@ -296,17 +309,11 @@ class CalendarViewSet(viewsets.ViewSet):
 
         order.save()
 
-        # Auto-delete empty runs: if the old run is now empty, delete it
-        if old_run and old_run != order.delivery_run:
-            # Count remaining orders in the old run
-            remaining_count = (
-                old_run.salesorder_orders.count() +
-                old_run.purchaseorder_orders.count()
-            )
-            if remaining_count == 0:
-                # Broadcast run deletion before deleting
-                broadcast_run_update(old_run.id, 'deleted', {'id': old_run.id}, tenant_id=request.tenant.id)
-                old_run.delete()
+        # NOTE: Auto-delete of empty runs is DISABLED to prevent "disappearing run" bug
+        # during drag operations. The frontend should explicitly delete empty runs via
+        # the delete_run endpoint when the user confirms deletion.
+        # The old auto-cleanup logic caused race conditions where the run would vanish
+        # while dnd-kit was still calculating the drop position.
 
         # Broadcast the order update to all connected WebSocket clients
         order_data = order_to_calendar_dict(order, order_type)
@@ -613,15 +620,16 @@ class CalendarViewSet(viewsets.ViewSet):
             run.save()
 
             # If date or truck changed, update all orders in this run to match
+            # Use individual saves instead of bulk update to trigger django-simple-history
             if 'scheduled_date' in request.data or 'truck_id' in request.data:
-                SalesOrder.objects.filter(delivery_run=run).update(
-                    scheduled_date=run.scheduled_date,
-                    scheduled_truck=run.truck
-                )
-                PurchaseOrder.objects.filter(delivery_run=run).update(
-                    scheduled_date=run.scheduled_date,
-                    scheduled_truck=run.truck
-                )
+                for order in SalesOrder.objects.filter(delivery_run=run):
+                    order.scheduled_date = run.scheduled_date
+                    order.scheduled_truck = run.truck
+                    order.save(update_fields=['scheduled_date', 'scheduled_truck'])
+                for order in PurchaseOrder.objects.filter(delivery_run=run):
+                    order.scheduled_date = run.scheduled_date
+                    order.scheduled_truck = run.truck
+                    order.save(update_fields=['scheduled_date', 'scheduled_truck'])
 
         run_data = {
             'id': run.id,
@@ -659,8 +667,13 @@ class CalendarViewSet(viewsets.ViewSet):
             )
 
         # Clear delivery_run from orders before deleting
-        SalesOrder.objects.filter(delivery_run=run).update(delivery_run=None)
-        PurchaseOrder.objects.filter(delivery_run=run).update(delivery_run=None)
+        # Use individual saves instead of bulk update to trigger django-simple-history
+        for order in SalesOrder.objects.filter(delivery_run=run):
+            order.delivery_run = None
+            order.save(update_fields=['delivery_run'])
+        for order in PurchaseOrder.objects.filter(delivery_run=run):
+            order.delivery_run = None
+            order.save(update_fields=['delivery_run'])
 
         # Broadcast the run deletion before actually deleting
         broadcast_run_update(run.id, 'deleted', {'id': run.id}, tenant_id=request.tenant.id)

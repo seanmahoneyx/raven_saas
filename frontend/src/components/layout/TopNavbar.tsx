@@ -1,23 +1,31 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard,
+  Building2,
   Users,
+  LayoutDashboard,
+  BookUser,
+  FileSpreadsheet,
   Package,
-  ShoppingCart,
-  Warehouse,
   Truck,
   FileText,
   BarChart3,
   Calendar,
-  Settings,
   LogOut,
   ChevronDown,
   Plus,
-  Building2,
+  Scale,
+  Sun,
+  Moon,
   ClipboardList,
+  Receipt,
+  Eye,
+  DollarSign,
+  Boxes,
+  ScrollText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/components/theme-provider'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -26,86 +34,196 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu'
 
-type NavItem =
-  | { type: 'link'; to: string; icon: React.ElementType; label: string }
-  | {
-      type: 'dropdown'
-      icon: React.ElementType
-      label: string
-      basePath: string
-      items: Array<
-        | { type: 'item'; to: string; icon: React.ElementType; label: string }
-        | { type: 'separator' }
-      >
-    }
+// ─── Navigation Structure ──────────────────────────────────────────────────────
 
-const navItems: NavItem[] = [
-  { type: 'link', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+interface NavItemBase {
+  icon: React.ElementType
+  label: string
+}
+
+interface NavLinkItem extends NavItemBase {
+  type: 'link'
+  to: string
+}
+
+interface NavMenuItem {
+  type: 'item'
+  to: string
+  icon: React.ElementType
+  label: string
+}
+
+interface NavMenuSeparator {
+  type: 'separator'
+}
+
+interface NavSubMenu {
+  type: 'submenu'
+  icon: React.ElementType
+  label: string
+  items: Array<NavMenuItem | NavMenuSeparator>
+}
+
+interface NavDropdownItem extends NavItemBase {
+  type: 'dropdown'
+  requiresAdmin?: boolean
+  items: Array<NavMenuItem | NavMenuSeparator | NavSubMenu>
+}
+
+type NavItem = NavLinkItem | NavDropdownItem
+
+const NAVIGATION_STRUCTURE: NavItem[] = [
+  // 1. Company (Admin only - placeholder, will show for all until auth has isAdmin)
+  {
+    type: 'dropdown',
+    icon: Building2,
+    label: 'Company',
+    requiresAdmin: true,
+    items: [
+      { type: 'item', to: '/company', icon: Building2, label: 'My Company' },
+      { type: 'item', to: '/users', icon: Users, label: 'Users' },
+      { type: 'item', to: '/', icon: LayoutDashboard, label: 'Company Snapshot' },
+      { type: 'separator' },
+      { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
+      { type: 'item', to: '/journal-entry', icon: FileSpreadsheet, label: 'Make Journal Entry' },
+    ],
+  },
+  // 2. Customers
   {
     type: 'dropdown',
     icon: Users,
-    label: 'Parties',
-    basePath: '/parties',
+    label: 'Customers',
     items: [
-      { type: 'item', to: '/parties', icon: Building2, label: 'Customer Center' },
-      { type: 'item', to: '/parties?tab=customers&action=new', icon: Plus, label: 'Add Customer' },
+      { type: 'item', to: '/parties?tab=customers', icon: Users, label: 'Customer Center' },
       { type: 'separator' },
-      { type: 'item', to: '/contracts', icon: ClipboardList, label: 'Contracts' },
-      { type: 'separator' },
-      { type: 'item', to: '/parties?tab=vendors', icon: Warehouse, label: 'Vendor Center' },
-      { type: 'item', to: '/parties?tab=vendors&action=new', icon: Plus, label: 'Add Vendor' },
+      { type: 'item', to: '/estimates?action=new', icon: Plus, label: 'Create Estimate' },
+      { type: 'item', to: '/contracts?action=new', icon: Plus, label: 'Create Contract' },
+      { type: 'item', to: '/orders?tab=sales&action=new', icon: Plus, label: 'Create Sales Order' },
+      { type: 'item', to: '/price-lists?type=customer&action=new', icon: Plus, label: 'Create Customer Price List' },
     ],
   },
+  // 3. Vendors
+  {
+    type: 'dropdown',
+    icon: Truck,
+    label: 'Vendors',
+    items: [
+      { type: 'item', to: '/parties?tab=vendors', icon: Building2, label: 'Vendor Center' },
+      { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
+      { type: 'separator' },
+      { type: 'item', to: '/rfqs?action=new', icon: Plus, label: 'Create RFQ' },
+      { type: 'item', to: '/orders?tab=purchase&action=new', icon: Plus, label: 'Create Purchase Order' },
+      { type: 'item', to: '/price-lists?type=vendor&action=new', icon: Plus, label: 'Create Vendor Cost List' },
+    ],
+  },
+  // 4. Items
   {
     type: 'dropdown',
     icon: Package,
     label: 'Items',
-    basePath: '/items',
     items: [
-      { type: 'item', to: '/items', icon: Package, label: 'Item Catalog' },
-      { type: 'item', to: '/items?action=new', icon: Plus, label: 'Add Item' },
+      { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
+      { type: 'item', to: '/items?action=new', icon: Plus, label: 'Create Item' },
+      { type: 'separator' },
+      { type: 'item', to: '/contracts', icon: Eye, label: 'View Active Contracts' },
+      { type: 'item', to: '/orders?tab=sales', icon: Eye, label: 'View Active Sales Orders' },
+      { type: 'item', to: '/orders?tab=purchase', icon: Eye, label: 'View Active Purchase Orders' },
     ],
   },
+  // 5. Reports (with nested submenus)
   {
     type: 'dropdown',
-    icon: ShoppingCart,
-    label: 'Orders',
-    basePath: '/orders',
+    icon: BarChart3,
+    label: 'Reports',
     items: [
-      { type: 'item', to: '/orders?tab=sales', icon: ShoppingCart, label: 'Sales Orders' },
-      { type: 'item', to: '/orders?tab=sales&action=new', icon: Plus, label: 'New Sales Order' },
-      { type: 'separator' },
-      { type: 'item', to: '/orders?tab=purchase', icon: Truck, label: 'Purchase Orders' },
-      { type: 'item', to: '/orders?tab=purchase&action=new', icon: Plus, label: 'New Purchase Order' },
+      {
+        type: 'submenu',
+        icon: Building2,
+        label: 'Company & Financial',
+        items: [
+          { type: 'item', to: '/reports/pl', icon: DollarSign, label: 'P&L' },
+          { type: 'item', to: '/reports/balance-sheet', icon: FileSpreadsheet, label: 'Balance Sheet' },
+        ],
+      },
+      {
+        type: 'submenu',
+        icon: Users,
+        label: 'Customer',
+        items: [
+          { type: 'item', to: '/reports/open-invoices', icon: Receipt, label: 'Open Invoices' },
+          { type: 'item', to: '/reports/ar-aging', icon: ScrollText, label: 'A/R Aging' },
+        ],
+      },
+      {
+        type: 'submenu',
+        icon: Truck,
+        label: 'Vendor',
+        items: [
+          { type: 'item', to: '/reports/open-receipts', icon: ClipboardList, label: 'Open Item Receipts' },
+          { type: 'item', to: '/reports/unpaid-bills', icon: FileText, label: 'Unpaid Bills' },
+          { type: 'item', to: '/reports/ap-aging', icon: ScrollText, label: 'A/P Aging' },
+        ],
+      },
+      {
+        type: 'submenu',
+        icon: Boxes,
+        label: 'Inventory (FIFO)',
+        items: [
+          { type: 'item', to: '/reports/inventory-aging-summary', icon: BarChart3, label: 'Inventory Aging Summary' },
+          { type: 'item', to: '/reports/inventory-aging-detail', icon: FileText, label: 'Inventory Aging Detail' },
+          { type: 'item', to: '/reports/stock-status', icon: Package, label: 'Stock Status by Item' },
+          { type: 'item', to: '/reports/inventory-valuation', icon: DollarSign, label: 'Inventory Valuation' },
+        ],
+      },
     ],
   },
-  { type: 'link', to: '/inventory', icon: Warehouse, label: 'Inventory' },
-  { type: 'link', to: '/shipping', icon: Truck, label: 'Shipping' },
-  { type: 'link', to: '/invoices', icon: FileText, label: 'Invoices' },
-  { type: 'link', to: '/reports', icon: BarChart3, label: 'Reports' },
-  { type: 'link', to: '/scheduler', icon: Calendar, label: 'Scheduler' },
+  // 6. Schedulizer (direct link)
+  {
+    type: 'link',
+    icon: Calendar,
+    label: 'Schedulizer',
+    to: '/scheduler',
+  },
 ]
 
-function NavDropdown({
-  item,
-}: {
-  item: Extract<NavItem, { type: 'dropdown' }>
-}) {
-  const location = useLocation()
-  const isActive = location.pathname.startsWith(item.basePath) ||
-    (item.label === 'Parties' && location.pathname.startsWith('/contracts'))
+// ─── Theme Toggle ──────────────────────────────────────────────────────────────
 
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+    >
+      {resolvedTheme === 'dark' ? (
+        <Sun className="h-4 w-4" />
+      ) : (
+        <Moon className="h-4 w-4" />
+      )}
+    </Button>
+  )
+}
+
+// ─── Nav Dropdown Component ────────────────────────────────────────────────────
+
+function NavDropdown({ item }: { item: NavDropdownItem }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           className={cn(
             'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
-            isActive
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           )}
         >
           <item.icon className="h-4 w-4" />
@@ -116,10 +234,38 @@ function NavDropdown({
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {item.items.map((subItem, idx) =>
-          subItem.type === 'separator' ? (
-            <DropdownMenuSeparator key={idx} />
-          ) : (
+        {item.items.map((subItem, idx) => {
+          if (subItem.type === 'separator') {
+            return <DropdownMenuSeparator key={idx} />
+          }
+          if (subItem.type === 'submenu') {
+            return (
+              <DropdownMenuSub key={subItem.label}>
+                <DropdownMenuSubTrigger>
+                  <subItem.icon className="mr-2 h-4 w-4" />
+                  {subItem.label}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    {subItem.items.map((nestedItem, nestedIdx) => {
+                      if (nestedItem.type === 'separator') {
+                        return <DropdownMenuSeparator key={nestedIdx} />
+                      }
+                      return (
+                        <DropdownMenuItem key={nestedItem.to} asChild>
+                          <NavLink to={nestedItem.to} className="flex items-center gap-2 cursor-pointer">
+                            <nestedItem.icon className="h-4 w-4" />
+                            {nestedItem.label}
+                          </NavLink>
+                        </DropdownMenuItem>
+                      )
+                    })}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            )
+          }
+          return (
             <DropdownMenuItem key={subItem.to} asChild>
               <NavLink to={subItem.to} className="flex items-center gap-2 cursor-pointer">
                 <subItem.icon className="h-4 w-4" />
@@ -127,14 +273,18 @@ function NavDropdown({
               </NavLink>
             </DropdownMenuItem>
           )
-        )}
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
+// ─── Main TopNavbar ────────────────────────────────────────────────────────────
+
 export default function TopNavbar() {
   const { logout } = useAuth()
+  // TODO: Connect to real user.isAdmin when available
+  const isAdmin = true
 
   return (
     <header className="flex h-14 items-center border-b bg-sidebar px-4 shrink-0">
@@ -145,14 +295,20 @@ export default function TopNavbar() {
 
       {/* Navigation */}
       <nav className="flex-1 flex items-center gap-1">
-        {navItems.map((item) =>
-          item.type === 'dropdown' ? (
-            <NavDropdown key={item.label} item={item} />
-          ) : (
+        {NAVIGATION_STRUCTURE.map((item) => {
+          // Skip admin-only items if not admin
+          if (item.type === 'dropdown' && item.requiresAdmin && !isAdmin) {
+            return null
+          }
+
+          if (item.type === 'dropdown') {
+            return <NavDropdown key={item.label} item={item} />
+          }
+
+          return (
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
@@ -166,25 +322,12 @@ export default function TopNavbar() {
               <span className="hidden lg:inline">{item.label}</span>
             </NavLink>
           )
-        )}
+        })}
       </nav>
 
-      {/* Right side - Settings and Logout */}
+      {/* Right side - Theme Toggle and Logout */}
       <div className="flex items-center gap-1">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-            )
-          }
-        >
-          <Settings className="h-4 w-4" />
-          <span className="hidden sm:inline">Settings</span>
-        </NavLink>
+        <ThemeToggle />
 
         <Button
           variant="ghost"

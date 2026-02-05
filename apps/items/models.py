@@ -11,6 +11,10 @@ Models:
 - CorrugatedFeature: Master list of corrugated features
 - ItemFeature: Through table for item-feature M2M
 - DCItem, RSCItem, HSCItem, FOLItem, TeleItem: Box type subtypes
+
+GL Integration:
+- Items can have optional GL account overrides for income, expense, and asset accounts
+- If not set, the system uses defaults from AccountingSettings
 """
 from django.db import models
 from shared.models import TenantMixin, TimestampMixin
@@ -224,6 +228,32 @@ class Item(TenantMixin, TimestampMixin):
         null=True,
         blank=True,
         help_text="File attachment (spec sheet, drawing, etc.)"
+    )
+
+    # GL Account Overrides (optional - uses AccountingSettings defaults if not set)
+    income_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_income',
+        help_text="Override income account for sales (uses default if blank)"
+    )
+    expense_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_expense',
+        help_text="Override COGS account for purchases (uses default if blank)"
+    )
+    asset_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='items_asset',
+        help_text="Override inventory asset account (uses default if blank)"
     )
 
     class Meta:

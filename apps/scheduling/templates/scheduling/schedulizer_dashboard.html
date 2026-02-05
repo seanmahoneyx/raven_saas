@@ -53,7 +53,7 @@
 
         <div class="flex-1 overflow-y-auto" x-show="open">
             <div id="side-panel-content"
-                 hx-get="/v2/global-history/"
+                 hx-get="{% url 'new_scheduling:get_global_history' %}"
                  hx-trigger="load, historyChanged from:body"
                  class="h-full">
                  </div>
@@ -90,8 +90,8 @@
                         const newDate = newContainer.getAttribute('data-date');
                         const newTruck = newContainer.getAttribute('data-truck');
 
-                        // CHANGED: Use 'POST' instead of 'PUT'
-                        htmx.ajax('POST', `/v2/schedule-update/${orderId}/`, {
+                        // Use Django URL pattern with JS template literal
+                        htmx.ajax('POST', `{% url 'new_scheduling:schedule_update' 0 %}`.replace('/0/', `/${orderId}/`), {
                             target: itemEl,
                             swap: 'outerHTML',
                             values: {

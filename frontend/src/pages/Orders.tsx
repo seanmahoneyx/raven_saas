@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
@@ -33,14 +34,45 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 
 export default function Orders() {
   usePageTitle('Orders')
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [activeTab, setActiveTab] = useState<Tab>('sales')
+  // Read initial tab from URL params, default to 'sales'
+  const tabParam = searchParams.get('tab')
+  const initialTab: Tab = tabParam === 'purchase' ? 'purchase' : 'sales'
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
 
   // Dialog states
   const [salesDialogOpen, setSalesDialogOpen] = useState(false)
   const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false)
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState<PurchaseOrder | null>(null)
+
+  // Handle URL params for tab and action
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    const action = searchParams.get('action')
+
+    // Set active tab from URL
+    if (tab === 'purchase') {
+      setActiveTab('purchase')
+    } else if (tab === 'sales') {
+      setActiveTab('sales')
+    }
+
+    // Open dialog if action=new
+    if (action === 'new') {
+      if (tab === 'purchase') {
+        setEditingPurchaseOrder(null)
+        setPurchaseDialogOpen(true)
+      } else {
+        setEditingSalesOrder(null)
+        setSalesDialogOpen(true)
+      }
+      // Clear the action param after opening dialog
+      searchParams.delete('action')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const { data: salesData } = useSalesOrders()
   const { data: purchaseData } = usePurchaseOrders()
@@ -391,11 +423,19 @@ export default function Orders() {
         open={salesDialogOpen}
         onOpenChange={setSalesDialogOpen}
         order={editingSalesOrder}
+        onSuccess={() => {
+          // Stay on sales tab after creation
+          setActiveTab('sales')
+        }}
       />
       <PurchaseOrderDialog
         open={purchaseDialogOpen}
         onOpenChange={setPurchaseDialogOpen}
         order={editingPurchaseOrder}
+        onSuccess={() => {
+          // Stay on purchase tab after creation
+          setActiveTab('purchase')
+        }}
       />
     </div>
   )

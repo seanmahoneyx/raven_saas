@@ -5,6 +5,9 @@ Scheduling models for delivery management.
 Models:
 - DeliveryRun: A batch of orders assigned to a truck for a specific date
 - SchedulerNote: Sticky notes that can be attached to dates, trucks, orders, or runs
+- PriorityLinePriority: Priority order for PO lines within vendor/date/box-type bins
+- VendorKickAllotment: Default daily production limits per vendor/box-type
+- DailyKickOverride: Per-day overrides to default allotments
 """
 from django.db import models
 from django.utils import timezone
@@ -182,3 +185,136 @@ class SchedulerNote(TenantMixin, TimestampMixin):
         if self.scheduled_date:
             return 'date'
         return 'floating'
+
+
+# =============================================================================
+# PRIORITY LIST MODELS
+# =============================================================================
+
+BOX_TYPE_CHOICES = [
+    ('RSC', 'RSC'),
+    ('DC', 'D/C'),
+    ('HSC', 'HSC'),
+    ('FOL', 'FOL'),
+    ('TELE', 'Tele'),
+    ('OTHER', 'Other'),
+]
+
+
+class PriorityLinePriority(TenantMixin, TimestampMixin):
+    """
+    Stores priority order for PO lines within a vendor/date/box-type bin.
+
+    Lines are ordered by sequence (0 = top/hottest priority).
+    When a line moves to a different date, both this record and the parent
+    PurchaseOrder.scheduled_date are updated.
+    """
+    purchase_order_line = models.OneToOneField(
+        'orders.PurchaseOrderLine',
+        on_delete=models.CASCADE,
+        related_name='priority_entry',
+        help_text="The PO line being prioritized"
+    )
+    vendor = models.ForeignKey(
+        'parties.Vendor',
+        on_delete=models.CASCADE,
+        related_name='priority_entries',
+        help_text="Vendor for this PO line (denormalized for query efficiency)"
+    )
+    scheduled_date = models.DateField(
+        help_text="Date this line is scheduled for production"
+    )
+    box_type = models.CharField(
+        max_length=10,
+        choices=BOX_TYPE_CHOICES,
+        help_text="Box type derived from the Item model"
+    )
+    sequence = models.PositiveIntegerField(
+        default=0,
+        help_text="Priority order within bin (0 = top/hottest)"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = [('tenant', 'purchase_order_line')]
+        indexes = [
+            models.Index(fields=['tenant', 'vendor', 'scheduled_date', 'box_type', 'sequence']),
+            models.Index(fields=['tenant', 'scheduled_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.purchase_order_line} - {self.scheduled_date} - seq {self.sequence}"
+
+
+class VendorKickAllotment(TenantMixin, TimestampMixin):
+    """
+    Default daily production limits (kicks) per vendor/box-type.
+
+    A "kick" represents a unit of production capacity. This model stores
+    the baseline daily allotment that can be overridden for specific dates.
+    """
+    vendor = models.ForeignKey(
+        'parties.Vendor',
+        on_delete=models.CASCADE,
+        related_name='kick_allotments',
+        help_text="Vendor this allotment applies to"
+    )
+    box_type = models.CharField(
+        max_length=10,
+        choices=BOX_TYPE_CHOICES,
+        help_text="Box type this allotment applies to"
+    )
+    daily_allotment = models.PositiveIntegerField(
+        default=0,
+        help_text="Default daily kick allotment"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = [('tenant', 'vendor', 'box_type')]
+        indexes = [
+            models.Index(fields=['tenant', 'vendor']),
+        ]
+
+    def __str__(self):
+        return f"{self.vendor} - {self.box_type}: {self.daily_allotment} kicks/day"
+
+
+class DailyKickOverride(TenantMixin, TimestampMixin):
+    """
+    Per-day overrides to default vendor kick allotments.
+
+    Used when a specific date has different capacity than the default
+    (e.g., reduced capacity on a holiday, increased for rush orders).
+    """
+    vendor = models.ForeignKey(
+        'parties.Vendor',
+        on_delete=models.CASCADE,
+        related_name='kick_overrides',
+        help_text="Vendor this override applies to"
+    )
+    box_type = models.CharField(
+        max_length=10,
+        choices=BOX_TYPE_CHOICES,
+        help_text="Box type this override applies to"
+    )
+    date = models.DateField(
+        help_text="Specific date for this override"
+    )
+    allotment = models.PositiveIntegerField(
+        help_text="Override allotment for this date"
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        unique_together = [('tenant', 'vendor', 'box_type', 'date')]
+        indexes = [
+            models.Index(fields=['tenant', 'vendor', 'date']),
+            models.Index(fields=['tenant', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.vendor} - {self.box_type} on {self.date}: {self.allotment} kicks"

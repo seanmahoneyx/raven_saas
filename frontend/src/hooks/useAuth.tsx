@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { authApi, tokenStorage } from '@/api/client'
+import { authApi, apiClient } from '@/api/client'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -16,9 +16,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check if user is already authenticated
-    const token = tokenStorage.getAccessToken()
-    setIsAuthenticated(!!token)
-    setIsLoading(false)
+    // Check localStorage auth indicator (token or cookie mode)
+    const hasAuthIndicator = authApi.isAuthenticated()
+
+    if (hasAuthIndicator) {
+      // Verify the session is still valid by making a lightweight API call
+      // Use vendors endpoint as a simple auth check
+      apiClient.get('/vendors/?limit=1')
+        .then(() => {
+          setIsAuthenticated(true)
+          setIsLoading(false)
+        })
+        .catch((error) => {
+          // Only treat 401 as auth failure, other errors might be network issues
+          if (error.response?.status === 401) {
+            setIsAuthenticated(false)
+          } else {
+            // Assume authenticated if we can't verify (network error, etc.)
+            setIsAuthenticated(true)
+          }
+          setIsLoading(false)
+        })
+    } else {
+      setIsAuthenticated(false)
+      setIsLoading(false)
+    }
   }, [])
 
   const login = async (username: string, password: string) => {

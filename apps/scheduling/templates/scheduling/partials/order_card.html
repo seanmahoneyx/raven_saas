@@ -38,7 +38,7 @@
 
             <button type="button" class="text-left px-3 py-2 hover:bg-gray-100 flex items-center gap-2 transition-colors w-full"
                     @click="menuOpen = false"
-                    hx-post="/v2/update-status/{{ order.order_type }}/{{ order.id }}/"
+                    hx-post="{% url 'new_scheduling:update_order_status' order.order_type order.id %}"
                     hx-vals='{"status": "scheduled"}'
                     hx-trigger="click"
                     hx-target="#order-{{ order.id }}"
@@ -48,7 +48,7 @@
 
             <button type="button" class="text-left px-3 py-2 hover:bg-yellow-50 flex items-center gap-2 transition-colors w-full"
                     @click="menuOpen = false"
-                    hx-post="/v2/update-status/{{ order.order_type }}/{{ order.id }}/"
+                    hx-post="{% url 'new_scheduling:update_order_status' order.order_type order.id %}"
                     hx-vals='{"status": "picking"}'
                     hx-trigger="click"
                     hx-target="#order-{{ order.id }}"
@@ -58,7 +58,7 @@
 
             <button type="button" class="text-left px-3 py-2 hover:bg-green-50 flex items-center gap-2 transition-colors w-full"
                     @click="menuOpen = false"
-                    hx-post="/v2/update-status/{{ order.order_type }}/{{ order.id }}/"
+                    hx-post="{% url 'new_scheduling:update_order_status' order.order_type order.id %}"
                     hx-vals='{"status": "shipped"}'
                     hx-trigger="click"
                     hx-target="#order-{{ order.id }}"
@@ -68,7 +68,7 @@
 
             <button type="button" class="text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2 transition-colors w-full"
                     @click="menuOpen = false"
-                    hx-post="/v2/update-status/{{ order.order_type }}/{{ order.id }}/"
+                    hx-post="{% url 'new_scheduling:update_order_status' order.order_type order.id %}"
                     hx-vals='{"status": "complete"}'
                     hx-trigger="click"
                     hx-target="#order-{{ order.id }}"
@@ -78,7 +78,7 @@
             
              <button type="button" class="text-left px-3 py-2 hover:bg-orange-50 flex items-center gap-2 transition-colors w-full"
                     @click="menuOpen = false"
-                    hx-post="/v2/update-status/{{ order.order_type }}/{{ order.id }}/"
+                    hx-post="{% url 'new_scheduling:update_order_status' order.order_type order.id %}"
                     hx-vals='{"status": "crossdock"}'
                     hx-trigger="click"
                     hx-target="#order-{{ order.id }}"
@@ -90,7 +90,7 @@
 
     <div class="flex-1 flex items-center gap-2 overflow-hidden h-full cursor-pointer z-10"
          @click="historyOpen = true"
-         hx-get="/v2/side-panel/{{ order.order_type }}/{{ order.id }}/"
+         hx-get="{% url 'new_scheduling:get_side_panel' order.order_type order.id %}"
          hx-target="#side-panel-content"
          hx-swap="innerHTML">
          

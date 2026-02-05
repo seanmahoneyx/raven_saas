@@ -37,6 +37,11 @@ from .views.reporting import (
 )
 from .views.scheduling import CalendarViewSet
 from .views.contracts import ContractViewSet
+from .views.priority_list import (
+    PriorityListViewSet,
+    VendorKickAllotmentViewSet,
+    DailyKickOverrideViewSet,
+)
 from .views.websocket import get_websocket_ticket
 from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
 
@@ -98,6 +103,11 @@ router.register(r'reports/favorites', ReportFavoriteViewSet, basename='reportfav
 
 # Scheduling/Calendar
 router.register(r'calendar', CalendarViewSet, basename='calendar')
+
+# Priority List
+router.register(r'priority-list', PriorityListViewSet, basename='prioritylist')
+router.register(r'priority-list/allotments', VendorKickAllotmentViewSet, basename='vendorkickallotment')
+router.register(r'priority-list/overrides', DailyKickOverrideViewSet, basename='dailykickoverride')
 
 # Contracts
 router.register(r'contracts', ContractViewSet, basename='contract')

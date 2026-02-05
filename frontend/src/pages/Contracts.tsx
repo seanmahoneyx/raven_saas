@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play } from 'lucide-react'
@@ -44,8 +44,21 @@ export default function Contracts() {
   usePageTitle('Contracts')
 
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
+
+  // Handle URL params for action=new
+  useEffect(() => {
+    const action = searchParams.get('action')
+    if (action === 'new') {
+      setEditingContract(null)
+      setDialogOpen(true)
+      // Clear the action param after opening dialog
+      searchParams.delete('action')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const { data: contractsData, isLoading } = useContracts()
   const deleteContract = useDeleteContract()
@@ -249,6 +262,7 @@ export default function Contracts() {
               data={contractsData?.results ?? []}
               searchColumn="customer_name"
               searchPlaceholder="Search by customer..."
+              onRowDoubleClick={(contract) => navigate(`/contracts/${contract.id}`)}
             />
           )}
         </CardContent>
@@ -261,6 +275,12 @@ export default function Contracts() {
           if (!open) setEditingContract(null)
         }}
         contract={editingContract}
+        onSuccess={(contract) => {
+          // Navigate to contract detail page after creation
+          if (!editingContract) {
+            navigate(`/contracts/${contract.id}`)
+          }
+        }}
       />
     </div>
   )

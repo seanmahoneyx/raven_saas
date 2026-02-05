@@ -10,6 +10,11 @@ Party Pattern Implementation:
 
 A single Party can have BOTH Customer and Vendor records (e.g., a company
 that you both buy from and sell to).
+
+GL Integration:
+- Customers can have override receivable accounts
+- Vendors can have override payable accounts
+- If not set, the system uses defaults from AccountingSettings
 """
 from django.db import models
 from django.conf import settings
@@ -126,6 +131,16 @@ class Customer(TenantMixin, TimestampMixin):
         help_text="Account manager / sales representative"
     )
 
+    # GL Account Override (optional - uses AccountingSettings default if not set)
+    receivable_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers_receivable',
+        help_text="Override A/R account for this customer (uses default if blank)"
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'party']),
@@ -170,6 +185,16 @@ class Vendor(TenantMixin, TimestampMixin):
         blank=True,
         related_name='managed_vendors',
         help_text="Purchasing agent / buyer responsible for this vendor"
+    )
+
+    # GL Account Override (optional - uses AccountingSettings default if not set)
+    payable_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='vendors_payable',
+        help_text="Override A/P account for this vendor (uses default if blank)"
     )
 
     class Meta:

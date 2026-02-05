@@ -115,18 +115,18 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
       className={`
         min-h-[48px] p-1 border-r border-b relative flex flex-col transition-colors
         ${isInbound
-          ? 'bg-rose-100 border-rose-200'
+          ? 'bg-rose-100 dark:bg-rose-950 border-rose-200 dark:border-rose-800'
           : isPickup
-            ? 'bg-purple-50/50 border-purple-100'
+            ? 'bg-purple-50/50 dark:bg-purple-950/30 border-purple-100 dark:border-purple-900'
             : isUnassigned
-              ? 'bg-cyan-50/50 border-cyan-100'
-              : 'bg-white border-slate-200'
+              ? 'bg-cyan-50/50 dark:bg-cyan-950/30 border-cyan-100 dark:border-cyan-900'
+              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'
         }
         ${isLocked && !isInbound
-          ? 'bg-[repeating-linear-gradient(-45deg,transparent,transparent_6px,rgba(239,68,68,0.08)_6px,rgba(239,68,68,0.08)_8px)]'
+          ? 'bg-[repeating-linear-gradient(-45deg,transparent,transparent_6px,rgba(239,68,68,0.08)_6px,rgba(239,68,68,0.08)_8px)] dark:bg-[repeating-linear-gradient(-45deg,transparent,transparent_6px,rgba(239,68,68,0.15)_6px,rgba(239,68,68,0.15)_8px)]'
           : ''
         }
-        ${isOver ? 'ring-2 ring-inset ring-amber-400 bg-amber-50/30' : ''}
+        ${isOver ? 'ring-2 ring-inset ring-amber-400 bg-amber-50/30 dark:bg-amber-900/30' : ''}
       `}
     >
       {/* Section A: Committed Runs */}
@@ -140,7 +140,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
 
       {/* Separator (only if runs exist and there are loose items) */}
       {runIds.length > 0 && looseItems.length > 0 && (
-        <div className="border-t border-dashed border-slate-200 my-1" />
+        <div className="border-t border-dashed border-slate-200 dark:border-slate-700 my-1" />
       )}
 
       {/* Unified loose items section: Notes and Orders interleaved */}
@@ -159,7 +159,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
         </SortableContext>
         {/* Always show a drop slot below items - same height as an order line (not for inbound) */}
         {!isInbound && (
-          <div className={`min-h-[28px] rounded-md transition-colors ${isOver ? 'border border-dashed border-amber-300 bg-amber-50/50' : ''}`} />
+          <div className={`min-h-[28px] rounded-md transition-colors ${isOver ? 'border border-dashed border-amber-300 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-900/30' : ''}`} />
         )}
       </div>
 
@@ -169,9 +169,9 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
           type="button"
           onClick={handleAddRun}
           className="
-            w-full mt-1 py-1 text-[9px] text-slate-400 font-medium
-            hover:text-slate-600 hover:bg-slate-100 rounded-md
-            border border-dashed border-transparent hover:border-slate-300
+            w-full mt-1 py-1 text-[9px] text-slate-400 dark:text-slate-500 font-medium
+            hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md
+            border border-dashed border-transparent hover:border-slate-300 dark:hover:border-slate-600
             transition-all select-none flex items-center justify-center gap-1
           "
         >
@@ -191,7 +191,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
           onContextMenu={(e) => { e.preventDefault(); setShowNoteDialog(false) }}
         >
           <div
-            className="absolute bg-white rounded-xl shadow-xl border border-slate-200 p-3 w-64"
+            className="absolute bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 w-64"
             style={{ left: menuPos.x, top: menuPos.y }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -199,10 +199,10 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 text-amber-500">
                 <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
               </svg>
-              <span className="text-xs font-semibold text-slate-700">Add Note</span>
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Add Note</span>
             </div>
             <textarea
-              className="w-full border border-slate-200 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors text-slate-900 bg-white placeholder:text-slate-400"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-2 text-xs resize-none h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-colors text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 placeholder:text-slate-400 dark:placeholder:text-slate-500"
               value={noteContent}
               onChange={(e) => setNoteContent(e.target.value)}
               onPointerDown={(e) => e.stopPropagation()}
@@ -239,14 +239,14 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
             <div className="flex justify-end gap-2 mt-3">
               <button
                 type="button"
-                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 font-medium transition-colors"
+                className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-medium transition-colors"
                 onClick={() => setShowNoteDialog(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="px-3 py-1.5 text-xs bg-slate-800 text-white rounded-lg hover:bg-slate-700 font-medium transition-colors disabled:opacity-50"
+                className="px-3 py-1.5 text-xs bg-slate-800 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-500 font-medium transition-colors disabled:opacity-50"
                 onClick={handleCreateNote}
                 disabled={!noteContent.trim()}
               >

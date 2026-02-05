@@ -21,7 +21,7 @@
             rows="3"
             placeholder="e.g. Deliver at 6am, Call 1 hour ahead..."
             name="notes"
-            hx-post="/v2/update-note/{{ order.order_type }}/{{ order.id }}/"
+            hx-post="{% url 'new_scheduling:update_order_note' order.order_type order.id %}"
             hx-trigger="keyup changed delay:500ms"
             hx-on::after-request="document.getElementById('save-indicator').classList.remove('opacity-0'); setTimeout(() => document.getElementById('save-indicator').classList.add('opacity-0'), 2000);"
         >{{ order.notes|default:'' }}</textarea>

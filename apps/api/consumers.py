@@ -138,3 +138,7 @@ class SchedulerConsumer(AsyncJsonWebsocketConsumer):
     async def scheduler_bulk_update(self, event):
         """Broadcast bulk update (multiple entities) to client."""
         await self.send_json(event['data'])
+
+    async def scheduler_priority_updated(self, event):
+        """Broadcast priority list update to client."""
+        await self.send_json(event['data'])

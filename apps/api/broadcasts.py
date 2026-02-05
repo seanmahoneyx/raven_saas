@@ -156,3 +156,38 @@ def broadcast_bulk_update(
         data
     )
     logger.debug(f'Broadcast bulk_update: orders={len(orders or [])}, runs={len(runs or [])}, notes={len(notes or [])}, tenant={tenant_id}')
+
+
+def broadcast_priority_update(
+    vendor_id: int,
+    date: str,
+    action: str,
+    data: dict,
+    tenant_id: Optional[int] = None
+) -> None:
+    """
+    Broadcast a priority list update to connected clients for the tenant.
+
+    When a PO line is moved to a different date, this also triggers an order_updated
+    broadcast since the PO's scheduled_date changes.
+
+    Args:
+        vendor_id: The vendor ID affected by the update
+        date: The date (YYYY-MM-DD) affected by the update
+        action: The action performed ('reordered', 'moved', 'synced')
+        data: Additional context (line IDs, new sequences, etc.)
+        tenant_id: The tenant ID for scoped broadcasting (None broadcasts to default group)
+    """
+    group_name = _get_scheduler_group(tenant_id)
+    _broadcast_to_group(
+        group_name,
+        'scheduler.priority.updated',
+        {
+            'event': 'priority_updated',
+            'action': action,
+            'vendor_id': vendor_id,
+            'date': date,
+            **data,
+        }
+    )
+    logger.debug(f'Broadcast priority_updated: vendor={vendor_id}, date={date}, action={action}, tenant={tenant_id}')

@@ -19,3 +19,8 @@ from .reporting import (
     SavedReportViewSet, ReportFavoriteViewSet,
 )
 from .scheduling import CalendarViewSet
+from .priority_list import (
+    PriorityListViewSet,
+    VendorKickAllotmentViewSet,
+    DailyKickOverrideViewSet,
+)

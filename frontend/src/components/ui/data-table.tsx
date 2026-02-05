@@ -21,6 +21,7 @@ interface DataTableProps<TData, TValue> {
   searchColumn?: string
   searchPlaceholder?: string
   onRowClick?: (row: TData) => void
+  onRowDoubleClick?: (row: TData) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -29,6 +30,7 @@ export function DataTable<TData, TValue>({
   searchColumn,
   searchPlaceholder = 'Search...',
   onRowClick,
+  onRowDoubleClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -61,15 +63,15 @@ export function DataTable<TData, TValue>({
         />
       )}
 
-      <div className="rounded-md border">
+      <div className="rounded-md border border-border">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-muted/50 dark:bg-muted/20">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-4 py-3 text-left text-sm font-medium text-gray-900"
+                    className="px-4 py-3 text-left text-sm font-medium text-foreground"
                   >
                     {header.isPlaceholder ? null : (
                       <div
@@ -81,7 +83,7 @@ export function DataTable<TData, TValue>({
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {header.column.getCanSort() && (
-                          <span className="text-gray-400">
+                          <span className="text-muted-foreground">
                             {{
                               asc: <ChevronUp className="h-4 w-4" />,
                               desc: <ChevronDown className="h-4 w-4" />,
@@ -97,19 +99,20 @@ export function DataTable<TData, TValue>({
               </tr>
             ))}
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-border">
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
                   className={cn(
-                    'hover:bg-gray-50',
-                    onRowClick && 'cursor-pointer'
+                    'bg-card hover:bg-muted/50 dark:hover:bg-muted/30 transition-colors',
+                    (onRowClick || onRowDoubleClick) && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(row.original)}
+                  onDoubleClick={() => onRowDoubleClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-sm">
+                    <td key={cell.id} className="px-4 py-3 text-sm text-foreground">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -119,7 +122,7 @@ export function DataTable<TData, TValue>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-8 text-center text-sm text-gray-500"
+                  className="px-4 py-8 text-center text-sm text-muted-foreground"
                 >
                   No results.
                 </td>
@@ -130,7 +133,7 @@ export function DataTable<TData, TValue>({
       </div>
 
       <div className="flex items-center justify-between">
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-muted-foreground">
           {table.getFilteredRowModel().rows.length} row(s)
         </div>
         <div className="flex items-center gap-2">
@@ -142,7 +145,7 @@ export function DataTable<TData, TValue>({
           >
             Previous
           </Button>
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             Page {table.getState().pagination.pageIndex + 1} of{' '}
             {table.getPageCount()}
           </span>

@@ -27,6 +27,7 @@ interface SalesOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order?: SalesOrder | null
+  onSuccess?: (order: SalesOrder) => void
 }
 
 interface OrderLineForm {
@@ -48,7 +49,7 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-export function SalesOrderDialog({ open, onOpenChange, order }: SalesOrderDialogProps) {
+export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: SalesOrderDialogProps) {
   const [formData, setFormData] = useState({
     order_number: '',
     status: 'draft' as OrderStatus,
@@ -167,12 +168,14 @@ export function SalesOrderDialog({ open, onOpenChange, order }: SalesOrderDialog
     }
 
     try {
+      let result: SalesOrder
       if (isEditing && order) {
-        await updateOrder.mutateAsync({ id: order.id, ...payload } as any)
+        result = await updateOrder.mutateAsync({ id: order.id, ...payload } as any)
       } else {
-        await createOrder.mutateAsync(payload as any)
+        result = await createOrder.mutateAsync(payload as any)
       }
       onOpenChange(false)
+      onSuccess?.(result)
     } catch (error) {
       console.error('Failed to save order:', error)
     }

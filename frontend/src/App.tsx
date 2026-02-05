@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { AuthProvider } from '@/hooks/useAuth'
+import { ThemeProvider } from '@/components/theme-provider'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import Login from '@/pages/Login'
@@ -16,6 +17,7 @@ import Invoices from '@/pages/Invoices'
 import Reports from '@/pages/Reports'
 import Contracts from '@/pages/Contracts'
 import ContractDetail from '@/pages/ContractDetail'
+import PriorityList from '@/pages/PriorityList'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -41,10 +43,11 @@ function PlaceholderPage({ title }: { title: string }) {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<Login />} />
 
@@ -67,12 +70,14 @@ function App() {
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/scheduler" element={<Scheduler />} />
+              <Route path="/priority-list" element={<PriorityList />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
             </Route>
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   )
 }
 

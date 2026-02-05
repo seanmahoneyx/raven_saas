@@ -92,6 +92,7 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
 class PurchaseOrderWriteSerializer(TenantModelSerializer):
     """Serializer for creating/updating PurchaseOrder with nested lines."""
     lines = PurchaseOrderLineSerializer(many=True, required=False)
+    po_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     class Meta:
         model = PurchaseOrder
@@ -101,8 +102,33 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             'scheduled_truck', 'ship_to', 'notes', 'priority', 'lines',
         ]
 
+    def _generate_po_number(self, tenant):
+        """Generate next PO number for the tenant."""
+        import re
+        from django.db.models import Max
+
+        # Get all PO numbers for this tenant and find the highest numeric value
+        po_numbers = PurchaseOrder.objects.filter(tenant=tenant).values_list('po_number', flat=True)
+        max_num = 0
+        for po_num in po_numbers:
+            # Extract numeric portion (handles both "PO-000001" and "000001" formats)
+            match = re.search(r'(\d+)', po_num or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+
+        next_num = max_num + 1
+        return f"PO-{str(next_num).zfill(6)}"
+
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
+
+        # Auto-generate PO number if not provided
+        if not validated_data.get('po_number'):
+            tenant = self.context['request'].tenant
+            validated_data['po_number'] = self._generate_po_number(tenant)
+
         purchase_order = super().create(validated_data)
 
         for idx, line_data in enumerate(lines_data):
@@ -248,6 +274,7 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
 class SalesOrderWriteSerializer(TenantModelSerializer):
     """Serializer for creating/updating SalesOrder with nested lines."""
     lines = SalesOrderLineSerializer(many=True, required=False)
+    order_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
 
     class Meta:
         model = SalesOrder
@@ -257,8 +284,32 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             'ship_to', 'bill_to', 'customer_po', 'notes', 'priority', 'lines',
         ]
 
+    def _generate_order_number(self, tenant):
+        """Generate next order number for the tenant."""
+        import re
+
+        # Get all order numbers for this tenant and find the highest numeric value
+        order_numbers = SalesOrder.objects.filter(tenant=tenant).values_list('order_number', flat=True)
+        max_num = 0
+        for order_num in order_numbers:
+            # Extract numeric portion (handles both "SO-000001" and "000001" formats)
+            match = re.search(r'(\d+)', order_num or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+
+        next_num = max_num + 1
+        return f"SO-{str(next_num).zfill(6)}"
+
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
+
+        # Auto-generate order number if not provided
+        if not validated_data.get('order_number'):
+            tenant = self.context['request'].tenant
+            validated_data['order_number'] = self._generate_order_number(tenant)
+
         sales_order = super().create(validated_data)
 
         for idx, line_data in enumerate(lines_data):

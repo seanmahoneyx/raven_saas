@@ -510,3 +510,114 @@ export interface HistoryRecord {
   changed_fields: string[]
   changes?: HistoryChange[]
 }
+
+// Priority List types
+export type BoxType = 'RSC' | 'DC' | 'HSC' | 'FOL' | 'TELE' | 'OTHER'
+
+export interface PriorityLine {
+  id: number
+  po_line_id: number
+  po_number: string
+  item_sku: string
+  item_name: string
+  quantity_ordered: number
+  sequence: number
+  customer_request_date: string | null
+}
+
+export interface BoxTypeBin {
+  box_type: BoxType
+  box_type_display: string
+  allotment: number
+  is_override: boolean
+  scheduled_qty: number
+  remaining_kicks: number
+  lines: PriorityLine[]
+}
+
+export interface DateSection {
+  date: string
+  box_types: BoxTypeBin[]
+}
+
+export interface VendorGroup {
+  vendor_id: number
+  vendor_name: string
+  dates: DateSection[]
+}
+
+export interface PriorityListResponse {
+  vendors: VendorGroup[]
+}
+
+export interface VendorKickAllotment {
+  id: number
+  vendor: number
+  vendor_name: string
+  box_type: BoxType
+  box_type_display: string
+  daily_allotment: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DailyKickOverride {
+  id: number
+  vendor: number
+  vendor_name: string
+  box_type: BoxType
+  box_type_display: string
+  date: string
+  allotment: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PriorityLinePriority {
+  id: number
+  purchase_order_line: number
+  vendor: number
+  vendor_name: string
+  scheduled_date: string
+  box_type: BoxType
+  sequence: number
+  po_number: string
+  item_sku: string
+  item_name: string
+  quantity_ordered: number
+  created_at: string
+  updated_at: string
+}
+
+// Priority List input types
+export interface ReorderLinesInput {
+  vendor_id: number
+  date: string
+  box_type: BoxType
+  line_ids: number[]
+}
+
+export interface MoveLineInput {
+  line_id: number
+  target_date: string
+  insert_at_sequence?: number
+}
+
+export interface VendorAllotmentInput {
+  vendor_id: number
+  box_type: BoxType
+  daily_allotment: number
+}
+
+export interface DailyOverrideInput {
+  vendor_id: number
+  box_type: BoxType
+  date: string
+  allotment: number
+}
+
+export interface ClearOverrideInput {
+  vendor_id: number
+  box_type: BoxType
+  date: string
+}

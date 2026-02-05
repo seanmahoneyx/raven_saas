@@ -27,6 +27,7 @@ interface ContractDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   contract?: Contract | null
+  onSuccess?: (contract: Contract) => void
 }
 
 interface LineFormData {
@@ -37,7 +38,7 @@ interface LineFormData {
   unit_price: string
 }
 
-export function ContractDialog({ open, onOpenChange, contract }: ContractDialogProps) {
+export function ContractDialog({ open, onOpenChange, contract, onSuccess }: ContractDialogProps) {
   const isEditing = !!contract
 
   const [formData, setFormData] = useState({
@@ -160,8 +161,9 @@ export function ContractDialog({ open, onOpenChange, contract }: ContractDialogP
       }))
 
     try {
+      let result: Contract
       if (isEditing) {
-        await updateContract.mutateAsync({
+        result = await updateContract.mutateAsync({
           id: contract.id,
           blanket_po: formData.blanket_po,
           issue_date: formData.issue_date,
@@ -172,7 +174,7 @@ export function ContractDialog({ open, onOpenChange, contract }: ContractDialogP
           lines: linesPayload,
         })
       } else {
-        await createContract.mutateAsync({
+        result = await createContract.mutateAsync({
           customer: Number(formData.customer),
           blanket_po: formData.blanket_po,
           issue_date: formData.issue_date,
@@ -184,6 +186,7 @@ export function ContractDialog({ open, onOpenChange, contract }: ContractDialogP
         })
       }
       onOpenChange(false)
+      onSuccess?.(result)
     } catch (error) {
       console.error(`Failed to ${isEditing ? 'update' : 'create'} contract:`, error)
     }

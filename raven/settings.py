@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'apps.reporting',
     'apps.scheduling',
     'apps.contracts',
+    'apps.accounting',
     'apps.api',
     # User management
     'users',
@@ -254,14 +255,52 @@ CORS_ALLOW_CREDENTIALS = True
 # Django Channels (WebSocket support)
 ASGI_APPLICATION = 'raven.asgi.application'
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [config('REDIS_URL', default='redis://127.0.0.1:6379')],
+# Try to use Redis for channel layer (required for multi-user real-time sync)
+# Fall back to InMemoryChannelLayer in DEBUG mode if Redis is unavailable
+def _get_channel_layer_config():
+    """Get channel layer config, with fallback for development."""
+    redis_url = config('REDIS_URL', default='redis://127.0.0.1:6379')
+
+    if DEBUG:
+        # In development, check if Redis is available
+        try:
+            import socket
+            from urllib.parse import urlparse
+            parsed = urlparse(redis_url)
+            host = parsed.hostname or '127.0.0.1'
+            port = parsed.port or 6379
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            if result != 0:
+                # Redis not available, use InMemoryChannelLayer
+                print("[WARNING] Redis not available - using InMemoryChannelLayer (multi-user sync disabled)")
+                return {
+                    'default': {
+                        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+                    }
+                }
+        except Exception:
+            # Any error checking Redis, fall back to InMemory
+            print("[WARNING] Redis check failed - using InMemoryChannelLayer (multi-user sync disabled)")
+            return {
+                'default': {
+                    'BACKEND': 'channels.layers.InMemoryChannelLayer',
+                }
+            }
+
+    # Use Redis (production or Redis is available in development)
+    return {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [redis_url],
+            },
         },
-    },
-}
+    }
+
+CHANNEL_LAYERS = _get_channel_layer_config()
 
 # Security Settings (Production)
 # These are disabled in DEBUG mode for local development

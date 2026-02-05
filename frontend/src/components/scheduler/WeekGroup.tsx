@@ -38,17 +38,17 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
       className={`
         relative px-2 py-2 text-center border-b border-r select-none transition-colors
         ${isLocked
-          ? 'bg-red-50 border-red-200'
+          ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
           : isToday
-            ? 'bg-amber-50 border-slate-200'
-            : 'bg-slate-50 border-slate-200'
+            ? 'bg-amber-50 dark:bg-amber-950 border-slate-200 dark:border-slate-700'
+            : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
         }
       `}
     >
-      <div className={`text-[11px] font-semibold uppercase tracking-wide ${isLocked ? 'text-red-600' : isToday ? 'text-amber-700' : 'text-slate-500'}`}>
+      <div className={`text-[11px] font-semibold uppercase tracking-wide ${isLocked ? 'text-red-600 dark:text-red-400' : isToday ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
         {dayLabel}
       </div>
-      <div className={`text-xs font-medium ${isLocked ? 'text-red-700' : isToday ? 'text-amber-800' : 'text-slate-700'}`}>
+      <div className={`text-xs font-medium ${isLocked ? 'text-red-700 dark:text-red-300' : isToday ? 'text-amber-800 dark:text-amber-300' : 'text-slate-700 dark:text-slate-300'}`}>
         {date.slice(5).replace('-', '/')}
       </div>
       {isToday && !isLocked && (
@@ -61,8 +61,8 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
           absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-md
           transition-all duration-150
           ${isLocked
-            ? 'bg-red-200/80 text-red-700 hover:bg-red-300'
-            : 'text-slate-300 hover:text-slate-500 hover:bg-slate-200/50'
+            ? 'bg-red-200/80 dark:bg-red-800/80 text-red-700 dark:text-red-300 hover:bg-red-300 dark:hover:bg-red-700'
+            : 'text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
           }
         `}
         title={isLocked ? 'Unlock day' : 'Lock day'}
@@ -101,12 +101,12 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         w-32 min-w-[128px] flex items-center gap-2
         px-2.5 py-2.5 text-[11px] font-semibold border-r border-b
         ${isInbound
-          ? 'bg-gradient-to-r from-rose-200 to-rose-100 text-rose-900 border-rose-300'
+          ? 'bg-gradient-to-r from-rose-200 to-rose-100 dark:from-rose-900 dark:to-rose-950 text-rose-900 dark:text-rose-100 border-rose-300 dark:border-rose-800'
           : isPickup
-            ? 'bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border-purple-200'
+            ? 'bg-gradient-to-r from-purple-100 to-purple-50 dark:from-purple-900 dark:to-purple-950 text-purple-700 dark:text-purple-200 border-purple-200 dark:border-purple-800'
             : isUnassigned
-              ? 'bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-700 border-cyan-200'
-              : 'bg-white text-slate-600 border-slate-200'
+              ? 'bg-gradient-to-r from-cyan-100 to-cyan-50 dark:from-cyan-900 dark:to-cyan-950 text-cyan-700 dark:text-cyan-200 border-cyan-200 dark:border-cyan-800'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
         }
       `}
     >
@@ -124,7 +124,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
           <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v.401a2.986 2.986 0 0 0-1.5-.401h-9c-.546 0-1.059.146-1.5.401V3.5ZM3.5 5A1.5 1.5 0 0 0 2 6.5v.401A2.986 2.986 0 0 1 3.5 6.5h9c.546 0 1.059.146 1.5.401V6.5A1.5 1.5 0 0 0 12.5 5h-9ZM2 9.5A1.5 1.5 0 0 1 3.5 8h9a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-3Z" />
         </svg>
       ) : (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-slate-400">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-500">
           <path d="M4 3.5A1.5 1.5 0 0 1 5.5 2h5A1.5 1.5 0 0 1 12 3.5V5h.25A2.75 2.75 0 0 1 15 7.75v4.5A2.75 2.75 0 0 1 12.25 15h-8.5A2.75 2.75 0 0 1 1 12.25v-4.5A2.75 2.75 0 0 1 3.75 5H4V3.5Zm1.5 0V5h5V3.5a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 0-.5.5Z" />
         </svg>
       )}
@@ -188,13 +188,13 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
   }, [trucks])
 
   return (
-    <div className="mb-8 border-b-[6px] border-slate-900 pb-6">
+    <div className="mb-8 border-b-[6px] border-slate-900 dark:border-slate-600 pb-6">
       {/* Week Band Label */}
       <div className={`
         flex items-center gap-2 px-4 py-2 rounded-t-lg
         ${isCurrentWeek
-          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-white shadow-sm'
-          : 'bg-gradient-to-r from-slate-700 to-slate-600 text-slate-100 shadow-sm'
+          ? 'bg-gradient-to-r from-amber-500 to-amber-400 dark:from-amber-600 dark:to-amber-500 text-white shadow-sm'
+          : 'bg-gradient-to-r from-slate-700 to-slate-600 dark:from-slate-600 dark:to-slate-700 text-slate-100 shadow-sm'
         }
       `}>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 opacity-70">
@@ -210,11 +210,11 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
 
       {/* Grid */}
       <div
-        className="grid bg-white rounded-b-lg shadow-sm overflow-hidden border border-t-0 border-slate-200"
+        className="grid bg-white dark:bg-slate-900 rounded-b-lg shadow-sm overflow-hidden border border-t-0 border-slate-200 dark:border-slate-700"
         style={{ gridTemplateColumns: `128px repeat(${dates.length}, minmax(160px, 1fr))` }}
       >
         {/* Corner Cell */}
-        <div className="bg-slate-800 border-b border-r border-slate-700 flex items-center justify-center">
+        <div className="bg-slate-800 dark:bg-slate-950 border-b border-r border-slate-700 dark:border-slate-800 flex items-center justify-center">
           <span className="text-[9px] text-slate-400 uppercase tracking-widest font-medium">Lane</span>
         </div>
 

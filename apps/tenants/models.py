@@ -121,6 +121,7 @@ class TenantSequence(models.Model):
         ('INV', 'Invoice'),
         ('BOL', 'Bill of Lading'),
         ('CONTRACT', 'Contract'),
+        ('JE', 'Journal Entry'),
     ]
 
     tenant = models.ForeignKey(
