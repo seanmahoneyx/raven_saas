@@ -477,9 +477,15 @@ export const useSchedulerStore = create<SchedulerState>()(
 
         // Check if this cell is dirty (was involved in a recent move operation)
         const isCellDirty = dirty.cells.has(cellId as CellId)
-        // Check if any runs in this cell are dirty
-        const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
-        const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
+        // Check if any runs in this cell are dirty (both existing AND incoming)
+        const existingRunsDirty = existingCell?.runIds.some(id => dirty.runs.has(id)) ?? false
+        const incomingRunsDirty = cellData.runIds.some(id => dirty.runs.has(id))
+        const hasDirtyRuns = existingRunsDirty || incomingRunsDirty
+        // Check if any loose orders are dirty (both existing AND incoming)
+        // This prevents stale poll data from overwriting cells that contain recently-moved orders
+        const existingLooseOrdersDirty = existingCell?.looseOrderIds.some(id => dirty.orders.has(id)) ?? false
+        const incomingLooseOrdersDirty = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
+        const hasDirtyLooseOrders = existingLooseOrdersDirty || incomingLooseOrdersDirty
 
         if (existingCell && (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders)) {
           // Preserve existing cell structure if cell is dirty or has dirty items
