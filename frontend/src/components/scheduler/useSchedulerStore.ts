@@ -1,6 +1,47 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 
+// ─── Dev Mode Validation ─────────────────────────────────────────────────────
+
+/**
+ * Validates that cellLooseItemOrder is in sync with cells[].looseOrderIds.
+ * Only runs in development mode. Logs warnings if divergence is detected.
+ */
+function validateCellLooseItemOrderSync(
+  cells: Record<string, { runIds: string[]; looseOrderIds: string[] }>,
+  cellLooseItemOrder: Record<string, string[]>
+): void {
+  if (import.meta.env.PROD) return // Skip in production
+
+  for (const [cellId, cellData] of Object.entries(cells)) {
+    const looseOrderIds = new Set(cellData.looseOrderIds)
+    const looseItems = cellLooseItemOrder[cellId] || []
+    const orderIdsInLooseItems = new Set(
+      looseItems
+        .filter(item => item.startsWith('order:'))
+        .map(item => item.slice(6))
+    )
+
+    // Check for orders in cells but not in cellLooseItemOrder
+    for (const orderId of looseOrderIds) {
+      if (!orderIdsInLooseItems.has(orderId)) {
+        console.warn(
+          `[Scheduler] cellLooseItemOrder desync: order "${orderId}" is in cells["${cellId}"].looseOrderIds but missing from cellLooseItemOrder`
+        )
+      }
+    }
+
+    // Check for orders in cellLooseItemOrder but not in cells
+    for (const orderId of orderIdsInLooseItems) {
+      if (!looseOrderIds.has(orderId)) {
+        console.warn(
+          `[Scheduler] cellLooseItemOrder desync: order "${orderId}" is in cellLooseItemOrder["${cellId}"] but missing from cells.looseOrderIds`
+        )
+      }
+    }
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type OrderStatus = 'unscheduled' | 'picked' | 'packed' | 'shipped' | 'invoiced'
@@ -38,6 +79,7 @@ export interface DirtyState {
   orders: Set<string>      // Order IDs with local uncommitted changes
   runs: Set<string>        // Run IDs with local uncommitted changes
   notes: Set<string>       // Note IDs with local uncommitted changes
+  cells: Set<CellId>       // Cell IDs affected by move operations (source + destination)
   pendingApiCalls: number  // Count of in-flight API calls
 }
 
@@ -155,6 +197,7 @@ interface SchedulerState {
   commitOrderToRun: (orderId: string, targetRunId: string, insertIndex?: number, forcePosition?: boolean) => MoveResult
   moveRun: (runId: string, targetCellId: CellId, insertIndex?: number) => MoveResult
   createRun: (cellId: CellId, name?: string) => string | null
+  createRunWithOrder: (cellId: CellId, orderId: string, name?: string) => string | null
   dissolveRun: (runId: string) => boolean
   deleteRun: (runId: string) => boolean
   toggleDateLock: (date: string) => void
@@ -183,6 +226,8 @@ interface SchedulerState {
   markRunClean: (runId: string) => void
   markNoteDirty: (noteId: string) => void
   markNoteClean: (noteId: string) => void
+  markCellDirty: (cellId: CellId) => void
+  markCellClean: (cellId: CellId) => void
   incrementPendingApiCalls: () => void
   decrementPendingApiCalls: () => void
   clearAllDirty: () => void
@@ -223,6 +268,7 @@ export const useSchedulerStore = create<SchedulerState>()(
       orders: new Set(),
       runs: new Set(),
       notes: new Set(),
+      cells: new Set(),
       pendingApiCalls: 0,
     },
     filterCustomerCode: null,
@@ -270,10 +316,19 @@ export const useSchedulerStore = create<SchedulerState>()(
 
       // Build initial cellLooseItemOrder from existing cell loose orders
       // Notes will be added when hydrateNotes is called
+      // IMPORTANT: Filter out non-PO orders from inbound cells
       const cellLooseItemOrder: Record<CellId, string[]> = {}
       for (const [cellId, cellData] of Object.entries(cellsCopy)) {
-        // Start with loose orders prefixed
-        cellLooseItemOrder[cellId] = (cellData.looseOrderIds || []).map(id => `order:${id}`)
+        const isInboundCell = cellId.startsWith('inbound|')
+        // Start with loose orders prefixed, filtering SOs from inbound cells
+        cellLooseItemOrder[cellId] = (cellData.looseOrderIds || [])
+          .filter(id => {
+            if (!isInboundCell) return true
+            // For inbound cells, only include POs
+            const order = ordersMap[id]
+            return order?.type === 'PO'
+          })
+          .map(id => `order:${id}`)
       }
 
       set({
@@ -292,9 +347,13 @@ export const useSchedulerStore = create<SchedulerState>()(
           orders: new Set(),
           runs: new Set(),
           notes: new Set(),
+          cells: new Set(),
           pendingApiCalls: 0,
         },
       })
+
+      // Dev mode validation: detect desync between cells and cellLooseItemOrder
+      validateCellLooseItemOrderSync(cellsCopy, cellLooseItemOrder)
     },
 
     /**
@@ -416,12 +475,14 @@ export const useSchedulerStore = create<SchedulerState>()(
       for (const [cellId, cellData] of Object.entries(data.cells)) {
         const existingCell = state.cells[cellId]
 
+        // Check if this cell is dirty (was involved in a recent move operation)
+        const isCellDirty = dirty.cells.has(cellId as CellId)
         // Check if any runs in this cell are dirty
         const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
         const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
 
-        if (existingCell && (hasDirtyRuns || hasDirtyLooseOrders)) {
-          // Preserve existing cell structure if it has dirty items
+        if (existingCell && (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders)) {
+          // Preserve existing cell structure if cell is dirty or has dirty items
           cellsCopy[cellId] = {
             runIds: [...existingCell.runIds],
             looseOrderIds: [...existingCell.looseOrderIds],
@@ -441,13 +502,14 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
-      // Preserve cells that have dirty items but aren't in incoming data
+      // Preserve cells that are dirty or have dirty items but aren't in incoming data
       for (const [cellId, cellData] of Object.entries(state.cells)) {
         if (!cellsCopy[cellId]) {
+          const isCellDirty = dirty.cells.has(cellId as CellId)
           const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
           const hasDirtyLooseOrders = cellData.looseOrderIds.some(id => dirty.orders.has(id))
 
-          if (hasDirtyRuns || hasDirtyLooseOrders) {
+          if (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders) {
             cellsCopy[cellId] = {
               runIds: [...cellData.runIds],
               looseOrderIds: [...cellData.looseOrderIds],
@@ -462,6 +524,37 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
+      // Rebuild cellLooseItemOrder from merged cells data
+      // Preserve existing note entries, update order entries from cells
+      const prevCellLooseItemOrder = state.cellLooseItemOrder
+      const cellLooseItemOrder: Record<CellId, string[]> = {}
+
+      for (const [cellId, cellData] of Object.entries(cellsCopy)) {
+        const isInboundCell = cellId.startsWith('inbound|')
+        const existingItems = prevCellLooseItemOrder[cellId] || []
+        // Keep existing notes (prefixed with "note:")
+        const noteItems = existingItems.filter(item => item.startsWith('note:'))
+        // Build new order items from cell's looseOrderIds
+        // IMPORTANT: Filter out non-PO orders from inbound cells
+        const orderItems = (cellData.looseOrderIds || [])
+          .filter(id => {
+            if (!isInboundCell) return true
+            // For inbound cells, only include POs
+            const order = ordersMap[id]
+            return order?.type === 'PO'
+          })
+          .map(id => `order:${id}`)
+        // Combine: notes first, then orders
+        cellLooseItemOrder[cellId] = [...noteItems, ...orderItems]
+      }
+
+      // Also preserve cellLooseItemOrder for cells not in incoming data (dirty cells)
+      for (const cellId of Object.keys(prevCellLooseItemOrder)) {
+        if (!cellLooseItemOrder[cellId] && cellsCopy[cellId]) {
+          cellLooseItemOrder[cellId] = prevCellLooseItemOrder[cellId]
+        }
+      }
+
       set({
         orders: ordersMap,
         runs: runsMap,
@@ -472,7 +565,11 @@ export const useSchedulerStore = create<SchedulerState>()(
         orderToRun,
         runToCell,
         looseOrderToCell,
+        cellLooseItemOrder,
       })
+
+      // Dev mode validation: detect desync between cells and cellLooseItemOrder
+      validateCellLooseItemOrderSync(cellsCopy, cellLooseItemOrder)
     },
 
     /**
@@ -480,6 +577,9 @@ export const useSchedulerStore = create<SchedulerState>()(
      * Removes from loose if previously loose, or from source run.
      * By default, uses smart positioning to group same-customer orders together.
      * Pass forcePosition=true to use exact insertIndex (e.g., Shift+drag).
+     *
+     * SURGICAL MUTATION: Only modifies the specific source and target objects.
+     * Does not spread/clone entire state collections unnecessarily.
      */
     moveOrder: (orderId, targetRunId, insertIndex, forcePosition) => {
       const state = get()
@@ -508,62 +608,83 @@ export const useSchedulerStore = create<SchedulerState>()(
       }
 
       set((prev) => {
-        const nextRuns = { ...prev.runs }
-        const nextCells = { ...prev.cells }
-        const nextOrderToRun = { ...prev.orderToRun }
-        const nextLooseOrderToCell = { ...prev.looseOrderToCell }
-        const nextOrders = { ...prev.orders }
-
-        // Remove from source run (if committed)
+        // Identify sources BEFORE any mutations
         const sourceRunId = prev.orderToRun[orderId]
-        if (sourceRunId && nextRuns[sourceRunId]) {
-          nextRuns[sourceRunId] = {
-            ...nextRuns[sourceRunId],
-            orderIds: nextRuns[sourceRunId].orderIds.filter((id) => id !== orderId),
-          }
-        }
-
-        // Remove from loose (if loose)
         const looseCellId = prev.looseOrderToCell[orderId]
-        if (looseCellId && nextCells[looseCellId]) {
-          nextCells[looseCellId] = {
-            ...nextCells[looseCellId],
-            looseOrderIds: nextCells[looseCellId].looseOrderIds.filter((id) => id !== orderId),
+        const orderItem = `order:${orderId}`
+
+        // Build surgical updates - only for objects that actually change
+        const runUpdates: Record<string, DeliveryRun> = {}
+        const cellUpdates: Record<CellId, CellData> = {}
+        const looseItemOrderUpdates: Record<CellId, string[]> = {}
+
+        // 1. Remove from source run (if committed to a different run)
+        if (sourceRunId && sourceRunId !== targetRunId && prev.runs[sourceRunId]) {
+          runUpdates[sourceRunId] = {
+            ...prev.runs[sourceRunId],
+            orderIds: prev.runs[sourceRunId].orderIds.filter((id) => id !== orderId),
           }
-          delete nextLooseOrderToCell[orderId]
         }
 
-        // Add to target run
-        if (nextRuns[targetRunId]) {
-          const newOrderIds = [...nextRuns[targetRunId].orderIds]
+        // 2. Remove from loose cell (if was loose)
+        if (looseCellId && prev.cells[looseCellId]) {
+          cellUpdates[looseCellId] = {
+            ...prev.cells[looseCellId],
+            looseOrderIds: prev.cells[looseCellId].looseOrderIds.filter((id) => id !== orderId),
+          }
+          if (prev.cellLooseItemOrder[looseCellId]) {
+            looseItemOrderUpdates[looseCellId] = prev.cellLooseItemOrder[looseCellId].filter(item => item !== orderItem)
+          }
+        }
+
+        // 3. Add to target run
+        const targetRun = prev.runs[targetRunId]
+        if (targetRun) {
+          // Start from existing or already-updated run state
+          const baseRun = runUpdates[targetRunId] ?? targetRun
+          const newOrderIds = [...baseRun.orderIds]
 
           // Determine insert position
           let idx: number
           if (forcePosition && insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrderIds.length) {
-            // Shift+drag: use exact position specified
             idx = insertIndex
           } else if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newOrderIds.length) {
-            // Explicit position given but not forced - use smart positioning
-            // Find if there are same-customer orders, insert near them
             const smartIdx = findSmartInsertPosition(newOrderIds, prev.orders, order.customerCode)
             idx = smartIdx !== undefined ? smartIdx : insertIndex
           } else {
-            // No position specified - use smart positioning or append
             const smartIdx = findSmartInsertPosition(newOrderIds, prev.orders, order.customerCode)
             idx = smartIdx !== undefined ? smartIdx : newOrderIds.length
           }
 
           newOrderIds.splice(idx, 0, orderId)
-          nextRuns[targetRunId] = { ...nextRuns[targetRunId], orderIds: newOrderIds }
+          runUpdates[targetRunId] = { ...baseRun, orderIds: newOrderIds }
         }
 
-        // Update order date to match target cell
-        if (parsed && nextOrders[orderId]) {
-          nextOrders[orderId] = { ...nextOrders[orderId], date: parsed.date }
-        }
+        // 4. Build final state - only merge what changed
+        const hasRunUpdates = Object.keys(runUpdates).length > 0
+        const hasCellUpdates = Object.keys(cellUpdates).length > 0
+        const hasLooseItemUpdates = Object.keys(looseItemOrderUpdates).length > 0
 
-        nextOrderToRun[orderId] = targetRunId
-        return { runs: nextRuns, cells: nextCells, orderToRun: nextOrderToRun, looseOrderToCell: nextLooseOrderToCell, orders: nextOrders }
+        // 5. Update indices surgically
+        const nextOrderToRun = { ...prev.orderToRun, [orderId]: targetRunId }
+        const nextLooseOrderToCell = looseCellId
+          ? (({ [orderId]: _, ...rest }) => rest)(prev.looseOrderToCell)
+          : prev.looseOrderToCell
+
+        // 6. Update order date if changed
+        const orderNeedsDateUpdate = order.date !== parsed.date
+        const nextOrders = orderNeedsDateUpdate
+          ? { ...prev.orders, [orderId]: { ...order, date: parsed.date } }
+          : prev.orders
+
+        return {
+          runs: hasRunUpdates ? { ...prev.runs, ...runUpdates } : prev.runs,
+          cells: hasCellUpdates ? { ...prev.cells, ...cellUpdates } : prev.cells,
+          cellLooseItemOrder: hasLooseItemUpdates ? { ...prev.cellLooseItemOrder, ...looseItemOrderUpdates } : prev.cellLooseItemOrder,
+          orderToRun: nextOrderToRun,
+          looseOrderToCell: nextLooseOrderToCell,
+          orders: nextOrders,
+        }
       })
 
       return { success: true }
@@ -572,12 +693,19 @@ export const useSchedulerStore = create<SchedulerState>()(
     /**
      * Place an order as "loose" in a cell (workbench/mockup area).
      * Removes from any run or previous loose cell.
+     *
+     * SURGICAL MUTATION: Only modifies the specific source and target objects.
+     * Does not spread/clone entire state collections unnecessarily.
      */
     moveOrderLoose: (orderId, targetCellId) => {
       const state = get()
       const order = state.orders[orderId]
       if (!order) return { success: false, reason: 'READ_ONLY' }
-      if (order.type === 'PO') return { success: false, reason: 'INBOUND_ZONE' }
+      // Block POs from moving anywhere (they stay in inbound) AND
+      // Block non-PO orders from moving TO inbound cells
+      if (order.type === 'PO' || targetCellId.startsWith('inbound|')) {
+        return { success: false, reason: 'INBOUND_ZONE' }
+      }
       if (order.isReadOnly) return { success: false, reason: 'READ_ONLY' }
 
       const parsed = parseCellId(targetCellId)
@@ -596,62 +724,96 @@ export const useSchedulerStore = create<SchedulerState>()(
       }
 
       set((prev) => {
-        const nextRuns = { ...prev.runs }
-        const nextCells = { ...prev.cells }
-        const nextOrderToRun = { ...prev.orderToRun }
-        const nextLooseOrderToCell = { ...prev.looseOrderToCell }
-        const nextOrders = { ...prev.orders }
-        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
+        // Identify sources BEFORE any mutations
+        const sourceRunId = prev.orderToRun[orderId]
+        const prevLooseCellId = prev.looseOrderToCell[orderId]
         const orderItem = `order:${orderId}`
 
-        // Remove from source run (if committed)
-        const sourceRunId = prev.orderToRun[orderId]
-        if (sourceRunId && nextRuns[sourceRunId]) {
-          nextRuns[sourceRunId] = {
-            ...nextRuns[sourceRunId],
-            orderIds: nextRuns[sourceRunId].orderIds.filter((id) => id !== orderId),
-          }
-          delete nextOrderToRun[orderId]
-        }
+        // Track source cell for dirty marking (either from run or loose)
+        const sourceCellId = sourceRunId
+          ? prev.runToCell[sourceRunId]
+          : prevLooseCellId
 
-        // Remove from previous loose cell (if loose elsewhere)
-        const prevLooseCellId = prev.looseOrderToCell[orderId]
-        if (prevLooseCellId && nextCells[prevLooseCellId]) {
-          nextCells[prevLooseCellId] = {
-            ...nextCells[prevLooseCellId],
-            looseOrderIds: nextCells[prevLooseCellId].looseOrderIds.filter((id) => id !== orderId),
-          }
-          // Also remove from unified order
-          if (nextCellLooseItemOrder[prevLooseCellId]) {
-            nextCellLooseItemOrder[prevLooseCellId] = nextCellLooseItemOrder[prevLooseCellId].filter(item => item !== orderItem)
+        // Build surgical updates - only for objects that actually change
+        const runUpdates: Record<string, DeliveryRun> = {}
+        const cellUpdates: Record<CellId, CellData> = {}
+        const looseItemOrderUpdates: Record<CellId, string[]> = {}
+
+        // 1. Remove from source run (if committed)
+        if (sourceRunId && prev.runs[sourceRunId]) {
+          runUpdates[sourceRunId] = {
+            ...prev.runs[sourceRunId],
+            orderIds: prev.runs[sourceRunId].orderIds.filter((id) => id !== orderId),
           }
         }
 
-        // Add to target cell as loose
-        if (!nextCells[targetCellId]) {
-          nextCells[targetCellId] = { runIds: [], looseOrderIds: [orderId] }
-        } else {
-          nextCells[targetCellId] = {
-            ...nextCells[targetCellId],
-            looseOrderIds: [...nextCells[targetCellId].looseOrderIds, orderId],
+        // 2. Remove from previous loose cell (if loose elsewhere and different from target)
+        if (prevLooseCellId && prevLooseCellId !== targetCellId && prev.cells[prevLooseCellId]) {
+          cellUpdates[prevLooseCellId] = {
+            ...prev.cells[prevLooseCellId],
+            looseOrderIds: prev.cells[prevLooseCellId].looseOrderIds.filter((id) => id !== orderId),
+          }
+          if (prev.cellLooseItemOrder[prevLooseCellId]) {
+            looseItemOrderUpdates[prevLooseCellId] = prev.cellLooseItemOrder[prevLooseCellId].filter(item => item !== orderItem)
           }
         }
 
-        // Add to unified loose item order at the end
-        if (!nextCellLooseItemOrder[targetCellId]) {
-          nextCellLooseItemOrder[targetCellId] = []
-        }
-        if (!nextCellLooseItemOrder[targetCellId].includes(orderItem)) {
-          nextCellLooseItemOrder[targetCellId] = [...nextCellLooseItemOrder[targetCellId], orderItem]
+        // 3. Add to target cell as loose (skip if already in this cell as loose)
+        const targetCell = prev.cells[targetCellId]
+        const alreadyInTargetCell = prevLooseCellId === targetCellId
+
+        if (!alreadyInTargetCell) {
+          if (!targetCell) {
+            // Create new cell
+            cellUpdates[targetCellId] = { runIds: [], looseOrderIds: [orderId] }
+          } else {
+            // Add to existing cell (merge with any prior updates to this cell)
+            const baseCell = cellUpdates[targetCellId] ?? targetCell
+            cellUpdates[targetCellId] = {
+              ...baseCell,
+              looseOrderIds: [...baseCell.looseOrderIds, orderId],
+            }
+          }
+
+          // Add to unified loose item order
+          const existingLooseItems = looseItemOrderUpdates[targetCellId] ?? prev.cellLooseItemOrder[targetCellId] ?? []
+          if (!existingLooseItems.includes(orderItem)) {
+            looseItemOrderUpdates[targetCellId] = [...existingLooseItems, orderItem]
+          }
         }
 
-        // Update order date
-        if (nextOrders[orderId]) {
-          nextOrders[orderId] = { ...nextOrders[orderId], date: parsed.date }
-        }
+        // 4. Build final state - only merge what changed
+        const hasRunUpdates = Object.keys(runUpdates).length > 0
+        const hasCellUpdates = Object.keys(cellUpdates).length > 0
+        const hasLooseItemUpdates = Object.keys(looseItemOrderUpdates).length > 0
 
-        nextLooseOrderToCell[orderId] = targetCellId
-        return { runs: nextRuns, cells: nextCells, orderToRun: nextOrderToRun, looseOrderToCell: nextLooseOrderToCell, orders: nextOrders, cellLooseItemOrder: nextCellLooseItemOrder }
+        // 5. Update indices surgically
+        const nextOrderToRun = sourceRunId
+          ? (({ [orderId]: _, ...rest }) => rest)(prev.orderToRun)
+          : prev.orderToRun
+        const nextLooseOrderToCell = { ...prev.looseOrderToCell, [orderId]: targetCellId }
+
+        // 6. Update order date if changed
+        const orderNeedsDateUpdate = order.date !== parsed.date
+        const nextOrders = orderNeedsDateUpdate
+          ? { ...prev.orders, [orderId]: { ...order, date: parsed.date } }
+          : prev.orders
+
+        // 7. Mark BOTH source and destination cells as dirty
+        // This prevents mergeHydrate from overwriting these cells with stale server data
+        const nextDirtyCells = new Set(prev.dirty.cells)
+        if (sourceCellId) nextDirtyCells.add(sourceCellId)
+        nextDirtyCells.add(targetCellId)
+
+        return {
+          runs: hasRunUpdates ? { ...prev.runs, ...runUpdates } : prev.runs,
+          cells: hasCellUpdates ? { ...prev.cells, ...cellUpdates } : prev.cells,
+          cellLooseItemOrder: hasLooseItemUpdates ? { ...prev.cellLooseItemOrder, ...looseItemOrderUpdates } : prev.cellLooseItemOrder,
+          orderToRun: nextOrderToRun,
+          looseOrderToCell: nextLooseOrderToCell,
+          orders: nextOrders,
+          dirty: { ...prev.dirty, cells: nextDirtyCells },
+        }
       })
 
       return { success: true }
@@ -667,6 +829,9 @@ export const useSchedulerStore = create<SchedulerState>()(
 
     /**
      * Move an entire run to a different cell.
+     *
+     * SURGICAL MUTATION: Only modifies the specific source and target cells.
+     * Does not spread/clone entire state collections unnecessarily.
      */
     moveRun: (runId, targetCellId, insertIndex) => {
       const state = get()
@@ -693,43 +858,84 @@ export const useSchedulerStore = create<SchedulerState>()(
       }
 
       set((prev) => {
-        const nextCells = { ...prev.cells }
-        const nextRunToCell = { ...prev.runToCell }
-        const nextOrders = { ...prev.orders }
-
-        // Remove from source cell
+        // Identify source BEFORE any mutations
         const sourceCellId = prev.runToCell[runId]
-        if (sourceCellId && nextCells[sourceCellId]) {
-          nextCells[sourceCellId] = {
-            ...nextCells[sourceCellId],
-            runIds: nextCells[sourceCellId].runIds.filter((id) => id !== runId),
-          }
-        }
 
-        // Add to target cell
-        if (!nextCells[targetCellId]) {
-          nextCells[targetCellId] = { runIds: [runId], looseOrderIds: [] }
-        } else {
-          const newRunIds = [...nextCells[targetCellId].runIds]
-          const idx = insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newRunIds.length
-            ? insertIndex
-            : newRunIds.length
-          newRunIds.splice(idx, 0, runId)
-          nextCells[targetCellId] = { ...nextCells[targetCellId], runIds: newRunIds }
-        }
-
-        // Update order dates for all orders in the run
-        const run = prev.runs[runId]
-        if (run) {
-          for (const orderId of run.orderIds) {
-            if (nextOrders[orderId]) {
-              nextOrders[orderId] = { ...nextOrders[orderId], date: parsed.date }
+        // Skip if already in target cell at same position (no-op)
+        if (sourceCellId === targetCellId) {
+          // Still in same cell - might just be reordering, which is handled by reorderRunsInCell
+          // But if insertIndex is specified, we may need to reorder
+          const cell = prev.cells[targetCellId]
+          if (cell && insertIndex !== undefined) {
+            const currentIdx = cell.runIds.indexOf(runId)
+            if (currentIdx === insertIndex || currentIdx === insertIndex - 1) {
+              // No actual change needed
+              return {}
             }
           }
         }
 
-        nextRunToCell[runId] = targetCellId
-        return { cells: nextCells, runToCell: nextRunToCell, orders: nextOrders }
+        // Build surgical updates - only for cells that actually change
+        const cellUpdates: Record<CellId, CellData> = {}
+
+        // 1. Remove from source cell (if different from target)
+        if (sourceCellId && sourceCellId !== targetCellId && prev.cells[sourceCellId]) {
+          cellUpdates[sourceCellId] = {
+            ...prev.cells[sourceCellId],
+            runIds: prev.cells[sourceCellId].runIds.filter((id) => id !== runId),
+          }
+        }
+
+        // 2. Add to target cell
+        const targetCell = prev.cells[targetCellId]
+        if (!targetCell) {
+          // Create new cell
+          cellUpdates[targetCellId] = { runIds: [runId], looseOrderIds: [] }
+        } else if (sourceCellId !== targetCellId) {
+          // Add to existing cell (different from source)
+          const baseCell = cellUpdates[targetCellId] ?? targetCell
+          const newRunIds = [...baseCell.runIds]
+          const idx = insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newRunIds.length
+            ? insertIndex
+            : newRunIds.length
+          newRunIds.splice(idx, 0, runId)
+          cellUpdates[targetCellId] = { ...baseCell, runIds: newRunIds }
+        } else {
+          // Same cell - reorder within cell
+          const newRunIds = targetCell.runIds.filter((id) => id !== runId)
+          const idx = insertIndex !== undefined && insertIndex >= 0 && insertIndex <= newRunIds.length
+            ? insertIndex
+            : newRunIds.length
+          newRunIds.splice(idx, 0, runId)
+          cellUpdates[targetCellId] = { ...targetCell, runIds: newRunIds }
+        }
+
+        // 3. Update order dates for all orders in the run (only if date changed)
+        const sourceParsed = sourceCellId ? parseCellId(sourceCellId) : null
+        const dateChanged = !sourceParsed || sourceParsed.date !== parsed.date
+
+        let nextOrders = prev.orders
+        if (dateChanged && run.orderIds.length > 0) {
+          const orderUpdates: Record<string, Order> = {}
+          for (const orderId of run.orderIds) {
+            const order = prev.orders[orderId]
+            if (order && order.date !== parsed.date) {
+              orderUpdates[orderId] = { ...order, date: parsed.date }
+            }
+          }
+          if (Object.keys(orderUpdates).length > 0) {
+            nextOrders = { ...prev.orders, ...orderUpdates }
+          }
+        }
+
+        // 4. Build final state - only merge what changed
+        const hasCellUpdates = Object.keys(cellUpdates).length > 0
+
+        return {
+          cells: hasCellUpdates ? { ...prev.cells, ...cellUpdates } : prev.cells,
+          runToCell: { ...prev.runToCell, [runId]: targetCellId },
+          orders: nextOrders,
+        }
       })
 
       return { success: true }
@@ -762,6 +968,90 @@ export const useSchedulerStore = create<SchedulerState>()(
         nextRunToCell[newRunId] = cellId
 
         return { runs: nextRuns, cells: nextCells, runToCell: nextRunToCell }
+      })
+
+      return newRunId
+    },
+
+    /**
+     * Atomically create a new run AND move an order into it in a single transaction.
+     * This prevents the "disappearing order" bug where separate create + move operations
+     * could race condition and lose the order.
+     */
+    createRunWithOrder: (cellId, orderId, name) => {
+      const parsed = parseCellId(cellId)
+      if (!parsed) return null
+
+      const state = get()
+      const order = state.orders[orderId]
+      if (!order) return null
+      if (order.type === 'PO') return null // POs can't go in runs
+      if (order.isReadOnly) return null
+
+      const newRunId = generateRunId()
+      const cell = state.cells[cellId]
+      const runCount = cell ? cell.runIds.length : 0
+      const runName = name ?? `Run ${runCount + 1}`
+
+      set((prev) => {
+        // 1. Create the new run WITH the order already in it
+        const newRun: DeliveryRun = { id: newRunId, name: runName, orderIds: [orderId], notes: null }
+        const nextRuns = { ...prev.runs, [newRunId]: newRun }
+        const nextCells = { ...prev.cells }
+        const nextRunToCell = { ...prev.runToCell }
+        const nextOrderToRun = { ...prev.orderToRun }
+        const nextLooseOrderToCell = { ...prev.looseOrderToCell }
+        const nextOrders = { ...prev.orders }
+        const nextCellLooseItemOrder = { ...prev.cellLooseItemOrder }
+        const orderItem = `order:${orderId}`
+
+        // 2. Remove order from source run (if committed elsewhere)
+        const sourceRunId = prev.orderToRun[orderId]
+        if (sourceRunId && nextRuns[sourceRunId]) {
+          nextRuns[sourceRunId] = {
+            ...nextRuns[sourceRunId],
+            orderIds: nextRuns[sourceRunId].orderIds.filter((id) => id !== orderId),
+          }
+        }
+
+        // 3. Remove order from loose (if loose)
+        const looseCellId = prev.looseOrderToCell[orderId]
+        if (looseCellId && nextCells[looseCellId]) {
+          nextCells[looseCellId] = {
+            ...nextCells[looseCellId],
+            looseOrderIds: nextCells[looseCellId].looseOrderIds.filter((id) => id !== orderId),
+          }
+          if (nextCellLooseItemOrder[looseCellId]) {
+            nextCellLooseItemOrder[looseCellId] = nextCellLooseItemOrder[looseCellId].filter(item => item !== orderItem)
+          }
+          delete nextLooseOrderToCell[orderId]
+        }
+
+        // 4. Add run to cell
+        if (!nextCells[cellId]) {
+          nextCells[cellId] = { runIds: [newRunId], looseOrderIds: [] }
+        } else {
+          nextCells[cellId] = { ...nextCells[cellId], runIds: [...nextCells[cellId].runIds, newRunId] }
+        }
+
+        // 5. Update indices
+        nextRunToCell[newRunId] = cellId
+        nextOrderToRun[orderId] = newRunId
+
+        // 6. Update order date to match cell
+        if (nextOrders[orderId]) {
+          nextOrders[orderId] = { ...nextOrders[orderId], date: parsed.date }
+        }
+
+        return {
+          runs: nextRuns,
+          cells: nextCells,
+          runToCell: nextRunToCell,
+          orderToRun: nextOrderToRun,
+          looseOrderToCell: nextLooseOrderToCell,
+          orders: nextOrders,
+          cellLooseItemOrder: nextCellLooseItemOrder,
+        }
       })
 
       return newRunId
@@ -901,7 +1191,16 @@ export const useSchedulerStore = create<SchedulerState>()(
         const [moved] = next.splice(fromIndex, 1)
         next.splice(toIndex, 0, moved)
 
-        return { cells: { ...prev.cells, [cellId]: { ...cell, runIds: next } } }
+        // Mark the moved run as dirty to preserve order during mergeHydrate
+        const nextDirty = {
+          ...prev.dirty,
+          runs: new Set(prev.dirty.runs).add(moved),
+        }
+
+        return {
+          cells: { ...prev.cells, [cellId]: { ...cell, runIds: next } },
+          dirty: nextDirty,
+        }
       })
     },
 
@@ -964,9 +1263,18 @@ export const useSchedulerStore = create<SchedulerState>()(
       // Build unified cellLooseItemOrder: notes first, then existing orders
       const cellLooseItemOrder: Record<CellId, string[]> = { ...state.cellLooseItemOrder }
       for (const [cellId, noteIds] of Object.entries(notesByCell)) {
+        const isInboundCell = cellId.startsWith('inbound|')
         const existingItems = cellLooseItemOrder[cellId] || []
         // Filter out any existing note entries (shouldn't happen on fresh hydrate)
-        const orderItems = existingItems.filter(item => item.startsWith('order:'))
+        // IMPORTANT: Also filter out non-PO orders from inbound cells
+        const orderItems = existingItems.filter(item => {
+          if (!item.startsWith('order:')) return false
+          if (!isInboundCell) return true
+          // For inbound cells, only keep POs
+          const orderId = item.slice(6) // Remove "order:" prefix
+          const order = state.orders[orderId]
+          return order?.type === 'PO'
+        })
         // Notes go first, then orders
         cellLooseItemOrder[cellId] = [
           ...noteIds.map(id => `note:${id}`),
@@ -1208,6 +1516,22 @@ export const useSchedulerStore = create<SchedulerState>()(
       })
     },
 
+    markCellDirty: (cellId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.cells)
+        next.add(cellId)
+        return { dirty: { ...prev.dirty, cells: next } }
+      })
+    },
+
+    markCellClean: (cellId) => {
+      set((prev) => {
+        const next = new Set(prev.dirty.cells)
+        next.delete(cellId)
+        return { dirty: { ...prev.dirty, cells: next } }
+      })
+    },
+
     incrementPendingApiCalls: () => {
       set((prev) => ({
         dirty: { ...prev.dirty, pendingApiCalls: prev.dirty.pendingApiCalls + 1 },
@@ -1226,6 +1550,7 @@ export const useSchedulerStore = create<SchedulerState>()(
           orders: new Set(),
           runs: new Set(),
           notes: new Set(),
+          cells: new Set(),
           pendingApiCalls: 0,
         },
       })

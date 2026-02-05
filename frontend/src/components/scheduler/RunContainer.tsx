@@ -210,11 +210,21 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
         </svg>
         <span>{run.name}</span>
         {run.notes && (
-          <div className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-inner" title={run.notes}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setNoteInput(run.notes || '')
+              setMenuPos({ x: e.clientX, y: e.clientY })
+              setShowNoteMenu(true)
+            }}
+            className="w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shrink-0 shadow-inner hover:bg-amber-500 transition-colors cursor-pointer"
+            title="Click to edit note"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5 text-amber-900">
               <path d="M3 4.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM6.25 3a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 7.25a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM6.25 11.5a.75.75 0 0 0 0 1.5h7a.75.75 0 0 0 0-1.5h-7ZM4 12.25a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM3 8.75a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
             </svg>
-          </div>
+          </button>
         )}
         <div className="ml-auto flex items-center gap-2">
           <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px] font-medium">

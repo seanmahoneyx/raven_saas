@@ -138,7 +138,7 @@ export const ScheduleView = memo(function ScheduleView() {
     if (!over || active.id === over.id) return
 
     const overId = String(over.id)
-    const activeData = active.data.current as { type: string; orderId?: string; runId?: string } | undefined
+    const activeData = active.data.current as { type: string; orderId?: string; runId?: string; noteId?: string } | undefined
 
     if (!activeData) return
 
@@ -219,6 +219,11 @@ export const ScheduleView = memo(function ScheduleView() {
               }
             }
           } else if (targetCellId) {
+            // Prevent non-PO orders from being dropped into inbound row
+            const order = state.orders[orderId]
+            if (targetCellId.startsWith('inbound|') && order?.type !== 'PO') {
+              return // Block: only POs allowed in inbound row
+            }
             // Move to different cell as loose
             scheduleOrderToCell(orderId, targetCellId)
           }
@@ -244,6 +249,11 @@ export const ScheduleView = memo(function ScheduleView() {
             }
           }
         } else if (targetCellId) {
+          // Prevent non-PO orders from being dropped into inbound row
+          const order = state.orders[orderId]
+          if (targetCellId.startsWith('inbound|') && order?.type !== 'PO') {
+            return // Block: only POs allowed in inbound row
+          }
           // Move to different cell as loose
           scheduleOrderToCell(orderId, targetCellId)
         }
@@ -252,6 +262,11 @@ export const ScheduleView = memo(function ScheduleView() {
 
       // Dropping on a cell (droppable) → LOOSE - use API mutation
       if (overId.includes('|') && !overId.startsWith('run:') && !overId.startsWith('note:') && !overId.startsWith('order:')) {
+        // Prevent non-PO orders from being dropped into inbound row
+        const order = state.orders[orderId]
+        if (overId.startsWith('inbound|') && order?.type !== 'PO') {
+          return // Block: only POs allowed in inbound row
+        }
         scheduleOrderToCell(orderId, overId)
         return
       }

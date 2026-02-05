@@ -17,7 +17,7 @@ import { getStatusColor } from './useSchedulerStore'
 
 // ─── Status Mapping ──────────────────────────────────────────────────────────
 
-export function mapApiStatusToV2Status(apiStatus: ApiOrderStatus): OrderStatus {
+export function mapApiStatusToSchedulerStatus(apiStatus: ApiOrderStatus): OrderStatus {
   switch (apiStatus) {
     case 'draft':
     case 'confirmed':
@@ -40,7 +40,7 @@ export function mapApiStatusToV2Status(apiStatus: ApiOrderStatus): OrderStatus {
 // ─── Order Transform ─────────────────────────────────────────────────────────
 
 export function transformOrder(apiOrder: CalendarOrder): Order {
-  const status = mapApiStatusToV2Status(apiOrder.status)
+  const status = mapApiStatusToSchedulerStatus(apiOrder.status)
   const color = getStatusColor(status)
   const isReadOnly = apiOrder.status === 'shipped' || apiOrder.status === 'complete'
 
@@ -120,6 +120,11 @@ export function transformApiToHydratePayload(
       const looseOrderIds: string[] = []
 
       for (const order of day.orders) {
+        // POs should go to "inbound" row, not the truck row
+        if (order.order_type === 'PO') {
+          // Skip - POs will be handled separately below
+          continue
+        }
         if (order.delivery_run_id && runIdSet.has(order.delivery_run_id)) {
           runIds.add(order.delivery_run_id.toString())
         } else {
@@ -131,6 +136,32 @@ export function transformApiToHydratePayload(
       cells[cellId] = {
         runIds: Array.from(runIds),
         looseOrderIds,
+      }
+    }
+  }
+
+  // 3b. Route POs to "inbound" row cells (deduplicated)
+  // POs may appear in multiple truck calendars if they have scheduled_truck_id set,
+  // so we track which POs we've already added to avoid duplicates
+  const addedPoIds = new Set<string>()
+
+  for (const truckCalendar of calendarData) {
+    for (const day of truckCalendar.days) {
+      for (const order of day.orders) {
+        if (order.order_type === 'PO') {
+          const poId = order.id.toString()
+          // Skip if already added (deduplication)
+          if (addedPoIds.has(poId)) continue
+          addedPoIds.add(poId)
+
+          const inboundCellId: CellId = `inbound|${day.date}`
+          // Initialize inbound cell if not exists
+          if (!cells[inboundCellId]) {
+            cells[inboundCellId] = { runIds: [], looseOrderIds: [] }
+          }
+          // POs go to inbound row as loose orders (they can't be in runs)
+          cells[inboundCellId].looseOrderIds.push(poId)
+        }
       }
     }
   }

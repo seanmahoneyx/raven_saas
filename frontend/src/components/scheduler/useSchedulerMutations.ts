@@ -37,6 +37,10 @@ export function useSchedulerMutations() {
   const markOrderClean = useSchedulerStore((s) => s.markOrderClean)
   const markRunDirty = useSchedulerStore((s) => s.markRunDirty)
   const markRunClean = useSchedulerStore((s) => s.markRunClean)
+  const markCellDirty = useSchedulerStore((s) => s.markCellDirty)
+  const markCellClean = useSchedulerStore((s) => s.markCellClean)
+  const looseOrderToCell = useSchedulerStore((s) => s.looseOrderToCell)
+  const orderToRun = useSchedulerStore((s) => s.orderToRun)
   const incrementPendingApiCalls = useSchedulerStore((s) => s.incrementPendingApiCalls)
   const decrementPendingApiCalls = useSchedulerStore((s) => s.decrementPendingApiCalls)
 
@@ -55,14 +59,23 @@ export function useSchedulerMutations() {
     const parsed = parseCellId(cellId)
     if (!parsed) return { success: false, reason: 'Invalid cell' }
 
+    // Track source cell BEFORE the move (for dirty marking)
+    const sourceRunId = orderToRun[orderId]
+    const sourceCellId = sourceRunId ? runToCell[sourceRunId] : looseOrderToCell[orderId]
+
     // Mark dirty and increment pending calls (prevents polling from overwriting)
     markOrderDirty(orderId)
+    // Mark BOTH source and destination cells as dirty to prevent stale data overwrites
+    if (sourceCellId) markCellDirty(sourceCellId)
+    markCellDirty(cellId)
     incrementPendingApiCalls()
 
-    // Optimistic update
+    // Optimistic update (also marks cells dirty internally)
     const result = moveOrderLoose(orderId, cellId)
     if (!result.success) {
       markOrderClean(orderId)
+      if (sourceCellId) markCellClean(sourceCellId)
+      markCellClean(cellId)
       decrementPendingApiCalls()
       return result
     }
@@ -76,18 +89,25 @@ export function useSchedulerMutations() {
         scheduledTruckId: parsed.truckId,
         deliveryRunId: null,
       })
-      // Success - clean up dirty state
-      markOrderClean(orderId)
+      // Success - clean up dirty state after a brief delay to let polling catch up
+      // Using setTimeout ensures the refetch from invalidation has time to complete
+      setTimeout(() => {
+        markOrderClean(orderId)
+        if (sourceCellId) markCellClean(sourceCellId)
+        markCellClean(cellId)
+      }, 2000) // 2 second delay to allow polling to settle
       decrementPendingApiCalls()
       return { success: true }
     } catch (error) {
       // Refetch to revert
       markOrderClean(orderId)
+      if (sourceCellId) markCellClean(sourceCellId)
+      markCellClean(cellId)
       decrementPendingApiCalls()
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       return { success: false, reason: 'API error' }
     }
-  }, [orders, moveOrderLoose, updateScheduleMutation, queryClient, markOrderDirty, markOrderClean, incrementPendingApiCalls, decrementPendingApiCalls])
+  }, [orders, orderToRun, runToCell, looseOrderToCell, moveOrderLoose, updateScheduleMutation, queryClient, markOrderDirty, markOrderClean, markCellDirty, markCellClean, incrementPendingApiCalls, decrementPendingApiCalls])
 
   // Add order to a run
   // forcePosition: if true, uses exact insertIndex (Shift+drag); otherwise uses smart grouping

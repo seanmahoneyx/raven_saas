@@ -26,12 +26,13 @@ interface ManifestCellProps {
   cellId: CellId
   isInbound: boolean
   isUnassigned?: boolean
+  isPickup?: boolean
 }
 
 // Stable empty array to avoid creating new references
 const EMPTY_IDS: string[] = []
 
-export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUnassigned }: ManifestCellProps) {
+export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUnassigned, isPickup }: ManifestCellProps) {
   // Parse cellId to get truckId and date
   const [truckId, date] = cellId.split('|')
 
@@ -80,7 +81,7 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
   const handleCreateNote = useCallback(() => {
     if (!noteContent.trim()) return
 
-    const truckIdNum = truckId === 'unassigned' || truckId === 'inbound' ? null : parseInt(truckId, 10)
+    const truckIdNum = truckId === 'unassigned' || truckId === 'inbound' || truckId === 'pickup' ? null : parseInt(truckId, 10)
 
     createNoteMutation.mutate({
       content: noteContent.trim(),
@@ -115,9 +116,11 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
         min-h-[48px] p-1 border-r border-b relative flex flex-col transition-colors
         ${isInbound
           ? 'bg-rose-50/50 border-rose-100'
-          : isUnassigned
-            ? 'bg-cyan-50/50 border-cyan-100'
-            : 'bg-white border-slate-200'
+          : isPickup
+            ? 'bg-purple-50/50 border-purple-100'
+            : isUnassigned
+              ? 'bg-cyan-50/50 border-cyan-100'
+              : 'bg-white border-slate-200'
         }
         ${isLocked && !isInbound
           ? 'bg-[repeating-linear-gradient(-45deg,transparent,transparent_6px,rgba(239,68,68,0.08)_6px,rgba(239,68,68,0.08)_8px)]'
@@ -141,27 +144,27 @@ export const ManifestCell = memo(function ManifestCell({ cellId, isInbound, isUn
       )}
 
       {/* Unified loose items section: Notes and Orders interleaved */}
-      {!isInbound && (
-        <div className="flex-1 flex flex-col space-y-0.5">
-          <SortableContext items={looseItems} strategy={verticalListSortingStrategy}>
-            {looseItems.map((item) => {
-              if (item.startsWith('note:')) {
-                const noteId = item.slice(5)
-                return <NoteCard key={item} noteId={noteId} originalCellId={cellId} />
-              } else if (item.startsWith('order:')) {
-                const orderId = item.slice(6)
-                return <ManifestLine key={item} orderId={orderId} isLoose />
-              }
-              return null
-            })}
-          </SortableContext>
-          {/* Always show a drop slot below items - same height as an order line */}
+      <div className="flex-1 flex flex-col space-y-0.5">
+        <SortableContext items={looseItems} strategy={verticalListSortingStrategy}>
+          {looseItems.map((item) => {
+            if (item.startsWith('note:')) {
+              const noteId = item.slice(5)
+              return <NoteCard key={item} noteId={noteId} originalCellId={cellId} />
+            } else if (item.startsWith('order:')) {
+              const orderId = item.slice(6)
+              return <ManifestLine key={item} orderId={orderId} isLoose />
+            }
+            return null
+          })}
+        </SortableContext>
+        {/* Always show a drop slot below items - same height as an order line (not for inbound) */}
+        {!isInbound && (
           <div className={`min-h-[28px] rounded-md transition-colors ${isOver ? 'border border-dashed border-amber-300 bg-amber-50/50' : ''}`} />
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Footer: Add Run Button (not for inbound or unassigned) */}
-      {!isInbound && !isUnassigned && (
+      {/* Footer: Add Run Button (not for inbound, pickup, or unassigned) */}
+      {!isInbound && !isPickup && !isUnassigned && (
         <button
           type="button"
           onClick={handleAddRun}

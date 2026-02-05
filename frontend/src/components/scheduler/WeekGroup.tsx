@@ -93,6 +93,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
   const truckName = useSchedulerStore(selectTruckMemo)
 
   const isUnassigned = truckId === 'unassigned'
+  const isPickup = truckId === 'pickup'
 
   return (
     <div
@@ -101,9 +102,11 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         px-2.5 py-2.5 text-[11px] font-semibold border-r border-b
         ${isInbound
           ? 'bg-gradient-to-r from-rose-100 to-rose-50 text-rose-700 border-rose-200'
-          : isUnassigned
-            ? 'bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-700 border-cyan-200'
-            : 'bg-white text-slate-600 border-slate-200'
+          : isPickup
+            ? 'bg-gradient-to-r from-purple-100 to-purple-50 text-purple-700 border-purple-200'
+            : isUnassigned
+              ? 'bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-700 border-cyan-200'
+              : 'bg-white text-slate-600 border-slate-200'
         }
       `}
     >
@@ -111,6 +114,10 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
       {isInbound ? (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 opacity-60">
           <path fillRule="evenodd" d="M8 14a.75.75 0 0 1-.75-.75V4.56L4.03 7.78a.75.75 0 0 1-1.06-1.06l4.5-4.5a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1-1.06 1.06L8.75 4.56v8.69A.75.75 0 0 1 8 14Z" clipRule="evenodd" />
+        </svg>
+      ) : isPickup ? (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 opacity-60">
+          <path d="M8 1a.75.75 0 0 1 .75.75v6.44l2.72-2.72a.75.75 0 1 1 1.06 1.06l-4 4a.75.75 0 0 1-1.06 0l-4-4a.75.75 0 0 1 1.06-1.06l2.72 2.72V1.75A.75.75 0 0 1 8 1ZM2.75 12a.75.75 0 0 0 0 1.5h10.5a.75.75 0 0 0 0-1.5H2.75Z" />
         </svg>
       ) : isUnassigned ? (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0 opacity-60">
@@ -122,7 +129,7 @@ const RowLabel = memo(function RowLabel({ truckId, isInbound }: RowLabelProps) {
         </svg>
       )}
       <span className="truncate uppercase tracking-wide">
-        {isInbound ? 'Inbound' : isUnassigned ? 'Unscheduled' : truckName}
+        {isInbound ? 'Inbound' : isPickup ? 'Pick Up' : isUnassigned ? 'Unscheduled' : truckName}
       </span>
     </div>
   )
@@ -138,12 +145,13 @@ interface GridRowProps {
 
 const GridRow = memo(function GridRow({ truckId, isInbound, dates }: GridRowProps) {
   const isUnassigned = truckId === 'unassigned'
+  const isPickup = truckId === 'pickup'
   return (
     <>
       <RowLabel truckId={truckId} isInbound={isInbound} />
       {dates.map((date) => {
         const cellId: CellId = `${truckId}|${date}`
-        return <ManifestCell key={cellId} cellId={cellId} isInbound={isInbound} isUnassigned={isUnassigned} />
+        return <ManifestCell key={cellId} cellId={cellId} isInbound={isInbound} isUnassigned={isUnassigned} isPickup={isPickup} />
       })}
     </>
   )
@@ -169,11 +177,13 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
 
   const rows = useMemo(() => {
     const result: { truckId: string; isInbound: boolean }[] = []
+    // Order: Inbound (top) → Unscheduled → Truck rows → Pick Up (bottom)
     result.push({ truckId: 'inbound', isInbound: true })
     result.push({ truckId: 'unassigned', isInbound: false })
     for (const t of trucks) {
       result.push({ truckId: t, isInbound: false })
     }
+    result.push({ truckId: 'pickup', isInbound: false })
     return result
   }, [trucks])
 

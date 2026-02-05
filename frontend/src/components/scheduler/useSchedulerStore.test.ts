@@ -8,6 +8,7 @@ import {
   selectCellLooseOrderIds,
   selectIsDateLocked,
   type Order,
+  type DeliveryRun,
   type CellData,
   type HydratePayload,
 } from './useSchedulerStore'
@@ -822,6 +823,554 @@ describe('useSchedulerStore', () => {
       expect(s.looseOrderToCell['o6']).toBe('TR-02|2025-01-06')
       expect(s.orderToRun['o6']).toBeUndefined()
       expect(s.runs['r1'].orderIds).not.toContain('o6')
+    })
+  })
+
+  // ── createRunWithOrder (Atomic Operation) ──────────────────────────────────
+
+  describe('createRunWithOrder', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('atomically creates run and moves order in single transaction', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-06', 'o6', 'Express')
+      expect(runId).not.toBeNull()
+
+      const s = getState()
+      // Run was created
+      expect(s.runs[runId!]).toBeDefined()
+      expect(s.runs[runId!].name).toBe('Express')
+      // Order is in the run
+      expect(s.runs[runId!].orderIds).toEqual(['o6'])
+      // Order is no longer loose
+      expect(s.looseOrderToCell['o6']).toBeUndefined()
+      expect(s.cells['TR-01|2025-01-06'].looseOrderIds).not.toContain('o6')
+      // Index is correct
+      expect(s.orderToRun['o6']).toBe(runId)
+      expect(s.runToCell[runId!]).toBe('TR-01|2025-01-06')
+    })
+
+    it('moves order from existing run to new run atomically', () => {
+      const runId = getState().createRunWithOrder('TR-02|2025-01-06', 'o1', 'New Run')
+      expect(runId).not.toBeNull()
+
+      const s = getState()
+      // Order removed from old run
+      expect(s.runs['r1'].orderIds).not.toContain('o1')
+      // Order in new run
+      expect(s.runs[runId!].orderIds).toEqual(['o1'])
+      expect(s.orderToRun['o1']).toBe(runId)
+    })
+
+    it('updates order date to match target cell', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-07', 'o6')
+      expect(runId).not.toBeNull()
+      expect(getState().orders['o6'].date).toBe('2025-01-07')
+    })
+
+    it('removes order from cellLooseItemOrder when moving from loose', () => {
+      // Verify o6 is in loose item order
+      const beforeState = getState()
+      expect(beforeState.cellLooseItemOrder['TR-01|2025-01-06']).toContain('order:o6')
+
+      getState().createRunWithOrder('TR-01|2025-01-06', 'o6')
+
+      const afterState = getState()
+      expect(afterState.cellLooseItemOrder['TR-01|2025-01-06']).not.toContain('order:o6')
+    })
+
+    it('returns null for invalid cell ID', () => {
+      const runId = getState().createRunWithOrder('invalid', 'o6')
+      expect(runId).toBeNull()
+    })
+
+    it('returns null for nonexistent order', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-06', 'nonexistent')
+      expect(runId).toBeNull()
+    })
+
+    it('returns null for PO orders', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-06', 'o5')
+      expect(runId).toBeNull()
+    })
+
+    it('returns null for read-only orders', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-06', 'o4')
+      expect(runId).toBeNull()
+    })
+
+    it('auto-names based on run count', () => {
+      const runId = getState().createRunWithOrder('TR-01|2025-01-06', 'o6')
+      expect(getState().runs[runId!].name).toBe('Run 3')
+    })
+  })
+
+  // ── Surgical Mutation Tests (Reference Stability) ──────────────────────────
+
+  describe('surgical mutations - reference stability', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('moveOrder only modifies affected runs, not unrelated runs', () => {
+      const beforeState = getState()
+      const unrelatedRunBefore = beforeState.runs['r3'] // TR-02 run, unaffected
+
+      // Move o3 from r2 to r1 (both in TR-01)
+      getState().moveOrder('o3', 'r1')
+
+      const afterState = getState()
+      // Unrelated run should have same reference (not cloned)
+      expect(afterState.runs['r3']).toBe(unrelatedRunBefore)
+    })
+
+    it('moveOrder only modifies affected cells, not unrelated cells', () => {
+      const beforeState = getState()
+      const unrelatedCellBefore = beforeState.cells['TR-02|2025-01-06']
+
+      // Move o3 from r2 to r1 (both in TR-01|2025-01-06)
+      getState().moveOrder('o3', 'r1')
+
+      const afterState = getState()
+      // Cell in TR-02 should be same reference
+      expect(afterState.cells['TR-02|2025-01-06']).toBe(unrelatedCellBefore)
+    })
+
+    it('moveOrderLoose only modifies source and target cells', () => {
+      const beforeState = getState()
+      const unrelatedCellBefore = beforeState.cells['inbound|2025-01-06']
+
+      // Move o6 from TR-01 loose to TR-02 loose
+      getState().moveOrderLoose('o6', 'TR-02|2025-01-06')
+
+      const afterState = getState()
+      // Inbound cell should be same reference
+      expect(afterState.cells['inbound|2025-01-06']).toBe(unrelatedCellBefore)
+    })
+
+    it('moveRun only modifies source and target cells', () => {
+      const beforeState = getState()
+      const unrelatedCellBefore = beforeState.cells['inbound|2025-01-06']
+
+      // Move r2 from TR-01 to TR-02
+      getState().moveRun('r2', 'TR-02|2025-01-06')
+
+      const afterState = getState()
+      // Inbound cell should be same reference
+      expect(afterState.cells['inbound|2025-01-06']).toBe(unrelatedCellBefore)
+    })
+
+    it('moveOrder does not modify orders if date unchanged', () => {
+      const beforeState = getState()
+      const unrelatedOrderBefore = beforeState.orders['o4'] // Different run
+
+      // Move o3 within same date
+      getState().moveOrder('o3', 'r1')
+
+      const afterState = getState()
+      // Unrelated order should be same reference
+      expect(afterState.orders['o4']).toBe(unrelatedOrderBefore)
+    })
+
+    it('moveOrderLoose preserves orders state when date unchanged', () => {
+      // Setup: Move o1 (from run) to loose in same cell/date
+      const beforeState = getState()
+      const unrelatedOrderBefore = beforeState.orders['o4']
+
+      getState().moveOrderLoose('o1', 'TR-01|2025-01-06')
+
+      const afterState = getState()
+      expect(afterState.orders['o4']).toBe(unrelatedOrderBefore)
+    })
+  })
+
+  // ── Cell Isolation Tests (Day A should not affect Day B) ───────────────────
+
+  describe('cell isolation - cross-day integrity', () => {
+    beforeEach(() => {
+      // Extended payload with multiple dates
+      const payload = makeSeedPayload()
+      payload.orders.push(
+        makeOrder({ id: 'o7', customerCode: 'ZETA', date: '2025-01-07' }),
+        makeOrder({ id: 'o8', customerCode: 'ZETA', date: '2025-01-07' })
+      )
+      payload.runs.push(
+        { id: 'r5', name: 'Day2 Run', orderIds: ['o7', 'o8'] }
+      )
+      payload.cells['TR-01|2025-01-07'] = { runIds: ['r5'], looseOrderIds: [] }
+      getState().hydrate(payload)
+      useSchedulerStore.setState((prev) => ({
+        runToCell: { ...prev.runToCell, 'r5': 'TR-01|2025-01-07' },
+        orderToRun: { ...prev.orderToRun, 'o7': 'r5', 'o8': 'r5' },
+      }))
+    })
+
+    it('moving order on Day 1 does not affect Day 2 cell', () => {
+      const day2CellBefore = getState().cells['TR-01|2025-01-07']
+      const day2RunBefore = getState().runs['r5']
+
+      // Operate on Day 1
+      getState().moveOrder('o3', 'r1')
+
+      const day2CellAfter = getState().cells['TR-01|2025-01-07']
+      const day2RunAfter = getState().runs['r5']
+
+      // Day 2 should be completely unchanged
+      expect(day2CellAfter).toBe(day2CellBefore)
+      expect(day2RunAfter).toBe(day2RunBefore)
+      expect(day2RunAfter.orderIds).toEqual(['o7', 'o8'])
+    })
+
+    it('moving order on Day 1 does not affect Day 2 orders', () => {
+      const o7Before = getState().orders['o7']
+      const o8Before = getState().orders['o8']
+
+      // Operate on Day 1
+      getState().moveOrderLoose('o1', 'TR-02|2025-01-06')
+
+      // Day 2 orders should be same reference
+      expect(getState().orders['o7']).toBe(o7Before)
+      expect(getState().orders['o8']).toBe(o8Before)
+    })
+
+    it('moveRun on Day 1 does not affect Day 2 run order', () => {
+      const day2CellBefore = getState().cells['TR-01|2025-01-07']
+
+      // Operate on Day 1
+      getState().moveRun('r2', 'TR-02|2025-01-06')
+
+      // Day 2 cell should be unchanged
+      expect(getState().cells['TR-01|2025-01-07']).toBe(day2CellBefore)
+    })
+
+    it('creating run on Day 1 does not affect Day 2', () => {
+      const day2RunIds = [...getState().cells['TR-01|2025-01-07'].runIds]
+
+      getState().createRun('TR-01|2025-01-06', 'New Run')
+
+      expect(getState().cells['TR-01|2025-01-07'].runIds).toEqual(day2RunIds)
+    })
+
+    it('dissolving run on Day 1 does not affect Day 2 orders', () => {
+      const o7Before = getState().orders['o7']
+
+      getState().dissolveRun('r2')
+
+      expect(getState().orders['o7']).toBe(o7Before)
+    })
+
+    it('reordering within Day 1 run does not affect Day 2 run', () => {
+      const r5Before = getState().runs['r5']
+
+      getState().reorderInRun('r1', 0, 1)
+
+      expect(getState().runs['r5']).toBe(r5Before)
+    })
+  })
+
+  // ── cellLooseItemOrder Tests ───────────────────────────────────────────────
+
+  describe('cellLooseItemOrder tracking', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('hydrate builds initial cellLooseItemOrder from loose orders', () => {
+      const s = getState()
+      expect(s.cellLooseItemOrder['TR-01|2025-01-06']).toContain('order:o6')
+    })
+
+    it('moveOrder removes from cellLooseItemOrder when committing loose order', () => {
+      getState().moveOrder('o6', 'r1')
+      expect(getState().cellLooseItemOrder['TR-01|2025-01-06']).not.toContain('order:o6')
+    })
+
+    it('moveOrderLoose adds to cellLooseItemOrder', () => {
+      getState().moveOrderLoose('o1', 'TR-02|2025-01-06')
+      expect(getState().cellLooseItemOrder['TR-02|2025-01-06']).toContain('order:o1')
+    })
+
+    it('moveOrderLoose removes from source cellLooseItemOrder', () => {
+      getState().moveOrderLoose('o6', 'TR-02|2025-01-06')
+      expect(getState().cellLooseItemOrder['TR-01|2025-01-06']).not.toContain('order:o6')
+    })
+
+    it('moveOrderLoose to same cell does not duplicate', () => {
+      getState().moveOrderLoose('o6', 'TR-01|2025-01-06')
+      const items = getState().cellLooseItemOrder['TR-01|2025-01-06']
+      const count = items.filter(i => i === 'order:o6').length
+      expect(count).toBe(1)
+    })
+
+    it('createRunWithOrder removes from cellLooseItemOrder', () => {
+      getState().createRunWithOrder('TR-01|2025-01-06', 'o6')
+      expect(getState().cellLooseItemOrder['TR-01|2025-01-06']).not.toContain('order:o6')
+    })
+  })
+
+  // ── deleteRun Tests ────────────────────────────────────────────────────────
+
+  describe('deleteRun', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('deletes an empty run', () => {
+      const runId = getState().createRun('TR-01|2025-01-06', 'Empty')!
+      const result = getState().deleteRun(runId)
+      expect(result).toBe(true)
+      expect(getState().runs[runId]).toBeUndefined()
+      expect(getState().cells['TR-01|2025-01-06'].runIds).not.toContain(runId)
+      expect(getState().runToCell[runId]).toBeUndefined()
+    })
+
+    it('refuses to delete run with orders', () => {
+      const result = getState().deleteRun('r1')
+      expect(result).toBe(false)
+      expect(getState().runs['r1']).toBeDefined()
+    })
+
+    it('returns false for nonexistent run', () => {
+      const result = getState().deleteRun('nonexistent')
+      expect(result).toBe(false)
+    })
+  })
+
+  // ── Concurrent Operations Simulation ───────────────────────────────────────
+
+  describe('concurrent operation simulation', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('rapid successive moves maintain consistency', () => {
+      // Simulate rapid drag operations
+      getState().moveOrder('o1', 'r2')
+      getState().moveOrder('o2', 'r2')
+      getState().moveOrder('o3', 'r1')
+
+      const s = getState()
+      // All indices should be consistent
+      expect(s.orderToRun['o1']).toBe('r2')
+      expect(s.orderToRun['o2']).toBe('r2')
+      expect(s.orderToRun['o3']).toBe('r1')
+      expect(s.runs['r1'].orderIds).toContain('o3')
+      expect(s.runs['r2'].orderIds).toContain('o1')
+      expect(s.runs['r2'].orderIds).toContain('o2')
+    })
+
+    it('move order then immediately create run with same order', () => {
+      // Move to loose first
+      getState().moveOrderLoose('o1', 'TR-02|2025-01-06')
+      expect(getState().looseOrderToCell['o1']).toBe('TR-02|2025-01-06')
+
+      // Immediately create run with same order
+      const runId = getState().createRunWithOrder('TR-02|2025-01-06', 'o1')
+      expect(runId).not.toBeNull()
+
+      const s = getState()
+      expect(s.orderToRun['o1']).toBe(runId)
+      expect(s.looseOrderToCell['o1']).toBeUndefined()
+      expect(s.runs[runId!].orderIds).toEqual(['o1'])
+    })
+
+    it('alternating loose and commit operations', () => {
+      // Commit -> Loose -> Commit -> Loose
+      getState().moveOrderLoose('o1', 'TR-02|2025-01-06')
+      getState().commitOrderToRun('o1', 'r3')
+      getState().moveOrderLoose('o1', 'TR-01|2025-01-06')
+      getState().commitOrderToRun('o1', 'r2')
+
+      const s = getState()
+      expect(s.orderToRun['o1']).toBe('r2')
+      expect(s.looseOrderToCell['o1']).toBeUndefined()
+      expect(s.runs['r2'].orderIds).toContain('o1')
+      expect(s.runs['r3'].orderIds).not.toContain('o1')
+    })
+  })
+
+  // ── Smart Insert Position Tests ────────────────────────────────────────────
+
+  describe('smart insert position (customer grouping)', () => {
+    beforeEach(() => {
+      getState().hydrate(makeSeedPayload())
+    })
+
+    it('groups same-customer orders together when no position specified', () => {
+      // o1 and o2 are ACME, o3 is BETA - move o3 to r1
+      getState().moveOrder('o3', 'r1')
+      // BETA order should go to end (no other BETA orders)
+      const orderIds = getState().runs['r1'].orderIds
+      expect(orderIds[orderIds.length - 1]).toBe('o3')
+    })
+
+    it('inserts near same-customer orders', () => {
+      // Create a new ACME order
+      useSchedulerStore.setState((prev) => ({
+        orders: { ...prev.orders, 'o-acme': makeOrder({ id: 'o-acme', customerCode: 'ACME' }) },
+        looseOrderToCell: { ...prev.looseOrderToCell, 'o-acme': 'TR-02|2025-01-06' },
+        cells: {
+          ...prev.cells,
+          'TR-02|2025-01-06': {
+            ...prev.cells['TR-02|2025-01-06'],
+            looseOrderIds: [...prev.cells['TR-02|2025-01-06'].looseOrderIds, 'o-acme'],
+          },
+        },
+      }))
+
+      // Move the new ACME order to r1 (which has o1, o2 both ACME)
+      getState().moveOrder('o-acme', 'r1')
+      const orderIds = getState().runs['r1'].orderIds
+
+      // Should be grouped with other ACME orders
+      const acmeIndices = orderIds
+        .map((id, i) => ({ id, i }))
+        .filter(({ id }) => getState().orders[id]?.customerCode === 'ACME')
+        .map(({ i }) => i)
+
+      // All ACME orders should be consecutive
+      for (let i = 1; i < acmeIndices.length; i++) {
+        expect(acmeIndices[i] - acmeIndices[i - 1]).toBe(1)
+      }
+    })
+
+    it('forcePosition=true overrides smart positioning', () => {
+      // Move o3 (BETA) to position 0 with forcePosition
+      getState().moveOrder('o3', 'r1', 0, true)
+      expect(getState().runs['r1'].orderIds[0]).toBe('o3')
+    })
+  })
+
+  // ─── mergeHydrate Tests ───────────────────────────────────────────────────────
+
+  describe('mergeHydrate', () => {
+    it('keeps cellLooseItemOrder in sync with cells.looseOrderIds', () => {
+      // Initial state with loose order o6 in cell
+      const initialPayload = makeSeedPayload()
+      getState().hydrate(initialPayload)
+
+      // Verify initial sync
+      const cellId = 'TR-01|2025-01-06'
+      expect(getState().cells[cellId].looseOrderIds).toContain('o6')
+      expect(getState().cellLooseItemOrder[cellId]).toContain('order:o6')
+
+      // Simulate server update that removes o6 from the cell and adds o7
+      const updatedPayload: HydratePayload = {
+        ...initialPayload,
+        orders: [
+          ...initialPayload.orders,
+          makeOrder({ id: 'o7', customerCode: 'NEW' }),
+        ],
+        cells: {
+          ...initialPayload.cells,
+          [cellId]: { runIds: ['r1', 'r2'], looseOrderIds: ['o7'] }, // o6 removed, o7 added
+        },
+      }
+
+      getState().mergeHydrate(updatedPayload)
+
+      // cellLooseItemOrder should be updated to reflect new looseOrderIds
+      const looseItems = getState().cellLooseItemOrder[cellId]
+      expect(looseItems).not.toContain('order:o6') // o6 should be removed
+      expect(looseItems).toContain('order:o7') // o7 should be present
+      expect(getState().cells[cellId].looseOrderIds).toEqual(['o7'])
+    })
+
+    it('preserves notes in cellLooseItemOrder during merge', () => {
+      const initialPayload = makeSeedPayload()
+      getState().hydrate(initialPayload)
+
+      const cellId = 'TR-01|2025-01-06'
+
+      // Simulate adding a note to the cell
+      getState().addNote({
+        id: 'n1',
+        content: 'Test note',
+        color: 'yellow',
+        scheduledDate: '2025-01-06',
+        truckId: 'TR-01',
+        deliveryRunId: null,
+        isPinned: false,
+        createdBy: 'test',
+      })
+
+      // Verify note is in cellLooseItemOrder
+      expect(getState().cellLooseItemOrder[cellId]).toContain('note:n1')
+
+      // Simulate server update
+      const updatedPayload: HydratePayload = {
+        ...initialPayload,
+        cells: {
+          ...initialPayload.cells,
+          [cellId]: { runIds: ['r1', 'r2'], looseOrderIds: ['o6', 'o8'] },
+        },
+        orders: [
+          ...initialPayload.orders,
+          makeOrder({ id: 'o8', customerCode: 'NEWCUST' }),
+        ],
+      }
+
+      getState().mergeHydrate(updatedPayload)
+
+      // Note should still be present after merge
+      const looseItems = getState().cellLooseItemOrder[cellId]
+      expect(looseItems).toContain('note:n1')
+      expect(looseItems).toContain('order:o6')
+      expect(looseItems).toContain('order:o8')
+    })
+
+    it('does not merge when pendingApiCalls > 0', () => {
+      const initialPayload = makeSeedPayload()
+      getState().hydrate(initialPayload)
+
+      const cellId = 'TR-01|2025-01-06'
+      const originalLooseOrders = [...getState().cells[cellId].looseOrderIds]
+
+      // Simulate pending API call
+      getState().incrementPendingApiCalls()
+
+      // Try to merge with different data
+      const updatedPayload: HydratePayload = {
+        ...initialPayload,
+        cells: {
+          ...initialPayload.cells,
+          [cellId]: { runIds: ['r1', 'r2'], looseOrderIds: ['different'] },
+        },
+      }
+
+      getState().mergeHydrate(updatedPayload)
+
+      // Should not have changed due to pending API call
+      expect(getState().cells[cellId].looseOrderIds).toEqual(originalLooseOrders)
+    })
+
+    it('updates looseOrderToCell mapping correctly', () => {
+      const initialPayload = makeSeedPayload()
+      getState().hydrate(initialPayload)
+
+      const cellId1 = 'TR-01|2025-01-06'
+      const cellId2 = 'TR-02|2025-01-07'
+
+      // Verify initial mapping
+      expect(getState().looseOrderToCell['o6']).toBe(cellId1)
+
+      // Simulate server moving o6 to a different cell
+      const updatedPayload: HydratePayload = {
+        ...initialPayload,
+        cells: {
+          [cellId1]: { runIds: ['r1', 'r2'], looseOrderIds: [] }, // o6 removed
+          [cellId2]: { runIds: [], looseOrderIds: ['o6'] }, // o6 added here
+          'TR-02|2025-01-06': initialPayload.cells['TR-02|2025-01-06'],
+        },
+      }
+
+      getState().mergeHydrate(updatedPayload)
+
+      // Mapping should be updated
+      expect(getState().looseOrderToCell['o6']).toBe(cellId2)
+      expect(getState().cellLooseItemOrder[cellId2]).toContain('order:o6')
+      expect(getState().cellLooseItemOrder[cellId1]).not.toContain('order:o6')
     })
   })
 })
