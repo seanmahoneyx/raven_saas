@@ -358,148 +358,114 @@ export const useSchedulerStore = create<SchedulerState>()(
 
     /**
      * Merge-based hydration for polling updates.
-     * Preserves locally modified (dirty) items to avoid overwriting in-progress changes.
-     * This enables multi-user collaboration without losing local state.
+     *
+     * ACCUMULATE-ONLY STRATEGY:
+     * - NEVER delete orders/runs from maps (stale items won't render if not in cells)
+     * - Inbound cells: Always trust server 100% (read-only, no reconciliation)
+     * - Standard cells: Reconcile to preserve user's manual sort order
+     *
+     * This prevents the "Poltergeist" bug where orders vanish due to partial/stale server data.
      */
     mergeHydrate: (data) => {
       const state = get()
       const { dirty } = state
 
-      // Skip merge entirely if there are pending API calls (user is actively making changes)
-      if (dirty.pendingApiCalls > 0) {
-        return
-      }
+      // 1. Skip if user is actively dragging/dropping
+      if (dirty.pendingApiCalls > 0) return
 
+      // 2. Clone Maps (ACCUMULATE ONLY - Never delete missing items)
+      // Stale items won't render if they're not in any Cell, so it's safe to keep them
       const ordersMap: Record<string, Order> = { ...state.orders }
       const runsMap: Record<string, DeliveryRun> = { ...state.runs }
-      const orderToRun: Record<string, string> = {}
-      const runToCell: Record<string, CellId> = {}
-      const looseOrderToCell: Record<string, CellId> = {}
 
-      // Track which orders/runs exist in new data (for detecting deletions)
-      const incomingOrderIds = new Set<string>()
-      const incomingRunIds = new Set<string>()
-
-      // Merge orders: only update if not dirty
+      // 3. Upsert Orders (skip dirty, preserve reference stability)
       for (const order of data.orders) {
-        incomingOrderIds.add(order.id)
+        if (dirty.orders.has(order.id)) continue // Skip dirty orders
 
-        if (dirty.orders.has(order.id)) {
-          // Keep local version - it has uncommitted changes
+        const existing = ordersMap[order.id]
+        // Only update if actually changed (reference stability)
+        if (existing &&
+            existing.date === order.date &&
+            existing.status === order.status &&
+            existing.notes === order.notes &&
+            existing.palletCount === order.palletCount) {
           continue
         }
 
-        const existingOrder = state.orders[order.id]
-
-        // Check if order actually changed (compare key fields)
-        if (existingOrder) {
-          const hasChanged =
-            existingOrder.date !== order.date ||
-            existingOrder.status !== order.status ||
-            existingOrder.notes !== order.notes ||
-            existingOrder.palletCount !== order.palletCount
-
-          if (!hasChanged) {
-            // No change, keep existing to preserve reference stability
-            continue
-          }
-        }
-
-        // Update with server data
         ordersMap[order.id] = {
           ...order,
           color: getStatusColor(order.status),
           isReadOnly: order.status === 'shipped' || order.status === 'invoiced',
         }
       }
+      // NOTE: No deletion loop - accumulate only
 
-      // Remove orders that no longer exist on server (unless dirty)
-      for (const orderId of Object.keys(ordersMap)) {
-        if (!incomingOrderIds.has(orderId) && !dirty.orders.has(orderId)) {
-          delete ordersMap[orderId]
-        }
-      }
-
-      // Merge runs: only update if not dirty
+      // 4. Upsert Runs (skip dirty, map orderToRun)
+      const orderToRun: Record<string, string> = {}
       for (const run of data.runs) {
-        incomingRunIds.add(run.id)
-
         if (dirty.runs.has(run.id)) {
-          // Keep local version
-          const existingRun = state.runs[run.id]
-          if (existingRun) {
-            runsMap[run.id] = existingRun
-            for (const orderId of existingRun.orderIds) {
+          // Keep local dirty run, but still map its orders
+          const localRun = runsMap[run.id]
+          if (localRun) {
+            for (const orderId of localRun.orderIds) {
               orderToRun[orderId] = run.id
             }
           }
           continue
         }
 
-        const existingRun = state.runs[run.id]
-
-        // Check if run actually changed
-        if (existingRun) {
+        const existing = runsMap[run.id]
+        // Only update if actually changed
+        if (existing) {
           const orderIdsMatch =
-            existingRun.orderIds.length === run.orderIds.length &&
-            existingRun.orderIds.every((id, i) => id === run.orderIds[i])
-          const notesMatch = existingRun.notes === (run.notes ?? null)
-
-          if (orderIdsMatch && notesMatch && existingRun.name === run.name) {
+            existing.orderIds.length === run.orderIds.length &&
+            existing.orderIds.every((id, i) => id === run.orderIds[i])
+          if (orderIdsMatch && existing.notes === (run.notes ?? null) && existing.name === run.name) {
             // No change, keep existing
-            runsMap[run.id] = existingRun
-            for (const orderId of existingRun.orderIds) {
+            for (const orderId of existing.orderIds) {
               orderToRun[orderId] = run.id
             }
             continue
           }
         }
 
-        // Update with server data
         runsMap[run.id] = { ...run, notes: run.notes ?? null }
         for (const orderId of run.orderIds) {
           orderToRun[orderId] = run.id
         }
       }
+      // NOTE: No deletion loop - accumulate only
 
-      // Remove runs that no longer exist on server (unless dirty)
-      for (const runId of Object.keys(runsMap)) {
-        if (!incomingRunIds.has(runId) && !dirty.runs.has(runId)) {
-          delete runsMap[runId]
-        }
-      }
-
-      // Build cells - merge carefully to preserve local order arrangements
+      // 5. Build Cells & Indices (reflect server truth, except for dirty cells)
       const cellsCopy: Record<CellId, CellData> = {}
+      const runToCell: Record<string, CellId> = {}
+      const looseOrderToCell: Record<string, CellId> = {}
 
       for (const [cellId, cellData] of Object.entries(data.cells)) {
         const existingCell = state.cells[cellId]
 
-        // Check if this cell is dirty (was involved in a recent move operation)
+        // Check if cell or its contents are dirty
         const isCellDirty = dirty.cells.has(cellId as CellId)
-        // Check if any runs in this cell are dirty (both existing AND incoming)
-        const existingRunsDirty = existingCell?.runIds.some(id => dirty.runs.has(id)) ?? false
-        const incomingRunsDirty = cellData.runIds.some(id => dirty.runs.has(id))
-        const hasDirtyRuns = existingRunsDirty || incomingRunsDirty
-        // Check if any loose orders are dirty (both existing AND incoming)
-        // This prevents stale poll data from overwriting cells that contain recently-moved orders
-        const existingLooseOrdersDirty = existingCell?.looseOrderIds.some(id => dirty.orders.has(id)) ?? false
-        const incomingLooseOrdersDirty = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
-        const hasDirtyLooseOrders = existingLooseOrdersDirty || incomingLooseOrdersDirty
+        const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id)) ||
+                            (existingCell?.runIds.some(id => dirty.runs.has(id)) ?? false)
+        const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id)) ||
+                                    (existingCell?.looseOrderIds.some(id => dirty.orders.has(id)) ?? false)
 
         if (existingCell && (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders)) {
-          // Preserve existing cell structure if cell is dirty or has dirty items
+          // Preserve local state for dirty cells
           cellsCopy[cellId] = {
             runIds: [...existingCell.runIds],
             looseOrderIds: [...existingCell.looseOrderIds],
           }
         } else {
+          // Use server data
           cellsCopy[cellId] = {
             runIds: [...cellData.runIds],
             looseOrderIds: [...(cellData.looseOrderIds || [])],
           }
         }
 
+        // Build reverse lookups
         for (const runId of cellsCopy[cellId].runIds) {
           runToCell[runId] = cellId
         }
@@ -508,7 +474,7 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
-      // Preserve cells that are dirty or have dirty items but aren't in incoming data
+      // Preserve dirty cells not in incoming data
       for (const [cellId, cellData] of Object.entries(state.cells)) {
         if (!cellsCopy[cellId]) {
           const isCellDirty = dirty.cells.has(cellId as CellId)
@@ -530,64 +496,50 @@ export const useSchedulerStore = create<SchedulerState>()(
         }
       }
 
-      // Build cellLooseItemOrder with strict separation of concerns:
-      // - INBOUND CELLS: Read-only, always trust server (no reconciliation)
-      // - STANDARD CELLS: Reconcile to preserve user's manual sort order
+      // 6. Build cellLooseItemOrder with STRICT SEPARATION:
+      // - INBOUND: Read-only → Trust server 100% (stops PO shuffling)
+      // - STANDARD: User-sortable → Reconcile to preserve drag order
       const prevCellLooseItemOrder = state.cellLooseItemOrder
       const cellLooseItemOrder: Record<CellId, string[]> = {}
 
       for (const [cellId, cellData] of Object.entries(cellsCopy)) {
-        const isInboundCell = cellId.startsWith('inbound|')
+        const isInbound = cellId.startsWith('inbound|')
 
-        if (isInboundCell) {
+        if (isInbound) {
           // ═══════════════════════════════════════════════════════════════════
-          // INBOUND CELLS: READ-ONLY - Always rebuild fresh from server
+          // INBOUND (READ-ONLY): Always rebuild fresh from server
           // ═══════════════════════════════════════════════════════════════════
-          // Inbound row is driven by backend Priority List. Client must NEVER
-          // try to preserve local state, as this causes "ghost" POs that reject
-          // valid server updates. Just map raw looseOrderIds (POs) directly.
-          cellLooseItemOrder[cellId] = (cellData.looseOrderIds || [])
-            .filter(id => {
-              // Extra safety: only include POs in inbound cells
-              const order = ordersMap[id]
-              return order?.type === 'PO'
-            })
-            .map(id => `order:${id}`)
+          // Never preserve local state - this causes "ghost" POs
+          cellLooseItemOrder[cellId] = (cellData.looseOrderIds || []).map(id => `order:${id}`)
         } else {
           // ═══════════════════════════════════════════════════════════════════
-          // STANDARD CELLS (Trucks/Unassigned): Reconcile to preserve sort order
+          // STANDARD CELLS: Reconcile to preserve user's sort order
           // ═══════════════════════════════════════════════════════════════════
           const existingItems = prevCellLooseItemOrder[cellId] || []
+          const currentSet = new Set(cellData.looseOrderIds || [])
 
-          // Build set of valid order IDs that SHOULD be in this cell
-          const validOrderIds = new Set(cellData.looseOrderIds || [])
-
-          // Step 1: Keep existing items that are still valid in this cell
-          // This preserves the user's manual sort order from drag operations
-          const preservedItems = existingItems.filter(item => {
-            if (item.startsWith('note:')) return true // Always keep notes (managed separately)
+          // Keep existing items that still exist in cell
+          const preserved = existingItems.filter(item => {
+            if (item.startsWith('note:')) return true // Notes managed separately
             if (item.startsWith('order:')) {
-              const orderId = item.slice(6) // Remove "order:" prefix
-              return validOrderIds.has(orderId)
+              return currentSet.has(item.slice(6))
             }
             return false
           })
 
-          // Step 2: Find new items from server that aren't in preserved list
-          const existingOrderIds = new Set(
-            preservedItems
-              .filter(item => item.startsWith('order:'))
-              .map(item => item.slice(6))
+          // Append new items from server
+          const preservedIds = new Set(
+            preserved.filter(i => i.startsWith('order:')).map(i => i.slice(6))
           )
           const newItems = (cellData.looseOrderIds || [])
-            .filter(id => !existingOrderIds.has(id))
+            .filter(id => !preservedIds.has(id))
             .map(id => `order:${id}`)
 
-          cellLooseItemOrder[cellId] = [...preservedItems, ...newItems]
+          cellLooseItemOrder[cellId] = [...preserved, ...newItems]
         }
       }
 
-      // Also preserve cellLooseItemOrder for cells not in incoming data (dirty cells)
+      // Preserve cellLooseItemOrder for dirty cells not in incoming data
       for (const cellId of Object.keys(prevCellLooseItemOrder)) {
         if (!cellLooseItemOrder[cellId] && cellsCopy[cellId]) {
           cellLooseItemOrder[cellId] = prevCellLooseItemOrder[cellId]
