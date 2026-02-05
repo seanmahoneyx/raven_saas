@@ -300,33 +300,47 @@ export const useSchedulerStore = create<SchedulerState>()(
       }
 
       // Build indices from cells
+      // DEFENSIVE: Filter POs out of truck cells (they belong ONLY in inbound row)
       const cellsCopy: Record<CellId, CellData> = {}
       for (const [cellId, cellData] of Object.entries(data.cells)) {
+        const isInboundCell = cellId.startsWith('inbound|')
+        // Filter looseOrderIds: POs only in inbound, non-POs only in other cells
+        const filteredLooseOrderIds = (cellData.looseOrderIds || []).filter(id => {
+          const order = ordersMap[id]
+          if (isInboundCell) {
+            return order?.type === 'PO' // Inbound: only POs
+          } else {
+            return order?.type !== 'PO' // Truck cells: no POs
+          }
+        })
         cellsCopy[cellId] = {
           runIds: [...cellData.runIds],
-          looseOrderIds: [...(cellData.looseOrderIds || [])],
+          looseOrderIds: filteredLooseOrderIds,
         }
         for (const runId of cellData.runIds) {
           runToCell[runId] = cellId
         }
-        for (const orderId of (cellData.looseOrderIds || [])) {
+        for (const orderId of filteredLooseOrderIds) {
           looseOrderToCell[orderId] = cellId
         }
       }
 
       // Build initial cellLooseItemOrder from existing cell loose orders
       // Notes will be added when hydrateNotes is called
-      // IMPORTANT: Filter out non-PO orders from inbound cells
+      // CRITICAL: Enforce strict PO routing - POs ONLY in inbound, SOs NEVER in inbound
       const cellLooseItemOrder: Record<CellId, string[]> = {}
       for (const [cellId, cellData] of Object.entries(cellsCopy)) {
         const isInboundCell = cellId.startsWith('inbound|')
-        // Start with loose orders prefixed, filtering SOs from inbound cells
         cellLooseItemOrder[cellId] = (cellData.looseOrderIds || [])
           .filter(id => {
-            if (!isInboundCell) return true
-            // For inbound cells, only include POs
             const order = ordersMap[id]
-            return order?.type === 'PO'
+            if (isInboundCell) {
+              // Inbound cells: ONLY POs allowed
+              return order?.type === 'PO'
+            } else {
+              // Truck cells: ONLY non-POs allowed (filter out POs - they belong in inbound)
+              return order?.type !== 'PO'
+            }
           })
           .map(id => `order:${id}`)
       }
@@ -451,17 +465,28 @@ export const useSchedulerStore = create<SchedulerState>()(
         const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id)) ||
                                     (existingCell?.looseOrderIds.some(id => dirty.orders.has(id)) ?? false)
 
+        // DEFENSIVE: For non-inbound cells, filter out POs from looseOrderIds
+        // POs must ONLY appear in inbound cells - this prevents the "Poltergeist" bug
+        const isInboundCell = cellId.startsWith('inbound|')
+        const filterPOsIfNeeded = (orderIds: string[]) => {
+          if (isInboundCell) return orderIds
+          return orderIds.filter(id => {
+            const order = ordersMap[id]
+            return order?.type !== 'PO'
+          })
+        }
+
         if (existingCell && (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders)) {
-          // Preserve local state for dirty cells
+          // Preserve local state for dirty cells (but still filter POs from truck cells)
           cellsCopy[cellId] = {
             runIds: [...existingCell.runIds],
-            looseOrderIds: [...existingCell.looseOrderIds],
+            looseOrderIds: filterPOsIfNeeded([...existingCell.looseOrderIds]),
           }
         } else {
-          // Use server data
+          // Use server data (with PO filtering for truck cells)
           cellsCopy[cellId] = {
             runIds: [...cellData.runIds],
-            looseOrderIds: [...(cellData.looseOrderIds || [])],
+            looseOrderIds: filterPOsIfNeeded([...(cellData.looseOrderIds || [])]),
           }
         }
 
@@ -482,14 +507,23 @@ export const useSchedulerStore = create<SchedulerState>()(
           const hasDirtyLooseOrders = cellData.looseOrderIds.some(id => dirty.orders.has(id))
 
           if (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders) {
+            // DEFENSIVE: Filter POs from non-inbound cells
+            const isInboundCell = cellId.startsWith('inbound|')
+            const filteredLooseOrderIds = isInboundCell
+              ? [...cellData.looseOrderIds]
+              : cellData.looseOrderIds.filter(id => {
+                  const order = ordersMap[id]
+                  return order?.type !== 'PO'
+                })
+
             cellsCopy[cellId] = {
               runIds: [...cellData.runIds],
-              looseOrderIds: [...cellData.looseOrderIds],
+              looseOrderIds: filteredLooseOrderIds,
             }
             for (const runId of cellData.runIds) {
               runToCell[runId] = cellId
             }
-            for (const orderId of cellData.looseOrderIds) {
+            for (const orderId of filteredLooseOrderIds) {
               looseOrderToCell[orderId] = cellId
             }
           }
@@ -1661,7 +1695,11 @@ export const useSchedulerStore = create<SchedulerState>()(
           } else if (date) {
             // Order is loose (no run) but has a date
             delete nextOrderToRun[orderId]
-            const cellId = `${truckId}|${date}`
+
+            // CRITICAL: POs must ALWAYS go to inbound row, never truck rows
+            // This prevents the "Poltergeist" bug where WebSocket updates route POs to wrong cells
+            const isPO = transformed.type === 'PO'
+            const cellId = isPO ? `inbound|${date}` : `${truckId}|${date}`
             nextLooseOrderToCell[orderId] = cellId
 
             // Ensure cell exists and contains this order
@@ -1836,6 +1874,12 @@ export const useSchedulerStore = create<SchedulerState>()(
     },
   }))
 )
+
+// DEBUG: Expose store to window for debugging (remove in production)
+if (typeof window !== 'undefined') {
+  (window as unknown as { __SCHEDULER_STORE__: typeof useSchedulerStore }).
+    __SCHEDULER_STORE__ = useSchedulerStore
+}
 
 // ─── Selectors ───────────────────────────────────────────────────────────────
 

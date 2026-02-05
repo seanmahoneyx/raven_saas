@@ -99,8 +99,11 @@ export function transformApiToHydratePayload(
 
   for (const apiRun of deliveryRuns) {
     runIdSet.add(apiRun.id)
+    // DEFENSIVE: Exclude POs from runs - POs should ONLY appear in Inbound row
+    // This handles stale data where POs may have delivery_run_id set before
+    // the backend restriction was added
     const orderIds = allCalendarOrders
-      .filter((o) => o.delivery_run_id === apiRun.id)
+      .filter((o) => o.delivery_run_id === apiRun.id && o.order_type !== 'PO')
       .map((o) => o.id.toString())
 
     runs.push(transformDeliveryRun(apiRun, orderIds))
@@ -122,7 +125,7 @@ export function transformApiToHydratePayload(
       for (const order of day.orders) {
         // POs should go to "inbound" row, not the truck row
         if (order.order_type === 'PO') {
-          // Skip - POs will be handled separately below
+          // Skip - POs will be handled separately below (routed to inbound cells)
           continue
         }
         if (order.delivery_run_id && runIdSet.has(order.delivery_run_id)) {
