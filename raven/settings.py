@@ -64,11 +64,15 @@ INSTALLED_APPS = [
     'apps.warehousing',
     'apps.inventory',
     'apps.shipping',
+    'apps.logistics',
     'apps.invoicing',
+    'apps.payments',
     'apps.reporting',
     'apps.scheduling',
     'apps.contracts',
     'apps.accounting',
+    'apps.design',
+    'apps.documents',
     'apps.api',
     # User management
     'users',
@@ -100,7 +104,7 @@ ROOT_URLCONF = 'raven.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -168,6 +172,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Media files (user uploads, generated PDFs)
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Email (console backend for development, override in production)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@ravensaas.com')
 
 AUTH_USER_MODEL = 'users.User'
 

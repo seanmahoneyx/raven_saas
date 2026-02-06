@@ -20,6 +20,8 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 from shared.models import TenantMixin, TimestampMixin
 import uuid
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 
 
 class InventoryLot(TenantMixin, TimestampMixin):
@@ -393,3 +395,111 @@ class InventoryTransaction(TenantMixin):
     def __str__(self):
         sign = '+' if self.quantity > 0 else ''
         return f"{self.transaction_type}: {self.item.sku} {sign}{self.quantity}"
+
+
+# ─── FIFO Inventory Costing Layer ─────────────────────────────────────────────
+
+class InventoryLayer(TenantMixin, TimestampMixin):
+    """
+    FIFO cost layer for inventory valuation.
+
+    Each layer represents a batch of inventory acquired at a specific cost.
+    When stock is consumed (shipped/sold), the oldest layers are depleted
+    first (First-In, First-Out).
+
+    Separate from InventoryLot (physical tracking). Layers track the
+    *financial* value of inventory for GL reporting and COGS calculation.
+
+    Example:
+        Layer 1: 100 units @ $5.00 (Jan 1) — 60 remaining
+        Layer 2: 200 units @ $5.50 (Jan 5) — 200 remaining
+        Ship 80 units → consume 60 from Layer 1 ($300) + 20 from Layer 2 ($110) = $410 COGS
+    """
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='cost_layers',
+        help_text="Item this layer belongs to"
+    )
+    warehouse = models.ForeignKey(
+        'new_warehousing.Warehouse',
+        on_delete=models.PROTECT,
+        related_name='cost_layers',
+        help_text="Warehouse where this layer is held"
+    )
+    quantity_original = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        help_text="Original quantity received in this layer"
+    )
+    quantity_remaining = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        help_text="Quantity still available in this layer"
+    )
+    unit_cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        help_text="Cost per unit at time of receipt"
+    )
+    date_received = models.DateTimeField(
+        help_text="When this layer was created (used for FIFO ordering)"
+    )
+
+    # Source document (VendorBill, InventoryAdjustment, etc.)
+    source_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Type of source document"
+    )
+    source_id = models.PositiveIntegerField(null=True, blank=True)
+    source_document = GenericForeignKey('source_type', 'source_id')
+
+    # Link back to physical lot (optional)
+    lot = models.ForeignKey(
+        InventoryLot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cost_layers',
+        help_text="Physical lot this layer corresponds to"
+    )
+
+    class Meta:
+        verbose_name = "Inventory Layer"
+        verbose_name_plural = "Inventory Layers"
+        ordering = ['date_received']
+        indexes = [
+            models.Index(
+                fields=['tenant', 'item', 'warehouse', 'date_received'],
+                name='inv_layer_fifo_idx',
+            ),
+            models.Index(
+                fields=['tenant', 'item', 'quantity_remaining'],
+                name='inv_layer_remaining_idx',
+            ),
+            models.Index(fields=['source_type', 'source_id']),
+        ]
+
+    def __str__(self):
+        return (
+            f"Layer: {self.item.sku} {self.quantity_remaining}/{self.quantity_original} "
+            f"@ ${self.unit_cost} ({self.date_received.date()})"
+        )
+
+    @property
+    def total_value(self):
+        """Current value of remaining inventory in this layer."""
+        return self.quantity_remaining * self.unit_cost
+
+    @property
+    def original_value(self):
+        """Original value when layer was created."""
+        return self.quantity_original * self.unit_cost
+
+    @property
+    def is_depleted(self):
+        """True if no inventory remains in this layer."""
+        return self.quantity_remaining <= 0

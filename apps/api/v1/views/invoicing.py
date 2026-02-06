@@ -9,10 +9,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.invoicing.models import Invoice, InvoiceLine, Payment
+from apps.documents.pdf import PDFService
 from apps.api.v1.serializers.invoicing import (
     InvoiceSerializer, InvoiceListSerializer, InvoiceDetailSerializer,
     InvoiceLineSerializer, PaymentSerializer,
 )
+from apps.api.v1.views.documents import PDFActionMixin
 
 
 @extend_schema_view(
@@ -23,13 +25,19 @@ from apps.api.v1.serializers.invoicing import (
     partial_update=extend_schema(tags=['invoicing'], summary='Partially update an invoice'),
     destroy=extend_schema(tags=['invoicing'], summary='Delete an invoice'),
 )
-class InvoiceViewSet(viewsets.ModelViewSet):
+class InvoiceViewSet(PDFActionMixin, viewsets.ModelViewSet):
     """
     ViewSet for Invoice model.
 
     Provides CRUD operations for invoices.
     """
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+
+    def _get_pdf_bytes(self, obj):
+        return PDFService.render_invoice(obj)
+
+    def _get_pdf_filename(self, obj):
+        return f'Invoice_{obj.invoice_number}.pdf'
 
     def get_queryset(self):
         return Invoice.objects.select_related(

@@ -14,10 +14,17 @@ import Orders from '@/pages/Orders'
 import Inventory from '@/pages/Inventory'
 import Shipping from '@/pages/Shipping'
 import Invoices from '@/pages/Invoices'
+import ReceivePayment from '@/pages/ReceivePayment'
 import Reports from '@/pages/Reports'
 import Contracts from '@/pages/Contracts'
 import ContractDetail from '@/pages/ContractDetail'
 import PriorityList from '@/pages/PriorityList'
+import CreateCustomer from '@/pages/CreateCustomer'
+import CreateVendor from '@/pages/CreateVendor'
+import DesignRequests from '@/pages/DesignRequests'
+import ItemDetail from '@/pages/ItemDetail'
+import ItemQuickReport from '@/pages/reports/ItemQuickReport'
+import DataImport from '@/pages/admin/DataImport'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -61,17 +68,24 @@ function App() {
             >
               <Route path="/" element={<Dashboard />} />
               <Route path="/parties" element={<Parties />} />
+              <Route path="/customers/new" element={<CreateCustomer />} />
+              <Route path="/vendors/new" element={<CreateVendor />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/:id" element={<ContractDetail />} />
               <Route path="/items" element={<Items />} />
+              <Route path="/items/:id" element={<ItemDetail />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/shipping" element={<Shipping />} />
               <Route path="/invoices" element={<Invoices />} />
+              <Route path="/receive-payment" element={<ReceivePayment />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/item-quick-report" element={<ItemQuickReport />} />
               <Route path="/scheduler" element={<Scheduler />} />
               <Route path="/priority-list" element={<PriorityList />} />
+              <Route path="/design-requests" element={<DesignRequests />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/admin/import" element={<DataImport />} />
             </Route>
             </Routes>
           </BrowserRouter>

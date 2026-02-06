@@ -130,3 +130,67 @@ export function useExecuteReport() {
     },
   })
 }
+
+// =============================================================================
+// ITEM QUICK REPORT
+// =============================================================================
+
+export interface QuickReportFinancialRow {
+  date: string
+  type: 'Sale' | 'Cost'
+  document_number: string
+  party_name: string
+  quantity: number
+  unit_price: number
+  total: number
+}
+
+export interface QuickReportPORow {
+  date: string
+  po_number: string
+  vendor_name: string
+  status: string
+  status_display: string
+  quantity_ordered: number
+  unit_cost: number
+  line_total: number
+}
+
+export interface QuickReportSORow {
+  date: string
+  order_number: string
+  customer_name: string
+  status: string
+  status_display: string
+  quantity_ordered: number
+  unit_price: number
+  line_total: number
+}
+
+export interface QuickReportSection<T> {
+  rows: T[]
+  summary: Record<string, number>
+}
+
+export interface ItemQuickReport {
+  item_id: number
+  start_date: string
+  end_date: string
+  financials: QuickReportSection<QuickReportFinancialRow>
+  purchase_orders: QuickReportSection<QuickReportPORow>
+  sales_orders: QuickReportSection<QuickReportSORow>
+}
+
+export function useItemQuickReport(itemId: number | null, startDate: string | null, endDate: string | null) {
+  return useQuery({
+    queryKey: ['item-quick-report', itemId, startDate, endDate],
+    queryFn: async () => {
+      const { data } = await api.get<ItemQuickReport>(
+        `/reports/item-quick-report/${itemId}/`,
+        { params: { start_date: startDate, end_date: endDate } }
+      )
+      return data
+    },
+    enabled: !!itemId && !!startDate && !!endDate,
+  })
+}

@@ -1,11 +1,22 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { authApi, apiClient } from '@/api/client'
 
+interface User {
+  id: number
+  username: string
+  name: string
+  roles: string[]
+  permissions: string[]
+  is_superuser: boolean
+}
+
 interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
+  user: User | null
   login: (username: string, password: string) => Promise<void>
   logout: () => void
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -13,6 +24,16 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
+
+  const refreshUser = async () => {
+    try {
+      const res = await apiClient.get('/users/me/')
+      setUser(res.data)
+    } catch {
+      setUser(null)
+    }
+  }
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -25,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       apiClient.get('/vendors/?limit=1')
         .then(() => {
           setIsAuthenticated(true)
+          // Fetch user profile
+          apiClient.get('/users/me/').then(res => setUser(res.data)).catch(() => {})
           setIsLoading(false)
         })
         .catch((error) => {
@@ -46,15 +69,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     await authApi.login(username, password)
     setIsAuthenticated(true)
+    // Fetch user profile with roles
+    try {
+      const res = await apiClient.get('/users/me/')
+      setUser(res.data)
+    } catch {
+      // Login succeeded but profile fetch failed - still authenticated
+    }
   }
 
   const logout = () => {
     authApi.logout()
     setIsAuthenticated(false)
+    setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

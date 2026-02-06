@@ -1,0 +1,165 @@
+{% extends "documents/base_document.html" %}
+
+{% block extra_styles %}
+.signature-section {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 40px;
+    padding-top: 20px;
+}
+.signature-block {
+    width: 45%;
+    text-align: center;
+}
+.signature-line {
+    border-top: 1px solid #333;
+    margin-top: 50px;
+    padding-top: 5px;
+    font-size: 8pt;
+    color: #666;
+}
+.signature-image {
+    max-height: 60px;
+    margin-bottom: -10px;
+}
+.lpn-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+.lpn-table thead th {
+    background: #1e40af;
+    color: white;
+    padding: 6px 10px;
+    text-align: left;
+    font-size: 8pt;
+    text-transform: uppercase;
+}
+.lpn-table tbody td {
+    padding: 5px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 9pt;
+}
+.lpn-table tbody td.right { text-align: right; }
+.stop-info {
+    background: #f0f4ff;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    font-size: 9pt;
+}
+.stop-info strong { color: #1e40af; }
+{% endblock %}
+
+{% block addresses %}
+<div class="addresses">
+    <div class="address-block">
+        <div class="address-label">Shipper</div>
+        <div class="address-name">{{ company.name }}</div>
+        <div class="address-text">
+            {% if company.address_line1 %}{{ company.address_line1 }}<br>
+{% endif %}{% if company.city %}{{ company.city }}, {{ company.state }} {{ company.postal_code }}{% endif %}
+        </div>
+    </div>
+    <div class="address-block">
+        <div class="address-label">Consignee</div>
+        <div class="address-name">{{ consignee.name }}</div>
+        <div class="address-text">
+            {% if consignee.address_line1 %}{{ consignee.address_line1 }}<br>
+{% endif %}{% if consignee.city %}{{ consignee.city }}, {{ consignee.state }} {{ consignee.postal_code }}{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block line_items %}
+{% if lpns %}
+<h3 style="font-size: 10pt; color: #1e40af; margin-bottom: 8px;">Pallets / License Plates</h3>
+<table class="lpn-table">
+    <thead>
+        <tr>
+            <th>LPN Code</th>
+            <th>Order #</th>
+            <th class="right">Weight (lbs)</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for lpn in lpns %}
+        <tr>
+            <td style="font-family: monospace;">{{ lpn.code }}</td>
+            <td>{{ lpn.order.order_number }}</td>
+            <td class="right">{{ lpn.weight_lbs|floatformat:1 }}</td>
+            <td>{{ lpn.get_status_display }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<table class="items-table">
+    <thead>
+        <tr>
+            <th style="width: 40px">#</th>
+            <th style="width: 80px">SKU</th>
+            <th>Description</th>
+            <th class="center" style="width: 60px">Qty</th>
+            <th class="center" style="width: 50px">UOM</th>
+            <th class="center" style="width: 60px">Pkgs</th>
+            <th class="right" style="width: 80px">Weight</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for line in lines %}
+        <tr>
+            <td>{{ line.line_number }}</td>
+            <td class="sku">{{ line.sku }}</td>
+            <td>{{ line.description }}</td>
+            <td class="center">{{ line.quantity }}</td>
+            <td class="center">{{ line.uom }}</td>
+            <td class="center">{{ line.packages }}</td>
+            <td class="right">{{ line.weight|floatformat:1 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block totals %}
+<div class="totals-section">
+    <table class="totals-table">
+        <tr>
+            <td class="label">Total Pieces:</td>
+            <td class="value">{{ totals.total_pieces }}</td>
+        </tr>
+        <tr>
+            <td class="label">Total Pallets:</td>
+            <td class="value">{{ totals.total_pallets }}</td>
+        </tr>
+        <tr class="total-row">
+            <td class="label">Total Weight:</td>
+            <td class="value">{{ totals.total_weight|floatformat:1 }} lbs</td>
+        </tr>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_content %}
+<div class="signature-section">
+    <div class="signature-block">
+        {% if signature_image %}
+        <img src="{{ signature_image }}" class="signature-image" alt="Signature">
+        {% endif %}
+        <div class="signature-line">
+            Received By: {{ signed_by|default:"____________________" }}
+            <br>Date: {{ delivered_at|default:"____________________" }}
+        </div>
+    </div>
+    <div class="signature-block">
+        <div class="signature-line">
+            Driver Signature
+            <br>Date: ____________________
+        </div>
+    </div>
+</div>
+{% endblock %}

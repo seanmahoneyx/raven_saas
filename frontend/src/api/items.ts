@@ -284,3 +284,31 @@ export function useCreateItemVendor(itemId: number) {
     },
   })
 }
+
+// =============================================================================
+// ITEM HISTORY (Item 360)
+// =============================================================================
+
+export interface ItemHistoryEntry {
+  type: 'ESTIMATE' | 'RFQ' | 'SO' | 'PO'
+  date: string
+  document_number: string
+  document_id: number
+  party_name: string
+  quantity: number
+  price: string | null
+  line_total: string | null
+  status: string
+  status_display: string
+}
+
+export function useItemHistory(itemId: number | null) {
+  return useQuery({
+    queryKey: ['item-history', itemId],
+    queryFn: async () => {
+      const { data } = await api.get<ItemHistoryEntry[]>(`/items/${itemId}/history/`)
+      return data
+    },
+    enabled: !!itemId,
+  })
+}

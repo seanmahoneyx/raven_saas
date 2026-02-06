@@ -387,17 +387,16 @@ export const useSchedulerStore = create<SchedulerState>()(
       // 1. Skip if user is actively dragging/dropping
       if (dirty.pendingApiCalls > 0) return
 
-      // 2. Clone Maps (ACCUMULATE ONLY - Never delete missing items)
-      // Stale items won't render if they're not in any Cell, so it's safe to keep them
-      const ordersMap: Record<string, Order> = { ...state.orders }
-      const runsMap: Record<string, DeliveryRun> = { ...state.runs }
+      // 2. Clone Maps (Accumulate/Merge - Never Delete)
+      const ordersMap = { ...state.orders }
+      const runsMap = { ...state.runs }
+      const cellsCopy = { ...state.cells } // FIX: Start with existing cells
 
-      // 3. Upsert Orders (skip dirty, preserve reference stability)
+      // 3. Update Orders (Upsert)
       for (const order of data.orders) {
-        if (dirty.orders.has(order.id)) continue // Skip dirty orders
+        if (dirty.orders.has(order.id)) continue
 
         const existing = ordersMap[order.id]
-        // Only update if actually changed (reference stability)
         if (existing &&
             existing.date === order.date &&
             existing.status === order.status &&
@@ -412,158 +411,89 @@ export const useSchedulerStore = create<SchedulerState>()(
           isReadOnly: order.status === 'shipped' || order.status === 'invoiced',
         }
       }
-      // NOTE: No deletion loop - accumulate only
 
-      // 4. Upsert Runs (skip dirty, map orderToRun)
-      const orderToRun: Record<string, string> = {}
+      // 4. Update Runs (Upsert)
+      const orderToRun = { ...state.orderToRun } // Merge
       for (const run of data.runs) {
         if (dirty.runs.has(run.id)) {
-          // Keep local dirty run, but still map its orders
+          // If dirty, ensure we keep our local mapping
           const localRun = runsMap[run.id]
-          if (localRun) {
-            for (const orderId of localRun.orderIds) {
-              orderToRun[orderId] = run.id
-            }
-          }
+          if (localRun) localRun.orderIds.forEach(oid => orderToRun[oid] = run.id)
           continue
         }
 
         const existing = runsMap[run.id]
-        // Only update if actually changed
         if (existing) {
           const orderIdsMatch =
             existing.orderIds.length === run.orderIds.length &&
             existing.orderIds.every((id, i) => id === run.orderIds[i])
           if (orderIdsMatch && existing.notes === (run.notes ?? null) && existing.name === run.name) {
-            // No change, keep existing
-            for (const orderId of existing.orderIds) {
-              orderToRun[orderId] = run.id
-            }
+            run.orderIds.forEach(oid => orderToRun[oid] = run.id)
             continue
           }
         }
 
         runsMap[run.id] = { ...run, notes: run.notes ?? null }
-        for (const orderId of run.orderIds) {
-          orderToRun[orderId] = run.id
-        }
+        run.orderIds.forEach(oid => orderToRun[oid] = run.id)
       }
-      // NOTE: No deletion loop - accumulate only
 
-      // 5. Build Cells & Indices (reflect server truth, except for dirty cells)
-      const cellsCopy: Record<CellId, CellData> = {}
-      const runToCell: Record<string, CellId> = {}
-      const looseOrderToCell: Record<string, CellId> = {}
+      // 5. Update Cells (Merge logic)
+      const runToCell = { ...state.runToCell }
+      const looseOrderToCell = { ...state.looseOrderToCell }
 
       for (const [cellId, cellData] of Object.entries(data.cells)) {
-        const existingCell = state.cells[cellId]
+        // If cell is dirty, IGNORE server update for this cell entirely
+        const isDirty = dirty.cells.has(cellId as CellId) ||
+                        cellData.runIds.some(id => dirty.runs.has(id)) ||
+                        (cellData.looseOrderIds || []).some(id => dirty.orders.has(id))
 
-        // Check if cell or its contents are dirty
-        const isCellDirty = dirty.cells.has(cellId as CellId)
-        const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id)) ||
-                            (existingCell?.runIds.some(id => dirty.runs.has(id)) ?? false)
-        const hasDirtyLooseOrders = (cellData.looseOrderIds || []).some(id => dirty.orders.has(id)) ||
-                                    (existingCell?.looseOrderIds.some(id => dirty.orders.has(id)) ?? false)
+        if (isDirty) {
+          // Keep local state exactly as is
+          continue
+        }
 
         // DEFENSIVE: For non-inbound cells, filter out POs from looseOrderIds
-        // POs must ONLY appear in inbound cells - this prevents the "Poltergeist" bug
         const isInboundCell = cellId.startsWith('inbound|')
-        const filterPOsIfNeeded = (orderIds: string[]) => {
-          if (isInboundCell) return orderIds
-          return orderIds.filter(id => {
-            const order = ordersMap[id]
-            return order?.type !== 'PO'
-          })
+        const filteredLooseOrderIds = isInboundCell
+          ? [...(cellData.looseOrderIds || [])]
+          : (cellData.looseOrderIds || []).filter(id => {
+              const order = ordersMap[id]
+              return order?.type !== 'PO'
+            })
+
+        // Apply Server State
+        cellsCopy[cellId] = {
+          runIds: [...cellData.runIds],
+          looseOrderIds: filteredLooseOrderIds,
         }
 
-        if (existingCell && (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders)) {
-          // Preserve local state for dirty cells (but still filter POs from truck cells)
-          cellsCopy[cellId] = {
-            runIds: [...existingCell.runIds],
-            looseOrderIds: filterPOsIfNeeded([...existingCell.looseOrderIds]),
-          }
-        } else {
-          // Use server data (with PO filtering for truck cells)
-          cellsCopy[cellId] = {
-            runIds: [...cellData.runIds],
-            looseOrderIds: filterPOsIfNeeded([...(cellData.looseOrderIds || [])]),
-          }
-        }
-
-        // Build reverse lookups
-        for (const runId of cellsCopy[cellId].runIds) {
-          runToCell[runId] = cellId
-        }
-        for (const orderId of cellsCopy[cellId].looseOrderIds) {
-          looseOrderToCell[orderId] = cellId
-        }
+        // Update Indices
+        cellsCopy[cellId].runIds.forEach(rid => runToCell[rid] = cellId)
+        cellsCopy[cellId].looseOrderIds.forEach(oid => looseOrderToCell[oid] = cellId)
       }
 
-      // Preserve dirty cells not in incoming data
-      for (const [cellId, cellData] of Object.entries(state.cells)) {
-        if (!cellsCopy[cellId]) {
-          const isCellDirty = dirty.cells.has(cellId as CellId)
-          const hasDirtyRuns = cellData.runIds.some(id => dirty.runs.has(id))
-          const hasDirtyLooseOrders = cellData.looseOrderIds.some(id => dirty.orders.has(id))
-
-          if (isCellDirty || hasDirtyRuns || hasDirtyLooseOrders) {
-            // DEFENSIVE: Filter POs from non-inbound cells
-            const isInboundCell = cellId.startsWith('inbound|')
-            const filteredLooseOrderIds = isInboundCell
-              ? [...cellData.looseOrderIds]
-              : cellData.looseOrderIds.filter(id => {
-                  const order = ordersMap[id]
-                  return order?.type !== 'PO'
-                })
-
-            cellsCopy[cellId] = {
-              runIds: [...cellData.runIds],
-              looseOrderIds: filteredLooseOrderIds,
-            }
-            for (const runId of cellData.runIds) {
-              runToCell[runId] = cellId
-            }
-            for (const orderId of filteredLooseOrderIds) {
-              looseOrderToCell[orderId] = cellId
-            }
-          }
-        }
-      }
-
-      // 6. Build cellLooseItemOrder with STRICT SEPARATION:
-      // - INBOUND: Read-only → Trust server 100% (stops PO shuffling)
-      // - STANDARD: User-sortable → Reconcile to preserve drag order
+      // 6. Reconcile Visual Sort Order (Use cellsCopy as source of truth)
       const prevCellLooseItemOrder = state.cellLooseItemOrder
-      const cellLooseItemOrder: Record<CellId, string[]> = {}
+      const cellLooseItemOrder = { ...state.cellLooseItemOrder } // Start with existing
 
+      // Only re-calculate sort for cells that we actually touched or exist
       for (const [cellId, cellData] of Object.entries(cellsCopy)) {
         const isInbound = cellId.startsWith('inbound|')
 
         if (isInbound) {
-          // ═══════════════════════════════════════════════════════════════════
-          // INBOUND (READ-ONLY): Always rebuild fresh from server
-          // ═══════════════════════════════════════════════════════════════════
-          // Never preserve local state - this causes "ghost" POs
+          // Inbound: Trust the merged data (which is Server data unless dirty)
           cellLooseItemOrder[cellId] = (cellData.looseOrderIds || []).map(id => `order:${id}`)
         } else {
-          // ═══════════════════════════════════════════════════════════════════
-          // STANDARD CELLS: Reconcile to preserve user's sort order
-          // ═══════════════════════════════════════════════════════════════════
+          // Trucks/Pickup: Preserve User Sort
           const existingItems = prevCellLooseItemOrder[cellId] || []
 
-          // DEFENSIVE: Filter out POs - they belong ONLY in Inbound row
-          const validLooseOrderIds = (cellData.looseOrderIds || []).filter(id => {
-            const order = ordersMap[id]
-            return order?.type !== 'PO' // Exclude POs from truck cells
-          })
-          const currentSet = new Set(validLooseOrderIds)
+          // FIX: Use the 'cellData' from cellsCopy (which respects dirty state), not raw server data
+          const currentSet = new Set(cellData.looseOrderIds)
 
-          // Keep existing items that still exist in cell (and aren't POs)
           const preserved = existingItems.filter(item => {
-            if (item.startsWith('note:')) return true // Notes managed separately
+            if (item.startsWith('note:')) return true
             if (item.startsWith('order:')) {
               const orderId = item.slice(6)
-              // Must exist in current set AND not be a PO
               if (!currentSet.has(orderId)) return false
               const order = ordersMap[orderId]
               return order?.type !== 'PO'
@@ -571,22 +501,12 @@ export const useSchedulerStore = create<SchedulerState>()(
             return false
           })
 
-          // Append new items from server (excluding POs)
-          const preservedIds = new Set(
-            preserved.filter(i => i.startsWith('order:')).map(i => i.slice(6))
-          )
-          const newItems = validLooseOrderIds
+          const preservedIds = new Set(preserved.filter(i => i.startsWith('order:')).map(i => i.slice(6)))
+          const newItems = (cellData.looseOrderIds || [])
             .filter(id => !preservedIds.has(id))
             .map(id => `order:${id}`)
 
           cellLooseItemOrder[cellId] = [...preserved, ...newItems]
-        }
-      }
-
-      // Preserve cellLooseItemOrder for dirty cells not in incoming data
-      for (const cellId of Object.keys(prevCellLooseItemOrder)) {
-        if (!cellLooseItemOrder[cellId] && cellsCopy[cellId]) {
-          cellLooseItemOrder[cellId] = prevCellLooseItemOrder[cellId]
         }
       }
 
@@ -596,7 +516,7 @@ export const useSchedulerStore = create<SchedulerState>()(
         cells: cellsCopy,
         trucks: data.trucks,
         truckNames: data.truckNames,
-        visibleWeeks: data.visibleWeeks ?? 4,
+        visibleWeeks: data.visibleWeeks ?? state.visibleWeeks,
         orderToRun,
         runToCell,
         looseOrderToCell,
@@ -1698,8 +1618,10 @@ export const useSchedulerStore = create<SchedulerState>()(
 
             // CRITICAL: POs must ALWAYS go to inbound row, never truck rows
             // This prevents the "Poltergeist" bug where WebSocket updates route POs to wrong cells
+            // Pickup orders (is_pickup=true) must go to pickup row, not unassigned
             const isPO = transformed.type === 'PO'
-            const cellId = isPO ? `inbound|${date}` : `${truckId}|${date}`
+            const isPickup = !!(orderData as Record<string, unknown>).is_pickup
+            const cellId = isPO ? `inbound|${date}` : isPickup ? `pickup|${date}` : `${truckId}|${date}`
             nextLooseOrderToCell[orderId] = cellId
 
             // Ensure cell exists and contains this order

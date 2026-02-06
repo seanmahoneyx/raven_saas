@@ -354,6 +354,7 @@ export interface CalendarOrder {
   priority: number
   scheduler_sequence: number
   notes: string
+  is_pickup: boolean
   // Contract reference (for orders released from contracts)
   contract_id?: number | null
   contract_number?: string | null
@@ -620,4 +621,69 @@ export interface ClearOverrideInput {
   vendor_id: number
   box_type: BoxType
   date: string
+}
+
+// Design Request types
+export type DesignRequestStatus = 'pending' | 'in_progress' | 'approved' | 'rejected' | 'completed'
+
+export interface DesignRequest {
+  id: number
+  file_number: string
+  ident: string
+  style: string
+  status: DesignRequestStatus
+  customer: number | null
+  customer_name: string | null
+  requested_by: number | null
+  requested_by_name: string | null
+  assigned_to: number | null
+  assigned_to_name: string | null
+  length: string | null
+  width: string | null
+  depth: string | null
+  test: TestType | ''
+  flute: FluteType | ''
+  paper: PaperType | ''
+  has_ard: boolean
+  has_pdf: boolean
+  has_eps: boolean
+  has_dxf: boolean
+  has_samples: boolean
+  pallet_configuration: boolean
+  sample_quantity: number | null
+  notes: string
+  generated_item: number | null
+  generated_item_sku: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DesignRequestInput {
+  ident?: string
+  style?: string
+  status?: DesignRequestStatus
+  customer?: number | null
+  requested_by?: number | null
+  assigned_to?: number | null
+  length?: string | null
+  width?: string | null
+  depth?: string | null
+  test?: string
+  flute?: string
+  paper?: string
+  has_ard?: boolean
+  has_pdf?: boolean
+  has_eps?: boolean
+  has_dxf?: boolean
+  has_samples?: boolean
+  pallet_configuration?: boolean
+  sample_quantity?: number | null
+  notes?: string
+}
+
+export interface PromoteDesignInput {
+  sku: string
+  base_uom: number
+  name?: string
+  description?: string
 }

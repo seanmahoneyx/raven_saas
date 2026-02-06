@@ -64,11 +64,16 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         refresh_token = serializer.validated_data.get('refresh')
 
         # Create response without tokens in body (more secure)
+        user = serializer.user
+        groups = list(user.groups.values_list('name', flat=True))
         response = Response({
             'message': 'Login successful',
             'user': {
-                'id': serializer.user.id,
-                'username': serializer.user.username,
+                'id': user.id,
+                'username': user.username,
+                'name': getattr(user, 'name', '') or user.username,
+                'roles': groups,
+                'is_superuser': user.is_superuser,
             }
         })
 

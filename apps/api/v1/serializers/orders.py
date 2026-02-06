@@ -6,6 +6,8 @@ from rest_framework import serializers
 from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
     SalesOrder, SalesOrderLine,
+    Estimate, EstimateLine,
+    RFQ, RFQLine,
 )
 from apps.contracts.models import ContractRelease
 from .base import TenantModelSerializer
@@ -334,6 +336,312 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
                     line_data['line_number'] = (idx + 1) * 10
                 SalesOrderLine.objects.create(
                     sales_order=instance,
+                    tenant=instance.tenant,
+                    **line_data
+                )
+        return instance
+
+
+# ==================== Estimate Serializers ====================
+
+class EstimateLineSerializer(TenantModelSerializer):
+    """Serializer for EstimateLine model."""
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    uom_code = serializers.CharField(source='uom.code', read_only=True)
+
+    class Meta:
+        model = EstimateLine
+        fields = [
+            'id', 'estimate', 'line_number',
+            'item', 'item_sku', 'item_name',
+            'description', 'quantity', 'uom', 'uom_code',
+            'unit_price', 'amount',
+            'notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['amount', 'created_at', 'updated_at']
+
+
+class EstimateListSerializer(TenantModelSerializer):
+    """Lightweight serializer for Estimate list views."""
+    customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    num_lines = serializers.SerializerMethodField()
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Estimate
+        fields = [
+            'id', 'estimate_number', 'status', 'customer', 'customer_name',
+            'date', 'expiration_date', 'total_amount', 'num_lines', 'is_expired',
+        ]
+
+    def get_num_lines(self, obj):
+        return obj.lines.count()
+
+
+class EstimateSerializer(TenantModelSerializer):
+    """Standard serializer for Estimate model."""
+    customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    is_editable = serializers.BooleanField(read_only=True)
+    is_convertible = serializers.BooleanField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Estimate
+        fields = [
+            'id', 'estimate_number', 'status', 'customer', 'customer_name',
+            'date', 'expiration_date',
+            'ship_to', 'bill_to',
+            'subtotal', 'tax_rate', 'tax_amount', 'total_amount',
+            'design_request', 'customer_po',
+            'notes', 'terms_and_conditions',
+            'is_editable', 'is_convertible', 'is_expired',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['subtotal', 'tax_amount', 'total_amount', 'created_at', 'updated_at']
+
+
+class EstimateDetailSerializer(TenantModelSerializer):
+    """Detailed serializer for Estimate with nested lines."""
+    customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    ship_to_name = serializers.CharField(source='ship_to.name', read_only=True, allow_null=True)
+    bill_to_name = serializers.CharField(source='bill_to.name', read_only=True, allow_null=True)
+    lines = EstimateLineSerializer(many=True, read_only=True)
+    is_editable = serializers.BooleanField(read_only=True)
+    is_convertible = serializers.BooleanField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    converted_order_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Estimate
+        fields = [
+            'id', 'estimate_number', 'status', 'customer', 'customer_name',
+            'date', 'expiration_date',
+            'ship_to', 'ship_to_name', 'bill_to', 'bill_to_name',
+            'subtotal', 'tax_rate', 'tax_amount', 'total_amount',
+            'design_request', 'customer_po',
+            'notes', 'terms_and_conditions',
+            'lines', 'is_editable', 'is_convertible', 'is_expired',
+            'converted_order_number',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['subtotal', 'tax_amount', 'total_amount', 'created_at', 'updated_at']
+
+    def get_converted_order_number(self, obj):
+        order = obj.converted_orders.first()
+        return order.order_number if order else None
+
+
+class EstimateWriteSerializer(TenantModelSerializer):
+    """Serializer for creating/updating Estimates with nested lines."""
+    lines = EstimateLineSerializer(many=True, required=False)
+    estimate_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+
+    class Meta:
+        model = Estimate
+        fields = [
+            'id', 'estimate_number', 'status', 'customer',
+            'date', 'expiration_date',
+            'ship_to', 'bill_to', 'tax_rate',
+            'design_request', 'customer_po',
+            'notes', 'terms_and_conditions', 'lines',
+        ]
+
+    def _generate_estimate_number(self, tenant):
+        """Generate next estimate number for the tenant."""
+        import re
+        estimate_numbers = Estimate.objects.filter(tenant=tenant).values_list('estimate_number', flat=True)
+        max_num = 0
+        for est_num in estimate_numbers:
+            match = re.search(r'(\d+)', est_num or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+        return f"EST-{str(max_num + 1).zfill(6)}"
+
+    def create(self, validated_data):
+        lines_data = validated_data.pop('lines', [])
+
+        if not validated_data.get('estimate_number'):
+            tenant = self.context['request'].tenant
+            validated_data['estimate_number'] = self._generate_estimate_number(tenant)
+
+        estimate = super().create(validated_data)
+
+        for idx, line_data in enumerate(lines_data):
+            if 'line_number' not in line_data:
+                line_data['line_number'] = (idx + 1) * 10
+            EstimateLine.objects.create(
+                estimate=estimate,
+                tenant=estimate.tenant,
+                **line_data
+            )
+
+        estimate.calculate_totals()
+        estimate.save()
+        return estimate
+
+    def update(self, instance, validated_data):
+        lines_data = validated_data.pop('lines', None)
+        instance = super().update(instance, validated_data)
+
+        if lines_data is not None:
+            instance.lines.all().delete()
+            for idx, line_data in enumerate(lines_data):
+                if 'line_number' not in line_data:
+                    line_data['line_number'] = (idx + 1) * 10
+                EstimateLine.objects.create(
+                    estimate=instance,
+                    tenant=instance.tenant,
+                    **line_data
+                )
+
+        instance.calculate_totals()
+        instance.save()
+        return instance
+
+
+# ==================== RFQ Serializers ====================
+
+class RFQLineSerializer(TenantModelSerializer):
+    """Serializer for RFQLine model."""
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    uom_code = serializers.CharField(source='uom.code', read_only=True)
+    line_total = serializers.DecimalField(max_digits=12, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = RFQLine
+        fields = [
+            'id', 'rfq', 'line_number',
+            'item', 'item_sku', 'item_name',
+            'description', 'quantity', 'uom', 'uom_code',
+            'target_price', 'quoted_price', 'line_total',
+            'notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class RFQListSerializer(TenantModelSerializer):
+    """Lightweight serializer for RFQ list views."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    num_lines = serializers.SerializerMethodField()
+    has_all_quotes = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = RFQ
+        fields = [
+            'id', 'rfq_number', 'status', 'vendor', 'vendor_name',
+            'date', 'expected_date', 'num_lines', 'has_all_quotes',
+        ]
+
+    def get_num_lines(self, obj):
+        return obj.lines.count()
+
+
+class RFQSerializer(TenantModelSerializer):
+    """Standard serializer for RFQ model."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    is_editable = serializers.BooleanField(read_only=True)
+    is_convertible = serializers.BooleanField(read_only=True)
+    has_all_quotes = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = RFQ
+        fields = [
+            'id', 'rfq_number', 'status', 'vendor', 'vendor_name',
+            'date', 'expected_date', 'ship_to',
+            'notes',
+            'is_editable', 'is_convertible', 'has_all_quotes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class RFQDetailSerializer(TenantModelSerializer):
+    """Detailed serializer for RFQ with nested lines."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    ship_to_name = serializers.CharField(source='ship_to.name', read_only=True, allow_null=True)
+    lines = RFQLineSerializer(many=True, read_only=True)
+    is_editable = serializers.BooleanField(read_only=True)
+    is_convertible = serializers.BooleanField(read_only=True)
+    has_all_quotes = serializers.BooleanField(read_only=True)
+    converted_po_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RFQ
+        fields = [
+            'id', 'rfq_number', 'status', 'vendor', 'vendor_name',
+            'date', 'expected_date', 'ship_to', 'ship_to_name',
+            'notes', 'lines',
+            'is_editable', 'is_convertible', 'has_all_quotes',
+            'converted_po_number',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_converted_po_number(self, obj):
+        po = obj.converted_purchase_orders.first()
+        return po.po_number if po else None
+
+
+class RFQWriteSerializer(TenantModelSerializer):
+    """Serializer for creating/updating RFQs with nested lines."""
+    lines = RFQLineSerializer(many=True, required=False)
+    rfq_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+
+    class Meta:
+        model = RFQ
+        fields = [
+            'id', 'rfq_number', 'status', 'vendor',
+            'date', 'expected_date', 'ship_to',
+            'notes', 'lines',
+        ]
+
+    def _generate_rfq_number(self, tenant):
+        """Generate next RFQ number for the tenant."""
+        import re
+        rfq_numbers = RFQ.objects.filter(tenant=tenant).values_list('rfq_number', flat=True)
+        max_num = 0
+        for rfq_num in rfq_numbers:
+            match = re.search(r'(\d+)', rfq_num or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+        return f"RFQ-{str(max_num + 1).zfill(6)}"
+
+    def create(self, validated_data):
+        lines_data = validated_data.pop('lines', [])
+
+        if not validated_data.get('rfq_number'):
+            tenant = self.context['request'].tenant
+            validated_data['rfq_number'] = self._generate_rfq_number(tenant)
+
+        rfq = super().create(validated_data)
+
+        for idx, line_data in enumerate(lines_data):
+            if 'line_number' not in line_data:
+                line_data['line_number'] = (idx + 1) * 10
+            RFQLine.objects.create(
+                rfq=rfq,
+                tenant=rfq.tenant,
+                **line_data
+            )
+        return rfq
+
+    def update(self, instance, validated_data):
+        lines_data = validated_data.pop('lines', None)
+        instance = super().update(instance, validated_data)
+
+        if lines_data is not None:
+            instance.lines.all().delete()
+            for idx, line_data in enumerate(lines_data):
+                if 'line_number' not in line_data:
+                    line_data['line_number'] = (idx + 1) * 10
+                RFQLine.objects.create(
+                    rfq=instance,
                     tenant=instance.tenant,
                     **line_data
                 )

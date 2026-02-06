@@ -7,9 +7,16 @@ ReportingService handles:
 - Managing saved reports
 - Scheduling report execution
 - Exporting reports to various formats
+
+FinancialReportService handles:
+- Trial Balance
+- Income Statement (P&L)
+- Balance Sheet
+- A/R Aging Report
 """
 from decimal import Decimal
 from datetime import timedelta
+from collections import defaultdict
 from django.db import models
 from django.db.models import Sum, Count, F, Q, Avg
 from django.db.models.functions import Coalesce
@@ -647,3 +654,635 @@ class ReportingService:
             user=self.user,
             report=report_definition,
         ).delete()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Financial Reporting Service — GAAP-compliant financial statements from GL data
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from apps.accounting.models import (
+    Account, AccountType, JournalEntryLine,
+    DEBIT_NORMAL_TYPES, CREDIT_NORMAL_TYPES,
+)
+from apps.invoicing.models import Invoice
+
+
+class FinancialReportService:
+    """
+    Generates financial statements from GL data.
+    All methods are stateless — pass tenant + date params.
+    """
+
+    # ── Account Type Groupings ────────────────────────────────────────────
+
+    ASSET_TYPES = {AccountType.ASSET_CURRENT, AccountType.ASSET_FIXED, AccountType.ASSET_OTHER}
+    CONTRA_ASSET_TYPES = {AccountType.CONTRA_ASSET}
+    LIABILITY_TYPES = {AccountType.LIABILITY_CURRENT, AccountType.LIABILITY_LONG_TERM}
+    EQUITY_TYPES = {AccountType.EQUITY}
+    REVENUE_TYPES = {AccountType.REVENUE, AccountType.REVENUE_OTHER}
+    CONTRA_REVENUE_TYPES = {AccountType.CONTRA_REVENUE}
+    EXPENSE_TYPES = {AccountType.EXPENSE_COGS, AccountType.EXPENSE_OPERATING, AccountType.EXPENSE_OTHER}
+
+    INCOME_STATEMENT_TYPES = REVENUE_TYPES | CONTRA_REVENUE_TYPES | EXPENSE_TYPES
+    BALANCE_SHEET_TYPES = ASSET_TYPES | CONTRA_ASSET_TYPES | LIABILITY_TYPES | EQUITY_TYPES
+
+    # ── Trial Balance ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_trial_balance(tenant, as_of_date):
+        """
+        Aggregate all posted JE lines up to as_of_date, grouped by account.
+
+        Returns list of dicts:
+        [
+            {
+                'account_id': int,
+                'account_code': str,
+                'account_name': str,
+                'account_type': str,
+                'total_debit': Decimal,
+                'total_credit': Decimal,
+                'net_balance': Decimal,  # Positive = normal balance direction
+            },
+            ...
+        ]
+        """
+        rows = (
+            JournalEntryLine.objects
+            .filter(
+                tenant=tenant,
+                entry__status='posted',
+                entry__date__lte=as_of_date,
+            )
+            .values(
+                'account__id',
+                'account__code',
+                'account__name',
+                'account__account_type',
+            )
+            .annotate(
+                total_debit=Coalesce(Sum('debit'), Decimal('0.00')),
+                total_credit=Coalesce(Sum('credit'), Decimal('0.00')),
+            )
+            .order_by('account__code')
+        )
+
+        result = []
+        for row in rows:
+            acct_type = row['account__account_type']
+            total_dr = row['total_debit']
+            total_cr = row['total_credit']
+
+            # Net balance in normal-balance direction
+            if acct_type in DEBIT_NORMAL_TYPES:
+                net_balance = total_dr - total_cr
+            else:
+                net_balance = total_cr - total_dr
+
+            result.append({
+                'account_id': row['account__id'],
+                'account_code': row['account__code'],
+                'account_name': row['account__name'],
+                'account_type': acct_type,
+                'total_debit': total_dr,
+                'total_credit': total_cr,
+                'net_balance': net_balance,
+            })
+
+        return result
+
+    # ── Income Statement (P&L) ────────────────────────────────────────────
+
+    @classmethod
+    def get_income_statement(cls, tenant, start_date, end_date):
+        """
+        Income Statement for a date range.
+
+        Groups accounts by subtype:
+        - Revenue (REVENUE, REVENUE_OTHER)
+        - Contra Revenue (CONTRA_REVENUE / Sales Returns)
+        - Net Revenue = Revenue - Contra Revenue
+        - COGS (EXPENSE_COGS)
+        - Gross Profit = Net Revenue - COGS
+        - Operating Expenses (EXPENSE_OPERATING)
+        - Other Expenses (EXPENSE_OTHER)
+        - Net Income = Gross Profit - Operating Expenses - Other Expenses
+
+        Returns structured dict.
+        """
+        rows = (
+            JournalEntryLine.objects
+            .filter(
+                tenant=tenant,
+                entry__status='posted',
+                entry__date__gte=start_date,
+                entry__date__lte=end_date,
+                account__account_type__in=cls.INCOME_STATEMENT_TYPES,
+            )
+            .values(
+                'account__id',
+                'account__code',
+                'account__name',
+                'account__account_type',
+            )
+            .annotate(
+                total_debit=Coalesce(Sum('debit'), Decimal('0.00')),
+                total_credit=Coalesce(Sum('credit'), Decimal('0.00')),
+            )
+            .order_by('account__code')
+        )
+
+        # Bucket accounts by subtype
+        revenue = []
+        contra_revenue = []
+        cogs = []
+        operating_expenses = []
+        other_expenses = []
+
+        for row in rows:
+            acct_type = row['account__account_type']
+            total_dr = row['total_debit']
+            total_cr = row['total_credit']
+
+            # Net balance in normal direction
+            if acct_type in DEBIT_NORMAL_TYPES:
+                net = total_dr - total_cr
+            else:
+                net = total_cr - total_dr
+
+            entry = {
+                'account_id': row['account__id'],
+                'account_code': row['account__code'],
+                'account_name': row['account__name'],
+                'account_type': acct_type,
+                'balance': net,
+            }
+
+            if acct_type in cls.REVENUE_TYPES:
+                revenue.append(entry)
+            elif acct_type in cls.CONTRA_REVENUE_TYPES:
+                contra_revenue.append(entry)
+            elif acct_type == AccountType.EXPENSE_COGS:
+                cogs.append(entry)
+            elif acct_type == AccountType.EXPENSE_OPERATING:
+                operating_expenses.append(entry)
+            elif acct_type == AccountType.EXPENSE_OTHER:
+                other_expenses.append(entry)
+
+        total_revenue = sum(a['balance'] for a in revenue)
+        total_contra_revenue = sum(a['balance'] for a in contra_revenue)
+        net_revenue = total_revenue - total_contra_revenue
+        total_cogs = sum(a['balance'] for a in cogs)
+        gross_profit = net_revenue - total_cogs
+        total_operating = sum(a['balance'] for a in operating_expenses)
+        total_other = sum(a['balance'] for a in other_expenses)
+        net_income = gross_profit - total_operating - total_other
+
+        return {
+            'start_date': str(start_date),
+            'end_date': str(end_date),
+            'sections': {
+                'revenue': {
+                    'label': 'Revenue',
+                    'accounts': revenue,
+                    'total': total_revenue,
+                },
+                'contra_revenue': {
+                    'label': 'Sales Returns & Allowances',
+                    'accounts': contra_revenue,
+                    'total': total_contra_revenue,
+                },
+                'net_revenue': net_revenue,
+                'cogs': {
+                    'label': 'Cost of Goods Sold',
+                    'accounts': cogs,
+                    'total': total_cogs,
+                },
+                'gross_profit': gross_profit,
+                'operating_expenses': {
+                    'label': 'Operating Expenses',
+                    'accounts': operating_expenses,
+                    'total': total_operating,
+                },
+                'other_expenses': {
+                    'label': 'Other Expenses',
+                    'accounts': other_expenses,
+                    'total': total_other,
+                },
+            },
+            'net_income': net_income,
+        }
+
+    # ── Balance Sheet ─────────────────────────────────────────────────────
+
+    @classmethod
+    def get_balance_sheet(cls, tenant, as_of_date):
+        """
+        Balance Sheet as of a date.
+
+        Assets = Liabilities + Equity (+ Retained Earnings).
+        Retained Earnings = all-time net income (Revenue - Expenses) up to as_of_date.
+
+        Returns structured dict with balance validation.
+        """
+        # Get all posted JE lines up to as_of_date
+        rows = (
+            JournalEntryLine.objects
+            .filter(
+                tenant=tenant,
+                entry__status='posted',
+                entry__date__lte=as_of_date,
+            )
+            .values(
+                'account__id',
+                'account__code',
+                'account__name',
+                'account__account_type',
+            )
+            .annotate(
+                total_debit=Coalesce(Sum('debit'), Decimal('0.00')),
+                total_credit=Coalesce(Sum('credit'), Decimal('0.00')),
+            )
+            .order_by('account__code')
+        )
+
+        # Bucket
+        assets = []
+        contra_assets = []
+        liabilities = []
+        equity = []
+        # For retained earnings calc
+        revenue_total = Decimal('0.00')
+        expense_total = Decimal('0.00')
+
+        for row in rows:
+            acct_type = row['account__account_type']
+            total_dr = row['total_debit']
+            total_cr = row['total_credit']
+
+            if acct_type in DEBIT_NORMAL_TYPES:
+                net = total_dr - total_cr
+            else:
+                net = total_cr - total_dr
+
+            entry = {
+                'account_id': row['account__id'],
+                'account_code': row['account__code'],
+                'account_name': row['account__name'],
+                'account_type': acct_type,
+                'balance': net,
+            }
+
+            if acct_type in cls.ASSET_TYPES:
+                assets.append(entry)
+            elif acct_type in cls.CONTRA_ASSET_TYPES:
+                contra_assets.append(entry)
+            elif acct_type in cls.LIABILITY_TYPES:
+                liabilities.append(entry)
+            elif acct_type in cls.EQUITY_TYPES:
+                equity.append(entry)
+            elif acct_type in cls.REVENUE_TYPES:
+                revenue_total += net
+            elif acct_type in cls.CONTRA_REVENUE_TYPES:
+                revenue_total -= net  # Contra reduces revenue
+            elif acct_type in cls.EXPENSE_TYPES:
+                expense_total += net
+
+        retained_earnings = revenue_total - expense_total
+
+        total_assets = sum(a['balance'] for a in assets) - sum(a['balance'] for a in contra_assets)
+        total_liabilities = sum(a['balance'] for a in liabilities)
+        total_equity = sum(a['balance'] for a in equity) + retained_earnings
+        total_liabilities_and_equity = total_liabilities + total_equity
+
+        # GAAP validation: A = L + E
+        is_balanced = total_assets == total_liabilities_and_equity
+        variance = total_assets - total_liabilities_and_equity
+
+        return {
+            'as_of_date': str(as_of_date),
+            'sections': {
+                'assets': {
+                    'label': 'Assets',
+                    'accounts': assets,
+                    'contra_accounts': contra_assets,
+                    'total': total_assets,
+                },
+                'liabilities': {
+                    'label': 'Liabilities',
+                    'accounts': liabilities,
+                    'total': total_liabilities,
+                },
+                'equity': {
+                    'label': 'Equity',
+                    'accounts': equity,
+                    'retained_earnings': retained_earnings,
+                    'total': total_equity,
+                },
+            },
+            'total_assets': total_assets,
+            'total_liabilities_and_equity': total_liabilities_and_equity,
+            'is_balanced': is_balanced,
+            'variance': variance,
+        }
+
+    # ── A/R Aging ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_ar_aging(tenant, as_of_date):
+        """
+        A/R Aging report.
+
+        Source: Invoice model (not GL).
+        Filters: posted/sent/partial/overdue invoices with outstanding balance.
+        Buckets by days past due_date.
+
+        Returns:
+        {
+            'as_of_date': str,
+            'customers': [
+                {
+                    'customer_id': int,
+                    'customer_name': str,
+                    'current': Decimal,
+                    'days_1_30': Decimal,
+                    'days_31_60': Decimal,
+                    'days_61_90': Decimal,
+                    'days_over_90': Decimal,
+                    'total': Decimal,
+                    'invoices': [...],
+                },
+                ...
+            ],
+            'totals': {
+                'current': Decimal,
+                'days_1_30': Decimal,
+                'days_31_60': Decimal,
+                'days_61_90': Decimal,
+                'days_over_90': Decimal,
+                'total': Decimal,
+            }
+        }
+        """
+        # Get all open invoices (posted, sent, partial, overdue)
+        open_invoices = (
+            Invoice.objects
+            .filter(
+                tenant=tenant,
+                status__in=('posted', 'sent', 'partial', 'overdue'),
+            )
+            .select_related('customer__party')
+            .order_by('customer__party__display_name', 'due_date')
+        )
+
+        # Group by customer and bucket
+        customers = defaultdict(lambda: {
+            'customer_id': None,
+            'customer_name': '',
+            'current': Decimal('0.00'),
+            'days_1_30': Decimal('0.00'),
+            'days_31_60': Decimal('0.00'),
+            'days_61_90': Decimal('0.00'),
+            'days_over_90': Decimal('0.00'),
+            'total': Decimal('0.00'),
+            'invoices': [],
+        })
+
+        for inv in open_invoices:
+            balance = inv.total_amount - inv.amount_paid
+            if balance <= 0:
+                continue
+
+            cust_id = inv.customer_id
+            cust_name = inv.customer.party.display_name
+
+            days_overdue = (as_of_date - inv.due_date).days
+
+            # Determine bucket
+            if days_overdue <= 0:
+                bucket = 'current'
+            elif days_overdue <= 30:
+                bucket = 'days_1_30'
+            elif days_overdue <= 60:
+                bucket = 'days_31_60'
+            elif days_overdue <= 90:
+                bucket = 'days_61_90'
+            else:
+                bucket = 'days_over_90'
+
+            c = customers[cust_id]
+            c['customer_id'] = cust_id
+            c['customer_name'] = cust_name
+            c[bucket] += balance
+            c['total'] += balance
+            c['invoices'].append({
+                'invoice_id': inv.id,
+                'invoice_number': inv.invoice_number,
+                'invoice_date': str(inv.invoice_date),
+                'due_date': str(inv.due_date),
+                'total_amount': inv.total_amount,
+                'amount_paid': inv.amount_paid,
+                'balance': balance,
+                'days_overdue': max(days_overdue, 0),
+                'bucket': bucket,
+            })
+
+        customer_list = sorted(customers.values(), key=lambda c: c['customer_name'])
+
+        # Grand totals
+        totals = {
+            'current': sum(c['current'] for c in customer_list),
+            'days_1_30': sum(c['days_1_30'] for c in customer_list),
+            'days_31_60': sum(c['days_31_60'] for c in customer_list),
+            'days_61_90': sum(c['days_61_90'] for c in customer_list),
+            'days_over_90': sum(c['days_over_90'] for c in customer_list),
+            'total': sum(c['total'] for c in customer_list),
+        }
+
+        return {
+            'as_of_date': str(as_of_date),
+            'customers': customer_list,
+            'totals': totals,
+        }
+
+
+class ItemReportService:
+    """Item-level operational reports."""
+
+    @staticmethod
+    def get_quick_report(tenant, item_id, start_date, end_date):
+        """
+        Item QuickReport — financial and order activity for a single item.
+
+        Returns dict with 3 sections:
+        - financials: InvoiceLine (sales) + VendorBillLine (costs) for this item
+        - purchase_orders: PurchaseOrderLine records for this item
+        - sales_orders: SalesOrderLine records for this item
+
+        Each section has 'rows' (list of dicts) and 'summary' totals.
+        """
+        from apps.invoicing.models import InvoiceLine, VendorBillLine
+        from apps.orders.models import PurchaseOrderLine, SalesOrderLine
+
+        # ── Section 1: Financials ─────────────────────────────────────────
+
+        # Invoice lines (sales)
+        invoice_lines = (
+            InvoiceLine.objects
+            .filter(
+                tenant=tenant,
+                item_id=item_id,
+                invoice__invoice_date__gte=start_date,
+                invoice__invoice_date__lte=end_date,
+            )
+            .exclude(invoice__status__in=('draft', 'void'))
+            .select_related('invoice__customer__party')
+            .order_by('-invoice__invoice_date')
+        )
+
+        sale_rows = [
+            {
+                'date': line.invoice.invoice_date.isoformat(),
+                'type': 'Sale',
+                'document_number': line.invoice.invoice_number,
+                'party_name': line.invoice.customer.party.display_name,
+                'quantity': line.quantity,
+                'unit_price': float(line.unit_price),
+                'total': float(line.line_total),
+            }
+            for line in invoice_lines
+        ]
+
+        # Vendor bill lines (costs)
+        bill_lines = (
+            VendorBillLine.objects
+            .filter(
+                tenant=tenant,
+                item_id=item_id,
+                item__isnull=False,
+                bill__bill_date__gte=start_date,
+                bill__bill_date__lte=end_date,
+            )
+            .exclude(bill__status__in=('draft', 'void'))
+            .select_related('bill__vendor__party')
+            .order_by('-bill__bill_date')
+        )
+
+        cost_rows = [
+            {
+                'date': line.bill.bill_date.isoformat(),
+                'type': 'Cost',
+                'document_number': line.bill.bill_number,
+                'party_name': line.bill.vendor.party.display_name,
+                'quantity': float(line.quantity),
+                'unit_price': float(line.unit_price),
+                'total': float(line.amount),
+            }
+            for line in bill_lines
+        ]
+
+        # Combine and sort by date descending
+        financial_rows = sorted(
+            sale_rows + cost_rows,
+            key=lambda x: x['date'],
+            reverse=True
+        )
+
+        total_sales = sum(row['total'] for row in sale_rows)
+        total_costs = sum(row['total'] for row in cost_rows)
+
+        financial_summary = {
+            'total_sales': total_sales,
+            'total_costs': total_costs,
+            'gross_margin': total_sales - total_costs,
+            'row_count': len(financial_rows),
+        }
+
+        # ── Section 2: Purchase Orders ────────────────────────────────────
+
+        po_lines = (
+            PurchaseOrderLine.objects
+            .filter(
+                tenant=tenant,
+                item_id=item_id,
+                purchase_order__order_date__gte=start_date,
+                purchase_order__order_date__lte=end_date,
+            )
+            .exclude(purchase_order__status='cancelled')
+            .select_related('purchase_order__vendor__party')
+            .order_by('-purchase_order__order_date')
+        )
+
+        po_rows = [
+            {
+                'date': line.purchase_order.order_date.isoformat(),
+                'po_number': line.purchase_order.po_number,
+                'vendor_name': line.purchase_order.vendor.party.display_name,
+                'status': line.purchase_order.status,
+                'status_display': line.purchase_order.get_status_display(),
+                'quantity_ordered': line.quantity_ordered,
+                'unit_cost': float(line.unit_cost),
+                'line_total': float(line.line_total),
+            }
+            for line in po_lines
+        ]
+
+        # Count distinct POs
+        distinct_pos = set(line.purchase_order_id for line in po_lines)
+
+        po_summary = {
+            'total_quantity': sum(row['quantity_ordered'] for row in po_rows),
+            'total_value': sum(row['line_total'] for row in po_rows),
+            'po_count': len(distinct_pos),
+            'row_count': len(po_rows),
+        }
+
+        # ── Section 3: Sales Orders ───────────────────────────────────────
+
+        so_lines = (
+            SalesOrderLine.objects
+            .filter(
+                tenant=tenant,
+                item_id=item_id,
+                sales_order__order_date__gte=start_date,
+                sales_order__order_date__lte=end_date,
+            )
+            .exclude(sales_order__status='cancelled')
+            .select_related('sales_order__customer__party')
+            .order_by('-sales_order__order_date')
+        )
+
+        so_rows = [
+            {
+                'date': line.sales_order.order_date.isoformat(),
+                'order_number': line.sales_order.order_number,
+                'customer_name': line.sales_order.customer.party.display_name,
+                'status': line.sales_order.status,
+                'status_display': line.sales_order.get_status_display(),
+                'quantity_ordered': line.quantity_ordered,
+                'unit_price': float(line.unit_price),
+                'line_total': float(line.line_total),
+            }
+            for line in so_lines
+        ]
+
+        # Count distinct SOs
+        distinct_sos = set(line.sales_order_id for line in so_lines)
+
+        so_summary = {
+            'total_quantity': sum(row['quantity_ordered'] for row in so_rows),
+            'total_value': sum(row['line_total'] for row in so_rows),
+            'so_count': len(distinct_sos),
+            'row_count': len(so_rows),
+        }
+
+        # ── Return Structure ──────────────────────────────────────────────
+
+        return {
+            'item_id': item_id,
+            'start_date': str(start_date),
+            'end_date': str(end_date),
+            'financials': {'rows': financial_rows, 'summary': financial_summary},
+            'purchase_orders': {'rows': po_rows, 'summary': po_summary},
+            'sales_orders': {'rows': so_rows, 'summary': so_summary},
+        }

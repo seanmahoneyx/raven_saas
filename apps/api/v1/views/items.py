@@ -11,6 +11,7 @@ Models:
 - CorrugatedItem, DCItem, RSCItem, HSCItem, FOLItem, TeleItem
 """
 from rest_framework import viewsets, filters, status
+from rest_framework import serializers as drf_serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -34,6 +35,20 @@ from apps.api.v1.serializers.items import (
     FOLItemSerializer, FOLItemDetailSerializer,
     TeleItemSerializer, TeleItemDetailSerializer,
 )
+
+
+class ItemHistoryEntrySerializer(drf_serializers.Serializer):
+    """Serializer for Item 360 transaction history entries."""
+    type = drf_serializers.CharField()
+    date = drf_serializers.DateField()
+    document_number = drf_serializers.CharField()
+    document_id = drf_serializers.IntegerField()
+    party_name = drf_serializers.CharField()
+    quantity = drf_serializers.IntegerField()
+    price = drf_serializers.DecimalField(max_digits=12, decimal_places=4, allow_null=True)
+    line_total = drf_serializers.DecimalField(max_digits=12, decimal_places=2, allow_null=True)
+    status = drf_serializers.CharField()
+    status_display = drf_serializers.CharField()
 
 
 # =============================================================================
@@ -222,6 +237,103 @@ class ItemViewSet(viewsets.ModelViewSet):
             ItemVendorSerializer(instance, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(
+        tags=['items'],
+        summary='Get item transaction history (Item 360)',
+        responses={200: ItemHistoryEntrySerializer(many=True)}
+    )
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        """
+        Item 360: Combined transaction history across Estimates, RFQs, SOs, and POs.
+        Returns a unified, date-sorted list of all commercial activity for this item.
+        """
+        item = self.get_object()
+
+        from apps.orders.models import (
+            EstimateLine, RFQLine, SalesOrderLine, PurchaseOrderLine,
+        )
+
+        entries = []
+
+        # Estimates
+        for line in EstimateLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('estimate__customer__party'):
+            est = line.estimate
+            entries.append({
+                'type': 'ESTIMATE',
+                'date': est.date,
+                'document_number': est.estimate_number,
+                'document_id': est.id,
+                'party_name': est.customer.party.display_name,
+                'quantity': line.quantity,
+                'price': line.unit_price,
+                'line_total': line.amount,
+                'status': est.status,
+                'status_display': est.get_status_display(),
+            })
+
+        # RFQs
+        for line in RFQLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('rfq__vendor__party'):
+            rfq = line.rfq
+            entries.append({
+                'type': 'RFQ',
+                'date': rfq.date,
+                'document_number': rfq.rfq_number,
+                'document_id': rfq.id,
+                'party_name': rfq.vendor.party.display_name,
+                'quantity': line.quantity,
+                'price': line.quoted_price or line.target_price,
+                'line_total': line.line_total if (line.quoted_price or line.target_price) else None,
+                'status': rfq.status,
+                'status_display': rfq.get_status_display(),
+            })
+
+        # Sales Orders
+        for line in SalesOrderLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('sales_order__customer__party'):
+            so = line.sales_order
+            entries.append({
+                'type': 'SO',
+                'date': so.order_date,
+                'document_number': so.order_number,
+                'document_id': so.id,
+                'party_name': so.customer.party.display_name,
+                'quantity': line.quantity_ordered,
+                'price': line.unit_price,
+                'line_total': line.line_total,
+                'status': so.status,
+                'status_display': so.get_status_display(),
+            })
+
+        # Purchase Orders
+        for line in PurchaseOrderLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('purchase_order__vendor__party'):
+            po = line.purchase_order
+            entries.append({
+                'type': 'PO',
+                'date': po.order_date,
+                'document_number': po.po_number,
+                'document_id': po.id,
+                'party_name': po.vendor.party.display_name,
+                'quantity': line.quantity_ordered,
+                'price': line.unit_cost,
+                'line_total': line.line_total,
+                'status': po.status,
+                'status_display': po.get_status_display(),
+            })
+
+        # Sort by date descending
+        entries.sort(key=lambda e: e['date'], reverse=True)
+
+        serializer = ItemHistoryEntrySerializer(entries, many=True)
+        return Response(serializer.data)
 
 
 # =============================================================================

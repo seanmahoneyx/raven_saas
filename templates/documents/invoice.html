@@ -1,0 +1,18 @@
+{% extends "documents/base_document.html" %}
+
+{% block addresses %}
+<div class="addresses">
+    <div class="address-block">
+        <div class="address-label">Bill To</div>
+        <div class="address-name">{{ bill_to.name }}</div>
+        <div class="address-text">{{ bill_to.address }}</div>
+    </div>
+    {% if ship_to.name %}
+    <div class="address-block">
+        <div class="address-label">Ship To</div>
+        <div class="address-name">{{ ship_to.name }}</div>
+        <div class="address-text">{{ ship_to.address }}</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

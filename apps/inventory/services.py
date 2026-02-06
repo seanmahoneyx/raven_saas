@@ -15,9 +15,11 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.contrib.contenttypes.models import ContentType
 import uuid
 
-from .models import InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction
+from .models import InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction, InventoryLayer
+from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
 
 
 class InventoryService:
@@ -158,6 +160,142 @@ class InventoryService:
             )
 
             return lot, pallets
+
+    def receive_stock(
+        self,
+        item,
+        warehouse,
+        quantity,
+        unit_cost,
+        source_document=None,
+        credit_account=None,
+        vendor=None,
+        purchase_order=None,
+        lot_number=None,
+        pallet_quantities=None,
+        received_date=None,
+        notes='',
+    ):
+        """
+        Receive stock with full financial tracking (FIFO layer + GL entry).
+
+        Combines physical receiving (lot/pallets/balance) with:
+        1. FIFO cost layer creation
+        2. GL journal entry (DEBIT Inventory Asset, CREDIT source account)
+
+        Args:
+            item: Item instance
+            warehouse: Warehouse instance
+            quantity: Quantity in base units
+            unit_cost: Cost per unit (Decimal)
+            source_document: Source doc (VendorBill, adjustment, etc.)
+            credit_account: Account to credit (A/P clearing, adjustment expense, etc.)
+                           Falls back to tenant default_ap_account
+            vendor: Optional Vendor
+            purchase_order: Optional PurchaseOrder
+            lot_number: Optional (auto-generated)
+            pallet_quantities: Optional list per pallet
+            received_date: Optional (defaults to now)
+            notes: Optional
+
+        Returns:
+            tuple: (InventoryLot, list[InventoryPallet], InventoryLayer)
+        """
+        if received_date is None:
+            received_date = timezone.now().date()
+
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve inventory asset account
+        asset_account = (
+            item.asset_account
+            or acct_settings.default_inventory_account
+        )
+        if not asset_account:
+            raise ValidationError(
+                f"No inventory asset account for Item '{item.name}' (SKU: {item.sku}). "
+                "Set it on the item or in Accounting Settings."
+            )
+
+        # Resolve credit account (what we're crediting — usually A/P or adjustment)
+        if not credit_account:
+            credit_account = acct_settings.default_ap_account
+        if not credit_account:
+            raise ValidationError(
+                "No credit account specified and no default A/P configured in Accounting Settings."
+            )
+
+        total_cost = Decimal(str(quantity)) * unit_cost
+
+        with transaction.atomic():
+            # 1. Physical receiving (existing logic)
+            lot, pallets = self.receive_inventory(
+                item=item,
+                warehouse=warehouse,
+                quantity=quantity,
+                unit_cost=unit_cost,
+                vendor=vendor,
+                purchase_order=purchase_order,
+                lot_number=lot_number,
+                pallet_quantities=pallet_quantities,
+                received_date=received_date,
+                notes=notes,
+            )
+
+            # 2. Create FIFO cost layer
+            layer = InventoryLayer.objects.create(
+                tenant=self.tenant,
+                item=item,
+                warehouse=warehouse,
+                quantity_original=Decimal(str(quantity)),
+                quantity_remaining=Decimal(str(quantity)),
+                unit_cost=unit_cost,
+                date_received=timezone.now(),
+                source_type=ContentType.objects.get_for_model(source_document) if source_document else None,
+                source_id=source_document.pk if source_document else None,
+                lot=lot,
+            )
+
+            # 3. GL Journal Entry: DEBIT Inventory Asset, CREDIT source
+            je_number = self._generate_inv_je_number()
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=received_date,
+                memo=f"Inventory receipt: {item.sku} x{quantity} @ ${unit_cost}",
+                reference_number=lot.lot_number,
+                entry_type='standard',
+                status='posted',
+                source_type=ContentType.objects.get_for_model(InventoryLayer),
+                source_id=layer.pk,
+                posted_at=timezone.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            # DEBIT: Inventory Asset (asset increases)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=10,
+                account=asset_account,
+                description=f"Inventory receipt - {item.sku} x{quantity}",
+                debit=total_cost,
+                credit=Decimal('0.00'),
+            )
+
+            # CREDIT: Source account (A/P or adjustment)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=20,
+                account=credit_account,
+                description=f"Inventory receipt - {item.sku} x{quantity}",
+                debit=Decimal('0.00'),
+                credit=total_cost,
+            )
+
+            return lot, pallets, layer
 
     # ===== ALLOCATION =====
 
@@ -406,6 +544,151 @@ class InventoryService:
             balance.save()
             return balance
 
+    # ===== FIFO SHIPMENT (FINANCIAL) =====
+
+    def ship_stock(
+        self,
+        item,
+        warehouse,
+        quantity,
+        sales_order=None,
+        reference='',
+    ):
+        """
+        Ship stock using FIFO costing and create COGS journal entry.
+
+        Consumes inventory from the oldest cost layers first.
+        Creates a GL entry: DEBIT COGS, CREDIT Inventory Asset.
+
+        Args:
+            item: Item instance
+            warehouse: Warehouse instance
+            quantity: Quantity to ship (integer, base units)
+            sales_order: Optional SalesOrder for reference
+            reference: Optional reference string
+
+        Returns:
+            dict: {
+                'layers_consumed': [(layer, qty_taken, cost)],
+                'total_cogs': Decimal,
+                'journal_entry': JournalEntry,
+            }
+
+        Raises:
+            ValidationError: If insufficient FIFO layers or missing GL accounts
+        """
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve accounts
+        asset_account = (
+            item.asset_account
+            or acct_settings.default_inventory_account
+        )
+        if not asset_account:
+            raise ValidationError(
+                f"No inventory asset account for Item '{item.name}' (SKU: {item.sku}). "
+                "Set it on the item or in Accounting Settings."
+            )
+
+        cogs_account = (
+            item.expense_account
+            or acct_settings.default_cogs_account
+        )
+        if not cogs_account:
+            raise ValidationError(
+                f"No COGS account for Item '{item.name}' (SKU: {item.sku}). "
+                "Set it on the item or in Accounting Settings."
+            )
+
+        quantity_remaining = Decimal(str(quantity))
+        layers_consumed = []
+        total_cogs = Decimal('0.00')
+
+        with transaction.atomic():
+            # Find oldest layers with remaining stock (FIFO order)
+            available_layers = InventoryLayer.objects.filter(
+                tenant=self.tenant,
+                item=item,
+                warehouse=warehouse,
+                quantity_remaining__gt=0,
+            ).order_by('date_received').select_for_update()
+
+            for layer in available_layers:
+                if quantity_remaining <= 0:
+                    break
+
+                # Take what we need or what's available
+                qty_to_take = min(quantity_remaining, layer.quantity_remaining)
+                layer_cost = qty_to_take * layer.unit_cost
+
+                # Deplete the layer
+                layer.quantity_remaining -= qty_to_take
+                layer.save(update_fields=['quantity_remaining'])
+
+                layers_consumed.append((layer, qty_to_take, layer_cost))
+                total_cogs += layer_cost
+                quantity_remaining -= qty_to_take
+
+            # Check if we satisfied the full quantity
+            if quantity_remaining > 0:
+                raise ValidationError(
+                    f"Insufficient FIFO layers for {item.sku}. "
+                    f"Requested: {quantity}, Short: {quantity_remaining}. "
+                    "Receive stock before shipping."
+                )
+
+            # Physical issue (existing logic)
+            self.issue_inventory(
+                item=item,
+                warehouse=warehouse,
+                quantity=quantity,
+                sales_order=sales_order,
+                reference=reference,
+            )
+
+            # GL Journal Entry: DEBIT COGS, CREDIT Inventory Asset
+            je_number = self._generate_cogs_je_number()
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=timezone.now().date(),
+                memo=f"COGS: {item.sku} x{quantity} shipped",
+                reference_number=sales_order.order_number if sales_order else reference,
+                entry_type='standard',
+                status='posted',
+                posted_at=timezone.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            # DEBIT: COGS (expense increases)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=10,
+                account=cogs_account,
+                description=f"COGS - {item.sku} x{quantity} (FIFO)",
+                debit=total_cogs,
+                credit=Decimal('0.00'),
+            )
+
+            # CREDIT: Inventory Asset (asset decreases)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=20,
+                account=asset_account,
+                description=f"Inventory issued - {item.sku} x{quantity}",
+                debit=Decimal('0.00'),
+                credit=total_cogs,
+            )
+
+            return {
+                'layers_consumed': layers_consumed,
+                'total_cogs': total_cogs,
+                'journal_entry': je,
+            }
+
     # ===== QUERIES =====
 
     def get_balance(self, item, warehouse):
@@ -544,3 +827,21 @@ class InventoryService:
             lot_number__startswith=f"LOT-{date_part}",
         ).count() + 1
         return f"LOT-{date_part}-{seq:04d}"
+
+    def _generate_inv_je_number(self):
+        """Generate unique journal entry number for inventory receipts."""
+        date_part = timezone.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"INV-RCV-{date_part}",
+        ).count() + 1
+        return f"INV-RCV-{date_part}-{count:05d}"
+
+    def _generate_cogs_je_number(self):
+        """Generate unique journal entry number for COGS entries."""
+        date_part = timezone.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"COGS-{date_part}",
+        ).count() + 1
+        return f"COGS-{date_part}-{count:05d}"

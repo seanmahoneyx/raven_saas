@@ -101,3 +101,95 @@ class ReportFavoriteSerializer(TenantModelSerializer):
             'id', 'user', 'report', 'report_name', 'report_type', 'report_category',
             'display_order', 'saved_filters',
         ]
+
+
+# ==================== Financial Statement Serializers ====================
+
+class AccountBalanceSerializer(serializers.Serializer):
+    """Account with balance for trial balance / financial statements."""
+    account_id = serializers.IntegerField()
+    account_code = serializers.CharField()
+    account_name = serializers.CharField()
+    account_type = serializers.CharField()
+    balance = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
+    total_debit = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
+    total_credit = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
+    net_balance = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
+
+
+class SectionSerializer(serializers.Serializer):
+    """Section of a financial statement (e.g., Assets, Revenue)."""
+    label = serializers.CharField()
+    accounts = AccountBalanceSerializer(many=True)
+    contra_accounts = AccountBalanceSerializer(many=True, required=False)
+    total = serializers.DecimalField(max_digits=20, decimal_places=2)
+    retained_earnings = serializers.DecimalField(max_digits=20, decimal_places=2, required=False)
+
+
+class TrialBalanceSerializer(serializers.Serializer):
+    """Trial Balance response."""
+    as_of_date = serializers.CharField()
+    accounts = AccountBalanceSerializer(many=True)
+    total_debits = serializers.DecimalField(max_digits=20, decimal_places=2)
+    total_credits = serializers.DecimalField(max_digits=20, decimal_places=2)
+
+
+class IncomeStatementSerializer(serializers.Serializer):
+    """Income Statement (P&L) response."""
+    start_date = serializers.CharField()
+    end_date = serializers.CharField()
+    sections = serializers.DictField()
+    net_income = serializers.DecimalField(max_digits=20, decimal_places=2)
+
+
+class BalanceSheetSerializer(serializers.Serializer):
+    """Balance Sheet response."""
+    as_of_date = serializers.CharField()
+    sections = serializers.DictField()
+    total_assets = serializers.DecimalField(max_digits=20, decimal_places=2)
+    total_liabilities_and_equity = serializers.DecimalField(max_digits=20, decimal_places=2)
+    is_balanced = serializers.BooleanField()
+    variance = serializers.DecimalField(max_digits=20, decimal_places=2)
+
+
+class AgingInvoiceSerializer(serializers.Serializer):
+    """Individual invoice in aging report."""
+    invoice_id = serializers.IntegerField()
+    invoice_number = serializers.CharField()
+    invoice_date = serializers.CharField()
+    due_date = serializers.CharField()
+    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    amount_paid = serializers.DecimalField(max_digits=12, decimal_places=2)
+    balance = serializers.DecimalField(max_digits=12, decimal_places=2)
+    days_overdue = serializers.IntegerField()
+    bucket = serializers.CharField()
+
+
+class AgingCustomerSerializer(serializers.Serializer):
+    """Customer summary in aging report."""
+    customer_id = serializers.IntegerField()
+    customer_name = serializers.CharField()
+    current = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_1_30 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_31_60 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_61_90 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_over_90 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    total = serializers.DecimalField(max_digits=20, decimal_places=2)
+    invoices = AgingInvoiceSerializer(many=True)
+
+
+class AgingTotalsSerializer(serializers.Serializer):
+    """Grand totals for aging report."""
+    current = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_1_30 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_31_60 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_61_90 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    days_over_90 = serializers.DecimalField(max_digits=20, decimal_places=2)
+    total = serializers.DecimalField(max_digits=20, decimal_places=2)
+
+
+class ARAgingSerializer(serializers.Serializer):
+    """A/R Aging report response."""
+    as_of_date = serializers.CharField()
+    customers = AgingCustomerSerializer(many=True)
+    totals = AgingTotalsSerializer()

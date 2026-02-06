@@ -9,14 +9,15 @@ import {
 } from '@/api/scheduling'
 import { useSchedulerStore, type CellId } from './useSchedulerStore'
 
-// Helper to parse cellId into truckId and date
-function parseCellId(cellId: CellId): { truckId: number | null; date: string } | null {
+// Helper to parse cellId into truckId, date, and pickup flag
+function parseCellId(cellId: CellId): { truckId: number | null; date: string; isPickup: boolean } | null {
   const pipeIdx = cellId.lastIndexOf('|')
   if (pipeIdx === -1) return null
   const truckIdStr = cellId.slice(0, pipeIdx)
   const date = cellId.slice(pipeIdx + 1)
-  const truckId = truckIdStr === 'unassigned' ? null : parseInt(truckIdStr, 10)
-  return { truckId, date }
+  const isPickup = truckIdStr === 'pickup'
+  const truckId = (truckIdStr === 'unassigned' || truckIdStr === 'pickup' || truckIdStr === 'inbound') ? null : parseInt(truckIdStr, 10)
+  return { truckId, date, isPickup }
 }
 
 export function useSchedulerMutations() {
@@ -88,6 +89,7 @@ export function useSchedulerMutations() {
         scheduledDate: parsed.date,
         scheduledTruckId: parsed.truckId,
         deliveryRunId: null,
+        isPickup: parsed.isPickup,
       })
       // Success - clean up dirty state after a brief delay to let polling catch up
       // Using setTimeout ensures the refetch from invalidation has time to complete
@@ -142,6 +144,7 @@ export function useSchedulerMutations() {
         scheduledDate: parsed.date,
         scheduledTruckId: parsed.truckId,
         deliveryRunId: parseInt(runId, 10),
+        isPickup: false,
       })
       markOrderClean(orderId)
       markRunClean(runId)

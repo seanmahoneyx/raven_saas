@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Package, Ruler, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
@@ -22,6 +23,7 @@ type Tab = 'items' | 'uom'
 export default function Items() {
   usePageTitle('Items')
 
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<Tab>('items')
 
   // Dialog states
@@ -245,6 +247,7 @@ export default function Items() {
               data={itemsData?.results ?? []}
               searchColumn="name"
               searchPlaceholder="Search items..."
+              onRowClick={(item) => navigate(`/items/${item.id}`)}
             />
           )}
           {activeTab === 'uom' && (

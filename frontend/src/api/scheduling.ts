@@ -147,13 +147,14 @@ interface UpdateScheduleParams {
   scheduledTruckId: number | null
   deliveryRunId?: number | null
   schedulerSequence?: number
+  isPickup?: boolean
 }
 
 export function useUpdateSchedule() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ orderType, orderId, scheduledDate, scheduledTruckId, deliveryRunId, schedulerSequence }: UpdateScheduleParams) => {
+    mutationFn: async ({ orderType, orderId, scheduledDate, scheduledTruckId, deliveryRunId, schedulerSequence, isPickup }: UpdateScheduleParams) => {
       const payload: Record<string, unknown> = {
         scheduled_date: scheduledDate,
         scheduled_truck_id: scheduledTruckId,
@@ -163,6 +164,9 @@ export function useUpdateSchedule() {
       }
       if (schedulerSequence !== undefined) {
         payload.scheduler_sequence = schedulerSequence
+      }
+      if (isPickup !== undefined) {
+        payload.is_pickup = isPickup
       }
       const { data } = await api.post<CalendarOrder>(
         `/calendar/update/${orderType}/${orderId}/`,

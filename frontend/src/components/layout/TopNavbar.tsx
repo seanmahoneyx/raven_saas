@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   Building2,
@@ -22,6 +23,8 @@ import {
   DollarSign,
   Boxes,
   ScrollText,
+  Palette,
+  Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -39,6 +42,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu'
+import SearchDialog from '@/components/search/SearchDialog'
 
 // ─── Navigation Structure ──────────────────────────────────────────────────────
 
@@ -102,6 +106,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     items: [
       { type: 'item', to: '/parties?tab=customers', icon: Users, label: 'Customer Center' },
       { type: 'separator' },
+      { type: 'item', to: '/customers/new', icon: Plus, label: 'Create Customer' },
       { type: 'item', to: '/estimates?action=new', icon: Plus, label: 'Create Estimate' },
       { type: 'item', to: '/contracts?action=new', icon: Plus, label: 'Create Contract' },
       { type: 'item', to: '/orders?tab=sales&action=new', icon: Plus, label: 'Create Sales Order' },
@@ -117,6 +122,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/parties?tab=vendors', icon: Building2, label: 'Vendor Center' },
       { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
       { type: 'separator' },
+      { type: 'item', to: '/vendors/new', icon: Plus, label: 'Create Vendor' },
       { type: 'item', to: '/rfqs?action=new', icon: Plus, label: 'Create RFQ' },
       { type: 'item', to: '/orders?tab=purchase&action=new', icon: Plus, label: 'Create Purchase Order' },
       { type: 'item', to: '/price-lists?type=vendor&action=new', icon: Plus, label: 'Create Vendor Cost List' },
@@ -130,6 +136,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     items: [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
       { type: 'item', to: '/items?action=new', icon: Plus, label: 'Create Item' },
+      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Requests' },
       { type: 'separator' },
       { type: 'item', to: '/contracts', icon: Eye, label: 'View Active Contracts' },
       { type: 'item', to: '/orders?tab=sales', icon: Eye, label: 'View Active Sales Orders' },
@@ -286,6 +293,20 @@ export default function TopNavbar() {
   // TODO: Connect to real user.isAdmin when available
   const isAdmin = true
 
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // Ctrl+K keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   return (
     <header className="flex h-14 items-center border-b bg-sidebar px-4 shrink-0">
       {/* Logo */}
@@ -325,8 +346,19 @@ export default function TopNavbar() {
         })}
       </nav>
 
-      {/* Right side - Theme Toggle and Logout */}
+      {/* Right side - Search, Theme Toggle, and Logout */}
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => setSearchOpen(true)}
+          title="Search (Ctrl+K)"
+        >
+          <Search className="h-4 w-4" />
+          <span className="hidden sm:inline text-xs text-muted-foreground">Ctrl+K</span>
+        </Button>
+
         <ThemeToggle />
 
         <Button
@@ -339,6 +371,8 @@ export default function TopNavbar() {
           <span className="hidden sm:inline">Sign out</span>
         </Button>
       </div>
+
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
   )
 }

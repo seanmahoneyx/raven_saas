@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ document_type }} {{ document_number }}</title>
+    <style>
+        /* Reset and base */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+            line-height: 1.4;
+            padding: 0.5in;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+        }
+        .company-info { max-width: 60%; }
+        .company-name {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1e40af;
+            margin-bottom: 4px;
+        }
+        .company-details {
+            font-size: 8pt;
+            color: #666;
+            line-height: 1.5;
+        }
+        .document-label {
+            text-align: right;
+        }
+        .document-type {
+            font-size: 22pt;
+            font-weight: bold;
+            color: #1e40af;
+            text-transform: uppercase;
+        }
+        .document-number {
+            font-size: 11pt;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* Reference fields */
+        .reference-table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .reference-table td {
+            padding: 4px 10px;
+            font-size: 9pt;
+        }
+        .reference-table .label {
+            font-weight: bold;
+            color: #555;
+            width: 120px;
+        }
+
+        /* Address blocks */
+        .addresses {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        .address-block {
+            width: 48%;
+        }
+        .address-label {
+            font-size: 8pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #1e40af;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 3px;
+            margin-bottom: 6px;
+        }
+        .address-name {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .address-text {
+            font-size: 9pt;
+            color: #555;
+            white-space: pre-line;
+        }
+
+        /* Line items table */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .items-table thead th {
+            background: #1e40af;
+            color: white;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .items-table thead th.right { text-align: right; }
+        .items-table thead th.center { text-align: center; }
+        .items-table tbody td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 9pt;
+        }
+        .items-table tbody td.right { text-align: right; }
+        .items-table tbody td.center { text-align: center; }
+        .items-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+        .items-table tbody td.sku {
+            font-family: 'Courier New', monospace;
+            font-size: 8pt;
+        }
+
+        /* Totals */
+        .totals-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 25px;
+        }
+        .totals-table {
+            width: 280px;
+            border-collapse: collapse;
+        }
+        .totals-table td {
+            padding: 5px 10px;
+            font-size: 9pt;
+        }
+        .totals-table .label { text-align: right; color: #555; }
+        .totals-table .value { text-align: right; font-weight: 500; }
+        .totals-table .total-row td {
+            border-top: 2px solid #1e40af;
+            font-size: 12pt;
+            font-weight: bold;
+            color: #1e40af;
+            padding-top: 8px;
+        }
+
+        /* Notes */
+        .notes-section {
+            margin-bottom: 20px;
+            padding: 12px;
+            background: #f9fafb;
+            border-left: 3px solid #2563eb;
+            font-size: 9pt;
+        }
+        .notes-label {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #555;
+        }
+
+        /* Footer */
+        .footer {
+            position: fixed;
+            bottom: 0.5in;
+            left: 0.5in;
+            right: 0.5in;
+            text-align: center;
+            font-size: 8pt;
+            color: #999;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 8px;
+        }
+
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-name">{{ company.name }}</div>
+            <div class="company-details">
+                {% if company.address_line1 %}{{ company.address_line1 }}<br>{% endif %}
+                {% if company.address_line2 %}{{ company.address_line2 }}<br>{% endif %}
+                {% if company.city %}{{ company.city }}, {{ company.state }} {{ company.postal_code }}<br>{% endif %}
+                {% if company.phone %}Tel: {{ company.phone }}{% endif %}
+                {% if company.email %} | {{ company.email }}{% endif %}
+            </div>
+        </div>
+        <div class="document-label">
+            <div class="document-type">{{ document_type }}</div>
+            <div class="document-number">#{{ document_number }}</div>
+        </div>
+    </div>
+
+    <!-- Reference Fields -->
+    {% if reference_fields %}
+    <table class="reference-table">
+        <tr>
+            {% for label, value in reference_fields %}
+            <td class="label">{{ label }}:</td>
+            <td>{{ value }}</td>
+            {% endfor %}
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Addresses -->
+    {% block addresses %}{% endblock %}
+
+    <!-- Line Items -->
+    {% block line_items %}
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 40px">#</th>
+                <th style="width: 80px">SKU</th>
+                <th>Description</th>
+                <th class="center" style="width: 60px">Qty</th>
+                <th class="center" style="width: 50px">UOM</th>
+                <th class="right" style="width: 80px">Unit Price</th>
+                <th class="right" style="width: 90px">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ line.line_number }}</td>
+                <td class="sku">{{ line.sku }}</td>
+                <td>{{ line.description }}</td>
+                <td class="center">{{ line.quantity }}</td>
+                <td class="center">{{ line.uom }}</td>
+                <td class="right">${{ line.unit_price|floatformat:2 }}</td>
+                <td class="right">${{ line.line_total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" style="text-align:center; padding: 20px; color: #999;">No line items</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endblock %}
+
+    <!-- Totals -->
+    {% block totals %}
+    <div class="totals-section">
+        <table class="totals-table">
+            <tr>
+                <td class="label">Subtotal:</td>
+                <td class="value">${{ totals.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% if totals.tax_amount %}
+            <tr>
+                <td class="label">Tax ({{ totals.tax_rate|floatformat:2 }}%):</td>
+                <td class="value">${{ totals.tax_amount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if totals.freight %}
+            <tr>
+                <td class="label">Freight:</td>
+                <td class="value">${{ totals.freight|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if totals.discount %}
+            <tr>
+                <td class="label">Discount:</td>
+                <td class="value">-${{ totals.discount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr class="total-row">
+                <td class="label">Total:</td>
+                <td class="value">${{ totals.total|floatformat:2 }}</td>
+            </tr>
+        </table>
+    </div>
+    {% endblock %}
+
+    <!-- Notes -->
+    {% if notes %}
+    <div class="notes-section">
+        <div class="notes-label">Notes:</div>
+        {{ notes }}
+    </div>
+    {% endif %}
+
+    <!-- Footer -->
+    <div class="footer">
+        {% if footer_text %}{{ footer_text }} | {% endif %}
+        {{ company.name }} | Generated {{ "now"|date:"M d, Y" }}
+    </div>
+
+    {% block extra_content %}{% endblock %}
+</body>
+</html>

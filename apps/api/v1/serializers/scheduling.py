@@ -29,6 +29,7 @@ class CalendarOrderSerializer(serializers.Serializer):
     total_quantity = serializers.IntegerField()
     priority = serializers.IntegerField()
     scheduler_sequence = serializers.IntegerField()
+    is_pickup = serializers.BooleanField()
     notes = serializers.CharField(allow_blank=True)
 
 
@@ -63,6 +64,7 @@ class ScheduleUpdateSerializer(serializers.Serializer):
     scheduled_truck_id = serializers.IntegerField(allow_null=True, required=False)
     delivery_run_id = serializers.IntegerField(allow_null=True, required=False)
     scheduler_sequence = serializers.IntegerField(required=False)
+    is_pickup = serializers.BooleanField(required=False)
 
 
 class CalendarDaySerializer(serializers.Serializer):

@@ -14,8 +14,10 @@ from datetime import timedelta
 from django.db import models, transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.contrib.contenttypes.models import ContentType
 
-from .models import Invoice, InvoiceLine, Payment
+from .models import Invoice, InvoiceLine, Payment, VendorBill, VendorBillLine, BillPayment
+from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
 
 
 class InvoicingService:
@@ -320,6 +322,150 @@ class InvoicingService:
 
     # ===== STATUS MANAGEMENT =====
 
+    def post_invoice(self, invoice):
+        """
+        Post an invoice to the General Ledger.
+
+        Creates a balanced journal entry:
+        - DEBIT: A/R account (for total invoice amount)
+        - CREDIT: Income accounts (per line item)
+        - CREDIT: Sales tax liability (if applicable)
+
+        The A/R account resolves via fallback chain:
+        invoice.ar_account -> customer.receivable_account -> tenant default
+
+        Args:
+            invoice: Invoice instance in DRAFT status
+
+        Returns:
+            Invoice with status='posted' and linked journal_entry
+
+        Raises:
+            ValidationError: If invoice is not draft, or GL accounts cannot be resolved
+        """
+        if invoice.status != 'draft':
+            raise ValidationError(
+                f"Cannot post invoice {invoice.invoice_number}: status is '{invoice.status}', expected 'draft'"
+            )
+
+        # Load accounting defaults once
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve A/R account (fallback chain)
+        ar_account = (
+            invoice.ar_account
+            or getattr(invoice.customer, 'receivable_account', None)
+            or acct_settings.default_ar_account
+        )
+        if not ar_account:
+            raise ValidationError(
+                "Cannot post invoice: No A/R account configured. "
+                "Set it on the invoice, customer, or in Accounting Settings."
+            )
+
+        # Resolve income accounts per line (validate before creating anything)
+        line_accounts = []
+        for line in invoice.lines.select_related('item').all():
+            income_acct = (
+                line.item.income_account
+                or acct_settings.default_income_account
+            )
+            if not income_acct:
+                raise ValidationError(
+                    f"Missing income account for Item '{line.item.name}' (SKU: {line.item.sku}). "
+                    "Set it on the item or in Accounting Settings."
+                )
+            line_accounts.append((line, income_acct))
+
+        if not line_accounts:
+            raise ValidationError("Cannot post invoice with no lines")
+
+        with transaction.atomic():
+            # Generate JE number
+            from django.utils import timezone as tz
+            je_date = invoice.invoice_date
+            je_number = self._generate_je_number()
+
+            # Create the journal entry
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=je_date,
+                memo=f"Invoice {invoice.invoice_number} - {invoice.customer}",
+                reference_number=invoice.invoice_number,
+                entry_type='standard',
+                status='posted',
+                source_type=ContentType.objects.get_for_model(Invoice),
+                source_id=invoice.pk,
+                posted_at=tz.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            line_num = 10
+
+            # DEBIT: Accounts Receivable for total amount
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=line_num,
+                account=ar_account,
+                description=f"A/R - Invoice {invoice.invoice_number}",
+                debit=invoice.total_amount,
+                credit=Decimal('0.00'),
+            )
+            line_num += 10
+
+            # CREDIT: Income accounts per invoice line
+            for inv_line, income_acct in line_accounts:
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=line_num,
+                    account=income_acct,
+                    description=f"{inv_line.item.name} x{inv_line.quantity}",
+                    debit=Decimal('0.00'),
+                    credit=inv_line.line_total,
+                )
+                line_num += 10
+
+            # CREDIT: Sales tax liability (if applicable)
+            # TODO: Add sales_tax_liability_account to AccountingSettings
+            # For now, tax is included in the AR debit but not split to a tax account
+            if invoice.tax_amount > 0:
+                tax_acct = getattr(acct_settings, 'default_sales_tax_account', None)
+                if tax_acct:
+                    JournalEntryLine.objects.create(
+                        tenant=self.tenant,
+                        entry=je,
+                        line_number=line_num,
+                        account=tax_acct,
+                        description=f"Sales tax - Invoice {invoice.invoice_number}",
+                        debit=Decimal('0.00'),
+                        credit=invoice.tax_amount,
+                    )
+                    line_num += 10
+
+            # Verify the entry balances
+            if not je.is_balanced:
+                raise ValidationError(
+                    f"Journal entry is not balanced: DR={je.total_debit} CR={je.total_credit}"
+                )
+
+            # Lock the invoice to AR account used and link JE
+            invoice.ar_account = ar_account
+            invoice.journal_entry = je
+            invoice.status = 'posted'
+            Invoice.objects.filter(pk=invoice.pk).update(
+                ar_account=ar_account,
+                journal_entry=je,
+                status='posted',
+            )
+            # Refresh in-memory object
+            invoice.refresh_from_db()
+
+            return invoice
+
     def mark_sent(self, invoice):
         """
         Mark invoice as sent to customer.
@@ -406,39 +552,123 @@ class InvoicingService:
         reference_number='',
         payment_date=None,
         notes='',
+        bank_account=None,
     ):
         """
-        Record a payment against an invoice.
+        Record a payment against an invoice and create GL journal entry.
+
+        Creates a balanced journal entry:
+        - DEBIT: Bank/Cash account (money received)
+        - CREDIT: A/R account from the invoice (reduce receivable)
 
         Args:
-            invoice: Invoice instance
-            amount: Payment amount
+            invoice: Invoice instance (must be posted/sent/partial/overdue)
+            amount: Payment amount (Decimal)
             payment_method: Method (CHECK, ACH, etc.)
             reference_number: Check number, transaction ID, etc.
             payment_date: Date of payment (defaults to today)
             notes: Payment notes
+            bank_account: Account instance for cash/bank (falls back to tenant default)
 
         Returns:
             Payment instance
+
+        Raises:
+            ValidationError: If invoice is not in payable status or no bank account
         """
-        if invoice.status == 'void':
-            raise ValidationError("Cannot record payment on voided invoice")
+        if invoice.status in ('draft', 'void', 'written_off'):
+            raise ValidationError(
+                f"Cannot record payment on invoice with status '{invoice.status}'"
+            )
+
+        if amount <= 0:
+            raise ValidationError("Payment amount must be positive")
 
         if payment_date is None:
             payment_date = timezone.now().date()
 
-        payment = Payment.objects.create(
-            tenant=self.tenant,
-            invoice=invoice,
-            payment_date=payment_date,
-            amount=amount,
-            payment_method=payment_method,
-            reference_number=reference_number,
-            notes=notes,
-            recorded_by=self.user,
-        )
+        # Resolve bank account
+        if not bank_account:
+            acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+            bank_account = acct_settings.default_cash_account
+        if not bank_account:
+            raise ValidationError(
+                "No bank/cash account specified and no default configured in Accounting Settings."
+            )
 
-        return payment
+        # Resolve AR account from the invoice (should have been set at posting)
+        ar_account = invoice.ar_account
+        if not ar_account:
+            acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+            ar_account = (
+                getattr(invoice.customer, 'receivable_account', None)
+                or acct_settings.default_ar_account
+            )
+        if not ar_account:
+            raise ValidationError(
+                "Cannot determine A/R account for this invoice."
+            )
+
+        with transaction.atomic():
+            # Create GL journal entry for the payment
+            from django.utils import timezone as tz
+            je_number = self._generate_payment_je_number()
+
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=payment_date,
+                memo=f"Payment received - Invoice {invoice.invoice_number}",
+                reference_number=reference_number or invoice.invoice_number,
+                entry_type='standard',
+                status='posted',
+                source_type=ContentType.objects.get_for_model(Payment),
+                source_id=None,  # Will update after payment created
+                posted_at=tz.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            # DEBIT: Bank/Cash (money in)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=10,
+                account=bank_account,
+                description=f"Payment received - {invoice.invoice_number}",
+                debit=amount,
+                credit=Decimal('0.00'),
+            )
+
+            # CREDIT: A/R (reduce what customer owes)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=20,
+                account=ar_account,
+                description=f"A/R payment - {invoice.invoice_number}",
+                debit=Decimal('0.00'),
+                credit=amount,
+            )
+
+            # Create Payment record
+            payment = Payment.objects.create(
+                tenant=self.tenant,
+                invoice=invoice,
+                payment_date=payment_date,
+                amount=amount,
+                payment_method=payment_method,
+                reference_number=reference_number,
+                notes=notes,
+                recorded_by=self.user,
+            )
+
+            # Link JE source to the payment
+            je.source_id = payment.pk
+            je.source_type = ContentType.objects.get_for_model(Payment)
+            je.save(update_fields=['source_id', 'source_type'])
+
+            return payment
 
     def refund_payment(self, payment, reason=''):
         """
@@ -551,3 +781,461 @@ class InvoicingService:
             parts.append(', '.join(city_state_zip))
 
         return '\n'.join(parts)
+
+    def _generate_je_number(self):
+        """Generate unique journal entry number for invoicing."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"INV-JE-{date_part}",
+        ).count() + 1
+        return f"INV-JE-{date_part}-{count:05d}"
+
+    def _generate_payment_je_number(self):
+        """Generate unique journal entry number for payments."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"PMT-JE-{date_part}",
+        ).count() + 1
+        return f"PMT-JE-{date_part}-{count:05d}"
+
+
+class VendorBillService:
+    """
+    Service for managing vendor bills (Accounts Payable).
+
+    Handles bill creation, GL posting, and payment recording.
+    The AP counterpart to InvoicingService.
+
+    Usage:
+        service = VendorBillService(tenant, user)
+        bill = service.create_bill(vendor, vendor_invoice_number='INV-001', ...)
+        service.post_vendor_bill(bill)
+        service.pay_vendor_bill(bill, amount=1000, bank_account=cash_account)
+    """
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    # ===== BILL CREATION =====
+
+    def create_bill(
+        self,
+        vendor,
+        vendor_invoice_number,
+        due_date,
+        bill_date=None,
+        purchase_order=None,
+        tax_amount=Decimal('0'),
+        bill_number=None,
+        notes='',
+    ):
+        """
+        Create a vendor bill in DRAFT status.
+
+        Args:
+            vendor: Vendor instance
+            vendor_invoice_number: Vendor's invoice reference
+            due_date: Payment due date
+            bill_date: Date received (defaults to today)
+            purchase_order: Optional PurchaseOrder
+            tax_amount: Tax amount
+            bill_number: Optional internal number (auto-generated if omitted)
+            notes: Internal notes
+
+        Returns:
+            VendorBill instance
+        """
+        if bill_number is None:
+            bill_number = self._generate_bill_number()
+
+        if bill_date is None:
+            bill_date = timezone.now().date()
+
+        return VendorBill.objects.create(
+            tenant=self.tenant,
+            vendor=vendor,
+            purchase_order=purchase_order,
+            vendor_invoice_number=vendor_invoice_number,
+            bill_number=bill_number,
+            bill_date=bill_date,
+            due_date=due_date,
+            status='draft',
+            tax_amount=tax_amount,
+            notes=notes,
+        )
+
+    def add_line(
+        self,
+        bill,
+        description,
+        quantity,
+        unit_price,
+        item=None,
+        expense_account=None,
+        purchase_order_line=None,
+    ):
+        """
+        Add a line to a vendor bill.
+
+        Args:
+            bill: VendorBill instance (must be draft)
+            description: Line description
+            quantity: Quantity
+            unit_price: Unit price
+            item: Optional Item instance
+            expense_account: Optional explicit expense account
+            purchase_order_line: Optional PO line reference
+
+        Returns:
+            VendorBillLine instance
+        """
+        if bill.status != 'draft':
+            raise ValidationError("Cannot modify a posted/paid bill")
+
+        from django.db.models import Max
+        max_line = bill.lines.aggregate(max_line=Max('line_number'))['max_line'] or 0
+        line_number = max_line + 10
+
+        line = VendorBillLine.objects.create(
+            tenant=self.tenant,
+            bill=bill,
+            line_number=line_number,
+            item=item,
+            description=description,
+            expense_account=expense_account,
+            quantity=quantity,
+            unit_price=unit_price,
+            purchase_order_line=purchase_order_line,
+        )
+
+        bill.calculate_totals()
+        bill.save()
+
+        return line
+
+    # ===== GL POSTING =====
+
+    def post_vendor_bill(self, bill):
+        """
+        Post a vendor bill to the General Ledger.
+
+        Creates a balanced journal entry:
+        - CREDIT: A/P account (liability — what we owe)
+        - DEBIT: Expense/Asset accounts per line
+
+        The A/P account resolves via fallback chain:
+        bill.ap_account -> vendor.payable_account -> tenant default
+
+        Args:
+            bill: VendorBill instance in DRAFT status
+
+        Returns:
+            VendorBill with status='posted' and linked journal_entry
+
+        Raises:
+            ValidationError: If bill is not draft, or GL accounts cannot be resolved
+        """
+        if bill.status != 'draft':
+            raise ValidationError(
+                f"Cannot post bill {bill.bill_number}: status is '{bill.status}', expected 'draft'"
+            )
+
+        # Load accounting defaults once
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve A/P account (fallback chain)
+        ap_account = (
+            bill.ap_account
+            or getattr(bill.vendor, 'payable_account', None)
+            or acct_settings.default_ap_account
+        )
+        if not ap_account:
+            raise ValidationError(
+                "Cannot post bill: No A/P account configured. "
+                "Set it on the bill, vendor, or in Accounting Settings."
+            )
+
+        # Resolve expense accounts per line (validate before creating anything)
+        line_accounts = []
+        for line in bill.lines.select_related('item').all():
+            expense_acct = line.expense_account
+            if not expense_acct and line.item:
+                expense_acct = (
+                    line.item.expense_account
+                    or line.item.asset_account  # Inventory items go to asset
+                    or acct_settings.default_cogs_account
+                )
+            if not expense_acct:
+                expense_acct = acct_settings.default_cogs_account
+            if not expense_acct:
+                item_desc = f"Item '{line.item.name}' (SKU: {line.item.sku})" if line.item else f"Line {line.line_number}"
+                raise ValidationError(
+                    f"Missing expense account for {item_desc}. "
+                    "Set it on the line, item, or in Accounting Settings."
+                )
+            line_accounts.append((line, expense_acct))
+
+        if not line_accounts:
+            raise ValidationError("Cannot post bill with no lines")
+
+        with transaction.atomic():
+            from django.utils import timezone as tz
+            je_number = self._generate_je_number()
+
+            # Create the journal entry
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=bill.bill_date,
+                memo=f"Vendor Bill {bill.bill_number} - {bill.vendor}",
+                reference_number=bill.vendor_invoice_number,
+                entry_type='standard',
+                status='posted',
+                source_type=ContentType.objects.get_for_model(VendorBill),
+                source_id=bill.pk,
+                posted_at=tz.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            line_num = 10
+
+            # CREDIT: Accounts Payable for total amount (liability increases)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=line_num,
+                account=ap_account,
+                description=f"A/P - Bill {bill.bill_number}",
+                debit=Decimal('0.00'),
+                credit=bill.total_amount,
+            )
+            line_num += 10
+
+            # DEBIT: Expense/Asset accounts per bill line
+            for bill_line, expense_acct in line_accounts:
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=line_num,
+                    account=expense_acct,
+                    description=f"{bill_line.description}",
+                    debit=bill_line.amount,
+                    credit=Decimal('0.00'),
+                )
+                line_num += 10
+
+            # Verify the entry balances
+            if not je.is_balanced:
+                raise ValidationError(
+                    f"Journal entry is not balanced: DR={je.total_debit} CR={je.total_credit}"
+                )
+
+            # Lock the bill to AP account used and link JE
+            VendorBill.objects.filter(pk=bill.pk).update(
+                ap_account=ap_account,
+                journal_entry=je,
+                status='posted',
+            )
+            bill.refresh_from_db()
+
+            return bill
+
+    # ===== PAYMENTS =====
+
+    def pay_vendor_bill(
+        self,
+        bill,
+        amount,
+        payment_method='CHECK',
+        reference_number='',
+        payment_date=None,
+        notes='',
+        bank_account=None,
+    ):
+        """
+        Record a payment against a vendor bill and create GL journal entry.
+
+        Creates a balanced journal entry:
+        - DEBIT: A/P account (reduce liability — what we owe less)
+        - CREDIT: Bank/Cash account (money leaving)
+
+        Args:
+            bill: VendorBill instance (must be posted/partial)
+            amount: Payment amount
+            payment_method: Method (CHECK, ACH, etc.)
+            reference_number: Check number, etc.
+            payment_date: Date of payment (defaults to today)
+            notes: Payment notes
+            bank_account: Account instance for cash/bank (falls back to tenant default)
+
+        Returns:
+            BillPayment instance
+
+        Raises:
+            ValidationError: If bill is not payable or no bank account
+        """
+        if bill.status in ('draft', 'void'):
+            raise ValidationError(
+                f"Cannot record payment on bill with status '{bill.status}'"
+            )
+
+        if amount <= 0:
+            raise ValidationError("Payment amount must be positive")
+
+        if payment_date is None:
+            payment_date = timezone.now().date()
+
+        # Resolve bank account
+        if not bank_account:
+            acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+            bank_account = acct_settings.default_cash_account
+        if not bank_account:
+            raise ValidationError(
+                "No bank/cash account specified and no default configured in Accounting Settings."
+            )
+
+        # AP account from the bill (set at posting)
+        ap_account = bill.ap_account
+        if not ap_account:
+            acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+            ap_account = (
+                getattr(bill.vendor, 'payable_account', None)
+                or acct_settings.default_ap_account
+            )
+        if not ap_account:
+            raise ValidationError(
+                "Cannot determine A/P account for this bill."
+            )
+
+        with transaction.atomic():
+            from django.utils import timezone as tz
+            je_number = self._generate_payment_je_number()
+
+            je = JournalEntry.objects.create(
+                tenant=self.tenant,
+                entry_number=je_number,
+                date=payment_date,
+                memo=f"Payment - Vendor Bill {bill.bill_number}",
+                reference_number=reference_number or bill.vendor_invoice_number,
+                entry_type='standard',
+                status='posted',
+                source_type=ContentType.objects.get_for_model(BillPayment),
+                source_id=None,  # Updated after payment created
+                posted_at=tz.now(),
+                posted_by=self.user,
+                created_by=self.user,
+            )
+
+            # DEBIT: A/P (reduce liability)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=10,
+                account=ap_account,
+                description=f"A/P payment - {bill.bill_number}",
+                debit=amount,
+                credit=Decimal('0.00'),
+            )
+
+            # CREDIT: Bank/Cash (money out)
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=20,
+                account=bank_account,
+                description=f"Payment to vendor - {bill.bill_number}",
+                debit=Decimal('0.00'),
+                credit=amount,
+            )
+
+            # Create BillPayment record
+            payment = BillPayment.objects.create(
+                tenant=self.tenant,
+                bill=bill,
+                payment_date=payment_date,
+                amount=amount,
+                payment_method=payment_method,
+                reference_number=reference_number,
+                notes=notes,
+                recorded_by=self.user,
+            )
+
+            # Link JE source to the payment
+            je.source_id = payment.pk
+            je.source_type = ContentType.objects.get_for_model(BillPayment)
+            je.save(update_fields=['source_id', 'source_type'])
+
+            return payment
+
+    # ===== QUERIES =====
+
+    def get_unpaid_bills(self, vendor=None):
+        """Get all unpaid vendor bills."""
+        qs = VendorBill.objects.filter(
+            tenant=self.tenant,
+            status__in=['posted', 'partial'],
+        )
+        if vendor:
+            qs = qs.filter(vendor=vendor)
+        return qs.order_by('due_date')
+
+    def get_overdue_bills(self, vendor=None):
+        """Get all overdue vendor bills."""
+        today = timezone.now().date()
+        qs = VendorBill.objects.filter(
+            tenant=self.tenant,
+            status__in=['posted', 'partial'],
+            due_date__lt=today,
+        )
+        if vendor:
+            qs = qs.filter(vendor=vendor)
+        return qs.order_by('due_date')
+
+    def get_vendor_balance(self, vendor):
+        """Get total balance owed to a vendor."""
+        from django.db.models import Sum, F
+        result = VendorBill.objects.filter(
+            tenant=self.tenant,
+            vendor=vendor,
+            status__in=['posted', 'partial'],
+        ).aggregate(
+            balance=Sum(F('total_amount') - F('amount_paid'))
+        )
+        return result['balance'] or Decimal('0')
+
+    # ===== HELPERS =====
+
+    def _generate_bill_number(self):
+        """Generate unique bill number."""
+        date_part = timezone.now().strftime('%Y%m')
+        seq = VendorBill.objects.filter(
+            tenant=self.tenant,
+            bill_number__startswith=date_part,
+        ).count() + 1
+        return f"{date_part}-{seq:05d}"
+
+    def _generate_je_number(self):
+        """Generate unique journal entry number for bill postings."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"BILL-JE-{date_part}",
+        ).count() + 1
+        return f"BILL-JE-{date_part}-{count:05d}"
+
+    def _generate_payment_je_number(self):
+        """Generate unique journal entry number for bill payments."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"BPMT-JE-{date_part}",
+        ).count() + 1
+        return f"BPMT-JE-{date_part}-{count:05d}"

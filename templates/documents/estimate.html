@@ -1,0 +1,84 @@
+{% extends "documents/base_document.html" %}
+
+{% block extra_styles %}
+.validity-banner {
+    background: #f0f7ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    font-size: 9pt;
+    display: flex;
+    justify-content: space-between;
+}
+.validity-banner .label { color: #1e40af; font-weight: bold; }
+.validity-banner .value { color: #333; }
+
+.terms-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    font-size: 8pt;
+    color: #666;
+}
+.terms-label {
+    font-weight: bold;
+    font-size: 9pt;
+    color: #555;
+    margin-bottom: 6px;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 8pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.status-draft { background: #e5e7eb; color: #374151; }
+.status-sent { background: #dbeafe; color: #1e40af; }
+.status-accepted { background: #d1fae5; color: #065f46; }
+{% endblock %}
+
+{% block addresses %}
+<div class="addresses">
+    <div class="address-block">
+        <div class="address-label">Prepared For</div>
+        <div class="address-name">{{ customer.name }}</div>
+        <div class="address-text">{{ customer.address }}</div>
+    </div>
+    {% if ship_to.name %}
+    <div class="address-block">
+        <div class="address-label">Ship To</div>
+        <div class="address-name">{{ ship_to.name }}</div>
+        <div class="address-text">{{ ship_to.address }}</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if valid_until %}
+<div class="validity-banner">
+    <div>
+        <span class="label">Valid Until:</span>
+        <span class="value">{{ valid_until|date:"N j, Y" }}</span>
+    </div>
+    <div>
+        <span class="label">Status:</span>
+        <span class="status-badge status-{{ status }}">{{ status_display }}</span>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_content %}
+{% if terms_and_conditions %}
+<div class="terms-section">
+    <div class="terms-label">Terms & Conditions</div>
+    {{ terms_and_conditions|linebreaksbr }}
+</div>
+{% endif %}
+{% endblock %}

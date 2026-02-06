@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #333; margin: 20px; }
+        h1 { font-size: 18px; margin-bottom: 5px; }
+        h2 { font-size: 14px; color: #1e40af; margin-top: 25px; margin-bottom: 8px; border-bottom: 2px solid #1e40af; padding-bottom: 4px; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .header .company { font-size: 16px; font-weight: bold; }
+        .header .period { font-size: 12px; color: #666; margin-top: 4px; }
+        .item-info { background: #f3f4f6; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .item-info strong { color: #1e40af; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th { background: #1e40af; color: white; text-align: left; padding: 6px 8px; font-size: 10px; text-transform: uppercase; }
+        td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+        tr:nth-child(even) { background: #f9fafb; }
+        .text-right { text-align: right; }
+        .summary { background: #f0f9ff; padding: 8px 12px; margin-top: 5px; border-left: 3px solid #1e40af; }
+        .summary-row { display: flex; justify-content: space-between; margin: 2px 0; }
+        .summary span.label { font-weight: bold; }
+        .sale-type { color: #059669; font-weight: bold; }
+        .cost-type { color: #dc2626; font-weight: bold; }
+        .no-data { color: #999; font-style: italic; padding: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company">{{ company.name }}</div>
+        <h1>{{ document_type }}</h1>
+        <div class="period">{{ start_date|date:"N j, Y" }} — {{ end_date|date:"N j, Y" }}</div>
+    </div>
+
+    <div class="item-info">
+        <strong>{{ item.sku }}</strong> — {{ item.name }}
+        {% if item.description %}<br><span style="color: #666;">{{ item.description }}</span>{% endif %}
+    </div>
+
+    <!-- Section 1: Financials -->
+    <h2>Financials</h2>
+    {% if financials.rows %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Document #</th>
+                <th>Party</th>
+                <th class="text-right">Qty</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in financials.rows %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td>{% if row.type == "Sale" %}<span class="sale-type">Sale</span>{% else %}<span class="cost-type">Cost</span>{% endif %}</td>
+                <td>{{ row.document_number }}</td>
+                <td>{{ row.party_name }}</td>
+                <td class="text-right">{{ row.quantity }}</td>
+                <td class="text-right">${{ row.unit_price|floatformat:2 }}</td>
+                <td class="text-right">${{ row.total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="summary">
+        <strong>Total Sales:</strong> ${{ financials.summary.total_sales|floatformat:2 }} |
+        <strong>Total Costs:</strong> ${{ financials.summary.total_costs|floatformat:2 }} |
+        <strong>Gross Margin:</strong> ${{ financials.summary.gross_margin|floatformat:2 }}
+    </div>
+    {% else %}
+    <p class="no-data">No financial transactions in this period.</p>
+    {% endif %}
+
+    <!-- Section 2: Purchase Orders -->
+    <h2>Purchase Orders</h2>
+    {% if purchase_orders.rows %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>PO #</th>
+                <th>Vendor</th>
+                <th>Status</th>
+                <th class="text-right">Qty Ordered</th>
+                <th class="text-right">Unit Cost</th>
+                <th class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in purchase_orders.rows %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td>{{ row.po_number }}</td>
+                <td>{{ row.vendor_name }}</td>
+                <td>{{ row.status_display }}</td>
+                <td class="text-right">{{ row.quantity_ordered }}</td>
+                <td class="text-right">${{ row.unit_cost|floatformat:2 }}</td>
+                <td class="text-right">${{ row.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="summary">
+        <strong>{{ purchase_orders.summary.po_count }} POs</strong> |
+        <strong>Total Qty:</strong> {{ purchase_orders.summary.total_quantity }} |
+        <strong>Total Value:</strong> ${{ purchase_orders.summary.total_value|floatformat:2 }}
+    </div>
+    {% else %}
+    <p class="no-data">No purchase orders in this period.</p>
+    {% endif %}
+
+    <!-- Section 3: Sales Orders -->
+    <h2>Sales Orders</h2>
+    {% if sales_orders.rows %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>SO #</th>
+                <th>Customer</th>
+                <th>Status</th>
+                <th class="text-right">Qty Ordered</th>
+                <th class="text-right">Unit Price</th>
+                <th class="text-right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in sales_orders.rows %}
+            <tr>
+                <td>{{ row.date }}</td>
+                <td>{{ row.order_number }}</td>
+                <td>{{ row.customer_name }}</td>
+                <td>{{ row.status_display }}</td>
+                <td class="text-right">{{ row.quantity_ordered }}</td>
+                <td class="text-right">${{ row.unit_price|floatformat:2 }}</td>
+                <td class="text-right">${{ row.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="summary">
+        <strong>{{ sales_orders.summary.so_count }} SOs</strong> |
+        <strong>Total Qty:</strong> {{ sales_orders.summary.total_quantity }} |
+        <strong>Total Value:</strong> ${{ sales_orders.summary.total_value|floatformat:2 }}
+    </div>
+    {% else %}
+    <p class="no-data">No sales orders in this period.</p>
+    {% endif %}
+</body>
+</html>

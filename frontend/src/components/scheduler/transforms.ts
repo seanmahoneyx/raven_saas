@@ -128,6 +128,11 @@ export function transformApiToHydratePayload(
           // Skip - POs will be handled separately below (routed to inbound cells)
           continue
         }
+        // Pickup orders go to "pickup" row, not their truck row
+        if (order.is_pickup) {
+          // Skip - pickup orders will be handled separately below
+          continue
+        }
         if (order.delivery_run_id && runIdSet.has(order.delivery_run_id)) {
           runIds.add(order.delivery_run_id.toString())
         } else {
@@ -164,6 +169,28 @@ export function transformApiToHydratePayload(
           }
           // POs go to inbound row as loose orders (they can't be in runs)
           cells[inboundCellId].looseOrderIds.push(poId)
+        }
+      }
+    }
+  }
+
+  // 3c. Route pickup orders to "pickup" row cells (deduplicated)
+  // Pickup orders have is_pickup=true and scheduled_truck_id=null on the server
+  const addedPickupIds = new Set<string>()
+
+  for (const truckCalendar of calendarData) {
+    for (const day of truckCalendar.days) {
+      for (const order of day.orders) {
+        if (order.is_pickup && order.order_type !== 'PO') {
+          const pickupId = order.id.toString()
+          if (addedPickupIds.has(pickupId)) continue
+          addedPickupIds.add(pickupId)
+
+          const pickupCellId: CellId = `pickup|${day.date}`
+          if (!cells[pickupCellId]) {
+            cells[pickupCellId] = { runIds: [], looseOrderIds: [] }
+          }
+          cells[pickupCellId].looseOrderIds.push(pickupId)
         }
       }
     }

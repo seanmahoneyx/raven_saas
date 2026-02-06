@@ -88,6 +88,7 @@ def order_to_calendar_dict(order, order_type):
         'notes': order.notes,
         'contract_id': contract_id,
         'contract_number': contract_number,
+        'is_pickup': getattr(order, 'is_pickup', False),
     }
 
 
@@ -306,6 +307,9 @@ class CalendarViewSet(viewsets.ViewSet):
 
         if 'scheduler_sequence' in serializer.validated_data:
             order.scheduler_sequence = serializer.validated_data['scheduler_sequence']
+
+        if 'is_pickup' in serializer.validated_data:
+            order.is_pickup = serializer.validated_data['is_pickup']
 
         order.save()
 

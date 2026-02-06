@@ -191,3 +191,271 @@ class ReportFavoriteViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+
+# ==================== Financial Statement Views ====================
+
+from datetime import date, datetime
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from apps.reporting.services import FinancialReportService
+from apps.api.v1.serializers.reporting import (
+    TrialBalanceSerializer,
+    IncomeStatementSerializer,
+    BalanceSheetSerializer,
+    ARAgingSerializer,
+)
+
+
+class FinancialReportPermission(IsAuthenticated):
+    """
+    Permission check for financial reports.
+    Requires authenticated user. In production, add view_financials permission check.
+    """
+    pass
+
+
+class TrialBalanceView(APIView):
+    """GET /api/v1/reports/trial-balance/?date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate Trial Balance',
+        parameters=[{
+            'name': 'date', 'in': 'query', 'required': False,
+            'schema': {'type': 'string', 'format': 'date'},
+            'description': 'As-of date (defaults to today)',
+        }],
+        responses={200: TrialBalanceSerializer}
+    )
+    def get(self, request):
+        as_of = request.query_params.get('date')
+        if as_of:
+            try:
+                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            as_of_date = date.today()
+
+        accounts = FinancialReportService.get_trial_balance(request.tenant, as_of_date)
+
+        result = {
+            'as_of_date': str(as_of_date),
+            'accounts': accounts,
+            'total_debits': sum(a['total_debit'] for a in accounts),
+            'total_credits': sum(a['total_credit'] for a in accounts),
+        }
+
+        return Response(result)
+
+
+class IncomeStatementView(APIView):
+    """GET /api/v1/reports/income-statement/?start=YYYY-MM-DD&end=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate Income Statement (P&L)',
+        parameters=[
+            {
+                'name': 'start', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period start date',
+            },
+            {
+                'name': 'end', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period end date',
+            },
+        ],
+        responses={200: IncomeStatementSerializer}
+    )
+    def get(self, request):
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start and end query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'Start date must be before end date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result = FinancialReportService.get_income_statement(request.tenant, start_date, end_date)
+        return Response(result)
+
+
+class BalanceSheetView(APIView):
+    """GET /api/v1/reports/balance-sheet/?date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate Balance Sheet',
+        parameters=[{
+            'name': 'date', 'in': 'query', 'required': False,
+            'schema': {'type': 'string', 'format': 'date'},
+            'description': 'As-of date (defaults to today)',
+        }],
+        responses={200: BalanceSheetSerializer}
+    )
+    def get(self, request):
+        as_of = request.query_params.get('date')
+        if as_of:
+            try:
+                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            as_of_date = date.today()
+
+        result = FinancialReportService.get_balance_sheet(request.tenant, as_of_date)
+        return Response(result)
+
+
+class ARAgingView(APIView):
+    """GET /api/v1/reports/ar-aging/?date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate A/R Aging Report',
+        parameters=[{
+            'name': 'date', 'in': 'query', 'required': False,
+            'schema': {'type': 'string', 'format': 'date'},
+            'description': 'As-of date (defaults to today)',
+        }],
+        responses={200: ARAgingSerializer}
+    )
+    def get(self, request):
+        as_of = request.query_params.get('date')
+        if as_of:
+            try:
+                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            as_of_date = date.today()
+
+        result = FinancialReportService.get_ar_aging(request.tenant, as_of_date)
+        return Response(result)
+
+
+class ItemQuickReportView(APIView):
+    """GET /api/v1/reports/item-quick-report/<item_id>/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate Item QuickReport',
+        parameters=[
+            {
+                'name': 'start_date', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period start date',
+            },
+            {
+                'name': 'end_date', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period end date',
+            },
+        ],
+        responses={200: dict}
+    )
+    def get(self, request, item_id):
+        start = request.query_params.get('start_date')
+        end = request.query_params.get('end_date')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start_date and end_date query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'start_date must be before end_date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.reporting.services import ItemReportService
+        result = ItemReportService.get_quick_report(request.tenant, item_id, start_date, end_date)
+        return Response(result)
+
+
+class ItemQuickReportPDFView(APIView):
+    """GET /api/v1/reports/item-quick-report/<item_id>/pdf/?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Download Item QuickReport as PDF',
+    )
+    def get(self, request, item_id):
+        start = request.query_params.get('start_date')
+        end = request.query_params.get('end_date')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start_date and end_date query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.reporting.services import ItemReportService
+        from apps.documents.pdf import PDFService
+        from apps.items.models import Item
+        from django.http import HttpResponse
+
+        item = Item.objects.filter(tenant=request.tenant, id=item_id).first()
+        if not item:
+            return Response({'error': 'Item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        report_data = ItemReportService.get_quick_report(request.tenant, item_id, start_date, end_date)
+        pdf_bytes = PDFService.render_item_quick_report(item, report_data, start_date, end_date)
+
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="item-quick-report-{item.sku}.pdf"'
+        return response

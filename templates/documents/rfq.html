@@ -1,0 +1,50 @@
+{% extends "documents/base_document.html" %}
+
+{% block extra_styles %}
+.rfq-notice {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 4px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    font-size: 9pt;
+    color: #9a3412;
+    text-align: center;
+    font-weight: bold;
+}
+.price-request {
+    color: #9a3412;
+    font-style: italic;
+    font-size: 8pt;
+}
+{% endblock %}
+
+{% block addresses %}
+<div class="addresses">
+    <div class="address-block">
+        <div class="address-label">To (Vendor)</div>
+        <div class="address-name">{{ vendor.name }}</div>
+        <div class="address-text">{{ vendor.address }}</div>
+    </div>
+    {% if ship_to.name %}
+    <div class="address-block">
+        <div class="address-label">Ship To</div>
+        <div class="address-name">{{ ship_to.name }}</div>
+        <div class="address-text">{{ ship_to.address }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="rfq-notice">
+    Please provide your best pricing for the items listed below.
+</div>
+{% endblock %}
+
+{% block extra_content %}
+{% if notes %}
+<div style="margin-top: 15px; padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 8pt;">
+    <strong>Additional Instructions:</strong><br>
+    {{ notes|linebreaksbr }}
+</div>
+{% endif %}
+{% endblock %}

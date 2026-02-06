@@ -9,6 +9,7 @@ Models:
 Note: Truck model is in apps.parties (scheduling resource).
 """
 from django.db import models
+from django.conf import settings
 from shared.models import TenantMixin, TimestampMixin
 
 
@@ -156,3 +157,207 @@ class Bin(TenantMixin, TimestampMixin):
         if self.warehouse_id:
             self.tenant = self.warehouse.tenant
         super().save(*args, **kwargs)
+
+
+class WarehouseLocation(TenantMixin, TimestampMixin):
+    """
+    Warehouse location for granular inventory tracking.
+
+    Supports hierarchical organization with location types for different
+    warehouse zones (receiving, storage, picking, packing, shipping).
+    """
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.CASCADE,
+        related_name='locations',
+        help_text="Warehouse this location belongs to"
+    )
+    name = models.CharField(
+        max_length=50,
+        help_text="Location name (e.g., 'A-01-01')"
+    )
+    barcode = models.CharField(
+        max_length=100,
+        help_text="Scannable barcode for this location"
+    )
+    type = models.CharField(
+        max_length=20,
+        choices=[
+            ('RECEIVING_DOCK', 'Receiving Dock'),
+            ('STORAGE', 'Storage'),
+            ('PICKING', 'Picking'),
+            ('PACKING', 'Packing'),
+            ('SHIPPING_DOCK', 'Shipping Dock'),
+            ('SCRAP', 'Scrap'),
+        ],
+        help_text="Type of warehouse zone"
+    )
+    parent_path = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Hierarchical path (e.g., 'Zone A / Aisle 1')"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive locations are hidden from selections"
+    )
+
+    class Meta:
+        unique_together = [('tenant', 'barcode')]
+        indexes = [
+            models.Index(fields=['tenant', 'warehouse', 'type']),
+            models.Index(fields=['tenant', 'barcode']),
+        ]
+
+    def __str__(self):
+        return f"{self.warehouse.code}:{self.name}"
+
+
+class Lot(TenantMixin, TimestampMixin):
+    """
+    Lot/batch tracking for inventory items.
+
+    Enables FEFO (First Expired, First Out) picking and traceability.
+    """
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='lots',
+        help_text="Item this lot belongs to"
+    )
+    lot_number = models.CharField(
+        max_length=50,
+        help_text="Lot or batch number"
+    )
+    vendor_batch = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Vendor's batch identifier"
+    )
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Expiration date for FEFO picking"
+    )
+
+    class Meta:
+        unique_together = [('tenant', 'item', 'lot_number')]
+        indexes = [
+            models.Index(fields=['tenant', 'lot_number']),
+        ]
+
+    def __str__(self):
+        return f"{self.lot_number} ({self.item.sku})"
+
+
+class StockQuant(TenantMixin, TimestampMixin):
+    """
+    The atomic unit of inventory: a specific quantity of an item at a location.
+
+    Each StockQuant represents:
+    - WHAT (item)
+    - WHERE (location)
+    - HOW MUCH (quantity)
+    - WHICH LOT (optional lot tracking)
+    """
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='quants',
+        help_text="Item stored in this quant"
+    )
+    location = models.ForeignKey(
+        WarehouseLocation,
+        on_delete=models.PROTECT,
+        related_name='quants',
+        help_text="Location where this stock is stored"
+    )
+    lot = models.ForeignKey(
+        Lot,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='quants',
+        help_text="Lot/batch (optional)"
+    )
+    quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=0,
+        help_text="Quantity on hand at this location"
+    )
+
+    class Meta:
+        unique_together = [('tenant', 'item', 'location', 'lot')]
+        indexes = [
+            models.Index(fields=['tenant', 'item', 'location']),
+            models.Index(fields=['tenant', 'location']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(quantity__gte=0),
+                name='quant_qty_non_negative'
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.item.sku} @ {self.location.name}: {self.quantity}"
+
+
+class StockMoveLog(TenantMixin, TimestampMixin):
+    """
+    Audit trail for all stock movements between locations.
+
+    Records every move for compliance, traceability, and debugging.
+    """
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='stock_moves',
+        help_text="Item that was moved"
+    )
+    source_location = models.ForeignKey(
+        WarehouseLocation,
+        on_delete=models.PROTECT,
+        related_name='moves_out',
+        help_text="Location stock was moved from"
+    )
+    destination_location = models.ForeignKey(
+        WarehouseLocation,
+        on_delete=models.PROTECT,
+        related_name='moves_in',
+        help_text="Location stock was moved to"
+    )
+    lot = models.ForeignKey(
+        Lot,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='moves',
+        help_text="Lot/batch (optional)"
+    )
+    quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        help_text="Quantity moved"
+    )
+    moved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who executed the move"
+    )
+    reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Reference (e.g., 'PO-000123 putaway', 'SO-000456 pick')"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['tenant', 'item', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Move {self.item.sku}: {self.source_location.name} → {self.destination_location.name} x{self.quantity}"
