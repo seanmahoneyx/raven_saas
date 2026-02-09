@@ -8,6 +8,7 @@ This is more secure than storing tokens in localStorage because:
 """
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +17,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from drf_spectacular.utils import extend_schema
+
+User = get_user_model()
 
 
 # Cookie configuration
@@ -136,8 +139,9 @@ class CookieTokenRefreshView(APIView):
 
             # Rotate refresh token if enabled
             if settings.SIMPLE_JWT.get('ROTATE_REFRESH_TOKENS', False):
+                user = User.objects.get(id=refresh.payload.get('user_id'))
                 refresh.blacklist()
-                new_refresh = RefreshToken.for_user(refresh.payload.get('user_id'))
+                new_refresh = RefreshToken.for_user(user)
                 response.set_cookie(
                     REFRESH_TOKEN_COOKIE,
                     str(new_refresh),

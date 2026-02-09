@@ -67,7 +67,7 @@ export default function CreateCustomer() {
         ...(formData.receivable_account ? { receivable_account: Number(formData.receivable_account) } : {}),
       })
 
-      navigate('/parties?tab=customers')
+      navigate('/customers')
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {

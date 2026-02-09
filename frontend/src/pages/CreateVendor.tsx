@@ -67,7 +67,7 @@ export default function CreateVendor() {
         ...(formData.payable_account ? { payable_account: Number(formData.payable_account) } : {}),
       })
 
-      navigate('/parties?tab=vendors')
+      navigate('/vendors')
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {

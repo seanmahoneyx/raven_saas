@@ -8,7 +8,9 @@ import MainLayout from '@/components/layout/MainLayout'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Scheduler from '@/pages/Scheduler'
-import Parties from '@/pages/Parties'
+import Customers from '@/pages/Customers'
+import Vendors from '@/pages/Vendors'
+import Trucks from '@/pages/Trucks'
 import Items from '@/pages/Items'
 import Orders from '@/pages/Orders'
 import Inventory from '@/pages/Inventory'
@@ -22,7 +24,9 @@ import PriorityList from '@/pages/PriorityList'
 import CreateCustomer from '@/pages/CreateCustomer'
 import CreateVendor from '@/pages/CreateVendor'
 import DesignRequests from '@/pages/DesignRequests'
+import CreateDesignRequest from '@/pages/CreateDesignRequest'
 import ItemDetail from '@/pages/ItemDetail'
+import CreateItem from '@/pages/CreateItem'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import DataImport from '@/pages/admin/DataImport'
 
@@ -67,12 +71,15 @@ function App() {
               }
             >
               <Route path="/" element={<Dashboard />} />
-              <Route path="/parties" element={<Parties />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/vendors" element={<Vendors />} />
+              <Route path="/trucks" element={<Trucks />} />
               <Route path="/customers/new" element={<CreateCustomer />} />
               <Route path="/vendors/new" element={<CreateVendor />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/:id" element={<ContractDetail />} />
               <Route path="/items" element={<Items />} />
+              <Route path="/items/new" element={<CreateItem />} />
               <Route path="/items/:id" element={<ItemDetail />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/inventory" element={<Inventory />} />
@@ -84,6 +91,7 @@ function App() {
               <Route path="/scheduler" element={<Scheduler />} />
               <Route path="/priority-list" element={<PriorityList />} />
               <Route path="/design-requests" element={<DesignRequests />} />
+              <Route path="/design-requests/new" element={<CreateDesignRequest />} />
               <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
               <Route path="/admin/import" element={<DataImport />} />
             </Route>

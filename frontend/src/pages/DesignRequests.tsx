@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
@@ -143,23 +143,12 @@ function PromoteDialog({
 
 export default function DesignRequests() {
   usePageTitle('Design Requests')
+  const navigate = useNavigate()
 
-  const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRequest, setEditingRequest] = useState<DesignRequest | null>(null)
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false)
   const [promotingRequest, setPromotingRequest] = useState<DesignRequest | null>(null)
-
-  // Handle URL params for action=new
-  useEffect(() => {
-    const action = searchParams.get('action')
-    if (action === 'new') {
-      setEditingRequest(null)
-      setDialogOpen(true)
-      searchParams.delete('action')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
 
   const { data: requestsData, isLoading } = useDesignRequests()
   const deleteRequest = useDeleteDesignRequest()
@@ -171,8 +160,7 @@ export default function DesignRequests() {
   }
 
   const handleAddNew = () => {
-    setEditingRequest(null)
-    setDialogOpen(true)
+    navigate('/design-requests/new')
   }
 
   const handlePromote = (dr: DesignRequest) => {

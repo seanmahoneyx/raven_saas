@@ -104,13 +104,13 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     icon: Users,
     label: 'Customers',
     items: [
-      { type: 'item', to: '/parties?tab=customers', icon: Users, label: 'Customer Center' },
+      { type: 'item', to: '/customers', icon: Users, label: 'Customer Center' },
       { type: 'separator' },
       { type: 'item', to: '/customers/new', icon: Plus, label: 'Create Customer' },
       { type: 'item', to: '/estimates?action=new', icon: Plus, label: 'Create Estimate' },
       { type: 'item', to: '/contracts?action=new', icon: Plus, label: 'Create Contract' },
       { type: 'item', to: '/orders?tab=sales&action=new', icon: Plus, label: 'Create Sales Order' },
-      { type: 'item', to: '/price-lists?type=customer&action=new', icon: Plus, label: 'Create Customer Price List' },
+      { type: 'item', to: '/price-lists?type=customer&action=new', icon: Plus, label: 'Create Price List' },
     ],
   },
   // 3. Vendors
@@ -119,13 +119,14 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     icon: Truck,
     label: 'Vendors',
     items: [
-      { type: 'item', to: '/parties?tab=vendors', icon: Building2, label: 'Vendor Center' },
-      { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
+      { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
       { type: 'separator' },
       { type: 'item', to: '/vendors/new', icon: Plus, label: 'Create Vendor' },
       { type: 'item', to: '/rfqs?action=new', icon: Plus, label: 'Create RFQ' },
       { type: 'item', to: '/orders?tab=purchase&action=new', icon: Plus, label: 'Create Purchase Order' },
-      { type: 'item', to: '/price-lists?type=vendor&action=new', icon: Plus, label: 'Create Vendor Cost List' },
+      { type: 'item', to: '/price-lists?type=vendor&action=new', icon: Plus, label: 'Create Cost List' },
+      { type: 'separator' },
+      { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
     ],
   },
   // 4. Items
@@ -135,12 +136,23 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Items',
     items: [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
-      { type: 'item', to: '/items?action=new', icon: Plus, label: 'Create Item' },
-      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Requests' },
+      { type: 'separator' },
+      { type: 'item', to: '/items/new', icon: Plus, label: 'Create Item' },
       { type: 'separator' },
       { type: 'item', to: '/contracts', icon: Eye, label: 'View Active Contracts' },
       { type: 'item', to: '/orders?tab=sales', icon: Eye, label: 'View Active Sales Orders' },
       { type: 'item', to: '/orders?tab=purchase', icon: Eye, label: 'View Active Purchase Orders' },
+    ],
+  },
+  // 5. Design
+  {
+    type: 'dropdown',
+    icon: Palette,
+    label: 'Design',
+    items: [
+      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Requests' },
+      { type: 'separator' },
+      { type: 'item', to: '/design-requests/new', icon: Plus, label: 'Create New Design' },
     ],
   },
   // 5. Reports (with nested submenus)

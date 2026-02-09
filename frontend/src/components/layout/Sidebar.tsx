@@ -47,7 +47,7 @@ const navStructure: NavEntry[] = [
     label: 'Vendors',
     icon: Building2,
     items: [
-      { to: '/parties?type=vendor', icon: Users, label: 'Vendor List' },
+      { to: '/vendors', icon: Users, label: 'Vendor List' },
       { to: '/priority-list', icon: Scale, label: 'Priority List' },
     ],
   },
@@ -55,7 +55,7 @@ const navStructure: NavEntry[] = [
     label: 'Customers',
     icon: Users,
     items: [
-      { to: '/parties?type=customer', icon: Users, label: 'Customer List' },
+      { to: '/customers', icon: Users, label: 'Customer List' },
     ],
   },
   { to: '/items', icon: Package, label: 'Items' },
@@ -64,6 +64,7 @@ const navStructure: NavEntry[] = [
     icon: WarehouseIcon,
     items: [
       { to: '/inventory', icon: WarehouseIcon, label: 'Inventory' },
+      { to: '/trucks', icon: Truck, label: 'Trucks' },
       { to: '/scheduler', icon: Calendar, label: 'Scheduler' },
       { to: '/shipping', icon: Truck, label: 'Shipping' },
     ],
