@@ -10,6 +10,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db.models import Sum, Count, Min, Q, DecimalField, Value
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from apps.parties.models import Party, Customer, Vendor, Location, Truck
 from apps.api.v1.serializers.parties import (
@@ -142,8 +145,30 @@ class CustomerViewSet(viewsets.ModelViewSet):
     ordering = ['party__display_name']
 
     def get_queryset(self):
-        """Get queryset at request time for proper tenant filtering."""
-        return Customer.objects.select_related('party').all()
+        """Get queryset at request time with KPI annotations."""
+        active_statuses = ['confirmed', 'scheduled', 'picking']
+        return Customer.objects.select_related('party').annotate(
+            open_sales_total=Coalesce(
+                Sum(
+                    'salesorder__lines__line_total',
+                    filter=Q(salesorder__status__in=active_statuses),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+            open_order_count=Count(
+                'salesorder',
+                filter=Q(salesorder__status__in=active_statuses),
+                distinct=True,
+            ),
+            next_expected_delivery=Min(
+                'salesorder__scheduled_date',
+                filter=Q(
+                    salesorder__status__in=['scheduled', 'picking'],
+                    salesorder__scheduled_date__gte=timezone.now().date(),
+                ),
+            ),
+        )
 
 
 @extend_schema_view(
@@ -168,8 +193,30 @@ class VendorViewSet(viewsets.ModelViewSet):
     ordering = ['party__display_name']
 
     def get_queryset(self):
-        """Get queryset at request time for proper tenant filtering."""
-        return Vendor.objects.select_related('party').all()
+        """Get queryset at request time with KPI annotations."""
+        active_statuses = ['confirmed', 'scheduled', 'shipped']
+        return Vendor.objects.select_related('party').annotate(
+            open_po_total=Coalesce(
+                Sum(
+                    'purchaseorder__lines__line_total',
+                    filter=Q(purchaseorder__status__in=active_statuses),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+            open_po_count=Count(
+                'purchaseorder',
+                filter=Q(purchaseorder__status__in=active_statuses),
+                distinct=True,
+            ),
+            next_incoming=Min(
+                'purchaseorder__scheduled_date',
+                filter=Q(
+                    purchaseorder__status__in=['scheduled', 'shipped'],
+                    purchaseorder__scheduled_date__gte=timezone.now().date(),
+                ),
+            ),
+        )
 
 
 @extend_schema_view(

@@ -238,6 +238,38 @@ class ItemViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED
         )
 
+    @extend_schema(tags=['items'], summary='Duplicate an item (Save As Copy)')
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Create a copy of this item with a new SKU suffix '-COPY'."""
+        item = self.get_object()
+        # Store original relations before cloning
+        original_uom_conversions = list(item.uom_conversions.all())
+        original_vendors = list(item.vendors.all())
+
+        # Clone the item
+        item.pk = None
+        item.sku = f"{self.get_object().sku}-COPY"
+        item.name = f"{item.name} (Copy)"
+        item.save()
+
+        # Clone UOM conversions
+        for conv in original_uom_conversions:
+            conv.pk = None
+            conv.item = item
+            conv.save()
+
+        # Clone vendor links
+        for vendor_link in original_vendors:
+            vendor_link.pk = None
+            vendor_link.item = item
+            vendor_link.save()
+
+        return Response(
+            ItemSerializer(item, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @extend_schema(
         tags=['items'],
         summary='Get item transaction history (Item 360)',

@@ -47,19 +47,68 @@ export default function Customers() {
   const customerColumns: ColumnDef<Customer>[] = useMemo(
     () => [
       {
-        accessorKey: 'party_code',
-        header: 'Code',
+        accessorKey: 'party_display_name',
+        header: 'Customer',
         cell: ({ row }) => (
-          <span className="font-medium">{row.getValue('party_code')}</span>
+          <div>
+            <span className="font-semibold text-foreground">{row.original.party_display_name}</span>
+            <span className="ml-2 text-xs text-muted-foreground font-mono">{row.original.party_code}</span>
+          </div>
         ),
       },
       {
-        accessorKey: 'party_display_name',
-        header: 'Name',
+        accessorKey: 'open_sales_total',
+        header: 'Open Sales $',
+        cell: ({ row }) => {
+          const val = parseFloat(row.original.open_sales_total || '0')
+          return (
+            <span className={`font-mono font-medium ${val > 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+              {val > 0 ? `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+            </span>
+          )
+        },
+      },
+      {
+        accessorKey: 'open_order_count',
+        header: 'Open Orders',
+        cell: ({ row }) => {
+          const count = row.original.open_order_count
+          return (
+            <Badge variant={count > 0 ? 'default' : 'secondary'}>
+              {count}
+            </Badge>
+          )
+        },
+      },
+      {
+        accessorKey: 'next_expected_delivery',
+        header: 'Next Delivery',
+        cell: ({ row }) => {
+          const dateStr = row.original.next_expected_delivery
+          if (!dateStr) return <span className="text-muted-foreground">—</span>
+          const date = new Date(dateStr + 'T00:00:00')
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const diffDays = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+          let colorClass = 'text-muted-foreground'
+          if (diffDays <= 0) colorClass = 'text-red-600 font-medium'
+          else if (diffDays <= 3) colorClass = 'text-amber-600 font-medium'
+          else colorClass = 'text-foreground'
+          return (
+            <span className={colorClass}>
+              {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {diffDays <= 0 && <span className="ml-1 text-xs">(today)</span>}
+              {diffDays === 1 && <span className="ml-1 text-xs">(tomorrow)</span>}
+            </span>
+          )
+        },
       },
       {
         accessorKey: 'payment_terms',
-        header: 'Payment Terms',
+        header: 'Terms',
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">{row.original.payment_terms || '—'}</span>
+        ),
       },
       {
         id: 'actions',
@@ -217,6 +266,7 @@ export default function Customers() {
               data={customersData?.results ?? []}
               searchColumn="party_display_name"
               searchPlaceholder="Search customers..."
+              onRowDoubleClick={(customer) => navigate(`/customers/${customer.id}`)}
             />
           )}
           {activeTab === 'locations' && (

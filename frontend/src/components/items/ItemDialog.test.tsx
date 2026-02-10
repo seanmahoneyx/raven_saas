@@ -138,9 +138,9 @@ describe('ItemDialog', () => {
       expect(screen.getByText('Division *')).toBeInTheDocument()
     })
 
-    it('shows SKU input', () => {
+    it('shows MSPN input', () => {
       renderDialog()
-      expect(screen.getByText('SKU *')).toBeInTheDocument()
+      expect(screen.getByText('MSPN *')).toBeInTheDocument()
     })
 
     it('shows Name input', () => {
@@ -245,7 +245,7 @@ describe('ItemDialog', () => {
   })
 
   describe('Input Interaction', () => {
-    it('allows typing in SKU field', async () => {
+    it('allows typing in MSPN field', async () => {
       const user = userEvent.setup()
       renderDialog()
 

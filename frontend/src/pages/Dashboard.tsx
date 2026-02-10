@@ -133,7 +133,7 @@ export default function Dashboard() {
       {/* KPI Cards Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Revenue Today */}
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Revenue Today</CardTitle>
             <DollarSign className="h-4 w-4 text-green-500" />
@@ -148,7 +148,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Open Orders */}
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/customers/open-orders')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open Orders</CardTitle>
             <ShoppingCart className="h-4 w-4 text-blue-500" />
@@ -160,7 +160,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Low Stock */}
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/inventory')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
             <PackageX className={`h-4 w-4 ${(kpis?.low_stock_count ?? 0) > 0 ? 'text-amber-500' : 'text-green-500'}`} />
@@ -174,7 +174,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Overdue Invoices */}
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Overdue Invoices</CardTitle>
             <AlertTriangle className={`h-4 w-4 ${(kpis?.overdue_invoices_count ?? 0) > 0 ? 'text-red-500' : 'text-green-500'}`} />

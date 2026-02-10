@@ -28,6 +28,15 @@ import CreateDesignRequest from '@/pages/CreateDesignRequest'
 import ItemDetail from '@/pages/ItemDetail'
 import CreateItem from '@/pages/CreateItem'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
+import Estimates from '@/pages/Estimates'
+import CreateEstimate from '@/pages/CreateEstimate'
+import CreateContract from '@/pages/CreateContract'
+import CreateSalesOrder from '@/pages/CreateSalesOrder'
+import CreatePurchaseOrder from '@/pages/CreatePurchaseOrder'
+import CreateRFQ from '@/pages/CreateRFQ'
+import CreatePriceList from '@/pages/CreatePriceList'
+import OpenSalesOrders from '@/pages/OpenSalesOrders'
+import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
 import DataImport from '@/pages/admin/DataImport'
 
 // Create a client
@@ -74,14 +83,23 @@ function App() {
               <Route path="/customers" element={<Customers />} />
               <Route path="/vendors" element={<Vendors />} />
               <Route path="/trucks" element={<Trucks />} />
+              <Route path="/customers/open-orders" element={<OpenSalesOrders />} />
               <Route path="/customers/new" element={<CreateCustomer />} />
+              <Route path="/vendors/open-orders" element={<OpenPurchaseOrders />} />
               <Route path="/vendors/new" element={<CreateVendor />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/:id" element={<ContractDetail />} />
               <Route path="/items" element={<Items />} />
               <Route path="/items/new" element={<CreateItem />} />
               <Route path="/items/:id" element={<ItemDetail />} />
+              <Route path="/estimates" element={<Estimates />} />
+              <Route path="/estimates/new" element={<CreateEstimate />} />
+              <Route path="/contracts/new" element={<CreateContract />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/orders/sales/new" element={<CreateSalesOrder />} />
+              <Route path="/orders/purchase/new" element={<CreatePurchaseOrder />} />
+              <Route path="/rfqs/new" element={<CreateRFQ />} />
+              <Route path="/price-lists/new" element={<CreatePriceList />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/shipping" element={<Shipping />} />
               <Route path="/invoices" element={<Invoices />} />

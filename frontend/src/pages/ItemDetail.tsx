@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Package, History, Users } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useItem, useItemVendors } from '@/api/items'
+import { useItem, useItemVendors, useDuplicateItem } from '@/api/items'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
 import type { ItemVendor } from '@/types/api'
 
@@ -20,7 +20,17 @@ export default function ItemDetail() {
 
   const { data: item, isLoading } = useItem(itemId)
   const { data: vendors } = useItemVendors(itemId)
+  const duplicateItem = useDuplicateItem()
   const [activeTab, setActiveTab] = useState<Tab>('history')
+
+  const handleDuplicate = () => {
+    if (!itemId) return
+    duplicateItem.mutate(itemId, {
+      onSuccess: (newItem) => {
+        navigate(`/items/${newItem.id}`)
+      },
+    })
+  }
 
   if (isLoading) {
     return (
@@ -59,6 +69,21 @@ export default function ItemDetail() {
             {item.is_inventory && <Badge variant="outline">Inventory</Badge>}
           </div>
           <p className="text-muted-foreground">{item.name}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            disabled={duplicateItem.isPending}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            {duplicateItem.isPending ? 'Duplicating...' : 'Save As Copy'}
+          </Button>
         </div>
       </div>
 

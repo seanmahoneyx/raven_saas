@@ -40,7 +40,7 @@ export default function Inventory() {
     () => [
       {
         accessorKey: 'item_sku',
-        header: 'SKU',
+        header: 'MSPN',
         cell: ({ row }) => (
           <span className="font-mono font-medium">{row.getValue('item_sku')}</span>
         ),
@@ -103,7 +103,7 @@ export default function Inventory() {
       },
       {
         accessorKey: 'item_sku',
-        header: 'SKU',
+        header: 'MSPN',
       },
       {
         accessorKey: 'item_name',
@@ -195,7 +195,7 @@ export default function Inventory() {
       },
       {
         accessorKey: 'item_sku',
-        header: 'SKU',
+        header: 'MSPN',
         cell: ({ row }) => (
           <span className="font-mono">{row.getValue('item_sku')}</span>
         ),

@@ -18,6 +18,8 @@ export interface Party {
   notes: string
   is_customer: boolean
   is_vendor: boolean
+  parent: number | null
+  parent_name: string | null
   created_at: string
   updated_at: string
 }
@@ -31,6 +33,9 @@ export interface Customer {
   default_ship_to: number | null
   default_bill_to: number | null
   sales_rep: number | null
+  open_sales_total: string
+  open_order_count: number
+  next_expected_delivery: string | null
   created_at: string
   updated_at: string
 }
@@ -43,6 +48,9 @@ export interface Vendor {
   payment_terms: string
   default_ship_from: number | null
   buyer: number | null
+  open_po_total: string
+  open_po_count: number
+  next_incoming: string | null
   created_at: string
   updated_at: string
 }
@@ -113,6 +121,8 @@ export interface Item {
   customer: number | null
   customer_code?: string | null
   customer_name?: string | null
+  parent: number | null
+  parent_sku?: string | null
   // Unitizing
   units_per_layer: number | null
   layers_per_pallet: number | null
@@ -222,6 +232,57 @@ export interface TeleItem extends CorrugatedItem {
   length: string
   width: string
   height: string
+}
+
+// Estimate types
+export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'converted'
+
+export interface EstimateLine {
+  id: number
+  estimate: number
+  line_number: number
+  item: number
+  item_sku: string
+  item_name: string
+  description: string
+  quantity: number
+  uom: number
+  uom_code: string
+  unit_price: string
+  amount: string
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Estimate {
+  id: number
+  estimate_number: string
+  status: EstimateStatus
+  customer: number
+  customer_name: string
+  date: string
+  expiration_date: string | null
+  ship_to: number | null
+  ship_to_name: string | null
+  bill_to: number | null
+  bill_to_name: string | null
+  subtotal: string
+  tax_rate: string
+  tax_amount: string
+  total_amount: string
+  design_request: number | null
+  customer_po: string
+  notes: string
+  terms_and_conditions: string
+  is_editable: boolean
+  is_convertible: boolean
+  is_expired: boolean
+  num_lines: number
+  converted_order_number: string | null
+  lines?: EstimateLine[]
+  created_at: string
+  updated_at: string
 }
 
 // Order types

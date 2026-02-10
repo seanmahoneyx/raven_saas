@@ -366,10 +366,10 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
               )}
             </div>
 
-            {/* SKU & UOM */}
+            {/* MSPN & UOM */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="sku">SKU *</Label>
+                <Label htmlFor="sku">MSPN *</Label>
                 <Input
                   id="sku"
                   value={formData.sku}

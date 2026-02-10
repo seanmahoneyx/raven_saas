@@ -105,12 +105,13 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Customers',
     items: [
       { type: 'item', to: '/customers', icon: Users, label: 'Customer Center' },
+      { type: 'item', to: '/customers/open-orders', icon: Eye, label: 'Open Sales Orders' },
       { type: 'separator' },
       { type: 'item', to: '/customers/new', icon: Plus, label: 'Create Customer' },
-      { type: 'item', to: '/estimates?action=new', icon: Plus, label: 'Create Estimate' },
-      { type: 'item', to: '/contracts?action=new', icon: Plus, label: 'Create Contract' },
-      { type: 'item', to: '/orders?tab=sales&action=new', icon: Plus, label: 'Create Sales Order' },
-      { type: 'item', to: '/price-lists?type=customer&action=new', icon: Plus, label: 'Create Price List' },
+      { type: 'item', to: '/estimates/new', icon: Plus, label: 'Create Estimate' },
+      { type: 'item', to: '/contracts/new', icon: Plus, label: 'Create Contract' },
+      { type: 'item', to: '/orders/sales/new', icon: Plus, label: 'Create Sales Order' },
+      { type: 'item', to: '/price-lists/new', icon: Plus, label: 'Create Price List' },
     ],
   },
   // 3. Vendors
@@ -120,11 +121,12 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Vendors',
     items: [
       { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
+      { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Open Purchase Orders' },
       { type: 'separator' },
       { type: 'item', to: '/vendors/new', icon: Plus, label: 'Create Vendor' },
-      { type: 'item', to: '/rfqs?action=new', icon: Plus, label: 'Create RFQ' },
-      { type: 'item', to: '/orders?tab=purchase&action=new', icon: Plus, label: 'Create Purchase Order' },
-      { type: 'item', to: '/price-lists?type=vendor&action=new', icon: Plus, label: 'Create Cost List' },
+      { type: 'item', to: '/rfqs/new', icon: Plus, label: 'Create RFQ' },
+      { type: 'item', to: '/orders/purchase/new', icon: Plus, label: 'Create Purchase Order' },
+      { type: 'item', to: '/price-lists/new', icon: Plus, label: 'Create Cost List' },
       { type: 'separator' },
       { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
     ],
@@ -150,7 +152,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     icon: Palette,
     label: 'Design',
     items: [
-      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Requests' },
+      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Center' },
       { type: 'separator' },
       { type: 'item', to: '/design-requests/new', icon: Plus, label: 'Create New Design' },
     ],
@@ -322,9 +324,10 @@ export default function TopNavbar() {
   return (
     <header className="flex h-14 items-center border-b bg-sidebar px-4 shrink-0">
       {/* Logo */}
-      <div className="flex items-center mr-6">
-        <h1 className="text-lg font-bold text-sidebar-foreground">Raven SaaS</h1>
-      </div>
+      <NavLink to="/" className="flex items-center gap-2 mr-6">
+        <img src="/logo.png" alt="Raven Tech" className="h-8 w-8 object-contain" />
+        <span className="text-lg font-bold text-sidebar-foreground hidden sm:inline">Raven Tech</span>
+      </NavLink>
 
       {/* Navigation */}
       <nav className="flex-1 flex items-center gap-1">

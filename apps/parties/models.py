@@ -63,6 +63,14 @@ class Party(TenantMixin, TimestampMixin):
         blank=True,
         help_text="General notes about this party"
     )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        help_text="Parent party for hierarchy"
+    )
 
     class Meta:
         verbose_name_plural = "parties"

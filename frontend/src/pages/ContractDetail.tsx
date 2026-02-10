@@ -410,7 +410,7 @@ export default function ContractDetail() {
                 <thead>
                   <tr className="border-b text-muted-foreground text-sm">
                     <th className="p-3 w-8"></th>
-                    <th className="p-3 text-left">SKU</th>
+                    <th className="p-3 text-left">MSPN</th>
                     <th className="p-3 text-left">Item Name</th>
                     <th className="p-3 text-right">Blanket Qty</th>
                     <th className="p-3 text-right">Released</th>

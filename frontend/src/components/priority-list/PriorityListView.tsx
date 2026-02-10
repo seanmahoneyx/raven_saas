@@ -238,39 +238,51 @@ export const PriorityListView = memo(function PriorityListView({
     <div className="h-full flex flex-col">
       {/* Header / Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <h2 className="text-lg font-semibold text-gray-900">Priority List</h2>
 
-          {/* Vendor filter */}
-          <select
-            value={filterVendorId ?? ''}
-            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
-            className="px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Vendors</option>
+          {/* Filter chips */}
+          <div className="flex items-center gap-1.5 ml-2">
+            <button
+              onClick={() => setFilterVendorId(null)}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                filterVendorId === null
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Vendors
+            </button>
             {vendorsData?.results?.map((vendor) => (
-              <option key={vendor.id} value={vendor.id}>
+              <button
+                key={vendor.id}
+                onClick={() => setFilterVendorId(
+                  filterVendorId === vendor.id ? null : vendor.id
+                )}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                  filterVendorId === vendor.id
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
                 {vendor.party_display_name}
-              </option>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Sync button */}
           <button
             onClick={handleSync}
             disabled={syncMutation.isPending}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50"
+            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md border border-gray-200 disabled:opacity-50 transition-colors"
             title="Sync PO lines from orders"
           >
             {syncMutation.isPending ? 'Syncing...' : 'Sync Lines'}
           </button>
-
-          {/* Configure allotments */}
           <button
             onClick={() => setShowAllotmentModal(true)}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
             Configure Allotments
           </button>

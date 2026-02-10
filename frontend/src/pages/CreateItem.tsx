@@ -292,12 +292,12 @@ export default function CreateItem() {
           </div>
         </section>
 
-        {/* SKU, UOM, Name, Customer */}
+        {/* MSPN, UOM, Name, Customer */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b pb-2">Item Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="sku">SKU *</Label>
+              <Label htmlFor="sku">MSPN *</Label>
               <Input
                 id="sku"
                 value={formData.sku}

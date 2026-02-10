@@ -7,8 +7,7 @@ aggregating data from Sales, Invoicing, and Inventory.
 """
 from datetime import date, timedelta
 from decimal import Decimal
-from django.db.models import Sum, Count, F, Q, Value, CharField
-from django.db.models.functions import TruncDate
+from django.db.models import Sum, Count, F, Q
 from django.utils import timezone
 
 
@@ -114,15 +113,15 @@ def get_dashboard_stats(tenant):
         tenant=tenant,
         invoice_date__gte=thirty_days_ago,
         status__in=['posted', 'sent', 'paid', 'partial'],
+    ).values(
+        'invoice_date'
     ).annotate(
-        day=TruncDate('invoice_date')
-    ).values('day').annotate(
         amount=Sum('total_amount')
-    ).order_by('day')
+    ).order_by('invoice_date')
 
     # Fill in missing days with 0
     sales_trend = []
-    sales_by_day = {entry['day']: entry['amount'] for entry in sales_trend_qs}
+    sales_by_day = {entry['invoice_date']: entry['amount'] for entry in sales_trend_qs}
     for i in range(30):
         d = thirty_days_ago + timedelta(days=i)
         sales_trend.append({
@@ -185,7 +184,7 @@ def get_dashboard_stats(tenant):
         recent_activity.append({
             'type': 'order',
             'icon': 'shopping-cart',
-            'message': f"SO-{order.order_number} ({order.get_status_display()}) — {customer_name}",
+            'message': f"{order.order_number} ({order.get_status_display()}) — {customer_name}",
             'timestamp': order.created_at.isoformat(),
         })
 
@@ -199,7 +198,7 @@ def get_dashboard_stats(tenant):
         recent_activity.append({
             'type': 'invoice',
             'icon': 'file-text',
-            'message': f"INV-{inv.invoice_number} ${inv.total_amount} — {customer_name}",
+            'message': f"{inv.invoice_number} ${inv.total_amount} — {customer_name}",
             'timestamp': inv.created_at.isoformat(),
         })
 

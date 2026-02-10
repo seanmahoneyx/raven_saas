@@ -139,6 +139,7 @@ class ItemListSerializer(TenantModelSerializer):
     base_uom_code = serializers.CharField(source='base_uom.code', read_only=True)
     customer_code = serializers.CharField(source='customer.code', read_only=True, allow_null=True)
     customer_name = serializers.CharField(source='customer.display_name', read_only=True, allow_null=True)
+    parent_sku = serializers.CharField(source='parent.sku', read_only=True, allow_null=True)
     item_type = serializers.SerializerMethodField()
 
     class Meta:
@@ -147,6 +148,7 @@ class ItemListSerializer(TenantModelSerializer):
             'id', 'sku', 'name', 'division', 'description',
             'base_uom', 'base_uom_code',
             'customer', 'customer_code', 'customer_name',
+            'parent', 'parent_sku',
             'is_inventory', 'is_active',
             'item_type',
         ]
@@ -178,6 +180,7 @@ class ItemSerializer(TenantModelSerializer):
     base_uom_name = serializers.CharField(source='base_uom.name', read_only=True)
     customer_code = serializers.CharField(source='customer.code', read_only=True, allow_null=True)
     customer_name = serializers.CharField(source='customer.display_name', read_only=True, allow_null=True)
+    parent_sku = serializers.CharField(source='parent.sku', read_only=True, allow_null=True)
 
     class Meta:
         model = Item
@@ -186,6 +189,7 @@ class ItemSerializer(TenantModelSerializer):
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
+            'parent', 'parent_sku',
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
             'is_inventory', 'is_active', 'attachment',
@@ -200,6 +204,7 @@ class ItemDetailSerializer(TenantModelSerializer):
     base_uom_name = serializers.CharField(source='base_uom.name', read_only=True)
     customer_code = serializers.CharField(source='customer.code', read_only=True, allow_null=True)
     customer_name = serializers.CharField(source='customer.display_name', read_only=True, allow_null=True)
+    parent_sku = serializers.CharField(source='parent.sku', read_only=True, allow_null=True)
     uom_conversions = ItemUOMSerializer(many=True, read_only=True)
     vendors = ItemVendorSerializer(many=True, read_only=True)
     item_type = serializers.SerializerMethodField()
@@ -211,6 +216,7 @@ class ItemDetailSerializer(TenantModelSerializer):
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
+            'parent', 'parent_sku',
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
             'is_inventory', 'is_active', 'attachment',

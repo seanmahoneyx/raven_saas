@@ -257,6 +257,23 @@ export function useBoxItem(boxType: BoxType | null, id: number | null) {
 }
 
 // =============================================================================
+// ITEM DUPLICATE
+// =============================================================================
+
+export function useDuplicateItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<Item>(`/items/${id}/duplicate/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+    },
+  })
+}
+
+// =============================================================================
 // ITEM VENDORS
 // =============================================================================
 

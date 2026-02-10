@@ -267,6 +267,32 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         so.save()
         return Response(SalesOrderSerializer(so, context={'request': request}).data)
 
+    @extend_schema(tags=['orders'], summary='Duplicate a sales order (Save As Copy)')
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Create a draft copy of this sales order with all lines."""
+        so = self.get_object()
+        original_lines = list(so.lines.all())
+
+        # Clone the order
+        so.pk = None
+        so.order_number = f"{self.get_object().order_number}-COPY"
+        so.status = 'draft'
+        so.scheduled_date = None
+        so.scheduled_truck = None
+        so.save()
+
+        # Clone lines
+        for line in original_lines:
+            line.pk = None
+            line.sales_order = so
+            line.save()
+
+        return Response(
+            SalesOrderSerializer(so, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     @extend_schema(tags=['orders'], summary='List unscheduled sales orders')
     @action(detail=False, methods=['get'])
     def unscheduled(self, request):

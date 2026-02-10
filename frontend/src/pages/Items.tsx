@@ -49,7 +49,7 @@ export default function Items() {
     () => [
       {
         accessorKey: 'sku',
-        header: 'SKU',
+        header: 'MSPN',
         cell: ({ row }) => (
           <span className="font-mono font-medium">{row.getValue('sku')}</span>
         ),

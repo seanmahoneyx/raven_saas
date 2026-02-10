@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { PriorityListView } from '@/components/priority-list'
+import { PriorityListView } from '@/components/priority-list/PriorityListView'
 import { format, addWeeks, startOfWeek } from 'date-fns'
 
 export default function PriorityList() {

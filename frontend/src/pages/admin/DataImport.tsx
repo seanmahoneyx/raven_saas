@@ -32,7 +32,7 @@ interface ImportReport {
 const IMPORT_TYPES = [
   { value: 'locations', label: 'Warehouse Locations', columns: 'Name, Barcode, Warehouse, Type (optional), Zone (optional)' },
   { value: 'parties', label: 'Customers & Vendors', columns: 'Code, Name, Type, LegalName (opt), Email (opt), Phone (opt), Notes (opt)' },
-  { value: 'items', label: 'Items / Products', columns: 'SKU, Name, UOM, Description (opt), Division (opt), PurchDesc (opt), SellDesc (opt)' },
+  { value: 'items', label: 'Items / Products', columns: 'MSPN, Name, UOM, Description (opt), Division (opt), PurchDesc (opt), SellDesc (opt)' },
 ]
 
 export default function DataImport() {

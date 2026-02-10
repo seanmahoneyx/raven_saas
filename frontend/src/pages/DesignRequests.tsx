@@ -115,8 +115,8 @@ function PromoteDialog({
         </p>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="promote-sku">SKU (required)</Label>
-            <Input id="promote-sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Enter item SKU" />
+            <Label htmlFor="promote-sku">MSPN (required)</Label>
+            <Input id="promote-sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Enter item MSPN" />
           </div>
           <div className="space-y-2">
             <Label>Base UOM (required)</Label>

@@ -21,7 +21,6 @@ function getWeekdaysInRange(startDate: string, endDate: string): string[] {
   const current = new Date(start)
   while (current <= end) {
     const day = current.getDay()
-    // 0 = Sunday, 6 = Saturday - skip weekends
     if (day !== 0 && day !== 6) {
       weekdays.push(current.toISOString().split('T')[0])
     }
@@ -32,7 +31,28 @@ function getWeekdaysInRange(startDate: string, endDate: string): string[] {
 }
 
 /**
- * A vendor section showing all weekdays in the date range (always expanded).
+ * Deterministic color from vendor name for pill badge.
+ */
+function vendorColor(name: string): string {
+  const colors = [
+    'bg-blue-100 text-blue-800 border-blue-200',
+    'bg-emerald-100 text-emerald-800 border-emerald-200',
+    'bg-violet-100 text-violet-800 border-violet-200',
+    'bg-amber-100 text-amber-800 border-amber-200',
+    'bg-rose-100 text-rose-800 border-rose-200',
+    'bg-cyan-100 text-cyan-800 border-cyan-200',
+    'bg-orange-100 text-orange-800 border-orange-200',
+    'bg-indigo-100 text-indigo-800 border-indigo-200',
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
+/**
+ * A vendor section showing all weekdays in the date range.
  */
 export const VendorSection = memo(function VendorSection({
   vendorId,
@@ -44,7 +64,6 @@ export const VendorSection = memo(function VendorSection({
   const vendor = usePriorityListStore((s) => s.vendors[vendorId])
   const bins = usePriorityListStore((s) => s.bins)
 
-  // Generate all weekdays in the range
   const allWeekdays = useMemo(
     () => getWeekdaysInRange(startDate, endDate),
     [startDate, endDate]
@@ -52,10 +71,8 @@ export const VendorSection = memo(function VendorSection({
 
   if (!vendor) return null
 
-  // Calculate totals for this vendor
   const totals = allWeekdays.reduce(
     (acc, date) => {
-      // Find all bins for this vendor/date
       for (const [binId, bin] of Object.entries(bins)) {
         if (binId.startsWith(`${vendorId}|${date}|`)) {
           acc.lines += bin.lines.length
@@ -67,25 +84,29 @@ export const VendorSection = memo(function VendorSection({
     { lines: 0, scheduled: 0 }
   )
 
+  const colorClass = vendorColor(vendor.name)
+
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
-      {/* Vendor header - always visible, no collapse */}
-      <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100">
+    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+      {/* Vendor header with pill badge */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-gray-900">{vendor.name}</span>
+          <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full border ${colorClass}`}>
+            {vendor.name}
+          </span>
         </div>
 
         <div className="flex items-center gap-4 text-sm">
-          <span className="text-gray-600">
+          <span className="text-gray-500">
             {totals.lines} {totals.lines === 1 ? 'line' : 'lines'}
           </span>
-          <span className="font-medium text-gray-800">
-            {totals.scheduled.toLocaleString()} kicks scheduled
+          <span className="font-mono font-medium text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+            {totals.scheduled.toLocaleString()} kicks
           </span>
         </div>
       </div>
 
-      {/* All weekdays - always visible */}
+      {/* All weekdays */}
       <div className="divide-y divide-gray-100">
         {allWeekdays.map((date) => (
           <DateSection

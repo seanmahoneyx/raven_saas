@@ -166,6 +166,16 @@ class Item(TenantMixin, TimestampMixin):
         help_text="Base unit of measure (typically EACH)"
     )
 
+    # Hierarchy
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='children',
+        help_text="Parent item for hierarchy"
+    )
+
     # Relationships
     customer = models.ForeignKey(
         'parties.Party',
