@@ -235,14 +235,12 @@ export const PriorityListView = memo(function PriorityListView({
   const error = dataError?.message ?? null
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="space-y-4">
       {/* Header / Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-gray-900">Priority List</h2>
-
           {/* Filter chips */}
-          <div className="flex items-center gap-1.5 ml-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setFilterVendorId(null)}
               className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
@@ -290,9 +288,7 @@ export const PriorityListView = memo(function PriorityListView({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-        {isLoading ? (
+      {isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-500">Loading priority list...</div>
           </div>
@@ -314,7 +310,7 @@ export const PriorityListView = memo(function PriorityListView({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               {displayedVendorIds.map((vendorId) => (
                 <VendorSection
                   key={vendorId}
@@ -337,8 +333,6 @@ export const PriorityListView = memo(function PriorityListView({
             </DragOverlay>
           </DndContext>
         )}
-        </div>
-      </div>
 
       {/* Allotment config modal */}
       <AllotmentConfigModal

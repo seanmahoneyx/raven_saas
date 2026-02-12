@@ -185,12 +185,197 @@ export function useItemQuickReport(itemId: number | null, startDate: string | nu
   return useQuery({
     queryKey: ['item-quick-report', itemId, startDate, endDate],
     queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (startDate) params.start_date = startDate
+      if (endDate) params.end_date = endDate
       const { data } = await api.get<ItemQuickReport>(
         `/reports/item-quick-report/${itemId}/`,
-        { params: { start_date: startDate, end_date: endDate } }
+        { params }
       )
       return data
     },
-    enabled: !!itemId && !!startDate && !!endDate,
+    enabled: !!itemId,
+  })
+}
+
+// =============================================================================
+// ORDERS VS INVENTORY REPORT
+// =============================================================================
+
+export interface OrdersVsInventoryItem {
+  item_id: number
+  item_sku: string
+  item_name: string
+  open_so_qty: number
+  on_hand: number
+  allocated: number
+  available: number
+  on_order: number
+  incoming_po: number
+  projected: number
+  shortage: number
+  coverage_pct: number
+  status: 'ok' | 'warning' | 'critical'
+}
+
+export interface OrdersVsInventoryReport {
+  count: number
+  items: OrdersVsInventoryItem[]
+}
+
+export function useOrdersVsInventoryReport() {
+  return useQuery({
+    queryKey: ['orders-vs-inventory'],
+    queryFn: async () => {
+      const { data } = await api.get<OrdersVsInventoryReport>('/reports/orders-vs-inventory/')
+      return data
+    },
+  })
+}
+
+// =============================================================================
+// SALES COMMISSION REPORT
+// =============================================================================
+
+export interface SalesCommissionRep {
+  rep_id: number | null
+  rep_name: string
+  invoice_count: number
+  total_invoiced: string
+  total_paid: string
+  commission_rate: string
+  commission_earned: string
+}
+
+export interface SalesCommissionReport {
+  date_from: string | null
+  date_to: string | null
+  commission_rate: string
+  summary: {
+    total_invoiced: string
+    total_paid: string
+    total_commission: string
+  }
+  by_rep: SalesCommissionRep[]
+}
+
+export function useSalesCommissionReport(params?: { date_from?: string; date_to?: string; commission_rate?: number }) {
+  return useQuery({
+    queryKey: ['sales-commission', params],
+    queryFn: async () => {
+      const { data } = await api.get<SalesCommissionReport>('/reports/sales-commission/', { params })
+      return data
+    },
+  })
+}
+
+// =============================================================================
+// GROSS MARGIN REPORT
+// =============================================================================
+
+export interface GrossMarginCustomer {
+  customer_id: number
+  customer_name: string
+  revenue: string
+  cogs: string
+  margin: string
+  margin_pct: string
+}
+
+export interface GrossMarginItem {
+  item_id: number
+  item_sku: string
+  item_name: string
+  revenue: string
+  cogs: string
+  margin: string
+  margin_pct: string
+}
+
+export interface GrossMarginSummary {
+  total_revenue: string
+  total_cogs: string
+  gross_margin: string
+  margin_pct: string
+}
+
+export interface GrossMarginReport {
+  date_from: string | null
+  date_to: string | null
+  summary: GrossMarginSummary
+  by_customer: GrossMarginCustomer[]
+  by_item: GrossMarginItem[]
+}
+
+export function useGrossMarginReport(params?: { date_from?: string; date_to?: string; customer?: number; item?: number }) {
+  return useQuery({
+    queryKey: ['gross-margin', params],
+    queryFn: async () => {
+      const { data } = await api.get<GrossMarginReport>('/reports/gross-margin/', { params })
+      return data
+    },
+    enabled: true,
+  })
+}
+
+// =============================================================================
+// CONTRACT UTILIZATION REPORT
+// =============================================================================
+
+export interface ContractUtilization {
+  contract_id: number
+  contract_number: string
+  blanket_po: string
+  customer_id: number
+  customer_name: string
+  status: string
+  start_date: string | null
+  end_date: string | null
+  total_committed: number
+  total_released: number
+  total_remaining: number
+  completion_pct: number
+  days_remaining: number | null
+  burn_rate: number | null
+  projected_completion: string | null
+  num_lines: number
+  at_risk: boolean
+}
+
+export function useContractUtilizationReport() {
+  return useQuery({
+    queryKey: ['contract-utilization'],
+    queryFn: async () => {
+      const { data } = await api.get('/reports/contract-utilization/')
+      return data
+    },
+  })
+}
+
+// =============================================================================
+// VENDOR SCORECARD REPORT
+// =============================================================================
+
+export interface VendorScorecard {
+  vendor_id: number
+  vendor_name: string
+  vendor_code: string
+  total_pos: number
+  completed_pos: number
+  active_pos: number
+  on_time_count: number
+  late_count: number
+  on_time_pct: number
+  total_spend: string
+  avg_lead_time_days: number | null
+}
+
+export function useVendorScorecardReport(params?: { date_from?: string; date_to?: string }) {
+  return useQuery({
+    queryKey: ['vendor-scorecard', params],
+    queryFn: async () => {
+      const { data } = await api.get('/reports/vendor-scorecard/', { params })
+      return data
+    },
   })
 }

@@ -25,6 +25,7 @@ import {
   ScrollText,
   Palette,
   Search,
+  Cog,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -94,8 +95,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/users', icon: Users, label: 'Users' },
       { type: 'item', to: '/', icon: LayoutDashboard, label: 'Company Snapshot' },
       { type: 'separator' },
-      { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
-      { type: 'item', to: '/journal-entry', icon: FileSpreadsheet, label: 'Make Journal Entry' },
+      { type: 'item', to: '/settings', icon: Cog, label: 'Settings' },
     ],
   },
   // 2. Customers
@@ -105,7 +105,10 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Customers',
     items: [
       { type: 'item', to: '/customers', icon: Users, label: 'Customer Center' },
-      { type: 'item', to: '/customers/open-orders', icon: Eye, label: 'Open Sales Orders' },
+      { type: 'item', to: '/customers/open-orders', icon: Eye, label: 'Sales Orders' },
+      { type: 'item', to: '/estimates', icon: FileText, label: 'Estimates' },
+      { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
+      { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
       { type: 'separator' },
       { type: 'item', to: '/customers/new', icon: Plus, label: 'Create Customer' },
       { type: 'item', to: '/estimates/new', icon: Plus, label: 'Create Estimate' },
@@ -121,7 +124,8 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Vendors',
     items: [
       { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
-      { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Open Purchase Orders' },
+      { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Purchase Orders' },
+      { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
       { type: 'separator' },
       { type: 'item', to: '/vendors/new', icon: Plus, label: 'Create Vendor' },
       { type: 'item', to: '/rfqs/new', icon: Plus, label: 'Create RFQ' },
@@ -157,12 +161,26 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/design-requests/new', icon: Plus, label: 'Create New Design' },
     ],
   },
-  // 5. Reports (with nested submenus)
+  // 6. Accounting
+  {
+    type: 'dropdown',
+    icon: DollarSign,
+    label: 'Accounting',
+    items: [
+      { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
+      { type: 'item', to: '/journal-entries', icon: FileSpreadsheet, label: 'Journal Entries' },
+      { type: 'separator' },
+      { type: 'item', to: '/journal-entries/new', icon: Plus, label: 'Make Journal Entry' },
+    ],
+  },
+  // 7. Reports (with nested submenus)
   {
     type: 'dropdown',
     icon: BarChart3,
     label: 'Reports',
     items: [
+      { type: 'item', to: '/reports/item-quick-report', icon: Package, label: 'Item Quick Report' },
+      { type: 'separator' },
       {
         type: 'submenu',
         icon: Building2,

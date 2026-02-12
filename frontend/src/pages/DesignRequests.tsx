@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -42,6 +42,8 @@ import {
 import { useUnitsOfMeasure } from '@/api/items'
 import { DesignRequestDialog } from '@/components/design/DesignRequestDialog'
 import type { DesignRequest, DesignRequestStatus } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 const statusColors: Record<DesignRequestStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
   pending: 'secondary',
@@ -149,6 +151,8 @@ export default function DesignRequests() {
   const [editingRequest, setEditingRequest] = useState<DesignRequest | null>(null)
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false)
   const [promotingRequest, setPromotingRequest] = useState<DesignRequest | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const { data: requestsData, isLoading } = useDesignRequests()
   const deleteRequest = useDeleteDesignRequest()
@@ -166,6 +170,18 @@ export default function DesignRequests() {
   const handlePromote = (dr: DesignRequest) => {
     setPromotingRequest(dr)
     setPromoteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteRequest.mutateAsync(pendingDeleteId)
+      toast.success('Design request deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete design request')
+    }
   }
 
   const columns: ColumnDef<DesignRequest>[] = useMemo(
@@ -258,7 +274,10 @@ export default function DesignRequests() {
                 </DropdownMenuItem>
                 {dr.status === 'pending' && (
                   <DropdownMenuItem
-                    onClick={() => updateRequest.mutate({ id: dr.id, status: 'in_progress' })}
+                    onClick={() => {
+                      updateRequest.mutate({ id: dr.id, status: 'in_progress' })
+                      toast.success('Status updated to In Progress')
+                    }}
                   >
                     <Loader2 className="mr-2 h-4 w-4" />
                     Start Work
@@ -267,13 +286,19 @@ export default function DesignRequests() {
                 {dr.status === 'in_progress' && (
                   <>
                     <DropdownMenuItem
-                      onClick={() => updateRequest.mutate({ id: dr.id, status: 'approved' })}
+                      onClick={() => {
+                        updateRequest.mutate({ id: dr.id, status: 'approved' })
+                        toast.success('Design request approved')
+                      }}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Approve
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => updateRequest.mutate({ id: dr.id, status: 'rejected' })}
+                      onClick={() => {
+                        updateRequest.mutate({ id: dr.id, status: 'rejected' })
+                        toast.success('Design request rejected')
+                      }}
                     >
                       <XCircle className="mr-2 h-4 w-4" />
                       Reject
@@ -299,9 +324,8 @@ export default function DesignRequests() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this design request?')) {
-                      deleteRequest.mutate(dr.id)
-                    }
+                    setPendingDeleteId(dr.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -347,6 +371,7 @@ export default function DesignRequests() {
               data={requestsData?.results ?? []}
               searchColumn="ident"
               searchPlaceholder="Search by identifier..."
+              onRowClick={(row) => navigate(`/design-requests/${row.id}`)}
             />
           )}
         </CardContent>
@@ -368,6 +393,17 @@ export default function DesignRequests() {
           if (!open) setPromotingRequest(null)
         }}
         designRequest={promotingRequest}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Design Request"
+        description="Are you sure you want to delete this design request? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteRequest.isPending}
       />
     </div>
   )

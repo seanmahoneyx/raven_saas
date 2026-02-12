@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from './client'
-import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse } from '@/types/api'
+import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse, TimelineEvent, CustomerAttachment } from '@/types/api'
 
 // Parties
 export function useParties(params?: { search?: string; party_type?: string; is_active?: boolean }) {
@@ -125,6 +125,69 @@ export function useDeleteCustomer() {
   })
 }
 
+// Customer Timeline
+export function useCustomerTimeline(customerId: number, typeFilter?: string) {
+  return useQuery({
+    queryKey: ['customers', customerId, 'timeline', typeFilter],
+    queryFn: async () => {
+      const params = typeFilter ? { type: typeFilter } : undefined
+      const { data } = await api.get<TimelineEvent[]>(`/customers/${customerId}/timeline/`, { params })
+      return data
+    },
+    enabled: !!customerId,
+  })
+}
+
+// Customer Attachments
+export function useCustomerAttachments(customerId: number) {
+  return useQuery({
+    queryKey: ['customers', customerId, 'attachments'],
+    queryFn: async () => {
+      const { data } = await api.get<CustomerAttachment[]>(`/customers/${customerId}/attachments/`)
+      return data
+    },
+    enabled: !!customerId,
+  })
+}
+
+export function useUploadCustomerAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ customerId, file, category, description }: {
+      customerId: number
+      file: File
+      category?: string
+      description?: string
+    }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (category) formData.append('category', category)
+      if (description) formData.append('description', description)
+      const { data } = await api.post<CustomerAttachment>(
+        `/customers/${customerId}/attachments/`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', variables.customerId, 'attachments'] })
+    },
+  })
+}
+
+export function useDeleteCustomerAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ customerId, attachmentId }: { customerId: number; attachmentId: number }) => {
+      await api.delete(`/customers/${customerId}/attachments/${attachmentId}/`)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customers', variables.customerId, 'attachments'] })
+    },
+  })
+}
+
 // Vendors
 export function useVendors(params?: { search?: string }) {
   return useQuery({
@@ -184,6 +247,69 @@ export function useDeleteVendor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+    },
+  })
+}
+
+// Vendor Timeline
+export function useVendorTimeline(vendorId: number, typeFilter?: string) {
+  return useQuery({
+    queryKey: ['vendors', vendorId, 'timeline', typeFilter],
+    queryFn: async () => {
+      const params = typeFilter ? { type: typeFilter } : undefined
+      const { data } = await api.get<TimelineEvent[]>(`/vendors/${vendorId}/timeline/`, { params })
+      return data
+    },
+    enabled: !!vendorId,
+  })
+}
+
+// Vendor Attachments
+export function useVendorAttachments(vendorId: number) {
+  return useQuery({
+    queryKey: ['vendors', vendorId, 'attachments'],
+    queryFn: async () => {
+      const { data } = await api.get<CustomerAttachment[]>(`/vendors/${vendorId}/attachments/`)
+      return data
+    },
+    enabled: !!vendorId,
+  })
+}
+
+export function useUploadVendorAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ vendorId, file, category, description }: {
+      vendorId: number
+      file: File
+      category?: string
+      description?: string
+    }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (category) formData.append('category', category)
+      if (description) formData.append('description', description)
+      const { data } = await api.post<CustomerAttachment>(
+        `/vendors/${vendorId}/attachments/`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['vendors', variables.vendorId, 'attachments'] })
+    },
+  })
+}
+
+export function useDeleteVendorAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ vendorId, attachmentId }: { vendorId: number; attachmentId: number }) => {
+      await api.delete(`/vendors/${vendorId}/attachments/${attachmentId}/`)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['vendors', variables.vendorId, 'attachments'] })
     },
   })
 }

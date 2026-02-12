@@ -464,9 +464,13 @@ class InventoryService:
         reference='',
     ):
         """
-        Manual inventory adjustment.
+        Manual inventory adjustment with GL journal entry.
 
         Can be positive (found inventory) or negative (shrinkage/damage).
+
+        GL entries:
+        - Negative (shrinkage): DEBIT COGS/Expense, CREDIT Inventory Asset
+        - Positive (found):     DEBIT Inventory Asset, CREDIT COGS/Expense
 
         Args:
             item: Item instance
@@ -478,6 +482,18 @@ class InventoryService:
         Returns:
             InventoryBalance: Updated balance
         """
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve accounts for GL entry
+        asset_account = (
+            item.asset_account
+            or acct_settings.default_inventory_account
+        )
+        expense_account = (
+            item.expense_account
+            or acct_settings.default_cogs_account
+        )
+
         with transaction.atomic():
             balance = self._get_or_create_balance(item, warehouse)
 
@@ -501,6 +517,70 @@ class InventoryService:
                 notes=reason or f"Manual adjustment: {quantity_change:+d}",
                 balance=balance,
             )
+
+            # Create GL journal entry if accounts are configured
+            if asset_account and expense_account and quantity_change != 0:
+                # Estimate cost: use average from recent FIFO layers or fallback to 0
+                avg_cost = self._get_average_cost(item, warehouse)
+                adjustment_amount = abs(Decimal(str(quantity_change))) * avg_cost
+
+                if adjustment_amount > 0:
+                    je_number = self._generate_adj_je_number()
+                    adj_memo = reason or f"Inventory adjustment: {item.sku} {quantity_change:+d}"
+
+                    je = JournalEntry.objects.create(
+                        tenant=self.tenant,
+                        entry_number=je_number,
+                        date=timezone.now().date(),
+                        memo=adj_memo,
+                        reference_number=reference or f"ADJ-{item.sku}",
+                        entry_type='adjusting',
+                        status='posted',
+                        posted_at=timezone.now(),
+                        posted_by=self.user,
+                        created_by=self.user,
+                    )
+
+                    if quantity_change < 0:
+                        # Shrinkage: DEBIT Expense, CREDIT Inventory Asset
+                        JournalEntryLine.objects.create(
+                            tenant=self.tenant,
+                            entry=je,
+                            line_number=10,
+                            account=expense_account,
+                            description=f"Inventory shrinkage - {item.sku} x{abs(quantity_change)}",
+                            debit=adjustment_amount,
+                            credit=Decimal('0.00'),
+                        )
+                        JournalEntryLine.objects.create(
+                            tenant=self.tenant,
+                            entry=je,
+                            line_number=20,
+                            account=asset_account,
+                            description=f"Inventory adjustment - {item.sku} x{abs(quantity_change)}",
+                            debit=Decimal('0.00'),
+                            credit=adjustment_amount,
+                        )
+                    else:
+                        # Found inventory: DEBIT Inventory Asset, CREDIT Expense
+                        JournalEntryLine.objects.create(
+                            tenant=self.tenant,
+                            entry=je,
+                            line_number=10,
+                            account=asset_account,
+                            description=f"Inventory found - {item.sku} x{quantity_change}",
+                            debit=adjustment_amount,
+                            credit=Decimal('0.00'),
+                        )
+                        JournalEntryLine.objects.create(
+                            tenant=self.tenant,
+                            entry=je,
+                            line_number=20,
+                            account=expense_account,
+                            description=f"Inventory adjustment - {item.sku} x{quantity_change}",
+                            debit=Decimal('0.00'),
+                            credit=adjustment_amount,
+                        )
 
             return balance
 
@@ -845,3 +925,110 @@ class InventoryService:
             entry_number__startswith=f"COGS-{date_part}",
         ).count() + 1
         return f"COGS-{date_part}-{count:05d}"
+
+    def _get_average_cost(self, item, warehouse):
+        """Get average unit cost from FIFO layers for an item/warehouse."""
+        layers = InventoryLayer.objects.filter(
+            tenant=self.tenant,
+            item=item,
+            warehouse=warehouse,
+            quantity_remaining__gt=0,
+        )
+        total_qty = sum(l.quantity_remaining for l in layers)
+        total_cost = sum(l.quantity_remaining * l.unit_cost for l in layers)
+        if total_qty > 0:
+            return total_cost / total_qty
+        # Fallback: use most recent layer's unit cost
+        last_layer = InventoryLayer.objects.filter(
+            tenant=self.tenant,
+            item=item,
+        ).order_by('-date_received').first()
+        if last_layer:
+            return last_layer.unit_cost
+        return Decimal('0.00')
+
+    def _generate_adj_je_number(self):
+        """Generate unique journal entry number for inventory adjustments."""
+        date_part = timezone.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"ADJ-{date_part}",
+        ).count() + 1
+        return f"ADJ-{date_part}-{count:05d}"
+
+
+class ReorderService:
+    """Service for inventory reorder point monitoring and alerts."""
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    def get_reorder_alerts(self):
+        """
+        Find all items where on_hand is at or below reorder_point.
+
+        Returns list of dicts with item info, current stock, reorder_point,
+        preferred vendor, and suggested PO quantity.
+        """
+        from apps.items.models import Item
+
+        alerts = []
+
+        # Get all items with reorder_point set
+        items_with_reorder = Item.objects.filter(
+            tenant=self.tenant,
+            is_active=True,
+            is_inventory=True,
+            reorder_point__isnull=False,
+        ).select_related('base_uom')
+
+        for item in items_with_reorder:
+            # Sum on_hand across all warehouses
+            balances = item.inventory_balances.filter(tenant=self.tenant)
+            total_on_hand = sum(b.on_hand for b in balances)
+            total_allocated = sum(b.allocated for b in balances)
+            total_on_order = sum(b.on_order for b in balances)
+            total_available = total_on_hand - total_allocated
+
+            if total_on_hand <= item.reorder_point:
+                # Find preferred vendor
+                preferred_vendor = item.vendors.filter(
+                    is_preferred=True, is_active=True
+                ).select_related('vendor__party').first()
+
+                # Suggest order quantity: bring up to reorder_point + safety_stock
+                target = item.reorder_point + (item.safety_stock or 0)
+                suggested_qty = max(target - total_on_hand + total_allocated, 0)
+
+                # Check vendor min order qty
+                if preferred_vendor and preferred_vendor.min_order_qty:
+                    suggested_qty = max(suggested_qty, preferred_vendor.min_order_qty)
+
+                severity = 'critical' if total_available <= 0 else (
+                    'warning' if item.min_stock and total_on_hand <= item.min_stock else 'info'
+                )
+
+                alerts.append({
+                    'item_id': item.id,
+                    'item_sku': item.sku,
+                    'item_name': item.name,
+                    'on_hand': total_on_hand,
+                    'allocated': total_allocated,
+                    'available': total_available,
+                    'on_order': total_on_order,
+                    'reorder_point': item.reorder_point,
+                    'min_stock': item.min_stock,
+                    'safety_stock': item.safety_stock,
+                    'suggested_qty': suggested_qty,
+                    'preferred_vendor_id': preferred_vendor.vendor_id if preferred_vendor else None,
+                    'preferred_vendor_name': preferred_vendor.vendor.party.display_name if preferred_vendor else None,
+                    'lead_time_days': preferred_vendor.lead_time_days if preferred_vendor else None,
+                    'severity': severity,
+                })
+
+        # Sort: critical first, then warning, then info
+        severity_order = {'critical': 0, 'warning': 1, 'info': 2}
+        alerts.sort(key=lambda a: severity_order.get(a['severity'], 3))
+
+        return alerts

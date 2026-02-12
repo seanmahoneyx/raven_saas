@@ -112,3 +112,85 @@ class DesignService:
         design_request.refresh_from_db()
 
         return item
+
+    @transaction.atomic
+    def create_estimate_from_design(self, design_request, customer=None, quantity=1, unit_price=None, notes=''):
+        """
+        Create an Estimate from a completed/approved DesignRequest.
+
+        The design must have a generated_item (i.e., already promoted to item).
+        Creates an estimate with a single line for the item.
+
+        Args:
+            design_request: DesignRequest instance (must have generated_item)
+            customer: Customer instance (defaults to design_request.customer)
+            quantity: Quantity for the estimate line
+            unit_price: Unit price (defaults to '0.00' if not set)
+            notes: Additional notes
+
+        Returns:
+            Estimate instance
+
+        Raises:
+            ValueError: If design has no generated item
+        """
+        from apps.orders.models import Estimate, EstimateLine
+        from apps.items.models import UnitOfMeasure
+        import re
+
+        if not design_request.generated_item:
+            raise ValueError(
+                f"Design request {design_request.file_number} has not been promoted to an item yet. "
+                "Promote the design first, then create an estimate."
+            )
+
+        item = design_request.generated_item
+        resolved_customer = customer or design_request.customer
+
+        if not resolved_customer:
+            raise ValueError("No customer specified and design request has no customer.")
+
+        # Generate estimate number
+        estimate_numbers = Estimate.objects.filter(tenant=self.tenant).values_list('estimate_number', flat=True)
+        max_num = 0
+        for num in estimate_numbers:
+            match = re.search(r'(\d+)', num or '')
+            if match:
+                val = int(match.group(1))
+                if val > max_num:
+                    max_num = val
+        estimate_number = f"EST-{str(max_num + 1).zfill(6)}"
+
+        # Resolve ship_to from customer
+        from apps.parties.models import Location
+        ship_to = None
+        if resolved_customer and hasattr(resolved_customer, 'party'):
+            ship_to = Location.objects.filter(
+                party=resolved_customer.party,
+                location_type='SHIP_TO',
+                is_active=True
+            ).first()
+
+        estimate = Estimate.objects.create(
+            tenant=self.tenant,
+            estimate_number=estimate_number,
+            customer=resolved_customer,
+            status='draft',
+            date=timezone.now().date(),
+            ship_to=ship_to,
+            notes=notes or f"Generated from design request {design_request.file_number}",
+            design_request=design_request,
+        )
+
+        EstimateLine.objects.create(
+            tenant=self.tenant,
+            estimate=estimate,
+            line_number=10,
+            item=item,
+            quantity=quantity,
+            uom=item.base_uom,
+            unit_price=unit_price or '0.00',
+            notes=f"Item from design {design_request.file_number}",
+        )
+
+        return estimate

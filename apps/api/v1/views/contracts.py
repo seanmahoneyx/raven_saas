@@ -19,14 +19,6 @@ from apps.api.v1.serializers.contracts import (
 )
 
 
-def generate_next_order_number(tenant):
-    """Generate next sales order number for a tenant."""
-    last_order = SalesOrder.objects.filter(tenant=tenant).order_by('-id').first()
-    if last_order and last_order.order_number.isdigit():
-        return str(int(last_order.order_number) + 1).zfill(5)
-    return '00001'
-
-
 @extend_schema_view(
     list=extend_schema(tags=['contracts'], summary='List all contracts'),
     retrieve=extend_schema(tags=['contracts'], summary='Get contract details'),
@@ -121,16 +113,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         """Create a release (sales order) from this contract."""
         contract = self.get_object()
 
-        if contract.status != 'active':
-            return Response(
-                {'error': f'Cannot create release from contract with status: {contract.status}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = CreateReleaseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Get contract line and validate
+        # Get contract line
         line_id = serializer.validated_data['contract_line_id']
         try:
             contract_line = contract.lines.get(id=line_id)
@@ -140,15 +126,8 @@ class ContractViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        quantity = serializer.validated_data['quantity']
-        remaining = contract_line.remaining_qty
-
-        # Warn but allow over-release
-        over_release_warning = None
-        if quantity > remaining:
-            over_release_warning = f'Warning: Releasing {quantity} exceeds remaining balance ({remaining})'
-
-        # Get ship_to - prefer request > contract > customer default
+        # Resolve ship_to if provided
+        ship_to = None
         ship_to_id = serializer.validated_data.get('ship_to_id')
         if ship_to_id:
             from apps.parties.models import Location
@@ -159,63 +138,30 @@ class ContractViewSet(viewsets.ModelViewSet):
                     {'error': 'Ship-to location not found'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-        else:
-            ship_to = contract.ship_to or contract.customer.default_ship_to
 
-        if not ship_to:
+        from apps.contracts.services import ContractService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            service = ContractService(request.tenant, request.user)
+            sales_order, release = service.create_release(
+                contract_line=contract_line,
+                quantity=serializer.validated_data['quantity'],
+                ship_to=ship_to,
+                unit_price=serializer.validated_data.get('unit_price'),
+                scheduled_date=serializer.validated_data.get('scheduled_date'),
+                notes=serializer.validated_data.get('notes', ''),
+            )
+        except DjangoValidationError as e:
             return Response(
-                {'error': 'No ship-to location specified and no default available'},
+                {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Determine unit price - use request value, fall back to contract line price
-        unit_price = serializer.validated_data.get('unit_price')
-        if unit_price is None:
-            unit_price = contract_line.unit_price or 0
-
-        # Generate order number
-        order_number = generate_next_order_number(request.tenant)
-
-        # Create sales order
-        sales_order = SalesOrder.objects.create(
-            tenant=request.tenant,
-            customer=contract.customer,
-            order_number=order_number,
-            order_date=timezone.now().date(),
-            ship_to=ship_to,
-            bill_to=contract.customer.default_bill_to,
-            customer_po=contract.blanket_po,
-            scheduled_date=serializer.validated_data.get('scheduled_date'),
-            notes=serializer.validated_data.get('notes', ''),
-            status='confirmed',
+        return Response(
+            ContractReleaseSerializer(release, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
         )
-
-        # Create sales order line
-        sales_order_line = SalesOrderLine.objects.create(
-            tenant=request.tenant,
-            sales_order=sales_order,
-            line_number=10,
-            item=contract_line.item,
-            quantity_ordered=quantity,
-            uom=contract_line.uom,
-            unit_price=unit_price,
-        )
-
-        # Create release record
-        release = ContractRelease.objects.create(
-            tenant=request.tenant,
-            contract_line=contract_line,
-            sales_order_line=sales_order_line,
-            quantity_ordered=quantity,
-            release_date=timezone.now().date(),
-            notes=serializer.validated_data.get('notes', ''),
-        )
-
-        response_data = ContractReleaseSerializer(release, context={'request': request}).data
-        if over_release_warning:
-            response_data['warning'] = over_release_warning
-
-        return Response(response_data, status=status.HTTP_201_CREATED)
 
     @extend_schema(tags=['contracts'], summary='Activate a draft contract')
     @action(detail=True, methods=['post'])
@@ -261,6 +207,20 @@ class ContractViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         contract.status = 'cancelled'
+        contract.save()
+        return Response(ContractSerializer(contract, context={'request': request}).data)
+
+    @extend_schema(tags=['contracts'], summary='Revert a contract to draft')
+    @action(detail=True, methods=['post'])
+    def deactivate(self, request, pk=None):
+        """Revert an active contract back to draft status."""
+        contract = self.get_object()
+        if contract.status != 'active':
+            return Response(
+                {'error': f'Cannot deactivate contract with status: {contract.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        contract.status = 'draft'
         contract.save()
         return Response(ContractSerializer(contract, context={'request': request}).data)
 

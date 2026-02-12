@@ -199,3 +199,256 @@ def _generate_po_number(tenant):
             if num > max_num:
                 max_num = num
     return f"PO-{str(max_num + 1).zfill(6)}"
+
+
+class OrderService:
+    """Service for order lifecycle transitions with side effects."""
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    def _get_default_warehouse(self):
+        from apps.new_warehousing.models import Warehouse
+        return Warehouse.objects.filter(tenant=self.tenant, is_default=True).first()
+
+    def confirm_sales_order(self, sales_order):
+        """Confirm a draft SO. Attempts inventory allocation per line."""
+        if sales_order.status != 'draft':
+            raise ValidationError(f"Cannot confirm SO with status '{sales_order.status}'. Must be 'draft'.")
+
+        with transaction.atomic():
+            sales_order.status = 'confirmed'
+            sales_order.save()
+
+            warehouse = self._get_default_warehouse()
+            if warehouse:
+                from apps.inventory.services import InventoryService
+                inv_svc = InventoryService(self.tenant, self.user)
+                for line in sales_order.lines.select_related('item').all():
+                    try:
+                        inv_svc.allocate_inventory(
+                            item=line.item,
+                            warehouse=warehouse,
+                            quantity=line.quantity_ordered,
+                            sales_order=sales_order,
+                            reference=f'SO confirm: {sales_order.order_number}',
+                        )
+                    except ValidationError:
+                        pass  # Skip if insufficient - confirm without allocation
+
+            return sales_order
+
+    def cancel_sales_order(self, sales_order):
+        """Cancel an SO. Deallocates inventory if previously confirmed."""
+        if sales_order.status in ('shipped', 'complete', 'cancelled'):
+            raise ValidationError(f"Cannot cancel SO with status '{sales_order.status}'.")
+
+        was_confirmed = sales_order.status in ('confirmed', 'scheduled', 'picking')
+
+        with transaction.atomic():
+            if was_confirmed:
+                warehouse = self._get_default_warehouse()
+                if warehouse:
+                    from apps.inventory.services import InventoryService
+                    inv_svc = InventoryService(self.tenant, self.user)
+                    for line in sales_order.lines.select_related('item').all():
+                        try:
+                            inv_svc.deallocate_inventory(
+                                item=line.item,
+                                warehouse=warehouse,
+                                quantity=line.quantity_ordered,
+                                sales_order=sales_order,
+                                reference=f'SO cancel: {sales_order.order_number}',
+                            )
+                        except ValidationError:
+                            pass
+
+            sales_order.status = 'cancelled'
+            sales_order.save()
+            return sales_order
+
+    def complete_sales_order(self, sales_order):
+        """Complete a shipped SO."""
+        if sales_order.status != 'shipped':
+            raise ValidationError(f"Cannot complete SO with status '{sales_order.status}'. Must be 'shipped'.")
+
+        sales_order.status = 'complete'
+        sales_order.save()
+        return sales_order
+
+    def confirm_purchase_order(self, purchase_order):
+        """Confirm a draft PO. Updates on_order quantities."""
+        if purchase_order.status != 'draft':
+            raise ValidationError(f"Cannot confirm PO with status '{purchase_order.status}'. Must be 'draft'.")
+
+        with transaction.atomic():
+            purchase_order.status = 'confirmed'
+            purchase_order.save()
+
+            warehouse = self._get_default_warehouse()
+            if warehouse:
+                from apps.inventory.services import InventoryService
+                inv_svc = InventoryService(self.tenant, self.user)
+                for line in purchase_order.lines.select_related('item').all():
+                    inv_svc.add_on_order(
+                        item=line.item,
+                        warehouse=warehouse,
+                        quantity=line.quantity_ordered,
+                        purchase_order=purchase_order,
+                    )
+
+            return purchase_order
+
+    def cancel_purchase_order(self, purchase_order):
+        """Cancel a PO. Removes on_order quantities if confirmed."""
+        if purchase_order.status in ('shipped', 'complete', 'cancelled'):
+            raise ValidationError(f"Cannot cancel PO with status '{purchase_order.status}'.")
+
+        was_confirmed = purchase_order.status in ('confirmed', 'scheduled')
+
+        with transaction.atomic():
+            if was_confirmed:
+                warehouse = self._get_default_warehouse()
+                if warehouse:
+                    from apps.inventory.services import InventoryService
+                    inv_svc = InventoryService(self.tenant, self.user)
+                    for line in purchase_order.lines.select_related('item').all():
+                        try:
+                            inv_svc.remove_on_order(
+                                item=line.item,
+                                warehouse=warehouse,
+                                quantity=line.quantity_ordered,
+                                purchase_order=purchase_order,
+                            )
+                        except ValidationError:
+                            pass
+
+            purchase_order.status = 'cancelled'
+            purchase_order.save()
+            return purchase_order
+
+    def receive_purchase_order(self, purchase_order, line_receipts=None):
+        """
+        Receive goods against a PO, creating inventory lots, FIFO layers, and GL entries.
+
+        Args:
+            purchase_order: PO instance (must be confirmed or scheduled)
+            line_receipts: Optional list of dicts: [{'line_id': int, 'quantity': int, 'unit_cost': Decimal}, ...]
+                          If None, receives all lines at full quantity using line's unit_cost.
+
+        Returns:
+            dict with 'lots_created' count and 'po_status'
+        """
+        if purchase_order.status not in ('confirmed', 'scheduled'):
+            raise ValidationError(
+                f"Cannot receive PO with status '{purchase_order.status}'. Must be 'confirmed' or 'scheduled'."
+            )
+
+        from apps.inventory.services import InventoryService
+
+        warehouse = self._get_default_warehouse()
+        if not warehouse:
+            raise ValidationError("No default warehouse configured. Cannot receive inventory.")
+
+        inv_svc = InventoryService(self.tenant, self.user)
+        lots_created = []
+
+        with transaction.atomic():
+            if line_receipts:
+                # Partial / specified receive
+                for receipt in line_receipts:
+                    line = purchase_order.lines.get(id=receipt['line_id'])
+                    qty = receipt.get('quantity', line.quantity_ordered)
+                    cost = Decimal(str(receipt.get('unit_cost', line.unit_cost)))
+
+                    lot, pallets, layer = inv_svc.receive_stock(
+                        item=line.item,
+                        warehouse=warehouse,
+                        quantity=qty,
+                        unit_cost=cost,
+                        purchase_order=purchase_order,
+                        vendor=purchase_order.vendor,
+                        notes=f'PO receive: {purchase_order.po_number} line {line.line_number}',
+                    )
+                    inv_svc.remove_on_order(
+                        item=line.item,
+                        warehouse=warehouse,
+                        quantity=qty,
+                        purchase_order=purchase_order,
+                    )
+                    lots_created.append(lot)
+            else:
+                # Full receive - all lines
+                for line in purchase_order.lines.select_related('item').all():
+                    lot, pallets, layer = inv_svc.receive_stock(
+                        item=line.item,
+                        warehouse=warehouse,
+                        quantity=line.quantity_ordered,
+                        unit_cost=line.unit_cost,
+                        purchase_order=purchase_order,
+                        vendor=purchase_order.vendor,
+                        notes=f'PO receive: {purchase_order.po_number} line {line.line_number}',
+                    )
+                    inv_svc.remove_on_order(
+                        item=line.item,
+                        warehouse=warehouse,
+                        quantity=line.quantity_ordered,
+                        purchase_order=purchase_order,
+                    )
+                    lots_created.append(lot)
+
+            # Mark PO as complete
+            purchase_order.status = 'complete'
+            purchase_order.save()
+
+            # Auto-create vendor bill
+            vendor_bill = None
+            try:
+                from apps.invoicing.services import VendorBillService
+                from django.utils import timezone as tz
+                from datetime import timedelta
+
+                bill_svc = VendorBillService(self.tenant, self.user)
+                bill = bill_svc.create_bill(
+                    vendor=purchase_order.vendor,
+                    vendor_invoice_number=purchase_order.po_number,
+                    due_date=tz.now().date() + timedelta(days=30),
+                    bill_date=tz.now().date(),
+                    purchase_order=purchase_order,
+                    notes=f'Auto-created from PO receive: {purchase_order.po_number}',
+                )
+
+                # Add bill lines from PO lines
+                if line_receipts:
+                    for receipt in line_receipts:
+                        line = purchase_order.lines.get(id=receipt['line_id'])
+                        qty = receipt.get('quantity', line.quantity_ordered)
+                        cost = Decimal(str(receipt.get('unit_cost', line.unit_cost)))
+                        bill_svc.add_line(
+                            bill=bill,
+                            description=f'{line.item.name} ({line.item.sku})',
+                            quantity=qty,
+                            unit_price=cost,
+                            item=line.item,
+                            purchase_order_line=line,
+                        )
+                else:
+                    for line in purchase_order.lines.select_related('item').all():
+                        bill_svc.add_line(
+                            bill=bill,
+                            description=f'{line.item.name} ({line.item.sku})',
+                            quantity=line.quantity_ordered,
+                            unit_price=line.unit_cost,
+                            item=line.item,
+                            purchase_order_line=line,
+                        )
+                vendor_bill = bill
+            except Exception:
+                pass  # Don't block PO receive if bill creation fails
+
+        return {
+            'lots_created': lots_created,
+            'po_status': purchase_order.status,
+            'vendor_bill': vendor_bill,
+        }

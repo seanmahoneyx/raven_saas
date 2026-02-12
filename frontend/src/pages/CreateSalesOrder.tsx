@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreateSalesOrder } from '@/api/orders'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { usePriceLookup } from '@/api/priceLists'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,6 +60,7 @@ export default function CreateSalesOrder() {
   })
 
   const [lines, setLines] = useState<OrderLineForm[]>([])
+  const [priceLookupLine, setPriceLookupLine] = useState<number | null>(null)
 
   const customers = customersData?.results ?? []
   const locations = locationsData?.results ?? []
@@ -69,6 +71,27 @@ export default function CreateSalesOrder() {
   const customerLocations = selectedCustomer
     ? locations.filter((l) => l.party === selectedCustomer.party)
     : []
+
+  const lookupLine = priceLookupLine !== null ? lines[priceLookupLine] : null
+  const { data: priceData } = usePriceLookup(
+    formData.customer ? Number(formData.customer) : undefined,
+    lookupLine?.item ? Number(lookupLine.item) : undefined,
+    lookupLine?.quantity_ordered ? Number(lookupLine.quantity_ordered) : undefined,
+  )
+
+  // Auto-populate price from price list
+  useEffect(() => {
+    if (priceData?.unit_price && priceLookupLine !== null && priceLookupLine < lines.length) {
+      const currentLine = lines[priceLookupLine]
+      // Only set if price hasn't been manually changed from default
+      if (currentLine.unit_price === '0.00' || currentLine.unit_price === '') {
+        const newLines = [...lines]
+        newLines[priceLookupLine] = { ...newLines[priceLookupLine], unit_price: priceData.unit_price }
+        setLines(newLines)
+      }
+      setPriceLookupLine(null)
+    }
+  }, [priceData])
 
   const isPending = createOrder.isPending
 
@@ -92,6 +115,21 @@ export default function CreateSalesOrder() {
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
       }
+      // Trigger price lookup when item is set and customer is selected
+      if (formData.customer) {
+        newLines[index].unit_price = '0.00'  // Reset to allow auto-populate
+        setLines(newLines)
+        setPriceLookupLine(index)
+        return
+      }
+    }
+
+    if (field === 'quantity_ordered' && value && formData.customer && newLines[index].item) {
+      // Re-lookup price on quantity change
+      newLines[index].unit_price = '0.00'
+      setLines(newLines)
+      setPriceLookupLine(index)
+      return
     }
 
     setLines(newLines)
@@ -381,14 +419,19 @@ export default function CreateSalesOrder() {
                     </div>
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Price</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.unit_price}
-                        onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                        className="h-9"
-                      />
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={line.unit_price}
+                          onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                          className="h-9"
+                        />
+                        {priceLookupLine === index && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</div>
+                        )}
+                      </div>
                     </div>
                     <div className="col-span-2 flex justify-end">
                       <Button

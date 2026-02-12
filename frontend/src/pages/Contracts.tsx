@@ -23,6 +23,8 @@ import {
 } from '@/api/contracts'
 import { ContractDialog } from '@/components/contracts/ContractDialog'
 import type { Contract, ContractStatus } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 const statusColors: Record<ContractStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
   draft: 'secondary',
@@ -47,6 +49,10 @@ export default function Contracts() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
+  const [pendingCancelId, setPendingCancelId] = useState<number | null>(null)
 
   // Handle URL params for action=new
   useEffect(() => {
@@ -78,6 +84,30 @@ export default function Contracts() {
   const handleAddNew = () => {
     setEditingContract(null)
     setDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteContract.mutateAsync(pendingDeleteId)
+      toast.success('Contract deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete contract')
+    }
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!pendingCancelId) return
+    try {
+      await cancelContract.mutateAsync(pendingCancelId)
+      toast.success('Contract cancelled successfully')
+      setCancelDialogOpen(false)
+      setPendingCancelId(null)
+    } catch (error) {
+      toast.error('Failed to cancel contract')
+    }
   }
 
   const columns: ColumnDef<Contract>[] = useMemo(
@@ -181,7 +211,10 @@ export default function Contracts() {
                 <DropdownMenuSeparator />
                 {contract.status === 'draft' && (
                   <DropdownMenuItem
-                    onClick={() => activateContract.mutate(contract.id)}
+                    onClick={() => {
+                      activateContract.mutate(contract.id)
+                      toast.success('Contract activated')
+                    }}
                     disabled={contract.num_lines === 0}
                   >
                     <Play className="mr-2 h-4 w-4" />
@@ -191,7 +224,10 @@ export default function Contracts() {
                 {contract.status === 'active' && (
                   <>
                     <DropdownMenuItem
-                      onClick={() => completeContract.mutate(contract.id)}
+                      onClick={() => {
+                        completeContract.mutate(contract.id)
+                        toast.success('Contract completed')
+                      }}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Mark Complete
@@ -199,9 +235,8 @@ export default function Contracts() {
                     <DropdownMenuItem
                       className="text-destructive"
                       onClick={() => {
-                        if (confirm('Are you sure you want to cancel this contract?')) {
-                          cancelContract.mutate(contract.id)
-                        }
+                        setPendingCancelId(contract.id)
+                        setCancelDialogOpen(true)
                       }}
                     >
                       <XCircle className="mr-2 h-4 w-4" />
@@ -213,9 +248,8 @@ export default function Contracts() {
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => {
-                      if (confirm('Are you sure you want to delete this contract?')) {
-                        deleteContract.mutate(contract.id)
-                      }
+                      setPendingDeleteId(contract.id)
+                      setDeleteDialogOpen(true)
                     }}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -262,7 +296,7 @@ export default function Contracts() {
               data={contractsData?.results ?? []}
               searchColumn="customer_name"
               searchPlaceholder="Search by customer..."
-              onRowDoubleClick={(contract) => navigate(`/contracts/${contract.id}`)}
+              onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
             />
           )}
         </CardContent>
@@ -281,6 +315,28 @@ export default function Contracts() {
             navigate(`/contracts/${contract.id}`)
           }
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Contract"
+        description="Are you sure you want to delete this contract? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteContract.isPending}
+      />
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        title="Cancel Contract"
+        description="Are you sure you want to cancel this contract? This action cannot be undone."
+        confirmLabel="Cancel Contract"
+        variant="destructive"
+        onConfirm={handleConfirmCancel}
+        loading={cancelContract.isPending}
       />
     </div>
   )

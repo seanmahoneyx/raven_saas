@@ -17,6 +17,8 @@ import { useCustomers, useLocations, useDeleteCustomer } from '@/api/parties'
 import { CustomerDialog } from '@/components/parties/CustomerDialog'
 import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Customer, Location } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'customers' | 'locations'
 
@@ -30,10 +32,24 @@ export default function Customers() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
   const [locationDialogOpen, setLocationDialogOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const { data: customersData } = useCustomers()
   const { data: locationsData } = useLocations()
   const deleteCustomer = useDeleteCustomer()
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteCustomer.mutateAsync(pendingDeleteId)
+      toast.success('Customer deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete customer')
+    }
+  }
 
   const handleAddNew = () => {
     if (activeTab === 'customers') {
@@ -132,9 +148,8 @@ export default function Customers() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this customer?')) {
-                      deleteCustomer.mutate(customer.id)
-                    }
+                    setPendingDeleteId(customer.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -266,7 +281,10 @@ export default function Customers() {
               data={customersData?.results ?? []}
               searchColumn="party_display_name"
               searchPlaceholder="Search customers..."
-              onRowDoubleClick={(customer) => navigate(`/customers/${customer.id}`)}
+              showSearchDropdown
+              searchDropdownLabel={(row) => (row as Customer).party_display_name}
+              searchDropdownSublabel={(row) => (row as Customer).party_code}
+              onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
             />
           )}
           {activeTab === 'locations' && (
@@ -275,6 +293,10 @@ export default function Customers() {
               data={locationsData?.results ?? []}
               searchColumn="name"
               searchPlaceholder="Search locations..."
+              onRowClick={(location) => {
+                setEditingLocation(location)
+                setLocationDialogOpen(true)
+              }}
             />
           )}
         </CardContent>
@@ -293,6 +315,17 @@ export default function Customers() {
         open={locationDialogOpen}
         onOpenChange={setLocationDialogOpen}
         location={editingLocation}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Customer"
+        description="Are you sure you want to delete this customer? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteCustomer.isPending}
       />
     </div>
   )

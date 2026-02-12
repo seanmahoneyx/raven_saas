@@ -17,6 +17,8 @@ import { useItems, useUnitsOfMeasure, useDeleteItem } from '@/api/items'
 import { ItemDialog } from '@/components/items/ItemDialog'
 import { UOMDialog } from '@/components/items/UOMDialog'
 import type { Item, UnitOfMeasure } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'items' | 'uom'
 
@@ -31,10 +33,24 @@ export default function Items() {
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [uomDialogOpen, setUomDialogOpen] = useState(false)
   const [editingUOM, setEditingUOM] = useState<UnitOfMeasure | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const { data: itemsData } = useItems()
   const { data: uomData } = useUnitsOfMeasure()
   const deleteItem = useDeleteItem()
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteItem.mutateAsync(pendingDeleteId)
+      toast.success('Item deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete item')
+    }
+  }
 
   const handleAddNew = () => {
     if (activeTab === 'items') {
@@ -119,9 +135,8 @@ export default function Items() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this item?')) {
-                      deleteItem.mutate(item.id)
-                    }
+                    setPendingDeleteId(item.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -270,6 +285,17 @@ export default function Items() {
         open={uomDialogOpen}
         onOpenChange={setUomDialogOpen}
         uom={editingUOM}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Item"
+        description="Are you sure you want to delete this item? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteItem.isPending}
       />
     </div>
   )

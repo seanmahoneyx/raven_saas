@@ -375,14 +375,14 @@ class ItemQuickReportView(APIView):
         summary='Generate Item QuickReport',
         parameters=[
             {
-                'name': 'start_date', 'in': 'query', 'required': True,
+                'name': 'start_date', 'in': 'query', 'required': False,
                 'schema': {'type': 'string', 'format': 'date'},
-                'description': 'Period start date',
+                'description': 'Period start date (defaults to 2000-01-01)',
             },
             {
-                'name': 'end_date', 'in': 'query', 'required': True,
+                'name': 'end_date', 'in': 'query', 'required': False,
                 'schema': {'type': 'string', 'format': 'date'},
-                'description': 'Period end date',
+                'description': 'Period end date (defaults to today)',
             },
         ],
         responses={200: dict}
@@ -391,15 +391,9 @@ class ItemQuickReportView(APIView):
         start = request.query_params.get('start_date')
         end = request.query_params.get('end_date')
 
-        if not start or not end:
-            return Response(
-                {'error': 'Both start_date and end_date query parameters are required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            start_date = datetime.strptime(start, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+            start_date = datetime.strptime(start, '%Y-%m-%d').date() if start else date(2000, 1, 1)
+            end_date = datetime.strptime(end, '%Y-%m-%d').date() if end else date.today()
         except ValueError:
             return Response(
                 {'error': 'Invalid date format. Use YYYY-MM-DD.'},
@@ -429,18 +423,18 @@ class ItemQuickReportPDFView(APIView):
         start = request.query_params.get('start_date')
         end = request.query_params.get('end_date')
 
-        if not start or not end:
-            return Response(
-                {'error': 'Both start_date and end_date query parameters are required.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         try:
-            start_date = datetime.strptime(start, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+            start_date = datetime.strptime(start, '%Y-%m-%d').date() if start else date(2000, 1, 1)
+            end_date = datetime.strptime(end, '%Y-%m-%d').date() if end else date.today()
         except ValueError:
             return Response(
                 {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'start_date must be before end_date.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -459,3 +453,179 @@ class ItemQuickReportPDFView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="item-quick-report-{item.sku}.pdf"'
         return response
+
+
+class APAgingView(APIView):
+    """GET /api/v1/reports/ap-aging/?date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate A/P Aging Report',
+        parameters=[{
+            'name': 'date', 'in': 'query', 'required': False,
+            'schema': {'type': 'string', 'format': 'date'},
+            'description': 'As-of date (defaults to today)',
+        }],
+    )
+    def get(self, request):
+        as_of = request.query_params.get('date')
+        if as_of:
+            try:
+                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            as_of_date = date.today()
+
+        result = FinancialReportService.get_ap_aging(request.tenant, as_of_date)
+        return Response(result)
+
+
+class CashFlowStatementView(APIView):
+    """GET /api/v1/reports/cash-flow/?start=YYYY-MM-DD&end=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate Cash Flow Statement',
+        parameters=[
+            {
+                'name': 'start', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period start date',
+            },
+            {
+                'name': 'end', 'in': 'query', 'required': True,
+                'schema': {'type': 'string', 'format': 'date'},
+                'description': 'Period end date',
+            },
+        ],
+    )
+    def get(self, request):
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start and end query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'Start date must be before end date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        result = FinancialReportService.get_cash_flow_statement(request.tenant, start_date, end_date)
+        return Response(result)
+
+
+class ReorderAlertsView(APIView):
+    """Get items below reorder point."""
+
+    @extend_schema(
+        tags=['inventory'],
+        summary='Get inventory reorder alerts',
+        responses={200: {'type': 'object'}}
+    )
+    def get(self, request):
+        from apps.inventory.services import ReorderService
+        svc = ReorderService(request.tenant, request.user)
+        alerts = svc.get_reorder_alerts()
+        return Response({
+            'count': len(alerts),
+            'alerts': alerts,
+        })
+
+
+class GrossMarginView(APIView):
+    """Gross margin report by customer and item."""
+
+    @extend_schema(
+        tags=['reports'],
+        summary='Get gross margin report',
+        responses={200: {'type': 'object'}}
+    )
+    def get(self, request):
+        from apps.reporting.services import FinancialReportService
+        svc = FinancialReportService(request.tenant)
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        customer_id = request.query_params.get('customer')
+        item_id = request.query_params.get('item')
+
+        result = svc.get_gross_margin(
+            date_from=date_from,
+            date_to=date_to,
+            customer_id=int(customer_id) if customer_id else None,
+            item_id=int(item_id) if item_id else None,
+        )
+        return Response(result)
+
+
+class OrdersVsInventoryView(APIView):
+    """Open orders vs inventory coverage report."""
+
+    @extend_schema(tags=['reports'], summary='Get orders vs inventory report')
+    def get(self, request):
+        from apps.reporting.services import FinancialReportService
+        svc = FinancialReportService(request.tenant)
+        data = svc.get_orders_vs_inventory()
+        return Response({'count': len(data), 'items': data})
+
+
+class SalesCommissionView(APIView):
+    """Sales commission report by rep."""
+
+    @extend_schema(tags=['reports'], summary='Get sales commission report')
+    def get(self, request):
+        from apps.reporting.services import FinancialReportService
+        svc = FinancialReportService(request.tenant)
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        commission_rate = request.query_params.get('commission_rate')
+        data = svc.get_sales_commission(
+            date_from=date_from,
+            date_to=date_to,
+            commission_rate=float(commission_rate) if commission_rate else None,
+        )
+        return Response(data)
+
+
+class ContractUtilizationView(APIView):
+    """Contract utilization report."""
+
+    @extend_schema(tags=['reports'], summary='Get contract utilization report')
+    def get(self, request):
+        from apps.reporting.services import FinancialReportService
+        svc = FinancialReportService(request.tenant)
+        data = svc.get_contract_utilization()
+        return Response({'count': len(data), 'contracts': data})
+
+
+class VendorScorecardView(APIView):
+    """Vendor performance scorecard."""
+
+    @extend_schema(tags=['reports'], summary='Get vendor scorecard')
+    def get(self, request):
+        from apps.reporting.services import FinancialReportService
+        svc = FinancialReportService(request.tenant)
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        data = svc.get_vendor_scorecard(date_from=date_from, date_to=date_to)
+        return Response({'count': len(data), 'vendors': data})

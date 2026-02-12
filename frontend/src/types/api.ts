@@ -36,8 +36,36 @@ export interface Customer {
   open_sales_total: string
   open_order_count: number
   next_expected_delivery: string | null
+  overdue_balance: string
+  active_estimate_count: number
   created_at: string
   updated_at: string
+}
+
+// Customer Timeline types
+export interface TimelineEvent {
+  id: string
+  type: 'order' | 'estimate' | 'invoice' | 'payment'
+  icon: string
+  title: string
+  description: string
+  status: string
+  date: string
+  link: string
+  amount: string
+}
+
+// Customer Attachment types
+export interface CustomerAttachment {
+  id: number
+  filename: string
+  mime_type: string
+  file_size: number
+  category: string
+  description: string
+  uploaded_by: number | null
+  file_url: string | null
+  created_at: string
 }
 
 export interface Vendor {
@@ -51,6 +79,8 @@ export interface Vendor {
   open_po_total: string
   open_po_count: number
   next_incoming: string | null
+  overdue_bill_balance: string
+  active_rfq_count: number
   created_at: string
   updated_at: string
 }
@@ -134,6 +164,10 @@ export interface Item {
   is_inventory: boolean
   is_active: boolean
   attachment: string | null
+  // Reorder thresholds
+  reorder_point: number | null
+  min_stock: number | null
+  safety_stock: number | null
   // Type indicator
   item_type?: ItemType
   // Nested (detail view)
@@ -747,4 +781,150 @@ export interface PromoteDesignInput {
   base_uom: number
   name?: string
   description?: string
+}
+
+// Price List types
+export interface PriceListLine {
+  id: number
+  price_list: number
+  min_quantity: number
+  unit_price: string
+}
+
+export interface PriceList {
+  id: number
+  customer: number
+  customer_code: string
+  customer_name: string
+  item: number
+  item_sku: string
+  item_name: string
+  begin_date: string
+  end_date: string | null
+  is_active: boolean
+  notes: string
+  lines?: PriceListLine[]
+  created_at: string
+  updated_at: string
+}
+
+export interface PriceListInput {
+  customer: number
+  item: number
+  begin_date: string
+  end_date?: string | null
+  is_active?: boolean
+  notes?: string
+  lines?: { min_quantity: number; unit_price: string }[]
+}
+
+// Accounting types
+export type GLAccountType =
+  | 'ASSET_CURRENT' | 'ASSET_FIXED' | 'ASSET_OTHER' | 'CONTRA_ASSET'
+  | 'LIABILITY_CURRENT' | 'LIABILITY_LONG_TERM'
+  | 'EQUITY'
+  | 'REVENUE' | 'REVENUE_OTHER' | 'CONTRA_REVENUE'
+  | 'EXPENSE_COGS' | 'EXPENSE_OPERATING' | 'EXPENSE_OTHER'
+
+export interface GLAccount {
+  id: number
+  code: string
+  name: string
+  description: string
+  account_type: GLAccountType
+  parent: number | null
+  parent_name: string | null
+  is_active: boolean
+  is_system: boolean
+  children_count?: number
+  created_at: string
+  updated_at: string
+}
+
+export type JournalEntryStatus = 'draft' | 'posted' | 'reversed'
+export type JournalEntryType = 'standard' | 'adjusting' | 'closing' | 'reversing' | 'recurring'
+
+export interface JournalEntryLine {
+  id: number
+  entry: number
+  line_number: number
+  account: number
+  account_code: string
+  account_name: string
+  description: string
+  debit: string
+  credit: string
+}
+
+export interface JournalEntry {
+  id: number
+  entry_number: string
+  date: string
+  memo: string
+  reference_number: string
+  entry_type: JournalEntryType
+  status: JournalEntryStatus
+  total_debit: string
+  total_credit: string
+  is_balanced: boolean
+  lines?: JournalEntryLine[]
+  posted_at: string | null
+  posted_by: number | null
+  created_by: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface JournalEntryInput {
+  date: string
+  memo: string
+  reference_number?: string
+  entry_type?: JournalEntryType
+  lines: {
+    account: number
+    description?: string
+    debit: string
+    credit: string
+  }[]
+}
+
+// RFQ types
+export type RFQStatus = 'draft' | 'sent' | 'received' | 'converted' | 'cancelled'
+
+export interface RFQLine {
+  id: number
+  rfq: number
+  line_number: number
+  item: number
+  item_sku: string
+  item_name: string
+  description: string
+  quantity: number
+  uom: number
+  uom_code: string
+  target_price: string | null
+  quoted_price: string | null
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RFQ {
+  id: number
+  rfq_number: string
+  vendor: number
+  vendor_name: string
+  date: string
+  expected_date: string | null
+  status: RFQStatus
+  ship_to: number | null
+  ship_to_name: string | null
+  notes: string
+  is_editable: boolean
+  is_convertible: boolean
+  has_all_quotes: boolean
+  num_lines: number
+  lines?: RFQLine[]
+  created_at: string
+  updated_at: string
 }

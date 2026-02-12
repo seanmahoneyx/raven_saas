@@ -382,3 +382,21 @@ export function useDeleteNote() {
     },
   })
 }
+
+// ==================== SHIPMENT CREATION ====================
+
+// Create shipment from delivery run
+export function useCreateShipmentFromRun() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (deliveryRunId: number) => {
+      const { data } = await api.post(`/delivery-runs/${deliveryRunId}/create-shipment/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shipments'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['delivery-runs'] })
+    },
+  })
+}

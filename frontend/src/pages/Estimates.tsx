@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,8 @@ import { useEstimates, useDeleteEstimate, useSendEstimate, useConvertEstimate } 
 import { EstimateDialog } from '@/components/estimates/EstimateDialog'
 import type { Estimate, EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 const statusVariant: Record<EstimateStatus, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
   draft: 'secondary',
@@ -30,9 +32,14 @@ const statusVariant: Record<EstimateStatus, 'default' | 'secondary' | 'destructi
 export default function Estimates() {
   usePageTitle('Estimates')
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
+  const [pendingConvertId, setPendingConvertId] = useState<number | null>(null)
 
   // Handle URL params for action=new
   useEffect(() => {
@@ -53,6 +60,30 @@ export default function Estimates() {
   const handleAddNew = () => {
     setEditingEstimate(null)
     setDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteEstimate.mutateAsync(pendingDeleteId)
+      toast.success('Estimate deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete estimate')
+    }
+  }
+
+  const handleConfirmConvert = async () => {
+    if (!pendingConvertId) return
+    try {
+      await convertEstimate.mutateAsync(pendingConvertId)
+      toast.success('Estimate converted to Sales Order')
+      setConvertDialogOpen(false)
+      setPendingConvertId(null)
+    } catch (error) {
+      toast.error('Failed to convert estimate')
+    }
   }
 
   const columns: ColumnDef<Estimate>[] = useMemo(
@@ -136,28 +167,33 @@ export default function Estimates() {
                   Edit
                 </DropdownMenuItem>
                 {est.status === 'draft' && (
-                  <DropdownMenuItem onClick={() => sendEstimate.mutate({ id: est.id })}>
+                  <DropdownMenuItem onClick={() => {
+                    sendEstimate.mutate({ id: est.id })
+                    toast.success('Estimate sent to customer')
+                  }}>
                     <Send className="mr-2 h-4 w-4" />
                     Send to Customer
                   </DropdownMenuItem>
                 )}
                 {(est.status === 'accepted' || est.status === 'draft' || est.status === 'sent') && (
                   <DropdownMenuItem onClick={() => {
-                    if (confirm('Convert this estimate to a Sales Order?')) {
-                      convertEstimate.mutate(est.id)
-                    }
+                    setPendingConvertId(est.id)
+                    setConvertDialogOpen(true)
                   }}>
                     <ArrowRightLeft className="mr-2 h-4 w-4" />
                     Convert to Sales Order
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => window.open(`/api/v1/estimates/${est.id}/pdf/`, '_blank')}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Download PDF
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this estimate?')) {
-                      deleteEstimate.mutate(est.id)
-                    }
+                    setPendingDeleteId(est.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -247,6 +283,7 @@ export default function Estimates() {
             data={estimates}
             searchColumn="estimate_number"
             searchPlaceholder="Search estimates..."
+            onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
           />
         </CardContent>
       </Card>
@@ -256,6 +293,28 @@ export default function Estimates() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         estimate={editingEstimate}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Estimate"
+        description="Are you sure you want to delete this estimate? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteEstimate.isPending}
+      />
+
+      <ConfirmDialog
+        open={convertDialogOpen}
+        onOpenChange={setConvertDialogOpen}
+        title="Convert to Sales Order"
+        description="Convert this estimate to a Sales Order? This action cannot be undone."
+        confirmLabel="Convert"
+        variant="default"
+        onConfirm={handleConfirmConvert}
+        loading={convertEstimate.isPending}
       />
     </div>
   )

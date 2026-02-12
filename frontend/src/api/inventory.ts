@@ -117,3 +117,37 @@ export function useInventoryTransactions(params?: { item?: number; transaction_t
     },
   })
 }
+
+// Reorder Alerts
+export interface ReorderAlert {
+  item_id: number
+  item_sku: string
+  item_name: string
+  on_hand: number
+  allocated: number
+  available: number
+  on_order: number
+  reorder_point: number
+  min_stock: number | null
+  safety_stock: number | null
+  suggested_qty: number
+  preferred_vendor_id: number | null
+  preferred_vendor_name: string | null
+  lead_time_days: number | null
+  severity: 'critical' | 'warning' | 'info'
+}
+
+export interface ReorderAlertsResponse {
+  count: number
+  alerts: ReorderAlert[]
+}
+
+export function useReorderAlerts() {
+  return useQuery({
+    queryKey: ['reorder-alerts'],
+    queryFn: async () => {
+      const { data } = await api.get<ReorderAlertsResponse>('/inventory/reorder-alerts/')
+      return data
+    },
+  })
+}

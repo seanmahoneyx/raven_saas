@@ -156,6 +156,20 @@ export function useCancelContract() {
   })
 }
 
+export function useDeactivateContract() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<Contract>(`/contracts/${id}/deactivate/`)
+      return data
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts', id] })
+    },
+  })
+}
+
 // ==================== Contract Lines ====================
 
 export function useContractLines(contractId: number) {

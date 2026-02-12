@@ -5,10 +5,13 @@ ViewSets for Shipping models: Shipment, ShipmentLine, BillOfLading, BOLLine.
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.shipping.models import Shipment, ShipmentLine, BillOfLading, BOLLine
+from apps.shipping.services import ShippingService
+from apps.scheduling.models import DeliveryRun
 from apps.api.v1.serializers.shipping import (
     ShipmentSerializer, ShipmentListSerializer, ShipmentDetailSerializer,
     ShipmentLineSerializer, BillOfLadingSerializer, BillOfLadingListSerializer,
@@ -183,3 +186,31 @@ class BillOfLadingViewSet(viewsets.ModelViewSet):
         bol.status = 'void'
         bol.save()
         return Response(BillOfLadingSerializer(bol, context={'request': request}).data)
+
+
+class DeliveryRunCreateShipmentView(APIView):
+    """Create a shipment from a delivery run."""
+
+    @extend_schema(
+        tags=['shipping'],
+        summary='Create shipment from delivery run',
+        responses={201: ShipmentDetailSerializer}
+    )
+    def post(self, request, pk=None):
+        try:
+            delivery_run = DeliveryRun.objects.select_related('truck').get(
+                pk=pk, tenant=request.tenant
+            )
+        except DeliveryRun.DoesNotExist:
+            return Response({'error': 'Delivery run not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        svc = ShippingService(request.tenant, request.user)
+        try:
+            shipment = svc.create_shipment_from_delivery_run(delivery_run)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            ShipmentDetailSerializer(shipment, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )

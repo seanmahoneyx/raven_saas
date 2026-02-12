@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, FileText, CreditCard } from 'lucide-react'
+import { Plus, FileText, CreditCard, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -90,6 +90,23 @@ export default function Invoices() {
             <span className={balance > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
               ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
+          )
+        },
+      },
+      {
+        id: 'actions',
+        cell: ({ row }) => {
+          const invoice = row.original
+          return (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => window.open(`/api/v1/invoices/${invoice.id}/pdf/`, '_blank')}
+              title="Download PDF"
+            >
+              <FileDown className="h-4 w-4" />
+            </Button>
           )
         },
       },

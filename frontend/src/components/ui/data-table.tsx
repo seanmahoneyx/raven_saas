@@ -9,8 +9,8 @@ import {
   type SortingState,
   type ColumnFiltersState,
 } from '@tanstack/react-table'
-import { useState } from 'react'
-import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react'
 import { Button } from './button'
 import { Input } from './input'
 import { cn } from '@/lib/utils'
@@ -20,6 +20,9 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
   searchColumn?: string
   searchPlaceholder?: string
+  showSearchDropdown?: boolean
+  searchDropdownLabel?: (row: TData) => string
+  searchDropdownSublabel?: (row: TData) => string
   onRowClick?: (row: TData) => void
   onRowDoubleClick?: (row: TData) => void
 }
@@ -29,11 +32,29 @@ export function DataTable<TData, TValue>({
   data,
   searchColumn,
   searchPlaceholder = 'Search...',
+  showSearchDropdown,
+  searchDropdownLabel,
+  searchDropdownSublabel,
   onRowClick,
   onRowDoubleClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [highlightIndex, setHighlightIndex] = useState(-1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      setDropdownOpen(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [handleClickOutside])
 
   const table = useReactTable({
     data,
@@ -50,17 +71,105 @@ export function DataTable<TData, TValue>({
     },
   })
 
+  const searchValue = searchColumn
+    ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''
+    : ''
+
+  const dropdownItems = showSearchDropdown && searchDropdownLabel
+    ? table.getFilteredRowModel().rows.slice(0, 20)
+    : []
+
   return (
     <div className="space-y-4">
       {searchColumn && (
-        <Input
-          placeholder={searchPlaceholder}
-          value={(table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''}
-          onChange={(event) =>
-            table.getColumn(searchColumn)?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
+        <div ref={containerRef} className="relative max-w-sm">
+          <div className="relative">
+            <Input
+              ref={inputRef}
+              placeholder={searchPlaceholder}
+              value={searchValue}
+              onChange={(event) => {
+                table.getColumn(searchColumn)?.setFilterValue(event.target.value)
+                if (showSearchDropdown) {
+                  setDropdownOpen(true)
+                  setHighlightIndex(-1)
+                }
+              }}
+              onFocus={() => {
+                if (showSearchDropdown) setDropdownOpen(true)
+              }}
+              onKeyDown={(e) => {
+                if (!showSearchDropdown || !dropdownOpen) return
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setHighlightIndex((prev) => Math.min(prev + 1, dropdownItems.length - 1))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setHighlightIndex((prev) => Math.max(prev - 1, 0))
+                } else if (e.key === 'Enter' && highlightIndex >= 0) {
+                  e.preventDefault()
+                  const item = dropdownItems[highlightIndex]
+                  if (item) {
+                    onRowClick?.(item.original)
+                    setDropdownOpen(false)
+                    table.getColumn(searchColumn)?.setFilterValue('')
+                  }
+                } else if (e.key === 'Escape') {
+                  setDropdownOpen(false)
+                }
+              }}
+              className="pr-8"
+            />
+            {searchValue && (
+              <button
+                onClick={() => {
+                  table.getColumn(searchColumn)?.setFilterValue('')
+                  setDropdownOpen(false)
+                  inputRef.current?.focus()
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {showSearchDropdown && dropdownOpen && dropdownItems.length > 0 && (
+            <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-64 overflow-y-auto">
+              {dropdownItems.map((row, idx) => (
+                <button
+                  key={row.id}
+                  className={cn(
+                    'w-full px-3 py-2 text-left text-sm transition-colors hover:bg-accent',
+                    idx === highlightIndex && 'bg-accent'
+                  )}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    onRowClick?.(row.original)
+                    setDropdownOpen(false)
+                    table.getColumn(searchColumn)?.setFilterValue('')
+                  }}
+                  onMouseEnter={() => setHighlightIndex(idx)}
+                >
+                  <div className="font-medium text-foreground">
+                    {searchDropdownLabel(row.original)}
+                  </div>
+                  {searchDropdownSublabel && (
+                    <div className="text-xs text-muted-foreground">
+                      {searchDropdownSublabel(row.original)}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {showSearchDropdown && dropdownOpen && searchValue && dropdownItems.length === 0 && (
+            <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
+              <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                No matches found
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="rounded-md border border-border">

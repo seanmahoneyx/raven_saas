@@ -5,10 +5,12 @@ ViewSets for Invoicing models: Invoice, InvoiceLine, Payment.
 from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.invoicing.models import Invoice, InvoiceLine, Payment
+from apps.invoicing.services import DunningService
 from apps.documents.pdf import PDFService
 from apps.api.v1.serializers.invoicing import (
     InvoiceSerializer, InvoiceListSerializer, InvoiceDetailSerializer,
@@ -178,6 +180,17 @@ class InvoiceViewSet(PDFActionMixin, viewsets.ModelViewSet):
         serializer = InvoiceListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @extend_schema(tags=['invoicing'], summary='Send dunning notice for overdue invoice')
+    @action(detail=True, methods=['post'], url_path='send-dunning')
+    def send_dunning(self, request, pk=None):
+        """Send a dunning notice for this invoice."""
+        invoice = self.get_object()
+        escalation_level = request.data.get('escalation_level')
+
+        svc = DunningService(request.tenant, request.user)
+        result = svc.send_dunning_notice(invoice, escalation_level=escalation_level)
+        return Response(result)
+
 
 @extend_schema_view(
     list=extend_schema(tags=['invoicing'], summary='List all payments'),
@@ -200,3 +213,37 @@ class PaymentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['payment_date', 'amount', 'created_at']
     ordering = ['-payment_date']
     http_method_names = ['get', 'post', 'head', 'options']  # No updates/deletes on payments
+
+
+class DunningCandidatesView(APIView):
+    """List invoices eligible for dunning."""
+
+    @extend_schema(
+        tags=['invoicing'],
+        summary='Get dunning candidates',
+        responses={200: {'type': 'object'}}
+    )
+    def get(self, request):
+        min_days = request.query_params.get('min_days_overdue')
+        svc = DunningService(request.tenant, request.user)
+        candidates = svc.get_dunning_candidates(
+            min_days_overdue=int(min_days) if min_days else None
+        )
+        return Response({
+            'count': len(candidates),
+            'candidates': candidates,
+        })
+
+
+class DunningSummaryView(APIView):
+    """Get dunning summary."""
+
+    @extend_schema(
+        tags=['invoicing'],
+        summary='Get dunning summary',
+        responses={200: {'type': 'object'}}
+    )
+    def get(self, request):
+        svc = DunningService(request.tenant, request.user)
+        summary = svc.get_dunning_summary()
+        return Response(summary)

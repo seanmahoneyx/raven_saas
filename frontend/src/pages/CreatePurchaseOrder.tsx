@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreatePurchaseOrder } from '@/api/orders'
+import { useCostLookup } from '@/api/costLists'
 import { useVendors, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,7 @@ export default function CreatePurchaseOrder() {
   })
 
   const [lines, setLines] = useState<OrderLineForm[]>([])
+  const [costLookupLine, setCostLookupLine] = useState<number | null>(null)
 
   const vendors = vendorsData?.results ?? []
   const locations = locationsData?.results ?? []
@@ -63,6 +65,26 @@ export default function CreatePurchaseOrder() {
   const uoms = uomData?.results ?? []
 
   const warehouseLocations = locations.filter((l) => l.location_type === 'WAREHOUSE')
+
+  const lookupLine = costLookupLine !== null ? lines[costLookupLine] : null
+  const { data: costData } = useCostLookup(
+    formData.vendor ? Number(formData.vendor) : undefined,
+    lookupLine?.item ? Number(lookupLine.item) : undefined,
+    lookupLine?.quantity_ordered ? Number(lookupLine.quantity_ordered) : undefined,
+  )
+
+  // Auto-populate cost from cost list
+  useEffect(() => {
+    if (costData?.unit_cost && costLookupLine !== null && costLookupLine < lines.length) {
+      const currentLine = lines[costLookupLine]
+      if (currentLine.unit_cost === '0.00' || currentLine.unit_cost === '') {
+        const newLines = [...lines]
+        newLines[costLookupLine] = { ...newLines[costLookupLine], unit_cost: costData.unit_cost }
+        setLines(newLines)
+      }
+      setCostLookupLine(null)
+    }
+  }, [costData])
 
   const isPending = createOrder.isPending
 
@@ -86,6 +108,21 @@ export default function CreatePurchaseOrder() {
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
       }
+      // Trigger cost lookup when item is set and vendor is selected
+      if (formData.vendor) {
+        newLines[index].unit_cost = '0.00'  // Reset to allow auto-populate
+        setLines(newLines)
+        setCostLookupLine(index)
+        return
+      }
+    }
+
+    if (field === 'quantity_ordered' && value && formData.vendor && newLines[index].item) {
+      // Re-lookup cost on quantity change
+      newLines[index].unit_cost = '0.00'
+      setLines(newLines)
+      setCostLookupLine(index)
+      return
     }
 
     setLines(newLines)
@@ -346,14 +383,19 @@ export default function CreatePurchaseOrder() {
                     </div>
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Cost</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.unit_cost}
-                        onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
-                        className="h-9"
-                      />
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={line.unit_cost}
+                          onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
+                          className="h-9"
+                        />
+                        {costLookupLine === index && (
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</div>
+                        )}
+                      </div>
                     </div>
                     <div className="col-span-2 flex justify-end">
                       <Button

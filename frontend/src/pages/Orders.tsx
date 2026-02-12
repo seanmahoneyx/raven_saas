@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,8 @@ import { SalesOrderDialog } from '@/components/orders/SalesOrderDialog'
 import { PurchaseOrderDialog } from '@/components/orders/PurchaseOrderDialog'
 import type { SalesOrder, PurchaseOrder, OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'sales' | 'purchase'
 
@@ -35,6 +37,7 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 export default function Orders() {
   usePageTitle('Orders')
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   // Read initial tab from URL params, default to 'sales'
   const tabParam = searchParams.get('tab')
@@ -46,6 +49,10 @@ export default function Orders() {
   const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false)
   const [editingPurchaseOrder, setEditingPurchaseOrder] = useState<PurchaseOrder | null>(null)
+  const [deleteSalesDialogOpen, setDeleteSalesDialogOpen] = useState(false)
+  const [deletePurchaseDialogOpen, setDeletePurchaseDialogOpen] = useState(false)
+  const [pendingDeleteSalesId, setPendingDeleteSalesId] = useState<number | null>(null)
+  const [pendingDeletePurchaseId, setPendingDeletePurchaseId] = useState<number | null>(null)
 
   // Handle URL params for tab and action
   useEffect(() => {
@@ -86,6 +93,30 @@ export default function Orders() {
     } else {
       setEditingPurchaseOrder(null)
       setPurchaseDialogOpen(true)
+    }
+  }
+
+  const handleConfirmDeleteSales = async () => {
+    if (!pendingDeleteSalesId) return
+    try {
+      await deleteSalesOrder.mutateAsync(pendingDeleteSalesId)
+      toast.success('Sales order deleted successfully')
+      setDeleteSalesDialogOpen(false)
+      setPendingDeleteSalesId(null)
+    } catch (error) {
+      toast.error('Failed to delete sales order')
+    }
+  }
+
+  const handleConfirmDeletePurchase = async () => {
+    if (!pendingDeletePurchaseId) return
+    try {
+      await deletePurchaseOrder.mutateAsync(pendingDeletePurchaseId)
+      toast.success('Purchase order deleted successfully')
+      setDeletePurchaseDialogOpen(false)
+      setPendingDeletePurchaseId(null)
+    } catch (error) {
+      toast.error('Failed to delete purchase order')
     }
   }
 
@@ -184,9 +215,8 @@ export default function Orders() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this order?')) {
-                      deleteSalesOrder.mutate(order.id)
-                    }
+                    setPendingDeleteSalesId(order.id)
+                    setDeleteSalesDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -289,12 +319,15 @@ export default function Orders() {
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.open(`/api/v1/purchase-orders/${order.id}/pdf/`, '_blank')}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Download PDF
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this purchase order?')) {
-                      deletePurchaseOrder.mutate(order.id)
-                    }
+                    setPendingDeletePurchaseId(order.id)
+                    setDeletePurchaseDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -405,6 +438,7 @@ export default function Orders() {
               data={salesData?.results ?? []}
               searchColumn="order_number"
               searchPlaceholder="Search orders..."
+              onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
             />
           )}
           {activeTab === 'purchase' && (
@@ -413,6 +447,7 @@ export default function Orders() {
               data={purchaseData?.results ?? []}
               searchColumn="po_number"
               searchPlaceholder="Search POs..."
+              onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
             />
           )}
         </CardContent>
@@ -436,6 +471,28 @@ export default function Orders() {
           // Stay on purchase tab after creation
           setActiveTab('purchase')
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteSalesDialogOpen}
+        onOpenChange={setDeleteSalesDialogOpen}
+        title="Delete Sales Order"
+        description="Are you sure you want to delete this sales order? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDeleteSales}
+        loading={deleteSalesOrder.isPending}
+      />
+
+      <ConfirmDialog
+        open={deletePurchaseDialogOpen}
+        onOpenChange={setDeletePurchaseDialogOpen}
+        title="Delete Purchase Order"
+        description="Are you sure you want to delete this purchase order? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDeletePurchase}
+        loading={deletePurchaseOrder.isPending}
       />
     </div>
   )

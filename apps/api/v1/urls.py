@@ -37,7 +37,7 @@ from .views.inventory import (
     InventoryLotViewSet, InventoryPalletViewSet,
     InventoryBalanceViewSet, InventoryTransactionViewSet,
 )
-from .views.shipping import ShipmentViewSet, BillOfLadingViewSet
+from .views.shipping import ShipmentViewSet, BillOfLadingViewSet, DeliveryRunCreateShipmentView
 from .views.invoicing import InvoiceViewSet, PaymentViewSet
 from .views.payments import CustomerPaymentViewSet, OpenInvoicesView
 from .views.reporting import (
@@ -58,14 +58,23 @@ from .views.reporting import (
     IncomeStatementView,
     BalanceSheetView,
     ARAgingView,
+    APAgingView,
+    CashFlowStatementView,
     ItemQuickReportView,
     ItemQuickReportPDFView,
+    ReorderAlertsView,
+    GrossMarginView,
+    OrdersVsInventoryView,
+    SalesCommissionView,
+    ContractUtilizationView,
+    VendorScorecardView,
 )
 from .views.dashboard import DashboardView
 from .views.websocket import get_websocket_ticket
 from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
 from .views.search import GlobalSearchView
 from .views.users import CurrentUserView
+from .views.accounting import AccountViewSet, JournalEntryViewSet
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -147,6 +156,10 @@ router.register(r'priority-list/overrides', DailyKickOverrideViewSet, basename='
 # Contracts
 router.register(r'contracts', ContractViewSet, basename='contract')
 
+# Accounting
+router.register(r'accounts', AccountViewSet, basename='account')
+router.register(r'journal-entries', JournalEntryViewSet, basename='journalentry')
+
 # Design
 router.register(r'design-requests', DesignRequestViewSet, basename='designrequest')
 
@@ -188,16 +201,35 @@ urlpatterns = [
     path('reports/income-statement/', IncomeStatementView.as_view(), name='income-statement'),
     path('reports/balance-sheet/', BalanceSheetView.as_view(), name='balance-sheet'),
     path('reports/ar-aging/', ARAgingView.as_view(), name='ar-aging'),
+    path('reports/ap-aging/', APAgingView.as_view(), name='ap-aging'),
+    path('reports/cash-flow/', CashFlowStatementView.as_view(), name='cash-flow'),
 
     # Item QuickReport
     path('reports/item-quick-report/<int:item_id>/', ItemQuickReportView.as_view(), name='item-quick-report'),
     path('reports/item-quick-report/<int:item_id>/pdf/', ItemQuickReportPDFView.as_view(), name='item-quick-report-pdf'),
+
+    # Gross Margin Report
+    path('reports/gross-margin/', GrossMarginView.as_view(), name='gross-margin'),
+
+    # Orders vs Inventory and Sales Commission Reports
+    path('reports/orders-vs-inventory/', OrdersVsInventoryView.as_view(), name='orders-vs-inventory'),
+    path('reports/sales-commission/', SalesCommissionView.as_view(), name='sales-commission'),
+
+    # Contract & Vendor Reports
+    path('reports/contract-utilization/', ContractUtilizationView.as_view(), name='contract-utilization'),
+    path('reports/vendor-scorecard/', VendorScorecardView.as_view(), name='vendor-scorecard'),
+
+    # Inventory reorder alerts
+    path('inventory/reorder-alerts/', ReorderAlertsView.as_view(), name='reorder-alerts'),
 
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
 
     # Global Search
     path('search/', GlobalSearchView.as_view(), name='global-search'),
+
+    # Delivery Run to Shipment
+    path('delivery-runs/<int:pk>/create-shipment/', DeliveryRunCreateShipmentView.as_view(), name='delivery-run-create-shipment'),
 
     # Router URLs (all ViewSets)
     path('', include(router.urls)),

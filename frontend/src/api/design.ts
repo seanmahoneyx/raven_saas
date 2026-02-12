@@ -5,6 +5,7 @@ import type {
   DesignRequestInput,
   PromoteDesignInput,
   PaginatedResponse,
+  CustomerAttachment,
 } from '@/types/api'
 
 // ==================== Design Requests ====================
@@ -86,6 +87,71 @@ export function usePromoteDesign() {
       queryClient.invalidateQueries({ queryKey: ['design-requests', variables.id] })
       // Also invalidate items since we created one
       queryClient.invalidateQueries({ queryKey: ['items'] })
+    },
+  })
+}
+
+// ==================== Design Request Attachments ====================
+
+export function useDesignRequestAttachments(designRequestId: number) {
+  return useQuery({
+    queryKey: ['design-requests', designRequestId, 'attachments'],
+    queryFn: async () => {
+      const { data } = await api.get<CustomerAttachment[]>(`/design-requests/${designRequestId}/attachments/`)
+      return data
+    },
+    enabled: !!designRequestId,
+  })
+}
+
+export function useUploadDesignRequestAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ designRequestId, file, category, description }: {
+      designRequestId: number
+      file: File
+      category?: string
+      description?: string
+    }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (category) formData.append('category', category)
+      if (description) formData.append('description', description)
+      const { data } = await api.post<CustomerAttachment>(
+        `/design-requests/${designRequestId}/attachments/`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['design-requests', variables.designRequestId, 'attachments'] })
+    },
+  })
+}
+
+export function useDeleteDesignRequestAttachment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ designRequestId, attachmentId }: { designRequestId: number; attachmentId: number }) => {
+      await api.delete(`/design-requests/${designRequestId}/attachments/${attachmentId}/`)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['design-requests', variables.designRequestId, 'attachments'] })
+    },
+  })
+}
+
+export function useCreateEstimateFromDesign() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, quantity, unit_price, notes }: { id: number; quantity?: number; unit_price?: string; notes?: string }) => {
+      const { data } = await api.post(`/design-requests/${id}/create-estimate/`, { quantity, unit_price, notes })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['design-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
     },
   })
 }

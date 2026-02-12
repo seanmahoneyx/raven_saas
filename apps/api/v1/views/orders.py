@@ -122,13 +122,16 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
     def confirm(self, request, pk=None):
         """Confirm a draft purchase order."""
         po = self.get_object()
-        if po.status != 'draft':
+        from apps.orders.services import OrderService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            service = OrderService(request.tenant, request.user)
+            po = service.confirm_purchase_order(po)
+        except DjangoValidationError as e:
             return Response(
-                {'error': f'Cannot confirm order with status: {po.status}'},
+                {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        po.status = 'confirmed'
-        po.save()
         return Response(PurchaseOrderSerializer(po, context={'request': request}).data)
 
     @extend_schema(tags=['orders'], summary='Cancel a purchase order')
@@ -136,14 +139,41 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         """Cancel a purchase order."""
         po = self.get_object()
-        if po.status in ['shipped', 'complete', 'cancelled']:
+        from apps.orders.services import OrderService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            service = OrderService(request.tenant, request.user)
+            po = service.cancel_purchase_order(po)
+        except DjangoValidationError as e:
             return Response(
-                {'error': f'Cannot cancel order with status: {po.status}'},
+                {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        po.status = 'cancelled'
-        po.save()
         return Response(PurchaseOrderSerializer(po, context={'request': request}).data)
+
+    @extend_schema(tags=['orders'], summary='Receive goods against a purchase order')
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        """Receive goods against this PO, creating inventory and GL entries."""
+        po = self.get_object()
+        from apps.orders.services import OrderService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            service = OrderService(request.tenant, request.user)
+            result = service.receive_purchase_order(
+                po,
+                line_receipts=request.data.get('lines'),
+            )
+        except DjangoValidationError as e:
+            return Response(
+                {'error': str(e.message if hasattr(e, 'message') else e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response({
+            'message': 'PO received successfully',
+            'lots_created': len(result['lots_created']),
+            'po_status': result['po_status'],
+        })
 
     @extend_schema(tags=['orders'], summary='List unscheduled purchase orders')
     @action(detail=False, methods=['get'])
@@ -244,13 +274,16 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     def confirm(self, request, pk=None):
         """Confirm a draft sales order."""
         so = self.get_object()
-        if so.status != 'draft':
+        from apps.orders.services import OrderService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            service = OrderService(request.tenant, request.user)
+            so = service.confirm_sales_order(so)
+        except DjangoValidationError as e:
             return Response(
-                {'error': f'Cannot confirm order with status: {so.status}'},
+                {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        so.status = 'confirmed'
-        so.save()
         return Response(SalesOrderSerializer(so, context={'request': request}).data)
 
     @extend_schema(tags=['orders'], summary='Cancel a sales order')
@@ -258,13 +291,16 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         """Cancel a sales order."""
         so = self.get_object()
-        if so.status in ['shipped', 'complete', 'cancelled']:
+        from apps.orders.services import OrderService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            service = OrderService(request.tenant, request.user)
+            so = service.cancel_sales_order(so)
+        except DjangoValidationError as e:
             return Response(
-                {'error': f'Cannot cancel order with status: {so.status}'},
+                {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        so.status = 'cancelled'
-        so.save()
         return Response(SalesOrderSerializer(so, context={'request': request}).data)
 
     @extend_schema(tags=['orders'], summary='Duplicate a sales order (Save As Copy)')

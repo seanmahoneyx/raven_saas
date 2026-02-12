@@ -232,6 +232,23 @@ class Item(TenantMixin, TimestampMixin):
         help_text="Inactive items are hidden from selections"
     )
 
+    # Inventory reorder thresholds
+    reorder_point = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="When on_hand falls to this level, trigger reorder alert"
+    )
+    min_stock = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Minimum acceptable stock level"
+    )
+    safety_stock = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Safety stock buffer above min_stock"
+    )
+
     # Attachments
     attachment = models.FileField(
         upload_to='items/attachments/',

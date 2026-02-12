@@ -15,15 +15,31 @@ import {
 import { useTrucks, useDeleteTruck } from '@/api/parties'
 import { TruckDialog } from '@/components/parties/TruckDialog'
 import type { Truck } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 export default function Trucks() {
   usePageTitle('Trucks')
 
   const [truckDialogOpen, setTruckDialogOpen] = useState(false)
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const { data: trucksData } = useTrucks()
   const deleteTruck = useDeleteTruck()
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteTruck.mutateAsync(pendingDeleteId)
+      toast.success('Truck deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete truck')
+    }
+  }
 
   const truckColumns: ColumnDef<Truck>[] = useMemo(
     () => [
@@ -73,9 +89,8 @@ export default function Trucks() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this truck?')) {
-                      deleteTruck.mutate(truck.id)
-                    }
+                    setPendingDeleteId(truck.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -129,6 +144,17 @@ export default function Trucks() {
         open={truckDialogOpen}
         onOpenChange={setTruckDialogOpen}
         truck={editingTruck}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Truck"
+        description="Are you sure you want to delete this truck? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteTruck.isPending}
       />
     </div>
   )

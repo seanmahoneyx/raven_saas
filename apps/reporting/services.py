@@ -670,8 +670,17 @@ from apps.invoicing.models import Invoice
 class FinancialReportService:
     """
     Generates financial statements from GL data.
-    All methods are stateless — pass tenant + date params.
+
+    Static/class methods (trial balance, income statement, balance sheet, aging)
+    take tenant as an explicit parameter.
+
+    Instance methods (gross margin, orders vs inventory, commission, contract
+    utilization, vendor scorecard) use self.tenant set via __init__.
     """
+
+    def __init__(self, tenant):
+        """Initialize with tenant context."""
+        self.tenant = tenant
 
     # ── Account Type Groupings ────────────────────────────────────────────
 
@@ -1104,6 +1113,696 @@ class FinancialReportService:
             'customers': customer_list,
             'totals': totals,
         }
+
+    # ── A/P Aging ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def get_ap_aging(tenant, as_of_date):
+        """
+        A/P Aging report.
+
+        Source: VendorBill model.
+        Filters: posted/partial bills with outstanding balance.
+        Buckets by days past due_date.
+
+        Returns same structure as AR aging but for vendors.
+        """
+        from apps.invoicing.models import VendorBill
+
+        open_bills = (
+            VendorBill.objects
+            .filter(
+                tenant=tenant,
+                status__in=('posted', 'partial'),
+            )
+            .select_related('vendor__party')
+            .order_by('vendor__party__display_name', 'due_date')
+        )
+
+        vendors = defaultdict(lambda: {
+            'vendor_id': None,
+            'vendor_name': '',
+            'current': Decimal('0.00'),
+            'days_1_30': Decimal('0.00'),
+            'days_31_60': Decimal('0.00'),
+            'days_61_90': Decimal('0.00'),
+            'days_over_90': Decimal('0.00'),
+            'total': Decimal('0.00'),
+            'bills': [],
+        })
+
+        for bill in open_bills:
+            balance = bill.total_amount - bill.amount_paid
+            if balance <= 0:
+                continue
+
+            vendor_id = bill.vendor_id
+            vendor_name = bill.vendor.party.display_name
+
+            days_overdue = (as_of_date - bill.due_date).days
+
+            if days_overdue <= 0:
+                bucket = 'current'
+            elif days_overdue <= 30:
+                bucket = 'days_1_30'
+            elif days_overdue <= 60:
+                bucket = 'days_31_60'
+            elif days_overdue <= 90:
+                bucket = 'days_61_90'
+            else:
+                bucket = 'days_over_90'
+
+            v = vendors[vendor_id]
+            v['vendor_id'] = vendor_id
+            v['vendor_name'] = vendor_name
+            v[bucket] += balance
+            v['total'] += balance
+            v['bills'].append({
+                'bill_id': bill.id,
+                'bill_number': bill.bill_number,
+                'vendor_invoice': bill.vendor_invoice_number,
+                'bill_date': str(bill.bill_date),
+                'due_date': str(bill.due_date),
+                'total_amount': bill.total_amount,
+                'amount_paid': bill.amount_paid,
+                'balance': balance,
+                'days_overdue': max(days_overdue, 0),
+                'bucket': bucket,
+            })
+
+        vendor_list = sorted(vendors.values(), key=lambda v: v['vendor_name'])
+
+        totals = {
+            'current': sum(v['current'] for v in vendor_list),
+            'days_1_30': sum(v['days_1_30'] for v in vendor_list),
+            'days_31_60': sum(v['days_31_60'] for v in vendor_list),
+            'days_61_90': sum(v['days_61_90'] for v in vendor_list),
+            'days_over_90': sum(v['days_over_90'] for v in vendor_list),
+            'total': sum(v['total'] for v in vendor_list),
+        }
+
+        return {
+            'as_of_date': str(as_of_date),
+            'vendors': vendor_list,
+            'totals': totals,
+        }
+
+    # ── Cash Flow Statement ───────────────────────────────────────────────
+
+    @staticmethod
+    def get_cash_flow_statement(tenant, start_date, end_date):
+        """
+        Cash Flow Statement for a date range.
+
+        Analyzes movements in cash/bank accounts grouped by activity type:
+        - Operating: revenue receipts, expense payments, AP/AR changes
+        - Investing: (placeholder - asset purchases/sales)
+        - Financing: (placeholder - equity/loan changes)
+
+        Returns structured dict with cash flow by activity.
+        """
+        from apps.accounting.models import Account, AccountType, JournalEntryLine
+        from django.db.models.functions import Coalesce
+
+        # Find all cash/bank accounts (current assets typically used for cash)
+        # Look for accounts that are commonly cash accounts
+        cash_accounts = Account.objects.filter(
+            tenant=tenant,
+            account_type=AccountType.ASSET_CURRENT,
+            is_active=True,
+        )
+
+        # Get the default cash account from settings
+        from apps.accounting.models import AccountingSettings
+        acct_settings = AccountingSettings.get_for_tenant(tenant)
+        cash_account_ids = set()
+        if acct_settings.default_cash_account:
+            cash_account_ids.add(acct_settings.default_cash_account_id)
+
+        # Get all journal entry lines hitting cash accounts in the period
+        cash_movements = (
+            JournalEntryLine.objects
+            .filter(
+                tenant=tenant,
+                entry__status='posted',
+                entry__date__gte=start_date,
+                entry__date__lte=end_date,
+            )
+            .filter(account_id__in=cash_account_ids) if cash_account_ids else
+            JournalEntryLine.objects.none()
+        )
+
+        # Categorize by source type
+        operating_inflows = Decimal('0.00')
+        operating_outflows = Decimal('0.00')
+        details = []
+
+        for line in cash_movements.select_related('entry', 'account'):
+            net = line.debit - line.credit
+            entry_info = {
+                'date': str(line.entry.date),
+                'description': line.entry.memo,
+                'reference': line.entry.reference_number,
+                'amount': net,
+                'account': line.account.name,
+            }
+            details.append(entry_info)
+
+            if net > 0:
+                operating_inflows += net
+            else:
+                operating_outflows += abs(net)
+
+        net_operating = operating_inflows - operating_outflows
+
+        # Beginning and ending cash balances
+        beginning_lines = (
+            JournalEntryLine.objects
+            .filter(
+                tenant=tenant,
+                entry__status='posted',
+                entry__date__lt=start_date,
+            )
+        )
+        if cash_account_ids:
+            beginning_lines = beginning_lines.filter(account_id__in=cash_account_ids)
+        else:
+            beginning_lines = beginning_lines.none()
+
+        beginning_totals = beginning_lines.aggregate(
+            total_debit=Coalesce(Sum('debit'), Decimal('0.00')),
+            total_credit=Coalesce(Sum('credit'), Decimal('0.00')),
+        )
+        beginning_balance = beginning_totals['total_debit'] - beginning_totals['total_credit']
+        ending_balance = beginning_balance + net_operating
+
+        return {
+            'start_date': str(start_date),
+            'end_date': str(end_date),
+            'beginning_cash_balance': beginning_balance,
+            'sections': {
+                'operating': {
+                    'label': 'Cash from Operating Activities',
+                    'inflows': operating_inflows,
+                    'outflows': operating_outflows,
+                    'net': net_operating,
+                    'details': sorted(details, key=lambda x: x['date']),
+                },
+                'investing': {
+                    'label': 'Cash from Investing Activities',
+                    'inflows': Decimal('0.00'),
+                    'outflows': Decimal('0.00'),
+                    'net': Decimal('0.00'),
+                    'details': [],
+                },
+                'financing': {
+                    'label': 'Cash from Financing Activities',
+                    'inflows': Decimal('0.00'),
+                    'outflows': Decimal('0.00'),
+                    'net': Decimal('0.00'),
+                    'details': [],
+                },
+            },
+            'net_change_in_cash': net_operating,
+            'ending_cash_balance': ending_balance,
+        }
+
+
+    # ── Open Orders vs Inventory Report ──────────────────────────────
+
+    def get_orders_vs_inventory(self):
+        """
+        Compare open order demand against available inventory.
+
+        For each item with open orders, shows demand vs supply coverage.
+
+        Returns list of item coverage summaries.
+        """
+        from apps.orders.models import SalesOrderLine, PurchaseOrderLine
+        from apps.inventory.models import InventoryBalance
+        from django.db.models import Sum, Q
+        from decimal import Decimal
+        from collections import defaultdict
+
+        # Get open SO demand (confirmed/scheduled/picking)
+        so_demand = SalesOrderLine.objects.filter(
+            tenant=self.tenant,
+            sales_order__status__in=['confirmed', 'scheduled', 'picking'],
+        ).values('item_id', 'item__sku', 'item__name').annotate(
+            total_so_qty=Sum('quantity_ordered')
+        )
+
+        # Get open PO supply (confirmed/scheduled)
+        po_supply = PurchaseOrderLine.objects.filter(
+            tenant=self.tenant,
+            purchase_order__status__in=['confirmed', 'scheduled'],
+        ).values('item_id').annotate(
+            total_po_qty=Sum('quantity_ordered')
+        )
+        po_by_item = {row['item_id']: row['total_po_qty'] for row in po_supply}
+
+        # Get current inventory balances per item (summed across warehouses)
+        balances = InventoryBalance.objects.filter(
+            tenant=self.tenant,
+        ).values('item_id').annotate(
+            total_on_hand=Sum('on_hand'),
+            total_allocated=Sum('allocated'),
+            total_on_order=Sum('on_order'),
+        )
+        balance_by_item = {row['item_id']: row for row in balances}
+
+        results = []
+        for row in so_demand:
+            item_id = row['item_id']
+            so_qty = row['total_so_qty'] or 0
+
+            bal = balance_by_item.get(item_id, {})
+            on_hand = bal.get('total_on_hand', 0) or 0
+            allocated = bal.get('total_allocated', 0) or 0
+            on_order = bal.get('total_on_order', 0) or 0
+            available = on_hand - allocated
+
+            incoming_po = po_by_item.get(item_id, 0) or 0
+            projected = available + incoming_po
+
+            # Coverage: can we fulfill all open SO demand?
+            shortage = max(so_qty - projected, 0)
+            coverage_pct = round(min(projected / so_qty * 100, 100), 1) if so_qty else 100
+
+            status = 'ok' if shortage == 0 else ('critical' if available <= 0 else 'warning')
+
+            results.append({
+                'item_id': item_id,
+                'item_sku': row['item__sku'],
+                'item_name': row['item__name'],
+                'open_so_qty': so_qty,
+                'on_hand': on_hand,
+                'allocated': allocated,
+                'available': available,
+                'on_order': on_order,
+                'incoming_po': incoming_po,
+                'projected': projected,
+                'shortage': shortage,
+                'coverage_pct': coverage_pct,
+                'status': status,
+            })
+
+        # Sort: critical first, then warning, then ok
+        status_order = {'critical': 0, 'warning': 1, 'ok': 2}
+        results.sort(key=lambda x: (status_order.get(x['status'], 3), -x['shortage']))
+
+        return results
+
+    # ── Sales Commission Report ───────────────────────────────────────
+
+    def get_sales_commission(self, date_from=None, date_to=None, commission_rate=None):
+        """
+        Sales commission report by sales rep.
+
+        Computes commission from invoiced amounts per sales rep.
+
+        Args:
+            date_from: Start date
+            date_to: End date
+            commission_rate: Default commission rate as decimal (e.g., 0.05 for 5%). Defaults to 0.05.
+
+        Returns:
+            dict with summary and per-rep breakdown
+        """
+        from apps.invoicing.models import Invoice
+        from django.db.models import Sum, Count, Q
+        from decimal import Decimal
+
+        rate = Decimal(str(commission_rate)) if commission_rate else Decimal('0.05')
+
+        inv_filter = Q(
+            tenant=self.tenant,
+            status__in=['posted', 'sent', 'paid', 'partial'],
+        )
+        if date_from:
+            inv_filter &= Q(invoice_date__gte=date_from)
+        if date_to:
+            inv_filter &= Q(invoice_date__lte=date_to)
+
+        # Group by sales_rep (from customer)
+        # Invoice -> customer -> sales_rep
+        invoices = Invoice.objects.filter(inv_filter).select_related(
+            'customer__party', 'customer'
+        )
+
+        rep_data = {}
+        total_invoiced = Decimal('0')
+        total_paid = Decimal('0')
+
+        for invoice in invoices:
+            rep_id = invoice.customer.sales_rep_id if invoice.customer.sales_rep_id else None
+            rep_key = rep_id or 'unassigned'
+
+            if rep_key not in rep_data:
+                # Try to get rep name
+                rep_name = 'Unassigned'
+                if rep_id:
+                    try:
+                        from django.contrib.auth import get_user_model
+                        User = get_user_model()
+                        user = User.objects.get(pk=rep_id)
+                        rep_name = user.get_full_name() or user.username
+                    except Exception:
+                        rep_name = f'Rep #{rep_id}'
+
+                rep_data[rep_key] = {
+                    'rep_id': rep_id,
+                    'rep_name': rep_name,
+                    'invoice_count': 0,
+                    'total_invoiced': Decimal('0'),
+                    'total_paid': Decimal('0'),
+                }
+
+            amount = Decimal(str(invoice.total_amount))
+            paid = Decimal(str(invoice.amount_paid))
+
+            rep_data[rep_key]['invoice_count'] += 1
+            rep_data[rep_key]['total_invoiced'] += amount
+            rep_data[rep_key]['total_paid'] += paid
+            total_invoiced += amount
+            total_paid += paid
+
+        # Compute commission
+        reps = []
+        total_commission = Decimal('0')
+        for rep in rep_data.values():
+            commission = (rep['total_paid'] * rate).quantize(Decimal('0.01'))
+            total_commission += commission
+            reps.append({
+                'rep_id': rep['rep_id'],
+                'rep_name': rep['rep_name'],
+                'invoice_count': rep['invoice_count'],
+                'total_invoiced': str(rep['total_invoiced']),
+                'total_paid': str(rep['total_paid']),
+                'commission_rate': str(rate),
+                'commission_earned': str(commission),
+            })
+
+        reps.sort(key=lambda x: Decimal(x['total_invoiced']), reverse=True)
+
+        return {
+            'date_from': str(date_from) if date_from else None,
+            'date_to': str(date_to) if date_to else None,
+            'commission_rate': str(rate),
+            'summary': {
+                'total_invoiced': str(total_invoiced),
+                'total_paid': str(total_paid),
+                'total_commission': str(total_commission),
+            },
+            'by_rep': reps,
+        }
+
+    # ── Gross Margin Report ───────────────────────────────────────────
+
+    def get_gross_margin(self, date_from=None, date_to=None, customer_id=None, item_id=None):
+        """
+        Compute gross margin report.
+
+        Returns:
+            dict with:
+            - summary: {total_revenue, total_cogs, gross_margin, margin_pct}
+            - by_customer: [{customer_id, customer_name, revenue, cogs, margin, margin_pct}]
+            - by_item: [{item_id, item_sku, item_name, revenue, cogs, margin, margin_pct}]
+        """
+        from decimal import Decimal
+        from django.db.models import Sum, F, Q
+        from apps.invoicing.models import Invoice, InvoiceLine
+
+        # Base filter: posted/paid/partial invoices
+        invoice_filter = Q(
+            invoice__tenant=self.tenant,
+            invoice__status__in=['posted', 'sent', 'paid', 'partial'],
+        )
+
+        if date_from:
+            invoice_filter &= Q(invoice__invoice_date__gte=date_from)
+        if date_to:
+            invoice_filter &= Q(invoice__invoice_date__lte=date_to)
+        if customer_id:
+            invoice_filter &= Q(invoice__customer_id=customer_id)
+        if item_id:
+            invoice_filter &= Q(item_id=item_id)
+
+        lines = InvoiceLine.objects.filter(invoice_filter).select_related(
+            'invoice__customer__party', 'item'
+        )
+
+        # Revenue by customer
+        by_customer = {}
+        by_item = {}
+        total_revenue = Decimal('0')
+
+        for line in lines:
+            revenue = Decimal(str(line.amount)) if hasattr(line, 'amount') else (
+                Decimal(str(line.unit_price)) * line.quantity
+            )
+            total_revenue += revenue
+
+            # By customer
+            cust_id = line.invoice.customer_id
+            if cust_id not in by_customer:
+                by_customer[cust_id] = {
+                    'customer_id': cust_id,
+                    'customer_name': line.invoice.customer.party.display_name,
+                    'revenue': Decimal('0'),
+                }
+            by_customer[cust_id]['revenue'] += revenue
+
+            # By item
+            if line.item_id:
+                if line.item_id not in by_item:
+                    by_item[line.item_id] = {
+                        'item_id': line.item_id,
+                        'item_sku': line.item.sku if line.item else 'N/A',
+                        'item_name': line.item.name if line.item else 'N/A',
+                        'revenue': Decimal('0'),
+                    }
+                by_item[line.item_id]['revenue'] += revenue
+
+        # Get COGS from JournalEntry lines on COGS accounts
+        from apps.accounting.models import JournalEntryLine, Account
+        cogs_filter = Q(
+            entry__tenant=self.tenant,
+            entry__status='posted',
+            account__account_type='EXPENSE_COGS',
+        )
+        if date_from:
+            cogs_filter &= Q(entry__date__gte=date_from)
+        if date_to:
+            cogs_filter &= Q(entry__date__lte=date_to)
+
+        cogs_total_qs = JournalEntryLine.objects.filter(cogs_filter).aggregate(
+            total_cogs=Sum('debit')
+        )
+        total_cogs = cogs_total_qs['total_cogs'] or Decimal('0')
+
+        gross_margin = total_revenue - total_cogs
+        margin_pct = (gross_margin / total_revenue * 100) if total_revenue else Decimal('0')
+
+        # Assign proportional COGS to customers/items (approximation)
+        cogs_ratio = (total_cogs / total_revenue) if total_revenue else Decimal('0')
+
+        customer_list = []
+        for c in by_customer.values():
+            c_cogs = c['revenue'] * cogs_ratio
+            c_margin = c['revenue'] - c_cogs
+            customer_list.append({
+                **c,
+                'revenue': str(c['revenue']),
+                'cogs': str(c_cogs.quantize(Decimal('0.01'))),
+                'margin': str(c_margin.quantize(Decimal('0.01'))),
+                'margin_pct': str((c_margin / c['revenue'] * 100).quantize(Decimal('0.1'))) if c['revenue'] else '0',
+            })
+
+        item_list = []
+        for i in by_item.values():
+            i_cogs = i['revenue'] * cogs_ratio
+            i_margin = i['revenue'] - i_cogs
+            item_list.append({
+                **i,
+                'revenue': str(i['revenue']),
+                'cogs': str(i_cogs.quantize(Decimal('0.01'))),
+                'margin': str(i_margin.quantize(Decimal('0.01'))),
+                'margin_pct': str((i_margin / i['revenue'] * 100).quantize(Decimal('0.1'))) if i['revenue'] else '0',
+            })
+
+        # Sort by revenue descending
+        customer_list.sort(key=lambda x: Decimal(x['revenue']), reverse=True)
+        item_list.sort(key=lambda x: Decimal(x['revenue']), reverse=True)
+
+        return {
+            'date_from': str(date_from) if date_from else None,
+            'date_to': str(date_to) if date_to else None,
+            'summary': {
+                'total_revenue': str(total_revenue),
+                'total_cogs': str(total_cogs),
+                'gross_margin': str(gross_margin),
+                'margin_pct': str(margin_pct.quantize(Decimal('0.1'))) if isinstance(margin_pct, Decimal) else '0',
+            },
+            'by_customer': customer_list,
+            'by_item': item_list,
+        }
+
+
+    # ── Contract Utilization ──────────────────────────────────────────
+
+    def get_contract_utilization(self):
+        """
+        Contract utilization report showing commitment vs release status.
+
+        Returns list of contract summaries with utilization metrics.
+        """
+        from apps.contracts.models import Contract
+        from datetime import date
+
+        today = date.today()
+        contracts = Contract.objects.filter(
+            tenant=self.tenant,
+            status__in=['active', 'complete'],
+        ).select_related('customer__party').prefetch_related('lines')
+
+        results = []
+        for contract in contracts:
+            total_committed = sum(line.blanket_qty for line in contract.lines.all())
+            total_released = sum(line.released_qty for line in contract.lines.all())
+            total_remaining = total_committed - total_released
+            completion_pct = (total_released / total_committed * 100) if total_committed else 0
+
+            # Days remaining
+            days_remaining = None
+            if contract.end_date:
+                days_remaining = max((contract.end_date - today).days, 0)
+
+            # Burn rate (releases per day since start)
+            burn_rate = None
+            if contract.start_date and total_released > 0:
+                days_active = max((today - contract.start_date).days, 1)
+                burn_rate = round(total_released / days_active, 2)
+
+            # Projected completion date based on burn rate
+            projected_completion = None
+            if burn_rate and burn_rate > 0 and total_remaining > 0:
+                days_to_complete = total_remaining / burn_rate
+                from datetime import timedelta
+                projected_completion = str(today + timedelta(days=int(days_to_complete)))
+
+            results.append({
+                'contract_id': contract.id,
+                'contract_number': contract.contract_number,
+                'blanket_po': contract.blanket_po,
+                'customer_id': contract.customer_id,
+                'customer_name': contract.customer.party.display_name,
+                'status': contract.status,
+                'start_date': str(contract.start_date) if contract.start_date else None,
+                'end_date': str(contract.end_date) if contract.end_date else None,
+                'total_committed': total_committed,
+                'total_released': total_released,
+                'total_remaining': total_remaining,
+                'completion_pct': round(completion_pct, 1),
+                'days_remaining': days_remaining,
+                'burn_rate': burn_rate,
+                'projected_completion': projected_completion,
+                'num_lines': contract.lines.count(),
+                'at_risk': days_remaining is not None and days_remaining < 30 and completion_pct < 80,
+            })
+
+        results.sort(key=lambda x: x['completion_pct'], reverse=True)
+        return results
+
+    # ── Vendor Scorecard ──────────────────────────────────────────────
+
+    def get_vendor_scorecard(self, date_from=None, date_to=None):
+        """
+        Vendor scorecard with delivery performance, spend, and quality metrics.
+
+        Args:
+            date_from: Optional start date filter
+            date_to: Optional end date filter
+
+        Returns list of vendor performance summaries.
+        """
+        from apps.parties.models import Vendor
+        from apps.orders.models import PurchaseOrder
+        from django.db.models import Count, Sum, Avg, Q, F
+        from decimal import Decimal
+
+        vendors = Vendor.objects.filter(
+            tenant=self.tenant,
+            is_active=True,
+        ).select_related('party')
+
+        results = []
+        for vendor in vendors:
+            # PO filter
+            po_filter = Q(tenant=self.tenant, vendor=vendor)
+            if date_from:
+                po_filter &= Q(order_date__gte=date_from)
+            if date_to:
+                po_filter &= Q(order_date__lte=date_to)
+
+            pos = PurchaseOrder.objects.filter(po_filter)
+            total_pos = pos.count()
+
+            if total_pos == 0:
+                continue
+
+            # Completed POs
+            completed_pos = pos.filter(status='complete')
+            completed_count = completed_pos.count()
+
+            # On-time delivery: POs completed where actual completion <= expected_date
+            # (approximation: if status is complete and scheduled_date is not null)
+            on_time = 0
+            late = 0
+            for po in completed_pos:
+                if po.expected_date and po.scheduled_date:
+                    if po.scheduled_date <= po.expected_date:
+                        on_time += 1
+                    else:
+                        late += 1
+                else:
+                    on_time += 1  # Assume on-time if dates not set
+
+            on_time_pct = round(on_time / completed_count * 100, 1) if completed_count else 0
+
+            # Total spend from completed PO lines
+            total_spend = Decimal('0')
+            for po in completed_pos:
+                total_spend += Decimal(str(po.subtotal))
+
+            # Average lead time (days from order_date to scheduled completion)
+            lead_times = []
+            for po in completed_pos:
+                if po.expected_date and po.order_date:
+                    days = (po.expected_date - po.order_date).days
+                    if days >= 0:
+                        lead_times.append(days)
+            avg_lead_time = round(sum(lead_times) / len(lead_times), 1) if lead_times else None
+
+            # Active PO count (open)
+            active_count = pos.filter(status__in=['draft', 'confirmed', 'scheduled']).count()
+
+            results.append({
+                'vendor_id': vendor.id,
+                'vendor_name': vendor.party.display_name,
+                'vendor_code': vendor.party.code,
+                'total_pos': total_pos,
+                'completed_pos': completed_count,
+                'active_pos': active_count,
+                'on_time_count': on_time,
+                'late_count': late,
+                'on_time_pct': on_time_pct,
+                'total_spend': str(total_spend),
+                'avg_lead_time_days': avg_lead_time,
+            })
+
+        results.sort(key=lambda x: Decimal(x['total_spend']), reverse=True)
+        return results
 
 
 class ItemReportService:

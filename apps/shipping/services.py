@@ -95,6 +95,41 @@ class ShippingService:
 
             return shipment
 
+    def create_shipment_from_delivery_run(self, delivery_run):
+        """
+        Create a Shipment from a DeliveryRun, including all its scheduled sales orders.
+
+        Args:
+            delivery_run: DeliveryRun instance
+
+        Returns:
+            Shipment instance
+
+        Raises:
+            ValidationError: If delivery run has no orders or is already complete
+        """
+        if delivery_run.is_complete:
+            raise ValidationError("This delivery run is already marked complete.")
+
+        # Collect all sales orders from the run
+        sales_orders = list(delivery_run.sales_orders.select_related('customer__party').all())
+        if not sales_orders:
+            raise ValidationError("Delivery run has no sales orders to ship.")
+
+        shipment = self.create_shipment(
+            ship_date=delivery_run.scheduled_date,
+            truck=delivery_run.truck,
+            sales_orders=sales_orders,
+            driver_name='',
+            notes=f'Created from delivery run: {delivery_run.name}',
+        )
+
+        # Mark the delivery run as complete
+        delivery_run.is_complete = True
+        delivery_run.save()
+
+        return shipment
+
     def add_order_to_shipment(self, shipment, sales_order, delivery_sequence=None):
         """
         Add a sales order to a shipment.
@@ -210,6 +245,11 @@ class ShippingService:
         """
         Mark a single order as delivered.
 
+        Side effects:
+        - Updates SO status to 'shipped'
+        - Deducts inventory via FIFO (creates COGS journal entries)
+        - Auto-creates draft invoice when all shipment lines are delivered
+
         Args:
             shipment_line: ShipmentLine instance
             signature_name: Name of person who signed
@@ -227,8 +267,34 @@ class ShippingService:
         shipment_line.save()
 
         # Update sales order status
-        shipment_line.sales_order.status = 'shipped'
-        shipment_line.sales_order.save()
+        sales_order = shipment_line.sales_order
+        sales_order.status = 'shipped'
+        sales_order.save()
+
+        # Deduct inventory (FIFO COGS) for each SO line
+        try:
+            from apps.inventory.services import InventoryService
+            from apps.new_warehousing.models import Warehouse
+
+            default_warehouse = Warehouse.objects.filter(
+                tenant=self.tenant, is_default=True
+            ).first()
+
+            if default_warehouse:
+                inv_svc = InventoryService(self.tenant, self.user)
+                for so_line in sales_order.lines.select_related('item').all():
+                    try:
+                        inv_svc.ship_stock(
+                            item=so_line.item,
+                            warehouse=default_warehouse,
+                            quantity=so_line.quantity_ordered,
+                            sales_order=sales_order,
+                            reference=f'Shipment delivery: {shipment_line.shipment.shipment_number}',
+                        )
+                    except (ValidationError, Exception):
+                        pass  # Don't block delivery if inventory deduction fails
+        except Exception:
+            pass  # Don't block delivery if import or setup fails
 
         # Check if all lines delivered
         shipment = shipment_line.shipment
@@ -238,6 +304,15 @@ class ShippingService:
 
         if all_delivered:
             self.complete_shipment(shipment)
+
+            # Auto-create draft invoice from the shipment
+            try:
+                from apps.invoicing.services import InvoicingService
+                InvoicingService(self.tenant, self.user).create_invoice_from_shipment(
+                    shipment=shipment,
+                )
+            except Exception:
+                pass  # Don't block delivery if invoice creation fails
 
         return shipment_line
 

@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db import models
 
 from apps.pricing.models import PriceListHead, PriceListLine
 from apps.api.v1.serializers.pricing import (
@@ -123,8 +124,31 @@ class PriceListViewSet(viewsets.ModelViewSet):
         ).first()
 
         if not price_list:
+            # Fallback: check for active contract price
+            from apps.contracts.models import ContractLine
+            contract_line = ContractLine.objects.filter(
+                contract__customer_id=customer_id,
+                item_id=item_id,
+                contract__status='active',
+                contract__start_date__lte=check_date,
+            ).filter(
+                models.Q(contract__end_date__isnull=True) | models.Q(contract__end_date__gte=check_date)
+            ).select_related('contract').first()
+
+            if contract_line and contract_line.unit_price:
+                return Response({
+                    'customer_id': customer_id,
+                    'item_id': item_id,
+                    'quantity': quantity,
+                    'date': str(check_date),
+                    'unit_price': str(contract_line.unit_price),
+                    'price_list_id': None,
+                    'contract_id': contract_line.contract_id,
+                    'source': 'contract',
+                })
+
             return Response(
-                {'error': 'No active price list found for this customer/item/date'},
+                {'error': 'No active price list or contract found for this customer/item/date'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -142,4 +166,5 @@ class PriceListViewSet(viewsets.ModelViewSet):
             'date': str(check_date),
             'unit_price': str(unit_price),
             'price_list_id': price_list.id,
+            'source': 'price_list',
         })

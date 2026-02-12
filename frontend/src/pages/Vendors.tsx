@@ -17,6 +17,8 @@ import { useVendors, useLocations, useDeleteVendor } from '@/api/parties'
 import { VendorDialog } from '@/components/parties/VendorDialog'
 import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Vendor, Location } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'vendors' | 'locations'
 
@@ -30,10 +32,24 @@ export default function Vendors() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
   const [locationDialogOpen, setLocationDialogOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
   const { data: vendorsData } = useVendors()
   const { data: locationsData } = useLocations()
   const deleteVendor = useDeleteVendor()
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDeleteId) return
+    try {
+      await deleteVendor.mutateAsync(pendingDeleteId)
+      toast.success('Vendor deleted successfully')
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+    } catch (error) {
+      toast.error('Failed to delete vendor')
+    }
+  }
 
   const handleAddNew = () => {
     if (activeTab === 'vendors') {
@@ -132,9 +148,8 @@ export default function Vendors() {
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => {
-                    if (confirm('Are you sure you want to delete this vendor?')) {
-                      deleteVendor.mutate(vendor.id)
-                    }
+                    setPendingDeleteId(vendor.id)
+                    setDeleteDialogOpen(true)
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -266,7 +281,10 @@ export default function Vendors() {
               data={vendorsData?.results ?? []}
               searchColumn="party_display_name"
               searchPlaceholder="Search vendors..."
-              onRowDoubleClick={(vendor) => navigate(`/vendors/${vendor.id}`)}
+              showSearchDropdown
+              searchDropdownLabel={(row) => (row as Vendor).party_display_name}
+              searchDropdownSublabel={(row) => (row as Vendor).party_code}
+              onRowClick={(vendor) => navigate(`/vendors/${vendor.id}`)}
             />
           )}
           {activeTab === 'locations' && (
@@ -275,6 +293,10 @@ export default function Vendors() {
               data={locationsData?.results ?? []}
               searchColumn="name"
               searchPlaceholder="Search locations..."
+              onRowClick={(location) => {
+                setEditingLocation(location)
+                setLocationDialogOpen(true)
+              }}
             />
           )}
         </CardContent>
@@ -293,6 +315,17 @@ export default function Vendors() {
         open={locationDialogOpen}
         onOpenChange={setLocationDialogOpen}
         location={editingLocation}
+      />
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Vendor"
+        description="Are you sure you want to delete this vendor? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+        loading={deleteVendor.isPending}
       />
     </div>
   )

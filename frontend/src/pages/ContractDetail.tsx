@@ -1,30 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft,
-  Plus,
-  Play,
-  CheckCircle,
-  XCircle,
-  Package,
-  Calendar,
-  Building2,
-  FileText,
-  ChevronDown,
-  ChevronRight,
+  ArrowLeft, Pencil, Plus, Play, CheckCircle, XCircle, Package, Calendar,
+  Building2, FileText, ChevronDown, ChevronRight, Printer, Save, X, RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
-  useContract,
-  useActivateContract,
-  useCompleteContract,
-  useCancelContract,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import {
+  useContract, useUpdateContract, useActivateContract, useDeactivateContract,
+  useCompleteContract, useCancelContract,
 } from '@/api/contracts'
+import { useLocations } from '@/api/parties'
 import { ReleaseDialog } from '@/components/contracts/ReleaseDialog'
 import type { ContractStatus, ContractLine } from '@/types/api'
+import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 const statusColors: Record<ContractStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
   draft: 'secondary',
@@ -192,9 +190,114 @@ export default function ContractDetail() {
   const contractId = parseInt(id || '0', 10)
 
   const { data: contract, isLoading } = useContract(contractId)
+  const updateContract = useUpdateContract()
   const activateContract = useActivateContract()
+  const deactivateContract = useDeactivateContract()
   const completeContract = useCompleteContract()
   const cancelContract = useCancelContract()
+
+  const [isEditing, setIsEditing] = useState(false)
+  const [activateDialogOpen, setActivateDialogOpen] = useState(false)
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [formData, setFormData] = useState({
+    blanket_po: '',
+    issue_date: '',
+    start_date: '',
+    end_date: '',
+    ship_to: '',
+    notes: '',
+  })
+
+  const { data: locationsData } = useLocations()
+  const locations = locationsData?.results ?? []
+
+  useEffect(() => {
+    if (isEditing && contract) {
+      setFormData({
+        blanket_po: contract.blanket_po || '',
+        issue_date: contract.issue_date,
+        start_date: contract.start_date || '',
+        end_date: contract.end_date || '',
+        ship_to: contract.ship_to ? String(contract.ship_to) : '',
+        notes: contract.notes || '',
+      })
+    }
+  }, [isEditing, contract])
+
+  const customerLocations = contract
+    ? locations.filter((l) => l.party === contract.customer)
+    : []
+
+  const handleSave = async () => {
+    if (!contract) return
+    const payload = {
+      id: contract.id,
+      blanket_po: formData.blanket_po,
+      issue_date: formData.issue_date,
+      start_date: formData.start_date || null,
+      end_date: formData.end_date || null,
+      ship_to: formData.ship_to ? Number(formData.ship_to) : null,
+      notes: formData.notes,
+    }
+    try {
+      await updateContract.mutateAsync(payload as any)
+      setIsEditing(false)
+      toast.success('Contract updated successfully')
+    } catch (error) {
+      console.error('Failed to save contract:', error)
+      toast.error('Failed to save contract')
+    }
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+  }
+
+  const handleConfirmActivate = async () => {
+    if (!contract) return
+    try {
+      await activateContract.mutateAsync(contract.id)
+      toast.success('Contract activated successfully')
+      setActivateDialogOpen(false)
+    } catch (error) {
+      toast.error('Failed to activate contract')
+    }
+  }
+
+  const handleConfirmDeactivate = async () => {
+    if (!contract) return
+    try {
+      await deactivateContract.mutateAsync(contract.id)
+      toast.success('Contract deactivated successfully')
+      setDeactivateDialogOpen(false)
+    } catch (error) {
+      toast.error('Failed to deactivate contract')
+    }
+  }
+
+  const handleConfirmComplete = async () => {
+    if (!contract) return
+    try {
+      await completeContract.mutateAsync(contract.id)
+      toast.success('Contract completed successfully')
+      setCompleteDialogOpen(false)
+    } catch (error) {
+      toast.error('Failed to complete contract')
+    }
+  }
+
+  const handleConfirmCancel = async () => {
+    if (!contract) return
+    try {
+      await cancelContract.mutateAsync(contract.id)
+      toast.success('Contract cancelled successfully')
+      setCancelDialogOpen(false)
+    } catch (error) {
+      toast.error('Failed to cancel contract')
+    }
+  }
 
   if (isLoading) {
     return (
@@ -212,6 +315,9 @@ export default function ContractDetail() {
     )
   }
 
+  const canEdit = contract.status === 'draft' || contract.status === 'active'
+  const isTerminal = contract.status === 'complete' || contract.status === 'cancelled' || contract.status === 'expired'
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -226,41 +332,73 @@ export default function ContractDetail() {
               {statusLabels[contract.status]}
             </Badge>
           </div>
-          <p className="text-muted-foreground">
-            {contract.customer_name}
-            {contract.blanket_po && ` • PO: ${contract.blanket_po}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {contract.status === 'draft' && (
-            <Button
-              onClick={() => activateContract.mutate(contract.id)}
-              disabled={contract.num_lines === 0}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/customers/${contract.customer}`)}
+              className="text-muted-foreground hover:text-foreground hover:underline transition-colors"
             >
-              <Play className="h-4 w-4 mr-2" />
-              Activate
-            </Button>
-          )}
-          {contract.status === 'active' && (
+              {contract.customer_name}
+            </button>
+            {contract.blanket_po && (
+              <span className="text-muted-foreground">• PO: {contract.blanket_po}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2" data-print-hide>
+          {isEditing ? (
             <>
-              <Button
-                variant="outline"
-                onClick={() => completeContract.mutate(contract.id)}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Complete
+              <Button variant="outline" onClick={handleCancel}>
+                <X className="h-4 w-4 mr-2" /> Cancel
               </Button>
-              <Button
-                variant="outline"
-                className="text-destructive"
-                onClick={() => {
-                  if (confirm('Are you sure you want to cancel this contract?')) {
-                    cancelContract.mutate(contract.id)
-                  }
-                }}
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Cancel
+              <Button onClick={handleSave} disabled={updateContract.isPending}>
+                <Save className="h-4 w-4 mr-2" />
+                {updateContract.isPending ? 'Saving...' : 'Save'}
+              </Button>
+            </>
+          ) : (
+            <>
+              {contract.status === 'draft' && (
+                <Button
+                  onClick={() => setActivateDialogOpen(true)}
+                  disabled={contract.num_lines === 0}
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Activate
+                </Button>
+              )}
+              {contract.status === 'active' && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeactivateDialogOpen(true)}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Deactivate
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setCompleteDialogOpen(true)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Complete
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => setCancelDialogOpen(true)}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </>
+              )}
+              {canEdit && (
+                <Button variant="outline" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4 mr-2" /> Print
               </Button>
             </>
           )}
@@ -334,66 +472,129 @@ export default function ContractDetail() {
         </Card>
       </div>
 
-      {/* Contract Info */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Customer
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-medium">{contract.customer_name}</p>
-            {contract.ship_to_name && (
-              <p className="text-sm text-muted-foreground mt-1">
-                Ship to: {contract.ship_to_name}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Dates
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">Issue:</span>{' '}
-                {new Date(contract.issue_date).toLocaleDateString()}
-              </p>
-              {contract.start_date && (
-                <p>
-                  <span className="text-muted-foreground">Start:</span>{' '}
-                  {new Date(contract.start_date).toLocaleDateString()}
+      {/* Contract Details */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Contract Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isEditing ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Blanket PO</Label>
+                <Input
+                  value={formData.blanket_po}
+                  onChange={(e) => setFormData({ ...formData, blanket_po: e.target.value })}
+                  placeholder="Customer's blanket PO reference"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Issue Date</Label>
+                <Input
+                  type="date"
+                  value={formData.issue_date}
+                  onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Ship To</Label>
+                <Select
+                  value={formData.ship_to}
+                  onValueChange={(value) => setFormData({ ...formData, ship_to: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customerLocations.map((location) => (
+                      <SelectItem key={location.id} value={String(location.id)}>
+                        {location.code} - {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <Label>Notes</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Contract notes..."
+                  rows={3}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Customer</p>
+                <button
+                  onClick={() => navigate(`/customers/${contract.customer}`)}
+                  className="font-medium hover:underline"
+                >
+                  {contract.customer_name}
+                </button>
+              </div>
+              {contract.blanket_po && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Blanket PO</p>
+                  <p className="font-medium">{contract.blanket_po}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Issue Date</p>
+                <p className="font-medium">
+                  {new Date(contract.issue_date).toLocaleDateString()}
                 </p>
+              </div>
+              {contract.start_date && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Start Date</p>
+                  <p className="font-medium">
+                    {new Date(contract.start_date).toLocaleDateString()}
+                  </p>
+                </div>
               )}
               {contract.end_date && (
-                <p>
-                  <span className="text-muted-foreground">End:</span>{' '}
-                  {new Date(contract.end_date).toLocaleDateString()}
-                </p>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">End Date</p>
+                  <p className="font-medium">
+                    {new Date(contract.end_date).toLocaleDateString()}
+                  </p>
+                </div>
+              )}
+              {contract.ship_to_name && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Ship To</p>
+                  <p className="font-medium">{contract.ship_to_name}</p>
+                </div>
+              )}
+              {contract.notes && (
+                <div className="md:col-span-2 lg:col-span-4">
+                  <p className="text-sm text-muted-foreground mb-1">Notes</p>
+                  <p className="text-sm whitespace-pre-wrap">{contract.notes}</p>
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Notes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              {contract.notes || 'No notes'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Lines Table */}
       <Card>
@@ -441,6 +642,50 @@ export default function ContractDetail() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={activateDialogOpen}
+        onOpenChange={setActivateDialogOpen}
+        title="Activate Contract"
+        description="Activate this contract? It will become available for releases."
+        confirmLabel="Activate"
+        variant="default"
+        onConfirm={handleConfirmActivate}
+        loading={activateContract.isPending}
+      />
+
+      <ConfirmDialog
+        open={deactivateDialogOpen}
+        onOpenChange={setDeactivateDialogOpen}
+        title="Deactivate Contract"
+        description="Revert this contract to draft? It will no longer be available for releases."
+        confirmLabel="Deactivate"
+        variant="destructive"
+        onConfirm={handleConfirmDeactivate}
+        loading={deactivateContract.isPending}
+      />
+
+      <ConfirmDialog
+        open={completeDialogOpen}
+        onOpenChange={setCompleteDialogOpen}
+        title="Complete Contract"
+        description="Mark this contract as complete? This cannot be undone."
+        confirmLabel="Complete"
+        variant="default"
+        onConfirm={handleConfirmComplete}
+        loading={completeContract.isPending}
+      />
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        title="Cancel Contract"
+        description="Are you sure you want to cancel this contract? This action cannot be undone."
+        confirmLabel="Cancel Contract"
+        variant="destructive"
+        onConfirm={handleConfirmCancel}
+        loading={cancelContract.isPending}
+      />
     </div>
   )
 }

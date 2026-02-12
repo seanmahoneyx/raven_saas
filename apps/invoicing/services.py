@@ -446,6 +446,21 @@ class InvoicingService:
                     )
                     line_num += 10
 
+            # CREDIT: Freight income (if applicable)
+            if invoice.freight_amount and invoice.freight_amount > 0:
+                freight_acct = getattr(acct_settings, 'default_freight_income_account', None)
+                if freight_acct:
+                    JournalEntryLine.objects.create(
+                        tenant=self.tenant,
+                        entry=je,
+                        line_number=line_num,
+                        account=freight_acct,
+                        description=f"Freight - Invoice {invoice.invoice_number}",
+                        debit=Decimal('0.00'),
+                        credit=invoice.freight_amount,
+                    )
+                    line_num += 10
+
             # Verify the entry balances
             if not je.is_balanced:
                 raise ValidationError(
@@ -499,17 +514,93 @@ class InvoicingService:
 
     def write_off(self, invoice, reason=''):
         """
-        Write off an uncollectable invoice.
+        Write off an uncollectable invoice with GL journal entry.
+
+        Creates a balanced journal entry:
+        - DEBIT: Bad Debt Expense (or general expense)
+        - CREDIT: A/R account (remove receivable)
 
         Args:
             invoice: Invoice instance
             reason: Reason for write-off
         """
-        invoice.status = 'written_off'
-        if reason:
-            invoice.notes = f"{invoice.notes}\nWRITTEN OFF: {reason}".strip()
-        invoice.save()
-        return invoice
+        if invoice.status in ('draft', 'void', 'paid', 'written_off'):
+            raise ValidationError(
+                f"Cannot write off invoice with status '{invoice.status}'"
+            )
+
+        balance_due = invoice.total_amount - invoice.amount_paid
+        if balance_due <= 0:
+            raise ValidationError("Invoice has no outstanding balance to write off.")
+
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+
+        # Resolve A/R account
+        ar_account = (
+            invoice.ar_account
+            or getattr(invoice.customer, 'receivable_account', None)
+            or acct_settings.default_ar_account
+        )
+
+        # Resolve bad debt expense account (fall back to general COGS if no specific one)
+        bad_debt_account = getattr(acct_settings, 'default_bad_debt_account', None)
+        if not bad_debt_account:
+            # Fall back: look for an EXPENSE_OTHER account, or use COGS
+            from apps.accounting.models import Account, AccountType
+            bad_debt_account = Account.objects.filter(
+                tenant=self.tenant,
+                account_type=AccountType.EXPENSE_OTHER,
+                is_active=True,
+            ).first()
+        if not bad_debt_account:
+            bad_debt_account = acct_settings.default_cogs_account
+
+        with transaction.atomic():
+            if ar_account and bad_debt_account:
+                je_number = self._generate_writeoff_je_number()
+
+                je = JournalEntry.objects.create(
+                    tenant=self.tenant,
+                    entry_number=je_number,
+                    date=timezone.now().date(),
+                    memo=f"Write-off Invoice {invoice.invoice_number} - {reason or 'Uncollectable'}",
+                    reference_number=invoice.invoice_number,
+                    entry_type='standard',
+                    status='posted',
+                    source_type=ContentType.objects.get_for_model(Invoice),
+                    source_id=invoice.pk,
+                    posted_at=timezone.now(),
+                    posted_by=self.user,
+                    created_by=self.user,
+                )
+
+                # DEBIT: Bad Debt Expense
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=10,
+                    account=bad_debt_account,
+                    description=f"Bad debt write-off - {invoice.invoice_number}",
+                    debit=balance_due,
+                    credit=Decimal('0.00'),
+                )
+
+                # CREDIT: A/R (remove receivable)
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=20,
+                    account=ar_account,
+                    description=f"A/R write-off - {invoice.invoice_number}",
+                    debit=Decimal('0.00'),
+                    credit=balance_due,
+                )
+
+            invoice.status = 'written_off'
+            if reason:
+                invoice.notes = f"{invoice.notes}\nWRITTEN OFF: {reason}".strip()
+            invoice.save()
+            return invoice
 
     def check_overdue(self, invoice):
         """
@@ -672,23 +763,86 @@ class InvoicingService:
 
     def refund_payment(self, payment, reason=''):
         """
-        Reverse a payment (delete it).
+        Reverse a payment with GL journal entry.
+
+        Creates a reversing journal entry:
+        - DEBIT: A/R account (restore receivable)
+        - CREDIT: Bank/Cash account (money returned)
+
+        Then deletes the payment record and recalculates invoice totals.
 
         Args:
             payment: Payment instance
             reason: Reason for refund
         """
         invoice = payment.invoice
-        payment.delete()
 
-        # Recalculate amount paid
-        total_paid = invoice.payments.aggregate(
-            total=models.Sum('amount')
-        )['total'] or Decimal('0')
-        invoice.amount_paid = total_paid
-        invoice.save()
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
 
-        return invoice
+        # Resolve accounts (same as record_payment but reversed)
+        ar_account = (
+            invoice.ar_account
+            or getattr(invoice.customer, 'receivable_account', None)
+            or acct_settings.default_ar_account
+        )
+        bank_account = acct_settings.default_cash_account
+
+        with transaction.atomic():
+            if ar_account and bank_account:
+                je_number = self._generate_refund_je_number()
+
+                je = JournalEntry.objects.create(
+                    tenant=self.tenant,
+                    entry_number=je_number,
+                    date=timezone.now().date(),
+                    memo=f"Payment reversal - Invoice {invoice.invoice_number} - {reason or 'Refund'}",
+                    reference_number=payment.reference_number or invoice.invoice_number,
+                    entry_type='reversing',
+                    status='posted',
+                    posted_at=timezone.now(),
+                    posted_by=self.user,
+                    created_by=self.user,
+                )
+
+                # DEBIT: A/R (restore what customer owes)
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=10,
+                    account=ar_account,
+                    description=f"Payment reversal - {invoice.invoice_number}",
+                    debit=payment.amount,
+                    credit=Decimal('0.00'),
+                )
+
+                # CREDIT: Bank/Cash (money out)
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=20,
+                    account=bank_account,
+                    description=f"Payment reversal - {invoice.invoice_number}",
+                    debit=Decimal('0.00'),
+                    credit=payment.amount,
+                )
+
+            # Delete the payment
+            payment.delete()
+
+            # Recalculate amount paid
+            total_paid = invoice.payments.aggregate(
+                total=models.Sum('amount')
+            )['total'] or Decimal('0')
+            invoice.amount_paid = total_paid
+
+            # Update status based on remaining balance
+            if total_paid <= 0 and invoice.status == 'paid':
+                invoice.status = 'posted'
+            elif total_paid > 0 and total_paid < invoice.total_amount:
+                invoice.status = 'partial'
+
+            invoice.save()
+            return invoice
 
     # ===== QUERIES =====
 
@@ -801,6 +955,26 @@ class InvoicingService:
             entry_number__startswith=f"PMT-JE-{date_part}",
         ).count() + 1
         return f"PMT-JE-{date_part}-{count:05d}"
+
+    def _generate_writeoff_je_number(self):
+        """Generate unique journal entry number for write-offs."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"WO-JE-{date_part}",
+        ).count() + 1
+        return f"WO-JE-{date_part}-{count:05d}"
+
+    def _generate_refund_je_number(self):
+        """Generate unique journal entry number for payment reversals."""
+        from django.utils import timezone as tz
+        date_part = tz.now().strftime('%Y%m')
+        count = JournalEntry.objects.filter(
+            tenant=self.tenant,
+            entry_number__startswith=f"REF-JE-{date_part}",
+        ).count() + 1
+        return f"REF-JE-{date_part}-{count:05d}"
 
 
 class VendorBillService:
@@ -1239,3 +1413,155 @@ class VendorBillService:
             entry_number__startswith=f"BPMT-JE-{date_part}",
         ).count() + 1
         return f"BPMT-JE-{date_part}-{count:05d}"
+
+
+class DunningService:
+    """Service for managing dunning/collections workflow for overdue invoices."""
+
+    # Escalation rules: days_overdue -> dunning_status
+    ESCALATION_RULES = [
+        (30, 'first_notice'),
+        (60, 'second_notice'),
+        (90, 'final_notice'),
+        (120, 'collections'),
+    ]
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    def get_dunning_candidates(self, min_days_overdue=None):
+        """
+        Find overdue invoices eligible for dunning escalation.
+
+        Returns list of dicts with invoice info, days overdue, current dunning status,
+        and recommended next action.
+        """
+        from datetime import timedelta
+
+        today = timezone.now().date()
+        candidates = []
+
+        # Find all overdue/sent invoices with outstanding balance
+        overdue_invoices = Invoice.objects.filter(
+            tenant=self.tenant,
+            status__in=['sent', 'overdue', 'partial'],
+            due_date__lt=today,
+        ).select_related('customer__party').order_by('due_date')
+
+        for invoice in overdue_invoices:
+            days_overdue = (today - invoice.due_date).days
+
+            if min_days_overdue and days_overdue < min_days_overdue:
+                continue
+
+            # Determine recommended escalation
+            recommended_status = 'none'
+            for threshold, status_val in self.ESCALATION_RULES:
+                if days_overdue >= threshold:
+                    recommended_status = status_val
+
+            # Check if escalation is needed
+            current_level = self._dunning_level(invoice.dunning_status)
+            recommended_level = self._dunning_level(recommended_status)
+            needs_escalation = recommended_level > current_level
+
+            balance_due = invoice.balance_due if hasattr(invoice, 'balance_due') else str(
+                Decimal(invoice.total_amount) - Decimal(invoice.amount_paid)
+            )
+
+            candidates.append({
+                'invoice_id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'customer_id': invoice.customer_id,
+                'customer_name': invoice.customer.party.display_name,
+                'invoice_date': str(invoice.invoice_date),
+                'due_date': str(invoice.due_date),
+                'total_amount': str(invoice.total_amount),
+                'amount_paid': str(invoice.amount_paid),
+                'balance_due': str(balance_due),
+                'days_overdue': days_overdue,
+                'dunning_status': invoice.dunning_status,
+                'dunning_count': invoice.dunning_count,
+                'last_dunning_date': str(invoice.last_dunning_date) if invoice.last_dunning_date else None,
+                'recommended_action': recommended_status if needs_escalation else 'no_action',
+                'needs_escalation': needs_escalation,
+            })
+
+        # Sort by days_overdue descending (most overdue first)
+        candidates.sort(key=lambda c: c['days_overdue'], reverse=True)
+
+        return candidates
+
+    def send_dunning_notice(self, invoice, escalation_level=None):
+        """
+        Record a dunning notice on an invoice and escalate its status.
+
+        Args:
+            invoice: Invoice instance
+            escalation_level: Override dunning_status to set. If None, auto-escalates.
+
+        Returns:
+            dict with result
+        """
+        if escalation_level:
+            new_status = escalation_level
+        else:
+            # Auto-escalate to next level
+            current = self._dunning_level(invoice.dunning_status)
+            levels = ['none', 'first_notice', 'second_notice', 'final_notice', 'collections']
+            next_idx = min(current + 1, len(levels) - 1)
+            new_status = levels[next_idx]
+
+        invoice.dunning_status = new_status
+        invoice.dunning_count = (invoice.dunning_count or 0) + 1
+        invoice.last_dunning_date = timezone.now()
+
+        # Make sure invoice is marked overdue
+        if invoice.status == 'sent':
+            invoice.status = 'overdue'
+
+        invoice.save()
+
+        return {
+            'invoice_id': invoice.id,
+            'invoice_number': invoice.invoice_number,
+            'dunning_status': new_status,
+            'dunning_count': invoice.dunning_count,
+        }
+
+    def get_dunning_summary(self):
+        """
+        Get a summary of dunning status across all overdue invoices.
+
+        Returns dict with counts and totals by dunning_status.
+        """
+        from django.db.models import Count, Sum, Q
+        from datetime import timedelta
+
+        today = timezone.now().date()
+
+        summary = Invoice.objects.filter(
+            tenant=self.tenant,
+            status__in=['sent', 'overdue', 'partial'],
+            due_date__lt=today,
+        ).values('dunning_status').annotate(
+            count=Count('id'),
+            total_balance=Sum('total_amount') - Sum('amount_paid'),
+        ).order_by('dunning_status')
+
+        total_overdue = Invoice.objects.filter(
+            tenant=self.tenant,
+            status__in=['sent', 'overdue', 'partial'],
+            due_date__lt=today,
+        ).count()
+
+        return {
+            'total_overdue_invoices': total_overdue,
+            'by_status': list(summary),
+        }
+
+    def _dunning_level(self, status):
+        """Convert dunning status to numeric level for comparison."""
+        levels = {'none': 0, 'first_notice': 1, 'second_notice': 2, 'final_notice': 3, 'collections': 4}
+        return levels.get(status, 0)

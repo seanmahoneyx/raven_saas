@@ -95,3 +95,120 @@ class DesignRequestViewSet(viewsets.ModelViewSet):
             DesignRequestSerializer(design_request, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(tags=['design'], summary='List/create design request attachments')
+    @action(detail=True, methods=['get', 'post'])
+    def attachments(self, request, pk=None):
+        """List or create attachments for this design request."""
+        design_request = self.get_object()
+        from django.contrib.contenttypes.models import ContentType
+        from apps.documents.models import Attachment
+
+        ct = ContentType.objects.get_for_model(DesignRequest)
+
+        if request.method == 'GET':
+            atts = Attachment.objects.filter(
+                content_type=ct,
+                object_id=design_request.pk,
+            )
+            data = [{
+                'id': a.id,
+                'filename': a.filename,
+                'mime_type': a.mime_type,
+                'file_size': a.file_size,
+                'category': a.category,
+                'description': a.description,
+                'uploaded_by': a.uploaded_by_id,
+                'file_url': a.file.url if a.file else None,
+                'created_at': a.created_at.isoformat(),
+            } for a in atts]
+            return Response(data)
+
+        # POST - create attachment
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        attachment = Attachment.objects.create(
+            tenant=design_request.tenant,
+            content_type=ct,
+            object_id=design_request.pk,
+            file=file,
+            filename=file.name,
+            mime_type=file.content_type or '',
+            file_size=file.size,
+            category=request.data.get('category', 'document'),
+            description=request.data.get('description', ''),
+            uploaded_by=request.user if request.user.is_authenticated else None,
+        )
+
+        return Response({
+            'id': attachment.id,
+            'filename': attachment.filename,
+            'mime_type': attachment.mime_type,
+            'file_size': attachment.file_size,
+            'category': attachment.category,
+            'description': attachment.description,
+            'file_url': attachment.file.url,
+            'created_at': attachment.created_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+    @extend_schema(tags=['design'], summary='Delete a design request attachment')
+    @action(detail=True, methods=['delete'], url_path='attachments/(?P<attachment_id>[0-9]+)')
+    def delete_attachment(self, request, pk=None, attachment_id=None):
+        """Delete an attachment for this design request."""
+        design_request = self.get_object()
+        from django.contrib.contenttypes.models import ContentType
+        from apps.documents.models import Attachment
+
+        ct = ContentType.objects.get_for_model(DesignRequest)
+        try:
+            attachment = Attachment.objects.get(
+                id=attachment_id,
+                content_type=ct,
+                object_id=design_request.pk,
+            )
+            attachment.file.delete(save=False)
+            attachment.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Attachment.DoesNotExist:
+            return Response({'error': 'Attachment not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @extend_schema(
+        tags=['design'],
+        summary='Create estimate from design request',
+        request={
+            'type': 'object',
+            'properties': {
+                'quantity': {'type': 'integer', 'default': 1},
+                'unit_price': {'type': 'string'},
+                'notes': {'type': 'string'},
+            },
+        },
+        responses={201: {'type': 'object'}}
+    )
+    @action(detail=True, methods=['post'], url_path='create-estimate')
+    def create_estimate(self, request, pk=None):
+        """Create an estimate from this design request."""
+        design_request = self.get_object()
+
+        quantity = int(request.data.get('quantity', 1))
+        unit_price = request.data.get('unit_price')
+        notes = request.data.get('notes', '')
+
+        svc = DesignService(tenant=request.tenant, user=request.user)
+        try:
+            estimate = svc.create_estimate_from_design(
+                design_request=design_request,
+                quantity=quantity,
+                unit_price=unit_price,
+                notes=notes,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'id': estimate.id,
+            'estimate_number': estimate.estimate_number,
+            'message': f'Estimate {estimate.estimate_number} created from design {design_request.file_number}',
+        }, status=status.HTTP_201_CREATED)

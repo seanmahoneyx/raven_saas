@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, DollarSign } from 'lucide-react'
 import type { Customer } from '@/types/api'
+import { toast } from 'sonner'
 
 interface OpenInvoice {
   id: number
@@ -125,7 +126,7 @@ export default function ReceivePayment() {
     const amount = parseFloat(value) || 0
 
     if (amount > balance) {
-      window.alert(`Applied amount cannot exceed invoice balance of $${balance.toFixed(2)}`)
+      toast.error(`Applied amount cannot exceed invoice balance of $${balance.toFixed(2)}`)
       return
     }
 
@@ -170,11 +171,11 @@ export default function ReceivePayment() {
 
   const handleSaveDraft = async () => {
     if (!selectedCustomerId) {
-      window.alert('Please select a customer')
+      toast.error('Please select a customer')
       return
     }
     if (!amount || checkAmount <= 0) {
-      window.alert('Please enter a valid payment amount')
+      toast.error('Please enter a valid payment amount')
       return
     }
 
@@ -189,20 +190,20 @@ export default function ReceivePayment() {
       }
 
       await createDraft.mutateAsync(payload)
-      window.alert('Payment draft saved successfully')
+      toast.success('Payment draft saved successfully')
       navigate('/invoices')
     } catch (error: any) {
-      window.alert(`Error saving draft: ${error.response?.data?.detail || error.message}`)
+      toast.error(`Error saving draft: ${error.response?.data?.detail || error.message}`)
     }
   }
 
   const handlePostPayment = async () => {
     if (!selectedCustomerId) {
-      window.alert('Please select a customer')
+      toast.error('Please select a customer')
       return
     }
     if (!amount || checkAmount <= 0) {
-      window.alert('Please enter a valid payment amount')
+      toast.error('Please enter a valid payment amount')
       return
     }
 
@@ -215,12 +216,12 @@ export default function ReceivePayment() {
       }))
 
     if (applicationsList.length === 0) {
-      window.alert('Please apply the payment to at least one invoice')
+      toast.error('Please apply the payment to at least one invoice')
       return
     }
 
     if (totalApplied > checkAmount) {
-      window.alert('Total applied amount cannot exceed payment amount')
+      toast.error('Total applied amount cannot exceed payment amount')
       return
     }
 
@@ -243,10 +244,10 @@ export default function ReceivePayment() {
         applications: applicationsList,
       })
 
-      window.alert('Payment posted successfully')
+      toast.success('Payment posted successfully')
       navigate('/invoices')
     } catch (error: any) {
-      window.alert(`Error posting payment: ${error.response?.data?.detail || error.message}`)
+      toast.error(`Error posting payment: ${error.response?.data?.detail || error.message}`)
     }
   }
 

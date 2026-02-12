@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Calendar, ChevronDown, ChevronRight, Filter, Package } from 'lucide-react'
@@ -25,7 +26,8 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 const openStatuses: OrderStatus[] = ['draft', 'confirmed', 'scheduled', 'picking', 'shipped', 'crossdock']
 
 export default function OpenPurchaseOrders() {
-  usePageTitle('Open Purchase Orders')
+  usePageTitle('Purchase Orders')
+  const navigate = useNavigate()
 
   const { data: ordersData } = usePurchaseOrders()
   const [searchTerm, setSearchTerm] = useState('')
@@ -199,7 +201,7 @@ export default function OpenPurchaseOrders() {
     <div className="p-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Open Purchase Orders</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Purchase Orders</h1>
         <p className="text-muted-foreground">
           View all open purchase orders grouped by vendor
         </p>
@@ -362,7 +364,11 @@ export default function OpenPurchaseOrders() {
                   </CardHeader>
                   {isExpanded && (
                     <CardContent>
-                      <DataTable columns={columns} data={orders} />
+                      <DataTable
+                        columns={columns}
+                        data={orders}
+                        onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
+                      />
                     </CardContent>
                   )}
                 </Card>

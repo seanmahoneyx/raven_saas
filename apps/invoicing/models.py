@@ -198,6 +198,31 @@ class Invoice(TenantMixin, TimestampMixin):
         help_text="Notes to appear on invoice"
     )
 
+    # Dunning / Collections
+    DUNNING_STATUS_CHOICES = [
+        ('none', 'None'),
+        ('first_notice', 'First Notice'),
+        ('second_notice', 'Second Notice'),
+        ('final_notice', 'Final Notice'),
+        ('collections', 'Collections'),
+    ]
+
+    dunning_status = models.CharField(
+        max_length=20,
+        choices=DUNNING_STATUS_CHOICES,
+        default='none',
+        help_text="Current dunning escalation level"
+    )
+    last_dunning_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the last dunning notice was sent"
+    )
+    dunning_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of dunning notices sent"
+    )
+
     # Audit trail
     history = HistoricalRecords()
 

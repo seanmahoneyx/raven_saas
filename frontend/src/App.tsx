@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { AuthProvider } from '@/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/sonner'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import Login from '@/pages/Login'
@@ -25,19 +26,34 @@ import CreateCustomer from '@/pages/CreateCustomer'
 import CreateVendor from '@/pages/CreateVendor'
 import DesignRequests from '@/pages/DesignRequests'
 import CreateDesignRequest from '@/pages/CreateDesignRequest'
+import DesignRequestDetail from '@/pages/DesignRequestDetail'
 import ItemDetail from '@/pages/ItemDetail'
+import CustomerDetail from '@/pages/CustomerDetail'
+import VendorDetail from '@/pages/VendorDetail'
 import CreateItem from '@/pages/CreateItem'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import Estimates from '@/pages/Estimates'
 import CreateEstimate from '@/pages/CreateEstimate'
+import EstimateDetail from '@/pages/EstimateDetail'
 import CreateContract from '@/pages/CreateContract'
 import CreateSalesOrder from '@/pages/CreateSalesOrder'
 import CreatePurchaseOrder from '@/pages/CreatePurchaseOrder'
 import CreateRFQ from '@/pages/CreateRFQ'
 import CreatePriceList from '@/pages/CreatePriceList'
+import RFQs from '@/pages/RFQs'
+import RFQDetail from '@/pages/RFQDetail'
+import PriceLists from '@/pages/PriceLists'
+import PriceListDetail from '@/pages/PriceListDetail'
 import OpenSalesOrders from '@/pages/OpenSalesOrders'
 import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
+import SalesOrderDetail from '@/pages/SalesOrderDetail'
+import PurchaseOrderDetail from '@/pages/PurchaseOrderDetail'
 import DataImport from '@/pages/admin/DataImport'
+import ChartOfAccounts from '@/pages/ChartOfAccounts'
+import JournalEntries from '@/pages/JournalEntries'
+import CreateJournalEntry from '@/pages/CreateJournalEntry'
+import JournalEntryDetail from '@/pages/JournalEntryDetail'
+import Settings from '@/pages/Settings'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -85,8 +101,10 @@ function App() {
               <Route path="/trucks" element={<Trucks />} />
               <Route path="/customers/open-orders" element={<OpenSalesOrders />} />
               <Route path="/customers/new" element={<CreateCustomer />} />
+              <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/vendors/open-orders" element={<OpenPurchaseOrders />} />
               <Route path="/vendors/new" element={<CreateVendor />} />
+              <Route path="/vendors/:id" element={<VendorDetail />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/:id" element={<ContractDetail />} />
               <Route path="/items" element={<Items />} />
@@ -94,12 +112,19 @@ function App() {
               <Route path="/items/:id" element={<ItemDetail />} />
               <Route path="/estimates" element={<Estimates />} />
               <Route path="/estimates/new" element={<CreateEstimate />} />
+              <Route path="/estimates/:id" element={<EstimateDetail />} />
               <Route path="/contracts/new" element={<CreateContract />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/sales/new" element={<CreateSalesOrder />} />
               <Route path="/orders/purchase/new" element={<CreatePurchaseOrder />} />
+              <Route path="/orders/sales/:id" element={<SalesOrderDetail />} />
+              <Route path="/orders/purchase/:id" element={<PurchaseOrderDetail />} />
+              <Route path="/rfqs" element={<RFQs />} />
               <Route path="/rfqs/new" element={<CreateRFQ />} />
+              <Route path="/rfqs/:id" element={<RFQDetail />} />
+              <Route path="/price-lists" element={<PriceLists />} />
               <Route path="/price-lists/new" element={<CreatePriceList />} />
+              <Route path="/price-lists/:id" element={<PriceListDetail />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/shipping" element={<Shipping />} />
               <Route path="/invoices" element={<Invoices />} />
@@ -110,11 +135,17 @@ function App() {
               <Route path="/priority-list" element={<PriorityList />} />
               <Route path="/design-requests" element={<DesignRequests />} />
               <Route path="/design-requests/new" element={<CreateDesignRequest />} />
-              <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+              <Route path="/design-requests/:id" element={<DesignRequestDetail />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/admin/import" element={<DataImport />} />
+              <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
+              <Route path="/journal-entries" element={<JournalEntries />} />
+              <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
+              <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
             </Route>
             </Routes>
           </BrowserRouter>
+          <Toaster />
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

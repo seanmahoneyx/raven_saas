@@ -31,6 +31,8 @@ class CustomerSerializer(TenantModelSerializer):
     open_sales_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
     open_order_count = serializers.IntegerField(read_only=True, default=0)
     next_expected_delivery = serializers.DateField(read_only=True, allow_null=True, default=None)
+    overdue_balance = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
+    active_estimate_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Customer
@@ -39,6 +41,7 @@ class CustomerSerializer(TenantModelSerializer):
             'payment_terms', 'default_ship_to', 'default_bill_to',
             'sales_rep',
             'open_sales_total', 'open_order_count', 'next_expected_delivery',
+            'overdue_balance', 'active_estimate_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -51,6 +54,8 @@ class VendorSerializer(TenantModelSerializer):
     open_po_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
     open_po_count = serializers.IntegerField(read_only=True, default=0)
     next_incoming = serializers.DateField(read_only=True, allow_null=True, default=None)
+    overdue_bill_balance = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
+    active_rfq_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Vendor
@@ -58,6 +63,7 @@ class VendorSerializer(TenantModelSerializer):
             'id', 'party', 'party_display_name', 'party_code',
             'payment_terms', 'default_ship_from', 'buyer',
             'open_po_total', 'open_po_count', 'next_incoming',
+            'overdue_bill_balance', 'active_rfq_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']

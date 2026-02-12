@@ -127,3 +127,82 @@ export function useDeletePurchaseOrder() {
     },
   })
 }
+
+// ==================== Sales Order Status Actions ====================
+
+export function useConfirmSalesOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<SalesOrder>(`/sales-orders/${id}/confirm/`)
+      return data
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders', id] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
+}
+
+export function useCancelSalesOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<SalesOrder>(`/sales-orders/${id}/cancel/`)
+      return data
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders', id] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
+}
+
+// ==================== Purchase Order Status Actions ====================
+
+export function useConfirmPurchaseOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<PurchaseOrder>(`/purchase-orders/${id}/confirm/`)
+      return data
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders', id] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
+}
+
+export function useCancelPurchaseOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<PurchaseOrder>(`/purchase-orders/${id}/cancel/`)
+      return data
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders', id] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
+}
+
+export function useReceivePurchaseOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, lines }: { id: number; lines?: Array<{ line_id: number; quantity: number; unit_cost?: string }> }) => {
+      const { data } = await api.post(`/purchase-orders/${id}/receive/`, { lines })
+      return data
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders', variables.id] })
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+    },
+  })
+}
