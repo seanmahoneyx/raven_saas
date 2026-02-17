@@ -33,3 +33,9 @@ channels-redis>=4.2,<5.0
 
 # PDF Generation
 weasyprint>=62.0,<63.0
+
+# Barcode generation
+python-barcode>=0.15,<1.0
+
+# Production ASGI/WSGI server
+gunicorn>=22.0,<24.0

@@ -1,12 +1,13 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { AuthProvider } from '@/hooks/useAuth'
+import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
+import { useOnboardingStatus } from '@/api/onboarding'
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Scheduler from '@/pages/Scheduler'
@@ -62,6 +63,7 @@ import CycleCounts from '@/pages/warehouse/CycleCounts'
 import PrintLabels from '@/pages/warehouse/PrintLabels'
 import Settings from '@/pages/Settings'
 import Preferences from '@/pages/settings/Preferences'
+import Onboarding from '@/pages/Onboarding'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -72,6 +74,25 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Guard: redirect authenticated users who haven't completed onboarding
+function OnboardingGuard({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { data: onboardingStatus, isLoading: onboardingLoading } = useOnboardingStatus()
+  const location = useLocation()
+
+  if (authLoading || onboardingLoading) return null
+
+  // Only redirect if authenticated and onboarding not complete
+  if (isAuthenticated && onboardingStatus && !onboardingStatus.onboarding_completed) {
+    // Don't redirect if already on the onboarding page
+    if (location.pathname !== '/onboarding') {
+      return <Navigate to="/onboarding" replace />
+    }
+  }
+
+  return <>{children}</>
+}
 
 // Placeholder pages
 function PlaceholderPage({ title }: { title: string }) {
@@ -96,11 +117,23 @@ function App() {
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
 
+              {/* Onboarding - protected but outside MainLayout */}
+              <Route
+                path="/onboarding"
+                element={
+                  <ProtectedRoute>
+                    <Onboarding />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* Protected routes */}
               <Route
                 element={
                   <ProtectedRoute>
-                    <MainLayout />
+                    <OnboardingGuard>
+                      <MainLayout />
+                    </OnboardingGuard>
                   </ProtectedRoute>
                 }
               >

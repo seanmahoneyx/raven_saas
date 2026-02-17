@@ -295,6 +295,30 @@ class InventoryService:
                 credit=total_cost,
             )
 
+            # Broadcast inventory change via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_inventory_change, broadcast_inventory_lot_update
+                balance = self._get_or_create_balance(item, warehouse)
+                broadcast_inventory_change(
+                    tenant_id=self.tenant.pk,
+                    item_id=item.pk,
+                    warehouse_id=warehouse.pk,
+                    new_balance={
+                        'on_hand': balance.on_hand,
+                        'allocated': balance.allocated,
+                        'on_order': balance.on_order,
+                    },
+                    transaction_type='RECEIPT',
+                )
+                broadcast_inventory_lot_update(
+                    tenant_id=self.tenant.pk,
+                    lot_id=lot.pk,
+                    item_id=item.pk,
+                    action='created',
+                )
+            except Exception:
+                pass  # Never break the main flow
+
             return lot, pallets, layer
 
     # ===== ALLOCATION =====
@@ -517,6 +541,23 @@ class InventoryService:
                 notes=reason or f"Manual adjustment: {quantity_change:+d}",
                 balance=balance,
             )
+
+            # Broadcast inventory change via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_inventory_change
+                broadcast_inventory_change(
+                    tenant_id=self.tenant.pk,
+                    item_id=item.pk,
+                    warehouse_id=warehouse.pk,
+                    new_balance={
+                        'on_hand': balance.on_hand,
+                        'allocated': balance.allocated,
+                        'on_order': balance.on_order,
+                    },
+                    transaction_type='ADJUST',
+                )
+            except Exception:
+                pass  # Never break the main flow
 
             # Create GL journal entry if accounts are configured
             if asset_account and expense_account and quantity_change != 0:
@@ -762,6 +803,24 @@ class InventoryService:
                 debit=Decimal('0.00'),
                 credit=total_cogs,
             )
+
+            # Broadcast inventory change via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_inventory_change
+                updated_balance = self._get_or_create_balance(item, warehouse)
+                broadcast_inventory_change(
+                    tenant_id=self.tenant.pk,
+                    item_id=item.pk,
+                    warehouse_id=warehouse.pk,
+                    new_balance={
+                        'on_hand': updated_balance.on_hand,
+                        'allocated': updated_balance.allocated,
+                        'on_order': updated_balance.on_order,
+                    },
+                    transaction_type='SHIP',
+                )
+            except Exception:
+                pass  # Never break the main flow
 
             return {
                 'layers_consumed': layers_consumed,

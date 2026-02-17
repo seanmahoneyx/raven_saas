@@ -353,22 +353,23 @@ class Invoice(TenantMixin, TimestampMixin):
         )
 
     def save(self, *args, **kwargs):
-        # Immutability guard: posted/paid invoices cannot be modified
-        # (except for status transitions and amount_paid updates)
         if self.pk:
+            # Update status based on payment BEFORE guard check
+            if self.amount_paid >= self.total_amount and self.total_amount > 0:
+                self.status = 'paid'
+            elif self.amount_paid > 0 and self.status in ('posted', 'sent', 'overdue'):
+                self.status = 'partial'
+
+            # Immutability guard: posted/paid invoices cannot be modified
+            # (except for status transitions and amount_paid updates)
             try:
                 original = Invoice.objects.get(pk=self.pk)
-                if original.status in ('posted', 'paid') and self.status not in ('paid', 'partial', 'void', 'written_off'):
+                if original.status in ('posted', 'paid') and self.status not in ('posted', 'paid', 'partial', 'void', 'written_off'):
                     raise ValidationError(
                         "Posted/paid invoices cannot be modified. Void and recreate instead."
                     )
             except Invoice.DoesNotExist:
                 pass
-            # Update status based on payment
-            if self.amount_paid >= self.total_amount and self.total_amount > 0:
-                self.status = 'paid'
-            elif self.amount_paid > 0 and self.status in ('posted', 'sent', 'overdue'):
-                self.status = 'partial'
         super().save(*args, **kwargs)
 
 
@@ -674,21 +675,22 @@ class VendorBill(TenantMixin, TimestampMixin):
         self.total_amount = self.subtotal + self.tax_amount
 
     def save(self, *args, **kwargs):
-        # Immutability guard: posted/paid bills cannot be modified
         if self.pk:
+            # Update status based on payment BEFORE guard check
+            if self.amount_paid >= self.total_amount and self.total_amount > 0:
+                self.status = 'paid'
+            elif self.amount_paid > 0 and self.status in ('posted',):
+                self.status = 'partial'
+
+            # Immutability guard: posted/paid bills cannot be modified
             try:
                 original = VendorBill.objects.get(pk=self.pk)
-                if original.status in ('posted', 'paid') and self.status not in ('paid', 'partial', 'void'):
+                if original.status in ('posted', 'paid') and self.status not in ('posted', 'paid', 'partial', 'void'):
                     raise ValidationError(
                         "Posted/paid bills cannot be modified. Void and recreate instead."
                     )
             except VendorBill.DoesNotExist:
                 pass
-            # Update status based on payment
-            if self.amount_paid >= self.total_amount and self.total_amount > 0:
-                self.status = 'paid'
-            elif self.amount_paid > 0 and self.status in ('posted',):
-                self.status = 'partial'
         super().save(*args, **kwargs)
 
 

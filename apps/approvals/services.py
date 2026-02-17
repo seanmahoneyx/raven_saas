@@ -112,13 +112,15 @@ class ApprovalService:
             return latest_po_line.unit_cost
 
         # Fallback: check cost lists
-        from apps.costing.models import CostListLine
-        cost_line = CostListLine.objects.filter(
-            item=item, cost_list__is_active=True
-        ).order_by('-cost_list__effective_date').first()
+        from apps.costing.models import CostListHead
+        cost_list = CostListHead.objects.filter(
+            item=item, is_active=True
+        ).order_by('-begin_date').first()
 
-        if cost_line:
-            return cost_line.unit_cost
+        if cost_list:
+            cost_line = cost_list.lines.order_by('min_quantity').first()
+            if cost_line:
+                return cost_line.unit_cost
 
         return Decimal('0')
 

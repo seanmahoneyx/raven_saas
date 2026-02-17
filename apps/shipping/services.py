@@ -209,6 +209,18 @@ class ShippingService:
             delivery_status='loaded'
         )
 
+        # Broadcast shipment update via WebSocket
+        try:
+            from apps.api.ws_signals import broadcast_shipment_update
+            broadcast_shipment_update(
+                tenant_id=self.tenant.pk,
+                shipment_id=shipment.pk,
+                status='in_transit',
+                data={'shipment_number': shipment.shipment_number},
+            )
+        except Exception:
+            pass  # Never break the main flow
+
         return shipment
 
     def complete_shipment(self, shipment, arrival_time=None):
@@ -236,6 +248,17 @@ class ShippingService:
             )
         except Exception:
             pass  # Don't let notification failures break shipment flow
+
+        # Broadcast shipment delivery via WebSocket
+        try:
+            from apps.api.ws_signals import broadcast_shipment_delivered
+            broadcast_shipment_delivered(
+                tenant_id=self.tenant.pk,
+                shipment_id=shipment.pk,
+                shipment_number=shipment.shipment_number,
+            )
+        except Exception:
+            pass  # Never break the main flow
 
         return shipment
 
@@ -285,6 +308,22 @@ class ShippingService:
         sales_order = shipment_line.sales_order
         sales_order.status = 'shipped'
         sales_order.save()
+
+        # Broadcast shipment line delivery via WebSocket
+        try:
+            from apps.api.ws_signals import broadcast_shipment_update
+            broadcast_shipment_update(
+                tenant_id=self.tenant.pk,
+                shipment_id=shipment_line.shipment.pk,
+                status='line_delivered',
+                data={
+                    'shipment_number': shipment_line.shipment.shipment_number,
+                    'sales_order_id': sales_order.pk,
+                    'order_number': sales_order.order_number,
+                },
+            )
+        except Exception:
+            pass  # Never break the main flow
 
         # Deduct inventory (FIFO COGS) for each SO line
         try:

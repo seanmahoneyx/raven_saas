@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useOrderSync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2, FileDown, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive'
 
 export default function Orders() {
   usePageTitle('Orders')
+  useOrderSync()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 

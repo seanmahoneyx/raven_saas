@@ -4,8 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, FileDown, Mail, Send, Ban, DollarSign, Calendar,
-  Hash, MapPin, FileText,
+  Hash, MapPin, FileText, Paperclip,
 } from 'lucide-react'
+import FileUpload from '@/components/common/FileUpload'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +82,7 @@ const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'o
   void: 'secondary',
 }
 
-type TabType = 'lines' | 'payments' | 'audit'
+type TabType = 'lines' | 'payments' | 'audit' | 'attachments'
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -144,6 +145,7 @@ export default function InvoiceDetailPage() {
   const tabs = [
     { id: 'lines' as TabType, label: 'Lines', icon: Hash },
     { id: 'payments' as TabType, label: 'Payments', icon: DollarSign },
+    { id: 'attachments' as TabType, label: 'Attachments', icon: Paperclip },
     { id: 'audit' as TabType, label: 'Audit History', icon: FileText },
   ]
 
@@ -444,6 +446,15 @@ export default function InvoiceDetailPage() {
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Attachments Tab */}
+      {activeTab === 'attachments' && (
+        <Card>
+          <CardContent className="pt-4">
+            <FileUpload appLabel="invoicing" modelName="invoice" objectId={invoiceId} />
           </CardContent>
         </Card>
       )}

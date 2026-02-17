@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip } from 'lucide-react'
+import FileUpload from '@/components/common/FileUpload'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +22,7 @@ import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
-type Tab = 'history' | 'vendors' | 'audit'
+type Tab = 'history' | 'vendors' | 'audit' | 'attachments'
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -132,6 +133,7 @@ export default function ItemDetail() {
   const tabs = [
     { id: 'history' as Tab, label: 'Transaction History', icon: History },
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
+    { id: 'attachments' as Tab, label: 'Attachments', icon: Paperclip },
     { id: 'audit' as Tab, label: 'Audit History', icon: FileText },
   ]
 
@@ -462,6 +464,7 @@ export default function ItemDetail() {
         </CardHeader>
         <CardContent>
           {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
+          {activeTab === 'attachments' && <FileUpload appLabel="items" modelName="item" objectId={itemId} />}
           {activeTab === 'audit' && <FieldHistoryTab modelType="item" objectId={itemId} />}
           {activeTab === 'vendors' && (
             <div>

@@ -237,6 +237,19 @@ class OrderService:
                     except ValidationError:
                         pass  # Skip if insufficient - confirm without allocation
 
+            # Broadcast order update via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_order_update
+                broadcast_order_update(
+                    tenant_id=self.tenant.pk,
+                    order_type='sales_order',
+                    order_id=sales_order.pk,
+                    status='confirmed',
+                    data={'order_number': sales_order.order_number},
+                )
+            except Exception:
+                pass  # Never break the main flow
+
             return sales_order
 
     def cancel_sales_order(self, sales_order):
@@ -266,6 +279,20 @@ class OrderService:
 
             sales_order.status = 'cancelled'
             sales_order.save()
+
+            # Broadcast order update via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_order_update
+                broadcast_order_update(
+                    tenant_id=self.tenant.pk,
+                    order_type='sales_order',
+                    order_id=sales_order.pk,
+                    status='cancelled',
+                    data={'order_number': sales_order.order_number},
+                )
+            except Exception:
+                pass  # Never break the main flow
+
             return sales_order
 
     def complete_sales_order(self, sales_order):
@@ -297,6 +324,19 @@ class OrderService:
                         quantity=line.quantity_ordered,
                         purchase_order=purchase_order,
                     )
+
+            # Broadcast order update via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_order_update
+                broadcast_order_update(
+                    tenant_id=self.tenant.pk,
+                    order_type='purchase_order',
+                    order_id=purchase_order.pk,
+                    status='confirmed',
+                    data={'order_number': purchase_order.po_number},
+                )
+            except Exception:
+                pass  # Never break the main flow
 
             return purchase_order
 
@@ -446,6 +486,19 @@ class OrderService:
                 vendor_bill = bill
             except Exception:
                 pass  # Don't block PO receive if bill creation fails
+
+        # Broadcast order update via WebSocket
+        try:
+            from apps.api.ws_signals import broadcast_order_update
+            broadcast_order_update(
+                tenant_id=self.tenant.pk,
+                order_type='purchase_order',
+                order_id=purchase_order.pk,
+                status='complete',
+                data={'order_number': purchase_order.po_number},
+            )
+        except Exception:
+            pass  # Never break the main flow
 
         return {
             'lots_created': lots_created,

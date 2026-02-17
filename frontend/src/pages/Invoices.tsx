@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useInvoiceSync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, FileText, CreditCard, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ const invoiceStatusVariant: Record<string, 'default' | 'secondary' | 'destructiv
 
 export default function Invoices() {
   usePageTitle('Invoices')
+  useInvoiceSync()
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices')

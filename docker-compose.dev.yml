@@ -1,0 +1,107 @@
+# =============================================================================
+# Raven SaaS - Development Docker Compose Overrides
+# =============================================================================
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# This overrides production settings for local development:
+#   - Mounts source code for hot reload
+#   - Uses Django dev server instead of Gunicorn
+#   - Runs Vite dev server with HMR
+#   - Enables DEBUG mode
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Django dev server (replaces Gunicorn)
+  # ---------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      target: backend-builder
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "True"
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: raven_db
+      DB_USER: raven
+      DB_PASSWORD: raven_dev_password
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: django-insecure-dev-only-DO-NOT-USE-IN-PRODUCTION
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # Daphne dev (WebSocket)
+  # ---------------------------------------------------------------------------
+  websocket:
+    build:
+      context: .
+      target: backend-builder
+    command: daphne -b 0.0.0.0 -p 8001 raven.asgi:application
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    ports:
+      - "8001:8001"
+    environment:
+      DEBUG: "True"
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: raven_db
+      DB_USER: raven
+      DB_PASSWORD: raven_dev_password
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: django-insecure-dev-only-DO-NOT-USE-IN-PRODUCTION
+
+  # ---------------------------------------------------------------------------
+  # Vite dev server with HMR
+  # ---------------------------------------------------------------------------
+  frontend:
+    image: node:20-alpine
+    working_dir: /app/frontend
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      NODE_ENV: development
+
+  # ---------------------------------------------------------------------------
+  # DB (dev-friendly defaults)
+  # ---------------------------------------------------------------------------
+  db:
+    environment:
+      POSTGRES_DB: raven_db
+      POSTGRES_USER: raven
+      POSTGRES_PASSWORD: raven_dev_password
+    ports:
+      - "5432:5432"
+
+  # ---------------------------------------------------------------------------
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    ports:
+      - "6379:6379"
+
+  # ---------------------------------------------------------------------------
+  # Disable nginx in dev (Vite handles frontend, Django handles API)
+  # ---------------------------------------------------------------------------
+  nginx:
+    profiles:
+      - production-only

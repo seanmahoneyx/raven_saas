@@ -10,6 +10,15 @@ Models:
 from django.db import models, transaction
 
 
+INDUSTRY_CHOICES = [
+    ('manufacturing', 'Manufacturing'),
+    ('distribution', 'Distribution'),
+    ('corrugated', 'Corrugated Packaging'),
+    ('food_beverage', 'Food & Beverage'),
+    ('other', 'Other'),
+]
+
+
 class Tenant(models.Model):
     """
     Represents a single tenant (customer company) in the SaaS system.
@@ -30,6 +39,40 @@ class Tenant(models.Model):
         default=False,
         help_text="Default tenant for development (only one should be default)"
     )
+
+    # Onboarding tracking
+    onboarding_completed = models.BooleanField(
+        default=False,
+        help_text="Whether the tenant has completed onboarding"
+    )
+    onboarding_step = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Current onboarding step (0=not started, 1-4=in progress, 5=complete)"
+    )
+
+    # Company details collected during onboarding
+    company_address = models.TextField(
+        blank=True,
+        help_text="Full company address"
+    )
+    company_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Main company phone number"
+    )
+    company_logo = models.ImageField(
+        upload_to='logos/',
+        blank=True,
+        null=True,
+        help_text="Company logo"
+    )
+    industry = models.CharField(
+        max_length=50,
+        blank=True,
+        choices=INDUSTRY_CHOICES,
+        help_text="Industry sector"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

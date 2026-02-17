@@ -4,6 +4,7 @@ import { Bell, Check, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNotifications, useMarkNotificationsRead, type Notification } from '@/api/notifications'
+import { useNotificationSync } from '@/hooks/useRealtimeSync'
 import { formatDistanceToNow } from 'date-fns'
 
 const typeColors: Record<string, string> = {
@@ -19,6 +20,7 @@ export default function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null)
   const { data } = useNotifications()
   const markRead = useMarkNotificationsRead()
+  useNotificationSync() // Real-time WebSocket updates for notification bell
 
   const unreadCount = data?.unread_count || 0
   const notifications = data?.notifications || []

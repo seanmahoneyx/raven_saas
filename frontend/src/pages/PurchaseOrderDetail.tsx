@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, Pencil, Calendar, MapPin, Package, DollarSign, Hash, Clock,
-  Printer, Save, X, Mail,
+  Printer, Save, X, Mail, Paperclip,
 } from 'lucide-react'
+import FileUpload from '@/components/common/FileUpload'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -345,6 +346,19 @@ export default function PurchaseOrderDetail() {
               )}
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Attachments */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Paperclip className="h-4 w-4" />
+            Attachments
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FileUpload appLabel="orders" modelName="purchaseorder" objectId={purchaseOrderId} />
         </CardContent>
       </Card>
 

@@ -493,6 +493,18 @@ class InvoicingService:
             # Refresh in-memory object
             invoice.refresh_from_db()
 
+            # Broadcast invoice update via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_invoice_update
+                broadcast_invoice_update(
+                    tenant_id=self.tenant.pk,
+                    invoice_id=invoice.pk,
+                    status='posted',
+                    data={'invoice_number': invoice.invoice_number},
+                )
+            except Exception:
+                pass  # Never break the main flow
+
             return invoice
 
     def mark_sent(self, invoice):
@@ -524,6 +536,19 @@ class InvoicingService:
         if reason:
             invoice.notes = f"{invoice.notes}\nVOIDED: {reason}".strip()
         invoice.save()
+
+        # Broadcast invoice update via WebSocket
+        try:
+            from apps.api.ws_signals import broadcast_invoice_update
+            broadcast_invoice_update(
+                tenant_id=self.tenant.pk,
+                invoice_id=invoice.pk,
+                status='void',
+                data={'invoice_number': invoice.invoice_number},
+            )
+        except Exception:
+            pass  # Never break the main flow
+
         return invoice
 
     def write_off(self, invoice, reason=''):
@@ -784,6 +809,20 @@ class InvoicingService:
             je.source_id = payment.pk
             je.source_type = ContentType.objects.get_for_model(Payment)
             je.save(update_fields=['source_id', 'source_type'])
+
+            # Broadcast payment received via WebSocket
+            try:
+                from apps.api.ws_signals import broadcast_invoice_payment
+                invoice.refresh_from_db()
+                broadcast_invoice_payment(
+                    tenant_id=self.tenant.pk,
+                    invoice_id=invoice.pk,
+                    invoice_number=invoice.invoice_number,
+                    amount=amount,
+                    new_status=invoice.status,
+                )
+            except Exception:
+                pass  # Never break the main flow
 
             return payment
 

@@ -3,6 +3,7 @@ Design module services.
 
 DesignService: Handles design request lifecycle and promotion to Item catalog.
 """
+from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
@@ -189,7 +190,7 @@ class DesignService:
             item=item,
             quantity=quantity,
             uom=item.base_uom,
-            unit_price=unit_price or '0.00',
+            unit_price=unit_price or Decimal('0.00'),
             notes=f"Item from design {design_request.file_number}",
         )
 

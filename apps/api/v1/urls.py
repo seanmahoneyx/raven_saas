@@ -89,6 +89,15 @@ from .views.canned_reports import (
     InventoryValuationView, StockStatusView, LowStockAlertView, DeadStockView,
     SalesTaxLiabilityView, GrossMarginReportView,
 )
+from .views.health import health_check
+from .views.onboarding import (
+    OnboardingStatusView,
+    OnboardingCompanyView,
+    OnboardingWarehouseView,
+    OnboardingUoMView,
+    OnboardingInviteView,
+    OnboardingCompleteView,
+)
 
 # Create router and register viewsets
 router = DefaultRouter()
@@ -290,6 +299,17 @@ urlpatterns = [
     path('reports/dead-stock/', DeadStockView.as_view(), name='report-dead-stock'),
     path('reports/sales-tax-liability/', SalesTaxLiabilityView.as_view(), name='report-sales-tax-liability'),
     path('reports/gross-margin-detail/', GrossMarginReportView.as_view(), name='report-gross-margin-detail'),
+
+    # Onboarding wizard
+    path('onboarding/status/', OnboardingStatusView.as_view(), name='onboarding-status'),
+    path('onboarding/company/', OnboardingCompanyView.as_view(), name='onboarding-company'),
+    path('onboarding/warehouse/', OnboardingWarehouseView.as_view(), name='onboarding-warehouse'),
+    path('onboarding/uom/', OnboardingUoMView.as_view(), name='onboarding-uom'),
+    path('onboarding/invite/', OnboardingInviteView.as_view(), name='onboarding-invite'),
+    path('onboarding/complete/', OnboardingCompleteView.as_view(), name='onboarding-complete'),
+
+    # Health check (no auth required - used by load balancers)
+    path('health/', health_check, name='health-check'),
 
     # Router URLs (all ViewSets)
     path('', include(router.urls)),

@@ -1,0 +1,62 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+venv/
+.venv/
+*.egg
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dev files
+db.sqlite3
+.env
+*.sqlite3
+
+# Claude / OMC state
+.omc/
+.claude/
+.playwright-mcp/
+
+# Test / CI
+.github/
+playwright-report/
+test-results/
+blob-report/
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Documentation (not needed in image)
+*.md
+!deploy/digitalocean/README.md
+
+# Docker (don't recurse)
+Dockerfile
+docker-compose*.yml
+
+# Media (mounted as volume, not baked in)
+media/
+
+# Temp files
+*_context.txt
+*_debug_context.txt
+nul
+response.txt

@@ -175,14 +175,22 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (user uploads, generated PDFs)
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Email (console backend for development, override in production)
+# Email (console backend for development, SMTP in production)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@ravensaas.com')
+
+if not DEBUG:
+    EMAIL_HOST = config('EMAIL_HOST', default='')
+    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+    EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -259,14 +267,23 @@ SPECTACULAR_SETTINGS = {
 }
 
 # CORS Configuration (for React frontend)
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:5173',  # Vite default
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:5173',
-]
+_cors_env = config('CORS_ALLOWED_ORIGINS', default='')
+if _cors_env:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _cors_env.split(',') if origin.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://localhost:5173',  # Vite default
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF trusted origins (required when behind reverse proxy with HTTPS)
+_csrf_env = config('CSRF_TRUSTED_ORIGINS', default='')
+if _csrf_env:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_env.split(',') if origin.strip()]
 
 # Django Channels (WebSocket support)
 ASGI_APPLICATION = 'raven.asgi.application'
