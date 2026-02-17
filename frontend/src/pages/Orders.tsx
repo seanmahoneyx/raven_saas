@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2, FileDown } from 'lucide-react'
+import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2, FileDown, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportButton } from '@/components/ui/export-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
@@ -356,10 +357,35 @@ export default function Orders() {
             Manage sales and purchase orders
           </p>
         </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportButton
+            data={activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])}
+            filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
+            columns={activeTab === 'sales' ? [
+              { key: 'order_number', header: 'Order #' },
+              { key: 'customer_name', header: 'Customer' },
+              { key: 'order_date', header: 'Order Date' },
+              { key: 'scheduled_date', header: 'Scheduled Date' },
+              { key: 'status', header: 'Status' },
+              { key: 'num_lines', header: 'Lines' },
+              { key: 'subtotal', header: 'Total' },
+              { key: 'priority', header: 'Priority' },
+            ] : [
+              { key: 'po_number', header: 'PO #' },
+              { key: 'vendor_name', header: 'Vendor' },
+              { key: 'order_date', header: 'Order Date' },
+              { key: 'expected_date', header: 'Expected Date' },
+              { key: 'scheduled_date', header: 'Scheduled Date' },
+              { key: 'status', header: 'Status' },
+              { key: 'num_lines', header: 'Lines' },
+              { key: 'subtotal', header: 'Total' },
+            ]}
+          />
+          <Button onClick={handleAddNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -439,6 +465,20 @@ export default function Orders() {
               searchColumn="order_number"
               searchPlaceholder="Search orders..."
               onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
+              enableSelection
+              bulkActions={[
+                { key: 'print', label: 'Print', icon: <Printer className="mr-1 h-4 w-4" /> },
+                { key: 'status', label: 'Update Status', icon: <RefreshCw className="mr-1 h-4 w-4" /> },
+              ]}
+              onBulkAction={(action, rows) => {
+                if (action === 'print') {
+                  rows.forEach((row: any) => {
+                    window.open(`/api/v1/sales-orders/${row.id}/pick-ticket/`, '_blank')
+                  })
+                } else if (action === 'status') {
+                  toast.info(`${rows.length} orders selected for status update`)
+                }
+              }}
             />
           )}
           {activeTab === 'purchase' && (

@@ -92,20 +92,20 @@ export const DateSection = memo(function DateSection({
   })
 
   return (
-    <div className={`${isPast ? 'bg-gray-50' : ''}`}>
+    <div className={`${isPast ? 'bg-muted/50' : ''}`}>
       {/* Date header - compact inline */}
       <div className={`flex items-center gap-4 px-4 py-2 ${isToday ? 'bg-yellow-50' : ''}`}>
-        <span className={`font-medium min-w-[100px] ${isToday ? 'text-yellow-700' : 'text-gray-700'}`}>
+        <span className={`font-medium min-w-[100px] ${isToday ? 'text-yellow-700' : 'text-foreground'}`}>
           {formatDate(date)}
           {isToday && <span className="ml-2 text-xs bg-yellow-200 px-1.5 py-0.5 rounded">Today</span>}
         </span>
 
         {totals.lines > 0 ? (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {totals.lines} lines • {totals.scheduled.toLocaleString()} kicks
           </span>
         ) : (
-          <span className="text-sm text-gray-400 italic">No orders scheduled</span>
+          <span className="text-sm text-muted-foreground italic">No orders scheduled</span>
         )}
       </div>
 
@@ -117,7 +117,7 @@ export const DateSection = memo(function DateSection({
             ref={setNodeRef}
             className={`
               border-2 border-dashed rounded-lg py-4 text-center text-sm
-              ${isOver ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-400'}
+              ${isOver ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-border text-muted-foreground'}
             `}
           >
             {isOver ? 'Drop here to schedule' : 'Drag orders here'}

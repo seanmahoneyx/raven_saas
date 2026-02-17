@@ -172,7 +172,7 @@ export default function Inventory() {
         header: 'Notes',
         cell: ({ row }) => {
           const notes = row.getValue('notes') as string
-          return notes || <span className="text-gray-400">-</span>
+          return notes || <span className="text-muted-foreground">-</span>
         },
       },
     ],

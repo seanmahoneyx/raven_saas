@@ -1,2 +1,2 @@
 from .base import BaseCsvImporter
-from .definitions import LocationImporter, PartyImporter, ItemImporter
+from .definitions import LocationImporter, PartyImporter, ItemImporter, GLOpeningBalanceImporter

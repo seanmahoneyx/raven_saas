@@ -110,7 +110,7 @@ export default function Estimates() {
         cell: ({ row }) => {
           const date = row.getValue('expiration_date') as string | null
           const estimate = row.original
-          if (!date) return <span className="text-gray-400">-</span>
+          if (!date) return <span className="text-muted-foreground">-</span>
           return (
             <span className={estimate.is_expired ? 'text-red-600 flex items-center gap-1' : ''}>
               {estimate.is_expired && <AlertTriangle className="h-3 w-3" />}
@@ -135,7 +135,7 @@ export default function Estimates() {
         accessorKey: 'num_lines',
         header: 'Lines',
         cell: ({ row }) => (
-          <span className="text-gray-600">{row.getValue('num_lines')}</span>
+          <span className="text-muted-foreground">{row.getValue('num_lines')}</span>
         ),
       },
       {

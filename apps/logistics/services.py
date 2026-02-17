@@ -1,7 +1,7 @@
 import base64
 import uuid
 from decimal import Decimal
-from django.db import transaction
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -100,7 +100,7 @@ class LogisticsService:
         )
         return lpn
 
-    def sign_delivery(self, stop_id, signature_base64, signed_by):
+    def sign_delivery(self, stop_id, signature_base64, signed_by, photo_base64=None, gps_lat=None, gps_lng=None, delivery_notes=''):
         """
         Record proof of delivery for a stop.
 
@@ -108,6 +108,10 @@ class LogisticsService:
             stop_id: DeliveryStop PK
             signature_base64: Base64-encoded signature PNG
             signed_by: Name of signer
+            photo_base64: Base64-encoded photo JPG (optional)
+            gps_lat: GPS latitude (optional)
+            gps_lng: GPS longitude (optional)
+            delivery_notes: Driver notes (optional)
 
         Returns:
             DeliveryStop: Updated stop
@@ -123,6 +127,19 @@ class LogisticsService:
                 img_data = base64.b64decode(signature_base64)
                 filename = f"sig_{stop.run_id}_{stop.id}_{uuid.uuid4().hex[:8]}.png"
                 stop.signature_image.save(filename, ContentFile(img_data), save=False)
+
+            # Decode and save photo if provided
+            if photo_base64:
+                photo_data = base64.b64decode(photo_base64)
+                photo_filename = f"pod_{stop.run_id}_{stop.id}_{uuid.uuid4().hex[:8]}.jpg"
+                stop.photo_image.save(photo_filename, ContentFile(photo_data), save=False)
+
+            if gps_lat is not None:
+                stop.gps_lat = gps_lat
+            if gps_lng is not None:
+                stop.gps_lng = gps_lng
+            if delivery_notes:
+                stop.delivery_notes = delivery_notes
 
             stop.signed_by = signed_by
             stop.status = 'COMPLETED'
@@ -173,6 +190,83 @@ class LogisticsService:
             'total_stops': stops.count(),
             'total_orders': sum(s.orders.count() for s in stops),
         }
+
+    def get_my_run(self, user):
+        """
+        Get today's delivery run for the authenticated driver.
+
+        Finds runs where the truck is assigned to orders scheduled for today,
+        and the run belongs to the driver's scheduled truck.
+
+        Returns dict with run info, stops, and aggregated stats.
+        """
+        from apps.scheduling.models import DeliveryRun
+        today = timezone.now().date()
+
+        # Find runs for today - driver is identified by being the user
+        # who started/was assigned the run. We look for runs on today's trucks.
+        runs = DeliveryRun.objects.filter(
+            tenant=self.tenant,
+            scheduled_date=today,
+            is_complete=False,
+        ).select_related('truck').order_by('sequence')
+
+        if not runs.exists():
+            return None
+
+        # For now, return the first available run (drivers get one run at a time)
+        run = runs.first()
+
+        stops = DeliveryStop.objects.filter(
+            tenant=self.tenant,
+            run=run,
+        ).select_related(
+            'customer', 'customer__party', 'ship_to'
+        ).prefetch_related(
+            'orders', 'orders__lines', 'orders__lines__item', 'orders__lines__uom'
+        ).order_by('sequence')
+
+        # Calculate total weight from LPNs
+        total_weight = LicensePlate.objects.filter(
+            tenant=self.tenant,
+            run=run,
+        ).aggregate(total=models.Sum('weight_lbs'))['total'] or Decimal('0')
+
+        return {
+            'run': run,
+            'truck_name': str(run.truck) if run.truck else 'Unassigned',
+            'total_stops': stops.count(),
+            'total_weight_lbs': total_weight,
+            'is_complete': run.is_complete,
+            'stops': stops,
+        }
+
+    def arrive_at_stop(self, stop_id, gps_lat=None, gps_lng=None):
+        """
+        Record driver arrival at a delivery stop.
+
+        Args:
+            stop_id: DeliveryStop PK
+            gps_lat: GPS latitude (optional)
+            gps_lng: GPS longitude (optional)
+
+        Returns:
+            DeliveryStop: Updated stop
+        """
+        stop = DeliveryStop.objects.get(pk=stop_id, tenant=self.tenant)
+
+        if stop.status != 'PENDING':
+            raise ValidationError(f"Stop is already {stop.status}.")
+
+        stop.status = 'ARRIVED'
+        stop.arrived_at = timezone.now()
+        if gps_lat is not None:
+            stop.gps_lat = gps_lat
+        if gps_lng is not None:
+            stop.gps_lng = gps_lng
+        stop.save(update_fields=['status', 'arrived_at', 'gps_lat', 'gps_lng', 'updated_at'])
+
+        return stop
 
     def _generate_lpn_code(self):
         """Generate unique LPN code."""

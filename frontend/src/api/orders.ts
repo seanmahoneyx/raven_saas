@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { PurchaseOrder, SalesOrder, PaginatedResponse, OrderStatus } from '@/types/api'
+import type { PurchaseOrder, SalesOrder, PaginatedResponse, OrderStatus, ApiError } from '@/types/api'
 
 // Sales Orders
 export function useSalesOrders(params?: { status?: OrderStatus; customer?: number }) {
@@ -34,6 +35,10 @@ export function useCreateSalesOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Sales order created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create sales order')
     },
   })
 }
@@ -48,6 +53,10 @@ export function useUpdateSalesOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -61,6 +70,10 @@ export function useDeleteSalesOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Sales order deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete sales order')
     },
   })
 }
@@ -97,6 +110,10 @@ export function useCreatePurchaseOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Purchase order created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create purchase order')
     },
   })
 }
@@ -111,6 +128,10 @@ export function useUpdatePurchaseOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -124,6 +145,10 @@ export function useDeletePurchaseOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Purchase order deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete purchase order')
     },
   })
 }
@@ -141,6 +166,10 @@ export function useConfirmSalesOrder() {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['sales-orders', id] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Sales order confirmed')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to confirm sales order')
     },
   })
 }
@@ -156,6 +185,10 @@ export function useCancelSalesOrder() {
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['sales-orders', id] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Sales order cancelled')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to cancel sales order')
     },
   })
 }
@@ -173,6 +206,10 @@ export function useConfirmPurchaseOrder() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders', id] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Purchase order confirmed')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to confirm purchase order')
     },
   })
 }
@@ -188,6 +225,10 @@ export function useCancelPurchaseOrder() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders', id] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Purchase order cancelled')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to cancel purchase order')
     },
   })
 }
@@ -203,6 +244,10 @@ export function useReceivePurchaseOrder() {
       queryClient.invalidateQueries({ queryKey: ['purchase-orders'] })
       queryClient.invalidateQueries({ queryKey: ['purchase-orders', variables.id] })
       queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      toast.success('Purchase order received')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to receive purchase order')
     },
   })
 }

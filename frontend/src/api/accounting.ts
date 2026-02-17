@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { GLAccount, JournalEntry, JournalEntryInput, PaginatedResponse } from '@/types/api'
+import type { GLAccount, JournalEntry, JournalEntryInput, PaginatedResponse, ApiError } from '@/types/api'
 
 export function useAccounts(params?: { search?: string; account_type?: string; is_active?: boolean }) {
   return useQuery({
@@ -32,6 +33,10 @@ export function useCreateAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success('Account created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create account')
     },
   })
 }
@@ -45,6 +50,10 @@ export function useUpdateAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success('Account updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update account')
     },
   })
 }
@@ -79,6 +88,10 @@ export function useCreateJournalEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
+      toast.success('Journal entry created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create journal entry')
     },
   })
 }
@@ -93,6 +106,10 @@ export function usePostJournalEntry() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success('Journal entry posted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to post journal entry')
     },
   })
 }
@@ -107,6 +124,10 @@ export function useReverseJournalEntry() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['journal-entries'] })
       queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      toast.success('Journal entry reversed')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to reverse journal entry')
     },
   })
 }

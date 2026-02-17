@@ -343,6 +343,18 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         serializer = SalesOrderListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @extend_schema(tags=['orders'], summary='Download pick ticket PDF for a sales order')
+    @action(detail=True, methods=['get'], url_path='pick-ticket')
+    def pick_ticket(self, request, pk=None):
+        """GET /api/v1/sales-orders/{id}/pick-ticket/ - Download pick ticket PDF."""
+        order = self.get_object()
+        from apps.documents.pdf import PDFService
+        pdf_bytes = PDFService.render_pick_ticket(order)
+        from django.http import HttpResponse
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="pick-ticket-{order.order_number}.pdf"'
+        return response
+
 
 @extend_schema_view(
     list=extend_schema(tags=['orders'], summary='List all estimates'),

@@ -53,6 +53,13 @@ class BaseCsvImporter:
         """
         raise NotImplementedError
 
+    def post_process(self):
+        """
+        Optional hook called after all rows are processed successfully.
+        Override for bulk operations (e.g., creating a single JE for all rows).
+        """
+        pass
+
     def run(self, file, commit=False):
         """
         Orchestrate the import process.
@@ -109,6 +116,10 @@ class BaseCsvImporter:
                         created_count += 1
                     elif result == 'updated':
                         updated_count += 1
+
+            # Run post-processing hook (e.g., bulk JE creation)
+            if commit and not errors:
+                self.post_process()
 
             # If dry run OR there were errors, roll back
             if not commit or errors:

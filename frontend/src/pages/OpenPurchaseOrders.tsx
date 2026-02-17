@@ -151,11 +151,11 @@ export default function OpenPurchaseOrders() {
       cell: ({ row }) =>
         row.original.scheduled_date ? (
           <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3 text-gray-400" />
+            <Calendar className="h-3 w-3 text-muted-foreground" />
             {format(new Date(row.original.scheduled_date), 'MMM d')}
           </span>
         ) : (
-          <span className="text-gray-400">-</span>
+          <span className="text-muted-foreground">-</span>
         ),
     },
     {
@@ -171,7 +171,7 @@ export default function OpenPurchaseOrders() {
       accessorKey: 'num_lines',
       header: 'Lines',
       cell: ({ row }) => (
-        <span className="text-gray-600">{row.original.num_lines}</span>
+        <span className="text-muted-foreground">{row.original.num_lines}</span>
       ),
     },
     {

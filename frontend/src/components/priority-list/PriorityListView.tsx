@@ -246,7 +246,7 @@ export const PriorityListView = memo(function PriorityListView({
               className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
                 filterVendorId === null
                   ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
               }`}
             >
               All Vendors
@@ -260,7 +260,7 @@ export const PriorityListView = memo(function PriorityListView({
                 className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
                   filterVendorId === vendor.id
                     ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
                 {vendor.party_display_name}
@@ -273,7 +273,7 @@ export const PriorityListView = memo(function PriorityListView({
           <button
             onClick={handleSync}
             disabled={syncMutation.isPending}
-            className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md border border-gray-200 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded-md border border-border disabled:opacity-50 transition-colors"
             title="Sync PO lines from orders"
           >
             {syncMutation.isPending ? 'Syncing...' : 'Sync Lines'}
@@ -290,14 +290,14 @@ export const PriorityListView = memo(function PriorityListView({
       {/* Main content */}
       {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading priority list...</div>
+            <div className="text-muted-foreground">Loading priority list...</div>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-red-600">Error: {error}</div>
           </div>
         ) : displayedVendorIds.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <p className="mb-2">No priority lines found for this date range.</p>
             <p className="text-sm">
               Click "Sync Lines" to import scheduled PO lines.

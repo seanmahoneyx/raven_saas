@@ -16,6 +16,77 @@ from simple_history.models import HistoricalRecords
 from shared.models import TenantMixin, TimestampMixin
 
 
+# ─── Tax Zone Models ─────────────────────────────────────────────────────────
+
+class TaxZone(TenantMixin, TimestampMixin):
+    """
+    Tax zone representing a tax jurisdiction.
+
+    Each zone has a name, rate, and an optional GL liability account
+    for posting collected sales tax.
+    """
+    name = models.CharField(
+        max_length=100,
+        help_text="Zone name (e.g., 'Cook County IL', 'CA State')"
+    )
+    rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=4,
+        help_text="Tax rate as decimal (e.g., 0.0825 for 8.25%)"
+    )
+    gl_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tax_zones',
+        help_text="GL liability account for collected tax"
+    )
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Tax Zone"
+        verbose_name_plural = "Tax Zones"
+        unique_together = [('tenant', 'name')]
+        indexes = [
+            models.Index(fields=['tenant', 'name']),
+            models.Index(fields=['tenant', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.rate * 100:.2f}%)"
+
+
+class TaxRule(TenantMixin, TimestampMixin):
+    """
+    Maps postal/zip codes to tax zones.
+
+    Supports exact match or prefix match (e.g., '606' matches all
+    60600-60699 zip codes in Cook County).
+    """
+    tax_zone = models.ForeignKey(
+        TaxZone,
+        on_delete=models.CASCADE,
+        related_name='rules',
+        help_text="Tax zone this rule maps to"
+    )
+    postal_code = models.CharField(
+        max_length=20,
+        help_text="Zip/postal code or prefix to match"
+    )
+
+    class Meta:
+        verbose_name = "Tax Rule"
+        verbose_name_plural = "Tax Rules"
+        unique_together = [('tenant', 'postal_code')]
+        indexes = [
+            models.Index(fields=['tenant', 'postal_code']),
+        ]
+
+    def __str__(self):
+        return f"{self.postal_code} -> {self.tax_zone.name}"
+
+
 class Invoice(TenantMixin, TimestampMixin):
     """
     Customer invoice document.
@@ -136,6 +207,21 @@ class Invoice(TenantMixin, TimestampMixin):
     ship_to_address = models.TextField(
         blank=True,
         help_text="Ship-to address"
+    )
+    ship_to_postal_code = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Ship-to postal/zip code (used for tax zone lookup)"
+    )
+
+    # Tax Zone
+    tax_zone = models.ForeignKey(
+        TaxZone,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoices',
+        help_text="Tax zone applied to this invoice"
     )
 
     # Totals

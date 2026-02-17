@@ -209,7 +209,7 @@ class OrderService:
         self.user = user
 
     def _get_default_warehouse(self):
-        from apps.new_warehousing.models import Warehouse
+        from apps.warehousing.models import Warehouse
         return Warehouse.objects.filter(tenant=self.tenant, is_default=True).first()
 
     def confirm_sales_order(self, sales_order):

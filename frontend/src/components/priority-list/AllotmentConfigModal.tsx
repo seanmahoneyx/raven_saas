@@ -88,11 +88,11 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">
             Configure Vendor Allotments
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Set default daily kick allotments per box type
           </p>
         </div>
@@ -100,18 +100,18 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
         {/* Content */}
         <div className="px-6 py-4 overflow-y-auto max-h-[50vh]">
           {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : (
             <>
               {/* Vendor selector */}
               <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Select Vendor
                 </label>
                 <select
                   value={selectedVendorId ?? ''}
                   onChange={(e) => setSelectedVendorId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 text-foreground bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">-- Select a vendor --</option>
                   {vendors?.map((vendor) => (
@@ -125,11 +125,11 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
               {/* Allotment inputs */}
               {selectedVendorId && (
                 <div className="space-y-4">
-                  <h3 className="font-medium text-gray-800">Daily Allotments by Box Type</h3>
+                  <h3 className="font-medium text-foreground">Daily Allotments by Box Type</h3>
                   <div className="grid grid-cols-2 gap-4">
                     {BOX_TYPES.map((boxType) => (
                       <div key={boxType}>
-                        <label className="block text-sm text-gray-600 mb-1">
+                        <label className="block text-sm text-muted-foreground mb-1">
                           {boxType}
                         </label>
                         <input
@@ -142,7 +142,7 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
                               [boxType]: e.target.value,
                             }))
                           }
-                          className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 text-foreground bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
                     ))}
@@ -154,10 +154,10 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
+            className="px-4 py-2 text-sm text-muted-foreground hover:bg-muted rounded-md"
           >
             Cancel
           </button>

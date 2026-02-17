@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+    size: letter;
+    margin: 0;
+}
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+}
+.page {
+    width: 8.5in;
+    height: 11in;
+    padding-top: 0.5in;
+    padding-left: 0.1875in;
+    page-break-after: always;
+    box-sizing: border-box;
+}
+.page:last-child {
+    page-break-after: auto;
+}
+.row {
+    display: flex;
+    height: 1in;
+}
+.label {
+    width: 2.625in;
+    height: 1in;
+    padding: 0.05in 0.1in;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin-right: 0.125in;
+}
+.label:last-child {
+    margin-right: 0;
+}
+.label .sku {
+    font-size: 14px;
+    font-weight: bold;
+    margin: 0;
+    line-height: 1.2;
+}
+.label .desc {
+    font-size: 9px;
+    color: #333;
+    margin: 0 0 2px 0;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.label .barcode {
+    height: 0.45in;
+}
+.label .barcode svg {
+    width: 100%;
+    height: 100%;
+}
+</style>
+</head>
+<body>
+{% for page in pages %}
+<div class="page">
+{% for row in page %}
+<div class="row">
+{% for label in row %}
+{% if label %}
+<div class="label">
+    <p class="sku">{{ label.line1 }}</p>
+    <p class="desc">{{ label.line2 }}</p>
+    <div class="barcode">{{ label.barcode_svg|safe }}</div>
+</div>
+{% else %}
+<div class="label"></div>
+{% endif %}
+{% endfor %}
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+</body>
+</html>

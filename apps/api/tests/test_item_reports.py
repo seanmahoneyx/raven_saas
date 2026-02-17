@@ -717,11 +717,11 @@ class ItemQuickReportAPITests(ItemReportTestCase):
         self.assertEqual(len(response.data['sales_orders']['rows']), 1)
 
     def test_quick_report_missing_dates(self):
-        """Quick report API requires start_date and end_date."""
+        """Quick report API defaults missing dates (start=2000-01-01, end=today)."""
         response = self.client.get(
             f'/api/v1/reports/item-quick-report/{self.item.id}/'
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_quick_report_invalid_dates(self):
         """Quick report API validates date format."""

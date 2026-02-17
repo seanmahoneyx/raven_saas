@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { ScheduleView } from '@/components/scheduler/ScheduleView'
 import { FilterBar } from '@/components/scheduler/FilterBar'
 import { HistoryPanel } from '@/components/scheduler/HistoryPanel'

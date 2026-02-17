@@ -17,9 +17,11 @@ import {
 } from '@/components/ui/select'
 import { useItem, useItemVendors, useDuplicateItem, useUpdateItem } from '@/api/items'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
+import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
+import { FileText } from 'lucide-react'
 
-type Tab = 'history' | 'vendors'
+type Tab = 'history' | 'vendors' | 'audit'
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -130,6 +132,7 @@ export default function ItemDetail() {
   const tabs = [
     { id: 'history' as Tab, label: 'Transaction History', icon: History },
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
+    { id: 'audit' as Tab, label: 'Audit History', icon: FileText },
   ]
 
   return (
@@ -459,6 +462,7 @@ export default function ItemDetail() {
         </CardHeader>
         <CardContent>
           {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
+          {activeTab === 'audit' && <FieldHistoryTab modelType="item" objectId={itemId} />}
           {activeTab === 'vendors' && (
             <div>
               {vendors && vendors.length > 0 ? (

@@ -22,6 +22,7 @@ import {
 import { usePriceList, useUpdatePriceList } from '@/api/priceLists'
 import { useCustomers } from '@/api/parties'
 import { useItems } from '@/api/items'
+import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { format } from 'date-fns'
 
 interface LineForm {
@@ -456,6 +457,16 @@ export default function PriceListDetail() {
               </table>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Audit History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Audit History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FieldHistoryTab modelType="pricelist" objectId={priceListId} />
         </CardContent>
       </Card>
     </div>

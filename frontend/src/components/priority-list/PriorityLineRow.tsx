@@ -50,9 +50,9 @@ export const PriorityLineRow = memo(function PriorityLineRow({
       ref={setNodeRef}
       style={style}
       className={`
-        flex items-center gap-3 px-3 py-2 border-b border-gray-50
-        hover:bg-gray-50/80 cursor-pointer select-none transition-colors
-        even:bg-gray-50/40
+        flex items-center gap-3 px-3 py-2 border-b border-border/50
+        hover:bg-muted/50 cursor-pointer select-none transition-colors
+        even:bg-muted/20
         ${isSelected ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}
         ${isLate ? 'border-l-[3px] border-l-red-400' : 'border-l-[3px] border-l-transparent'}
         ${isDragging ? 'shadow-lg z-50 bg-white' : ''}
@@ -63,7 +63,7 @@ export const PriorityLineRow = memo(function PriorityLineRow({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors"
+        className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground transition-colors"
       >
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
           <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm8-12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
@@ -71,22 +71,22 @@ export const PriorityLineRow = memo(function PriorityLineRow({
       </div>
 
       {/* Sequence */}
-      <span className="w-7 text-center text-xs text-gray-400 font-mono tabular-nums">
+      <span className="w-7 text-center text-xs text-muted-foreground font-mono tabular-nums">
         {line.sequence + 1}
       </span>
 
       {/* PO Number */}
-      <span className="w-28 font-medium text-sm text-gray-900 truncate">
+      <span className="w-28 font-medium text-sm text-foreground truncate">
         {line.po_number}
       </span>
 
       {/* Item MSPN */}
-      <span className="w-28 text-sm text-gray-500 font-mono truncate">
+      <span className="w-28 text-sm text-muted-foreground font-mono truncate">
         {line.item_sku}
       </span>
 
       {/* Item Name */}
-      <span className="flex-1 min-w-0 text-sm text-gray-700 truncate" title={line.item_name}>
+      <span className="flex-1 min-w-0 text-sm text-foreground truncate" title={line.item_name}>
         {line.item_name}
       </span>
 
@@ -94,7 +94,7 @@ export const PriorityLineRow = memo(function PriorityLineRow({
       <span className="w-36 text-sm flex items-center gap-1.5">
         {line.customer_request_date ? (
           <>
-            <span className="text-gray-600 tabular-nums">
+            <span className="text-muted-foreground tabular-nums">
               {new Date(line.customer_request_date + 'T00:00:00').toLocaleDateString('en-US', {
                 month: '2-digit',
                 day: '2-digit',
@@ -117,12 +117,12 @@ export const PriorityLineRow = memo(function PriorityLineRow({
             )}
           </>
         ) : (
-          <span className="text-gray-300">—</span>
+          <span className="text-muted-foreground/50">—</span>
         )}
       </span>
 
       {/* Quantity */}
-      <span className="w-20 text-right text-sm font-semibold text-gray-900 font-mono tabular-nums">
+      <span className="w-20 text-right text-sm font-semibold text-foreground font-mono tabular-nums">
         {line.quantity_ordered.toLocaleString()}
       </span>
     </div>

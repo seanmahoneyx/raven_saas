@@ -16,8 +16,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from apps.warehousing.models import WarehouseLocation, Lot, StockQuant, StockMoveLog
-from apps.warehousing.services import StockMoveService
+from apps.warehousing.models import (
+    WarehouseLocation, Lot, StockQuant, StockMoveLog,
+    CycleCount, CycleCountLine,
+)
+from apps.warehousing.services import StockMoveService, CycleCountService
 from apps.items.models import Item
 from apps.api.v1.serializers.warehouse import (
     WarehouseLocationSerializer,
@@ -25,6 +28,10 @@ from apps.api.v1.serializers.warehouse import (
     StockQuantSerializer,
     StockMoveSerializer,
     StockMoveLogSerializer,
+    CycleCountListSerializer,
+    CycleCountDetailSerializer,
+    CycleCountLineSerializer,
+    RecordCountSerializer,
 )
 
 
@@ -129,3 +136,151 @@ class StockMoveView(APIView):
 
         result = StockMoveLogSerializer(move_log, context={'request': request})
         return Response(result.data, status=status.HTTP_201_CREATED)
+
+
+class ScannerLocationLookupView(APIView):
+    """GET /warehouse/scanner/location/?barcode=... - Lookup location by barcode for scanner."""
+
+    @extend_schema(
+        tags=['warehouse'],
+        summary='Lookup location by barcode (scanner)',
+        responses={200: {'type': 'object'}},
+    )
+    def get(self, request):
+        barcode = request.query_params.get('barcode', '').strip()
+        if not barcode:
+            return Response({'detail': 'barcode parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            loc = WarehouseLocation.objects.select_related('warehouse').get(
+                tenant=request.tenant, barcode=barcode, is_active=True,
+            )
+        except WarehouseLocation.DoesNotExist:
+            return Response({'detail': f'No location found for barcode: {barcode}'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'id': loc.id,
+            'name': loc.name,
+            'barcode': loc.barcode,
+            'warehouse_code': loc.warehouse.code,
+            'type': loc.type,
+        })
+
+
+class ScannerItemLookupView(APIView):
+    """GET /warehouse/scanner/item/?sku=... - Lookup item by SKU for scanner."""
+
+    @extend_schema(
+        tags=['warehouse'],
+        summary='Lookup item by SKU (scanner)',
+        responses={200: {'type': 'object'}},
+    )
+    def get(self, request):
+        sku = request.query_params.get('sku', '').strip()
+        if not sku:
+            return Response({'detail': 'sku parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            item = Item.objects.get(tenant=request.tenant, sku=sku)
+        except Item.DoesNotExist:
+            return Response({'detail': f'No item found for SKU: {sku}'}, status=status.HTTP_404_NOT_FOUND)
+
+        lots = Lot.objects.filter(tenant=request.tenant, item=item).order_by('-created_at')[:20]
+
+        return Response({
+            'id': item.id,
+            'sku': item.sku,
+            'name': item.name,
+            'lots': LotSerializer(lots, many=True, context={'request': request}).data,
+        })
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['warehouse'], summary='List cycle counts'),
+    retrieve=extend_schema(tags=['warehouse'], summary='Get cycle count details'),
+    create=extend_schema(tags=['warehouse'], summary='Create a cycle count'),
+)
+class CycleCountViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for CycleCount model.
+
+    Supports creating, starting, recording counts, and finalizing.
+    """
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['warehouse', 'status']
+    search_fields = ['count_number']
+    ordering_fields = ['count_number', 'created_at', 'status']
+    ordering = ['-created_at']
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        from django.db.models import Count, Q
+        return CycleCount.objects.select_related(
+            'warehouse', 'zone', 'counted_by'
+        ).annotate(
+            total_lines=Count('lines'),
+            counted_lines=Count('lines', filter=Q(lines__is_counted=True)),
+        ).all()
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return CycleCountDetailSerializer
+        return CycleCountListSerializer
+
+    def perform_create(self, serializer):
+        svc = CycleCountService(self.request.tenant, self.request.user)
+        count = svc.create_count(
+            warehouse=serializer.validated_data['warehouse'],
+            zone=serializer.validated_data.get('zone'),
+            notes=serializer.validated_data.get('notes', ''),
+        )
+        serializer.instance = count
+
+    @extend_schema(tags=['warehouse'], summary='Start a cycle count (snapshot quantities)')
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+        """Transition from draft to in_progress, snapshot expected quantities."""
+        cycle_count = self.get_object()
+        svc = CycleCountService(request.tenant, request.user)
+        try:
+            cycle_count = svc.start_count(cycle_count)
+        except DjangoValidationError as e:
+            return Response({'detail': e.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(CycleCountDetailSerializer(cycle_count, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['warehouse'],
+        summary='Record a counted quantity',
+        request=RecordCountSerializer,
+    )
+    @action(detail=True, methods=['post'], url_path='record')
+    def record(self, request, pk=None):
+        """Record a counted quantity for a single line."""
+        cycle_count = self.get_object()
+        serializer = RecordCountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        svc = CycleCountService(request.tenant, request.user)
+        try:
+            line = svc.record_count(
+                line_id=serializer.validated_data['line_id'],
+                counted_quantity=serializer.validated_data['counted_quantity'],
+                cycle_count_id=cycle_count.id,
+            )
+        except (CycleCountLine.DoesNotExist, DjangoValidationError) as e:
+            msg = e.message if hasattr(e, 'message') else str(e)
+            return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(CycleCountLineSerializer(line, context={'request': request}).data)
+
+    @extend_schema(tags=['warehouse'], summary='Finalize cycle count and generate adjustments')
+    @action(detail=True, methods=['post'])
+    def finalize(self, request, pk=None):
+        """Finalize count: generate adjustment moves for variances."""
+        cycle_count = self.get_object()
+        svc = CycleCountService(request.tenant, request.user)
+        try:
+            cycle_count = svc.finalize_count(cycle_count)
+        except DjangoValidationError as e:
+            return Response({'detail': e.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(CycleCountDetailSerializer(cycle_count, context={'request': request}).data)

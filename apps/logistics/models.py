@@ -140,6 +140,31 @@ class DeliveryStop(TenantMixin, TimestampMixin):
         blank=True,
         help_text="Driver notes at delivery"
     )
+    photo_image = models.ImageField(
+        upload_to='logistics/pod_photos/',
+        null=True,
+        blank=True,
+        help_text="Photo proof of delivery (pallets on dock)"
+    )
+    arrived_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When driver arrived at this stop"
+    )
+    gps_lat = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS latitude at delivery"
+    )
+    gps_lng = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        help_text="GPS longitude at delivery"
+    )
 
     history = HistoricalRecords()
 

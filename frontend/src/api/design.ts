@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
 import type {
   DesignRequest,
@@ -6,6 +7,7 @@ import type {
   PromoteDesignInput,
   PaginatedResponse,
   CustomerAttachment,
+  ApiError,
 } from '@/types/api'
 
 // ==================== Design Requests ====================
@@ -45,6 +47,10 @@ export function useCreateDesignRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['design-requests'] })
+      toast.success('Design request created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create design request')
     },
   })
 }
@@ -59,6 +65,10 @@ export function useUpdateDesignRequest() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['design-requests'] })
       queryClient.invalidateQueries({ queryKey: ['design-requests', variables.id] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -71,6 +81,10 @@ export function useDeleteDesignRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['design-requests'] })
+      toast.success('Design request deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete design request')
     },
   })
 }
@@ -87,6 +101,10 @@ export function usePromoteDesign() {
       queryClient.invalidateQueries({ queryKey: ['design-requests', variables.id] })
       // Also invalidate items since we created one
       queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Design promoted to item')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to promote design')
     },
   })
 }
@@ -126,6 +144,10 @@ export function useUploadDesignRequestAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['design-requests', variables.designRequestId, 'attachments'] })
+      toast.success('File uploaded')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to upload file')
     },
   })
 }
@@ -138,6 +160,10 @@ export function useDeleteDesignRequestAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['design-requests', variables.designRequestId, 'attachments'] })
+      toast.success('File deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete file')
     },
   })
 }
@@ -152,6 +178,10 @@ export function useCreateEstimateFromDesign() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['design-requests'] })
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      toast.success('Estimate created from design')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create estimate')
     },
   })
 }

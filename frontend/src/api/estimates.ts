@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { Estimate, PaginatedResponse, EstimateStatus } from '@/types/api'
+import type { Estimate, PaginatedResponse, EstimateStatus, ApiError } from '@/types/api'
 
 export function useEstimates(params?: { status?: EstimateStatus; customer?: number }) {
   return useQuery({
@@ -32,6 +33,10 @@ export function useCreateEstimate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      toast.success('Estimate created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create estimate')
     },
   })
 }
@@ -45,6 +50,10 @@ export function useUpdateEstimate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -57,6 +66,10 @@ export function useDeleteEstimate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      toast.success('Estimate deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete estimate')
     },
   })
 }
@@ -70,6 +83,10 @@ export function useSendEstimate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      toast.success('Estimate sent')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to send estimate')
     },
   })
 }
@@ -84,6 +101,10 @@ export function useConvertEstimate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimates'] })
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Estimate converted to sales order')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to convert estimate')
     },
   })
 }

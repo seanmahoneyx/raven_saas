@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   Building2,
   Users,
@@ -17,8 +17,6 @@ import {
   Scale,
   Sun,
   Moon,
-  ClipboardList,
-  Receipt,
   Eye,
   DollarSign,
   Boxes,
@@ -26,6 +24,7 @@ import {
   Palette,
   Search,
   Cog,
+  Keyboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -44,6 +43,9 @@ import {
   DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu'
 import SearchDialog from '@/components/search/SearchDialog'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal'
+import NotificationBell from './NotificationBell'
 
 // ─── Navigation Structure ──────────────────────────────────────────────────────
 
@@ -91,8 +93,8 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Company',
     requiresAdmin: true,
     items: [
-      { type: 'item', to: '/company', icon: Building2, label: 'My Company' },
-      { type: 'item', to: '/users', icon: Users, label: 'Users' },
+      { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
+      { type: 'item', to: '/settings', icon: Users, label: 'Users' },
       { type: 'item', to: '/', icon: LayoutDashboard, label: 'Company Snapshot' },
       { type: 'separator' },
       { type: 'item', to: '/settings', icon: Cog, label: 'Settings' },
@@ -179,43 +181,14 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     icon: BarChart3,
     label: 'Reports',
     items: [
+      { type: 'item', to: '/reports', icon: BarChart3, label: 'All Reports' },
       { type: 'item', to: '/reports/item-quick-report', icon: Package, label: 'Item Quick Report' },
       { type: 'separator' },
       {
         type: 'submenu',
-        icon: Building2,
-        label: 'Company & Financial',
-        items: [
-          { type: 'item', to: '/reports/pl', icon: DollarSign, label: 'P&L' },
-          { type: 'item', to: '/reports/balance-sheet', icon: FileSpreadsheet, label: 'Balance Sheet' },
-        ],
-      },
-      {
-        type: 'submenu',
-        icon: Users,
-        label: 'Customer',
-        items: [
-          { type: 'item', to: '/reports/open-invoices', icon: Receipt, label: 'Open Invoices' },
-          { type: 'item', to: '/reports/ar-aging', icon: ScrollText, label: 'A/R Aging' },
-        ],
-      },
-      {
-        type: 'submenu',
-        icon: Truck,
-        label: 'Vendor',
-        items: [
-          { type: 'item', to: '/reports/open-receipts', icon: ClipboardList, label: 'Open Item Receipts' },
-          { type: 'item', to: '/reports/unpaid-bills', icon: FileText, label: 'Unpaid Bills' },
-          { type: 'item', to: '/reports/ap-aging', icon: ScrollText, label: 'A/P Aging' },
-        ],
-      },
-      {
-        type: 'submenu',
         icon: Boxes,
-        label: 'Inventory (FIFO)',
+        label: 'Inventory',
         items: [
-          { type: 'item', to: '/reports/inventory-aging-summary', icon: BarChart3, label: 'Inventory Aging Summary' },
-          { type: 'item', to: '/reports/inventory-aging-detail', icon: FileText, label: 'Inventory Aging Detail' },
           { type: 'item', to: '/reports/stock-status', icon: Package, label: 'Stock Status by Item' },
           { type: 'item', to: '/reports/inventory-valuation', icon: DollarSign, label: 'Inventory Valuation' },
         ],
@@ -326,18 +299,53 @@ export default function TopNavbar() {
   const isAdmin = true
 
   const [searchOpen, setSearchOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  // Ctrl+K keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setSearchOpen(true)
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  useKeyboardShortcuts([
+    {
+      key: 'k',
+      ctrl: true,
+      description: 'Open Global Search',
+      category: 'Navigation',
+      action: () => setSearchOpen(true),
+    },
+    {
+      key: 'n',
+      ctrl: true,
+      description: 'Create New',
+      category: 'Actions',
+      action: () => {
+        const path = location.pathname
+        if (path.startsWith('/customers')) navigate('/customers/new')
+        else if (path.startsWith('/vendors')) navigate('/vendors/new')
+        else if (path.startsWith('/items')) navigate('/items/new')
+        else if (path.startsWith('/orders') || path.includes('sales')) navigate('/orders/sales/new')
+        else if (path.startsWith('/estimates')) navigate('/estimates/new')
+        else if (path.startsWith('/contracts')) navigate('/contracts/new')
+        else if (path.startsWith('/rfqs')) navigate('/rfqs/new')
+        else navigate('/orders/sales/new')
+      },
+    },
+    {
+      key: 's',
+      ctrl: true,
+      description: 'Save current form',
+      category: 'Actions',
+      action: () => {
+        const saveBtn = document.querySelector('[data-save-button]') as HTMLButtonElement
+        if (saveBtn) saveBtn.click()
+      },
+    },
+    {
+      key: '/',
+      shift: true,
+      description: 'Show keyboard shortcuts',
+      category: 'Help',
+      action: () => setShortcutsOpen(true),
+    },
+  ])
 
   return (
     <header className="flex h-14 items-center border-b bg-sidebar px-4 shrink-0">
@@ -379,8 +387,10 @@ export default function TopNavbar() {
         })}
       </nav>
 
-      {/* Right side - Search, Theme Toggle, and Logout */}
+      {/* Right side - Notifications, Search, Theme Toggle, and Logout */}
       <div className="flex items-center gap-1">
+        <NotificationBell />
+
         <Button
           variant="ghost"
           size="sm"
@@ -398,6 +408,16 @@ export default function TopNavbar() {
           variant="ghost"
           size="sm"
           className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          onClick={() => setShortcutsOpen(true)}
+          title="Keyboard shortcuts (?)"
+        >
+          <Keyboard className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
@@ -406,6 +426,7 @@ export default function TopNavbar() {
       </div>
 
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
+      <KeyboardShortcutsModal open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </header>
   )
 }

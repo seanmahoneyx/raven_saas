@@ -18,6 +18,7 @@ GL Integration:
 """
 from django.db import models
 from shared.models import TenantMixin, TimestampMixin
+from simple_history.models import HistoricalRecords
 
 
 # =============================================================================
@@ -282,6 +283,9 @@ class Item(TenantMixin, TimestampMixin):
         related_name='items_asset',
         help_text="Override inventory asset account (uses default if blank)"
     )
+
+    # Audit trail
+    history = HistoricalRecords()
 
     class Meta:
         unique_together = [('tenant', 'sku')]

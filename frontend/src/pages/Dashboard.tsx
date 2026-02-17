@@ -10,6 +10,7 @@ import {
   Plus, FileText, ClipboardList, ArrowUpRight, ArrowDownRight,
   TrendingUp,
 } from 'lucide-react'
+import PendingApprovals from '@/components/dashboard/PendingApprovals'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar,
@@ -249,8 +250,10 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Split Row: Top Items + Low Stock + Activity */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Split Row: Approvals + Top Items + Low Stock + Activity */}
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        {/* Pending Approvals */}
+        <PendingApprovals />
         {/* Top Items by Revenue */}
         <Card>
           <CardHeader>

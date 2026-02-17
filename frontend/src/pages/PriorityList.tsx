@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import { PriorityListView } from '@/components/priority-list/PriorityListView'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'

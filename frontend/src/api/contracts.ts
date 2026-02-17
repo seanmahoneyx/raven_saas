@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
 import type {
   Contract,
@@ -8,6 +9,7 @@ import type {
   ContractLineInput,
   CreateReleasePayload,
   PaginatedResponse,
+  ApiError,
 } from '@/types/api'
 
 // ==================== Contracts ====================
@@ -82,6 +84,10 @@ export function useCreateContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      toast.success('Contract created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create contract')
     },
   })
 }
@@ -96,6 +102,10 @@ export function useUpdateContract() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['contracts', variables.id] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -108,6 +118,10 @@ export function useDeleteContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      toast.success('Contract deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete contract')
     },
   })
 }
@@ -124,6 +138,10 @@ export function useActivateContract() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['contracts', id] })
+      toast.success('Contract activated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to activate contract')
     },
   })
 }
@@ -138,6 +156,10 @@ export function useCompleteContract() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['contracts', id] })
+      toast.success('Contract marked complete')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to complete contract')
     },
   })
 }
@@ -152,6 +174,10 @@ export function useCancelContract() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['contracts', id] })
+      toast.success('Contract cancelled')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to cancel contract')
     },
   })
 }
@@ -166,6 +192,10 @@ export function useDeactivateContract() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['contracts', id] })
+      toast.success('Contract deactivated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to deactivate contract')
     },
   })
 }
@@ -202,6 +232,10 @@ export function useAddContractLine() {
       queryClient.invalidateQueries({
         queryKey: ['contracts', variables.contractId, 'lines'],
       })
+      toast.success('Line added')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to add line')
     },
   })
 }
@@ -230,6 +264,10 @@ export function useCreateRelease() {
       // Also invalidate sales orders since we created one
       queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Release created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create release')
     },
   })
 }

@@ -4,13 +4,14 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework import status
 from drf_spectacular.utils import extend_schema
 
-from apps.core.importers import LocationImporter, PartyImporter, ItemImporter
+from apps.core.importers import LocationImporter, PartyImporter, ItemImporter, GLOpeningBalanceImporter
 
 
 IMPORTER_MAP = {
     'locations': LocationImporter,
     'parties': PartyImporter,
     'items': ItemImporter,
+    'gl-opening-balances': GLOpeningBalanceImporter,
 }
 
 

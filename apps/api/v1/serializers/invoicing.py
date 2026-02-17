@@ -3,7 +3,7 @@
 Serializers for Invoicing models: Invoice, InvoiceLine, Payment.
 """
 from rest_framework import serializers
-from apps.invoicing.models import Invoice, InvoiceLine, Payment
+from apps.invoicing.models import Invoice, InvoiceLine, Payment, TaxZone, TaxRule
 from .base import TenantModelSerializer
 
 
@@ -99,3 +99,32 @@ class InvoiceDetailSerializer(TenantModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at', 'subtotal', 'tax_amount', 'total_amount']
+
+
+# ─── Tax Zone Serializers ────────────────────────────────────────────────────
+
+class TaxRuleSerializer(TenantModelSerializer):
+    """Serializer for TaxRule model."""
+    tax_zone_name = serializers.CharField(source='tax_zone.name', read_only=True)
+
+    class Meta:
+        model = TaxRule
+        fields = ['id', 'tax_zone', 'tax_zone_name', 'postal_code']
+
+
+class TaxZoneSerializer(TenantModelSerializer):
+    """Serializer for TaxZone model."""
+    rules = TaxRuleSerializer(many=True, read_only=True)
+    gl_account_code = serializers.CharField(source='gl_account.code', read_only=True, allow_null=True)
+    rate_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TaxZone
+        fields = [
+            'id', 'name', 'rate', 'rate_display', 'gl_account', 'gl_account_code',
+            'is_active', 'rules', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_rate_display(self, obj):
+        return f"{obj.rate * 100:.2f}%"

@@ -3,10 +3,12 @@ import { Feather } from '@expo/vector-icons'
 import HomeScreen from '../screens/HomeScreen'
 import NewEstimate from '../screens/estimates/NewEstimate'
 import MenuScreen from '../screens/MenuScreen'
+import DriverManifestScreen from '../screens/driver/DriverManifestScreen'
 
 export type MainTabsParamList = {
   Home: undefined
   Quote: undefined
+  Delivery: undefined
   Menu: undefined
 }
 
@@ -49,6 +51,15 @@ export default function MainTabs() {
         options={{
           tabBarIcon: ({ color, size }) => (
             <Feather name="file-plus" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="Delivery"
+        component={DriverManifestScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Feather name="truck" size={size} color={color} />
           ),
         }}
       />

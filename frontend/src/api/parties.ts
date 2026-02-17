@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse, TimelineEvent, CustomerAttachment } from '@/types/api'
+import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse, TimelineEvent, CustomerAttachment, ApiError } from '@/types/api'
 
 // Parties
 export function useParties(params?: { search?: string; party_type?: string; is_active?: boolean }) {
@@ -33,6 +34,10 @@ export function useCreateParty() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Party created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create party')
     },
   })
 }
@@ -46,6 +51,10 @@ export function useUpdateParty() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -58,6 +67,10 @@ export function useDeleteParty() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Deleted successfully')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete')
     },
   })
 }
@@ -94,6 +107,10 @@ export function useCreateCustomer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Customer created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create customer')
     },
   })
 }
@@ -108,6 +125,10 @@ export function useUpdateCustomer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -121,6 +142,10 @@ export function useDeleteCustomer() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Customer deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete customer')
     },
   })
 }
@@ -172,6 +197,10 @@ export function useUploadCustomerAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customers', variables.customerId, 'attachments'] })
+      toast.success('File uploaded')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to upload file')
     },
   })
 }
@@ -184,6 +213,10 @@ export function useDeleteCustomerAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customers', variables.customerId, 'attachments'] })
+      toast.success('File deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete file')
     },
   })
 }
@@ -220,6 +253,10 @@ export function useCreateVendor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Vendor created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create vendor')
     },
   })
 }
@@ -234,6 +271,10 @@ export function useUpdateVendor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -247,6 +288,10 @@ export function useDeleteVendor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vendors'] })
       queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Vendor deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete vendor')
     },
   })
 }
@@ -298,6 +343,10 @@ export function useUploadVendorAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['vendors', variables.vendorId, 'attachments'] })
+      toast.success('File uploaded')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to upload file')
     },
   })
 }
@@ -310,6 +359,10 @@ export function useDeleteVendorAttachment() {
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['vendors', variables.vendorId, 'attachments'] })
+      toast.success('File deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete file')
     },
   })
 }
@@ -335,6 +388,10 @@ export function useCreateLocation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locations'] })
+      toast.success('Location created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create location')
     },
   })
 }
@@ -348,6 +405,10 @@ export function useUpdateLocation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['locations'] })
+      toast.success('Location updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update location')
     },
   })
 }
@@ -373,6 +434,10 @@ export function useCreateTruck() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trucks'] })
       queryClient.invalidateQueries({ queryKey: ['calendar', 'trucks'] })
+      toast.success('Truck created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create truck')
     },
   })
 }
@@ -387,6 +452,10 @@ export function useUpdateTruck() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trucks'] })
       queryClient.invalidateQueries({ queryKey: ['calendar', 'trucks'] })
+      toast.success('Truck updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update truck')
     },
   })
 }
@@ -400,6 +469,10 @@ export function useDeleteTruck() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trucks'] })
       queryClient.invalidateQueries({ queryKey: ['calendar', 'trucks'] })
+      toast.success('Truck deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete truck')
     },
   })
 }

@@ -29,7 +29,7 @@ export const KicksIndicator = memo(function KicksIndicator({
   return (
     <div className="flex items-center gap-2 text-xs">
       {/* Progress bar */}
-      <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="w-20 h-2 bg-muted rounded-full overflow-hidden">
         <div
           className={`h-full ${barColor} transition-all`}
           style={{ width: `${Math.min(100, percentage)}%` }}
@@ -37,7 +37,7 @@ export const KicksIndicator = memo(function KicksIndicator({
       </div>
 
       {/* Remaining kicks */}
-      <span className="text-gray-500">
+      <span className="text-muted-foreground">
         ({remaining.toLocaleString()} left)
       </span>
 
@@ -55,7 +55,7 @@ export const KicksIndicator = memo(function KicksIndicator({
       {/* Edit button */}
       {onEditOverride && !isOverride && (
         <button
-          className="text-gray-400 hover:text-gray-600"
+          className="text-muted-foreground hover:text-foreground"
           onClick={onEditOverride}
           title="Set daily override"
         >
@@ -66,7 +66,7 @@ export const KicksIndicator = memo(function KicksIndicator({
       )}
 
       {/* Numeric display - rightmost for alignment with row kicks */}
-      <span className={`w-20 text-right font-mono ${isOverCapacity ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+      <span className={`w-20 text-right font-mono ${isOverCapacity ? 'text-red-600 font-semibold' : 'text-muted-foreground'}`}>
         {scheduled.toLocaleString()}/{allotment.toLocaleString()}
       </span>
     </div>

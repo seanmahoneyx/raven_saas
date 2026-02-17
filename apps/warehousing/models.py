@@ -180,17 +180,32 @@ class WarehouseLocation(TenantMixin, TimestampMixin):
         max_length=100,
         help_text="Scannable barcode for this location"
     )
+    LOCATION_TYPES = [
+        ('VIEW', 'View (Virtual)'),
+        ('INTERNAL', 'Internal'),
+        ('CUSTOMER', 'Customer'),
+        ('INVENTORY', 'Inventory'),
+        ('PRODUCTION', 'Production'),
+        ('RECEIVING_DOCK', 'Receiving Dock'),
+        ('STORAGE', 'Storage'),
+        ('PICKING', 'Picking'),
+        ('PACKING', 'Packing'),
+        ('SHIPPING_DOCK', 'Shipping Dock'),
+        ('SCRAP', 'Scrap'),
+    ]
+
     type = models.CharField(
         max_length=20,
-        choices=[
-            ('RECEIVING_DOCK', 'Receiving Dock'),
-            ('STORAGE', 'Storage'),
-            ('PICKING', 'Picking'),
-            ('PACKING', 'Packing'),
-            ('SHIPPING_DOCK', 'Shipping Dock'),
-            ('SCRAP', 'Scrap'),
-        ],
+        choices=LOCATION_TYPES,
         help_text="Type of warehouse zone"
+    )
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children',
+        help_text="Parent location for hierarchy (Warehouse > Zone > Bin)"
     )
     parent_path = models.CharField(
         max_length=255,
@@ -233,6 +248,11 @@ class Lot(TenantMixin, TimestampMixin):
         max_length=100,
         blank=True,
         help_text="Vendor's batch identifier"
+    )
+    manufacturer_batch_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Manufacturer's original batch/lot ID"
     )
     expiry_date = models.DateField(
         null=True,
@@ -286,6 +306,12 @@ class StockQuant(TenantMixin, TimestampMixin):
         default=0,
         help_text="Quantity on hand at this location"
     )
+    reserved_quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=0,
+        help_text="Quantity reserved for pending orders"
+    )
 
     class Meta:
         unique_together = [('tenant', 'item', 'location', 'lot')]
@@ -298,7 +324,20 @@ class StockQuant(TenantMixin, TimestampMixin):
                 condition=models.Q(quantity__gte=0),
                 name='quant_qty_non_negative'
             ),
+            models.CheckConstraint(
+                condition=models.Q(reserved_quantity__gte=0),
+                name='quant_reserved_non_negative'
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reserved_quantity__lte=models.F('quantity')),
+                name='quant_reserved_lte_qty'
+            ),
         ]
+
+    @property
+    def available_quantity(self):
+        """Unreserved stock available for new orders."""
+        return self.quantity - self.reserved_quantity
 
     def __str__(self):
         return f"{self.item.sku} @ {self.location.name}: {self.quantity}"
@@ -361,3 +400,150 @@ class StockMoveLog(TenantMixin, TimestampMixin):
 
     def __str__(self):
         return f"Move {self.item.sku}: {self.source_location.name} → {self.destination_location.name} x{self.quantity}"
+
+
+class CycleCount(TenantMixin, TimestampMixin):
+    """
+    Inventory audit session for a specific zone or set of locations.
+
+    Workflow:
+    1. DRAFT: User creates a count session, selects locations.
+    2. IN_PROGRESS: System snapshots expected quantities, user enters counted quantities.
+    3. COMPLETED: On finalization, system generates adjustment moves for discrepancies.
+    4. CANCELLED: Count was abandoned.
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    count_number = models.CharField(
+        max_length=50,
+        help_text="Cycle count session ID (e.g., CC-2026-001)"
+    )
+    warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.CASCADE,
+        related_name='cycle_counts',
+        help_text="Warehouse being counted"
+    )
+    zone = models.ForeignKey(
+        WarehouseLocation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cycle_counts',
+        help_text="Specific zone/location to count (blank = entire warehouse)"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft',
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When counting began"
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When count was finalized"
+    )
+    counted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cycle_counts',
+        help_text="User performing the count"
+    )
+    notes = models.TextField(
+        blank=True,
+        help_text="Notes about this cycle count"
+    )
+
+    class Meta:
+        unique_together = [('tenant', 'count_number')]
+        indexes = [
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'warehouse']),
+        ]
+
+    def __str__(self):
+        return f"{self.count_number} - {self.warehouse.code} ({self.status})"
+
+
+class CycleCountLine(TenantMixin, TimestampMixin):
+    """
+    Individual line in a cycle count: one item at one location.
+
+    The expected_quantity is snapshotted when the count starts.
+    The counted_quantity is entered by the warehouse worker.
+    The variance is auto-calculated on save.
+    """
+    cycle_count = models.ForeignKey(
+        CycleCount,
+        on_delete=models.CASCADE,
+        related_name='lines',
+        help_text="Parent cycle count session"
+    )
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='cycle_count_lines',
+        help_text="Item being counted"
+    )
+    location = models.ForeignKey(
+        WarehouseLocation,
+        on_delete=models.PROTECT,
+        related_name='cycle_count_lines',
+        help_text="Location being counted"
+    )
+    lot = models.ForeignKey(
+        Lot,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='cycle_count_lines',
+        help_text="Lot being counted (if lot-tracked)"
+    )
+    expected_quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=0,
+        help_text="System quantity at time of snapshot"
+    )
+    counted_quantity = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Actual quantity counted by user"
+    )
+    variance = models.DecimalField(
+        max_digits=14,
+        decimal_places=4,
+        default=0,
+        help_text="counted - expected (positive = overage, negative = shortage)"
+    )
+    is_counted = models.BooleanField(
+        default=False,
+        help_text="Whether this line has been counted"
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['cycle_count', 'is_counted']),
+        ]
+
+    def __str__(self):
+        return f"{self.item.sku} @ {self.location.name}: expected={self.expected_quantity}, counted={self.counted_quantity}"
+
+    def save(self, *args, **kwargs):
+        if self.counted_quantity is not None:
+            self.variance = self.counted_quantity - self.expected_quantity
+            self.is_counted = True
+        super().save(*args, **kwargs)

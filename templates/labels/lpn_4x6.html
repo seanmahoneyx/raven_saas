@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+    size: 4in 6in;
+    margin: 0.2in;
+}
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+}
+.label-page {
+    width: 3.6in;
+    height: 5.6in;
+    page-break-after: always;
+    position: relative;
+    box-sizing: border-box;
+}
+.label-page:last-child {
+    page-break-after: auto;
+}
+.lpn-code {
+    font-size: 28px;
+    font-weight: bold;
+    margin: 0 0 8px 0;
+    letter-spacing: 1px;
+}
+.divider {
+    border: none;
+    border-top: 2px solid #000;
+    margin: 6px 0;
+}
+.customer-name {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 4px 0;
+}
+.order-number {
+    font-size: 14px;
+    margin: 2px 0 10px 0;
+    color: #333;
+}
+.barcode-container {
+    text-align: center;
+    margin: 12px 0;
+    height: 2.2in;
+}
+.barcode-container svg {
+    width: 90%;
+    height: 100%;
+}
+.footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    border-top: 2px solid #000;
+    padding-top: 4px;
+}
+.footer-text {
+    font-size: 10px;
+    color: #555;
+    margin: 0;
+    letter-spacing: 1px;
+}
+</style>
+</head>
+<body>
+{% for label in labels %}
+<div class="label-page">
+    <p class="lpn-code">{{ label.line1 }}</p>
+    <hr class="divider">
+    <p class="customer-name">{{ label.line2 }}</p>
+    <p class="order-number">{{ label.line3 }}</p>
+    <hr class="divider">
+    <div class="barcode-container">
+        {{ label.barcode_svg|safe }}
+    </div>
+    <div class="footer">
+        <p class="footer-text">RAVEN SAAS</p>
+    </div>
+</div>
+{% endfor %}
+</body>
+</html>

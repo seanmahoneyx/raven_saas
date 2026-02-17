@@ -15,6 +15,7 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from shared.models import TenantMixin, TimestampMixin
+from simple_history.models import HistoricalRecords
 
 
 class PriceListHead(TenantMixin, TimestampMixin):
@@ -63,6 +64,9 @@ class PriceListHead(TenantMixin, TimestampMixin):
         blank=True,
         help_text="Internal notes about this price list"
     )
+
+    # Audit trail
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Price List"

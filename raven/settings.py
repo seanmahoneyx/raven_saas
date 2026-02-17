@@ -73,6 +73,9 @@ INSTALLED_APPS = [
     'apps.accounting',
     'apps.design',
     'apps.documents',
+    'apps.communication',
+    'apps.notifications',
+    'apps.approvals',
     'apps.api',
     # User management
     'users',
@@ -209,6 +212,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'URL_FORMAT_OVERRIDE': None,  # Prevent DRF from intercepting ?format= (used by CSV export)
     # API Throttling for rate limiting
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',

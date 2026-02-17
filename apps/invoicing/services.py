@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 
-from .models import Invoice, InvoiceLine, Payment, VendorBill, VendorBillLine, BillPayment
+from .models import Invoice, InvoiceLine, Payment, VendorBill, VendorBillLine, BillPayment, TaxZone, TaxRule
 from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
 
 
@@ -95,6 +95,18 @@ class InvoicingService:
         due_date = self._calculate_due_date(invoice_date, payment_terms)
 
         with transaction.atomic():
+            # Extract ship-to postal code for tax zone lookup
+            ship_to_postal = ''
+            if sales_order.ship_to and hasattr(sales_order.ship_to, 'postal_code'):
+                ship_to_postal = sales_order.ship_to.postal_code or ''
+
+            # Auto-resolve tax zone if tax_rate not explicitly provided
+            resolved_tax_zone = None
+            if tax_rate == Decimal('0'):
+                resolved_tax_zone = self._resolve_tax_zone(ship_to_postal, sales_order.customer)
+                if resolved_tax_zone:
+                    tax_rate = resolved_tax_zone.rate
+
             # Create invoice
             invoice = Invoice.objects.create(
                 tenant=self.tenant,
@@ -109,6 +121,8 @@ class InvoicingService:
                 bill_to_address=self._format_address(sales_order.bill_to or sales_order.ship_to),
                 ship_to_name=sales_order.customer.party.display_name,
                 ship_to_address=self._format_address(sales_order.ship_to),
+                ship_to_postal_code=ship_to_postal,
+                tax_zone=resolved_tax_zone,
                 customer_po=sales_order.customer_po,
                 tax_rate=tax_rate,
                 freight_amount=freight_amount,
@@ -615,6 +629,18 @@ class InvoicingService:
         if invoice.is_overdue and invoice.status == 'sent':
             invoice.status = 'overdue'
             invoice.save()
+            try:
+                from apps.notifications.services import notify_group
+                notify_group(
+                    tenant=self.tenant,
+                    group_name='Accounting',
+                    title=f'Invoice {invoice.invoice_number} is Overdue',
+                    message=f'Amount due: ${invoice.balance_due}',
+                    link=f'/invoices/{invoice.id}',
+                    notification_type='WARNING',
+                )
+            except Exception:
+                pass
             return True
         return False
 
@@ -912,16 +938,61 @@ class InvoicingService:
         days = self.PAYMENT_TERMS_DAYS.get(payment_terms, 30)
         return invoice_date + timedelta(days=days)
 
+    def _resolve_tax_zone(self, postal_code, customer):
+        """
+        Resolve tax zone from ship-to postal code or customer default.
+
+        Lookup order:
+        1. Exact postal code match in TaxRule
+        2. Prefix match (longest match wins)
+        3. Customer's default_tax_zone
+        4. None (no tax)
+
+        Args:
+            postal_code: Ship-to zip/postal code
+            customer: Customer instance
+
+        Returns:
+            TaxZone instance or None
+        """
+        if postal_code:
+            postal_code = postal_code.strip()
+            # Try exact match first
+            exact = TaxRule.objects.filter(
+                tenant=self.tenant,
+                postal_code=postal_code,
+                tax_zone__is_active=True,
+            ).select_related('tax_zone').first()
+            if exact:
+                return exact.tax_zone
+
+            # Try prefix match (longest prefix wins)
+            for length in range(len(postal_code) - 1, 0, -1):
+                prefix = postal_code[:length]
+                prefix_match = TaxRule.objects.filter(
+                    tenant=self.tenant,
+                    postal_code=prefix,
+                    tax_zone__is_active=True,
+                ).select_related('tax_zone').first()
+                if prefix_match:
+                    return prefix_match.tax_zone
+
+        # Fallback to customer default
+        if hasattr(customer, 'default_tax_zone') and customer.default_tax_zone:
+            return customer.default_tax_zone
+
+        return None
+
     def _format_address(self, location):
         """Format a Location into an address string."""
         if not location:
             return ''
 
         parts = []
-        if location.address_1:
-            parts.append(location.address_1)
-        if location.address_2:
-            parts.append(location.address_2)
+        if location.address_line1:
+            parts.append(location.address_line1)
+        if location.address_line2:
+            parts.append(location.address_line2)
 
         city_state_zip = []
         if location.city:

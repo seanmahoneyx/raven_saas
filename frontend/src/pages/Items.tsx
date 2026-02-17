@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Package, Ruler, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportButton } from '@/components/ui/export-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
@@ -13,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useItems, useUnitsOfMeasure, useDeleteItem } from '@/api/items'
 import { ItemDialog } from '@/components/items/ItemDialog'
 import { UOMDialog } from '@/components/items/UOMDialog'
@@ -36,8 +38,8 @@ export default function Items() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: itemsData, isLoading: itemsLoading } = useItems()
+  const { data: uomData, isLoading: uomLoading } = useUnitsOfMeasure()
   const deleteItem = useDeleteItem()
 
   const handleConfirmDelete = async () => {
@@ -80,11 +82,11 @@ export default function Items() {
         cell: ({ row }) => {
           const desc = row.getValue('description') as string
           return desc ? (
-            <span className="text-gray-600 truncate max-w-[200px] block">
+            <span className="text-muted-foreground truncate max-w-[200px] block">
               {desc}
             </span>
           ) : (
-            <span className="text-gray-400">-</span>
+            <span className="text-muted-foreground">-</span>
           )
         },
       },
@@ -169,7 +171,7 @@ export default function Items() {
         header: 'Description',
         cell: ({ row }) => {
           const desc = row.getValue('description') as string
-          return desc || <span className="text-gray-400">-</span>
+          return desc || <span className="text-muted-foreground">-</span>
         },
       },
       {
@@ -223,10 +225,25 @@ export default function Items() {
             Manage products and units of measure
           </p>
         </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add {activeTab === 'items' ? 'Item' : 'UOM'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {activeTab === 'items' && (
+            <ExportButton
+              data={itemsData?.results ?? []}
+              filename="items"
+              columns={[
+                { key: 'sku', header: 'SKU' },
+                { key: 'name', header: 'Name' },
+                { key: 'description', header: 'Description' },
+                { key: 'base_uom_code', header: 'UOM' },
+                { key: 'is_active', header: 'Active' },
+              ]}
+            />
+          )}
+          <Button onClick={handleAddNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add {activeTab === 'items' ? 'Item' : 'UOM'}
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -256,21 +273,29 @@ export default function Items() {
         </CardHeader>
         <CardContent>
           {activeTab === 'items' && (
-            <DataTable
-              columns={itemColumns}
-              data={itemsData?.results ?? []}
-              searchColumn="name"
-              searchPlaceholder="Search items..."
-              onRowClick={(item) => navigate(`/items/${item.id}`)}
-            />
+            itemsLoading ? (
+              <TableSkeleton columns={6} rows={8} />
+            ) : (
+              <DataTable
+                columns={itemColumns}
+                data={itemsData?.results ?? []}
+                searchColumn="name"
+                searchPlaceholder="Search items..."
+                onRowClick={(item) => navigate(`/items/${item.id}`)}
+              />
+            )
           )}
           {activeTab === 'uom' && (
-            <DataTable
-              columns={uomColumns}
-              data={uomData?.results ?? []}
-              searchColumn="name"
-              searchPlaceholder="Search units of measure..."
-            />
+            uomLoading ? (
+              <TableSkeleton columns={4} rows={8} />
+            ) : (
+              <DataTable
+                columns={uomColumns}
+                data={uomData?.results ?? []}
+                searchColumn="name"
+                searchPlaceholder="Search units of measure..."
+              />
+            )
           )}
         </CardContent>
       </Card>

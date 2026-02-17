@@ -149,6 +149,24 @@ class Customer(TenantMixin, TimestampMixin):
         help_text="Override A/R account for this customer (uses default if blank)"
     )
 
+    # Default Tax Zone (fallback when no zip-code match)
+    default_tax_zone = models.ForeignKey(
+        'invoicing.TaxZone',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='customers',
+        help_text="Default tax zone for this customer (used when ship-to zip has no rule)"
+    )
+
+    credit_limit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Credit limit for this customer (approval triggered when exceeded)"
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'party']),

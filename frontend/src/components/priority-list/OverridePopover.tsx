@@ -94,11 +94,11 @@ export const OverridePopover = memo(function OverridePopover({
         className="bg-white rounded-lg shadow-xl p-4 w-80"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="font-semibold text-gray-900 mb-3">
+        <h3 className="font-semibold text-foreground mb-3">
           Daily Override
         </h3>
 
-        <div className="text-sm text-gray-600 mb-4 space-y-1">
+        <div className="text-sm text-muted-foreground mb-4 space-y-1">
           <p><span className="font-medium">Vendor:</span> {vendors[vendorId]?.name}</p>
           <p><span className="font-medium">Box Type:</span> {boxType}</p>
           <p><span className="font-medium">Date:</span> {formatDate(date)}</p>
@@ -106,7 +106,7 @@ export const OverridePopover = memo(function OverridePopover({
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Override Allotment
           </label>
           <input
@@ -114,7 +114,7 @@ export const OverridePopover = memo(function OverridePopover({
             min="0"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 text-foreground bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter allotment"
           />
           {existingOverride && (
@@ -140,7 +140,7 @@ export const OverridePopover = memo(function OverridePopover({
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded"
             >
               Cancel
             </button>

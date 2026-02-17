@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
 import type {
   PriorityListResponse,
@@ -99,6 +100,7 @@ export function useDailyOverrides(
 /**
  * Reorder lines within a vendor/date/box-type bin.
  * Uses optimistic updates in the store - no query invalidation on success.
+ * No success toast - this is a silent drag-and-drop operation.
  */
 export function useReorderPriorityLines() {
   const queryClient = useQueryClient()
@@ -118,6 +120,7 @@ export function useReorderPriorityLines() {
     onError: () => {
       // On error, refetch to revert optimistic update
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.error('Failed to reorder lines')
     },
   })
 }
@@ -125,6 +128,7 @@ export function useReorderPriorityLines() {
 /**
  * Move a line to a different date.
  * Uses optimistic updates in the store - no query invalidation on success.
+ * No success toast - this is a silent drag-and-drop operation.
  */
 export function useMovePriorityLine() {
   const queryClient = useQueryClient()
@@ -144,6 +148,7 @@ export function useMovePriorityLine() {
       // On error, refetch to revert optimistic update
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.error('Failed to move line')
     },
   })
 }
@@ -164,6 +169,10 @@ export function useSyncPriorityList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Priority list synced')
+    },
+    onError: () => {
+      toast.error('Failed to sync priority list')
     },
   })
 }
@@ -187,6 +196,10 @@ export function useSetVendorAllotment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Allotment saved')
+    },
+    onError: () => {
+      toast.error('Failed to save allotment')
     },
   })
 }
@@ -203,6 +216,10 @@ export function useDeleteVendorAllotment() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Allotment deleted')
+    },
+    onError: () => {
+      toast.error('Failed to delete allotment')
     },
   })
 }
@@ -227,6 +244,10 @@ export function useSetDailyOverride() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Override saved')
+    },
+    onError: () => {
+      toast.error('Failed to save override')
     },
   })
 }
@@ -248,6 +269,10 @@ export function useClearDailyOverride() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Override cleared')
+    },
+    onError: () => {
+      toast.error('Failed to clear override')
     },
   })
 }
@@ -264,6 +289,10 @@ export function useDeleteDailyOverride() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
+      toast.success('Override deleted')
+    },
+    onError: () => {
+      toast.error('Failed to delete override')
     },
   })
 }

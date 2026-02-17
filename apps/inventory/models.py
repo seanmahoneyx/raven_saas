@@ -22,6 +22,7 @@ from shared.models import TenantMixin, TimestampMixin
 import uuid
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from simple_history.models import HistoricalRecords
 
 
 class InventoryLot(TenantMixin, TimestampMixin):
@@ -241,6 +242,9 @@ class InventoryBalance(TenantMixin):
         auto_now=True,
         help_text="Last time balance was updated"
     )
+
+    # Audit trail
+    history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Inventory Balance"

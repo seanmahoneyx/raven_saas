@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Delivery Manifest - {{ run.name }}</title>
+    <style>
+        @page {
+            size: letter portrait;
+            margin: 0.5in;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 13pt;
+            color: #000;
+            background: #fff;
+            line-height: 1.4;
+        }
+
+        /* Header */
+        .header {
+            border-bottom: 3px solid #000;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .doc-title {
+            font-size: 22pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .run-name {
+            font-size: 16pt;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .header-right {
+            text-align: right;
+            font-size: 11pt;
+        }
+        .header-right .field {
+            margin-bottom: 3px;
+        }
+        .header-right .field .lbl {
+            font-weight: bold;
+        }
+
+        /* Summary bar */
+        .summary-bar {
+            display: flex;
+            gap: 0;
+            border: 2px solid #000;
+            margin-bottom: 16px;
+        }
+        .summary-cell {
+            flex: 1;
+            text-align: center;
+            padding: 8px 6px;
+        }
+        .summary-cell + .summary-cell {
+            border-left: 2px solid #000;
+        }
+        .summary-cell .s-label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            color: #555;
+            font-weight: bold;
+        }
+        .summary-cell .s-value {
+            font-size: 18pt;
+            font-weight: bold;
+            margin-top: 2px;
+        }
+
+        /* Stops table */
+        .stops-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12pt;
+        }
+        .stops-table thead th {
+            background: #000;
+            color: #fff;
+            padding: 8px 10px;
+            text-align: left;
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: 1px solid #000;
+        }
+        .stops-table thead th.center { text-align: center; }
+        .stops-table tbody td {
+            padding: 10px 10px;
+            border: 1px solid #888;
+            vertical-align: top;
+        }
+        .stops-table tbody td.center { text-align: center; }
+        .stops-table tbody tr {
+            page-break-inside: avoid;
+        }
+        .stops-table tbody tr:nth-child(even) {
+            background: #f5f5f5;
+        }
+
+        /* Stop number bubble */
+        .stop-num {
+            font-size: 18pt;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Customer / address */
+        .customer-name {
+            font-size: 13pt;
+            font-weight: bold;
+        }
+        .address-text {
+            font-size: 11pt;
+            color: #333;
+            margin-top: 2px;
+        }
+
+        /* Pallet count */
+        .pallet-count {
+            font-size: 18pt;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Order numbers */
+        .order-list {
+            font-size: 10pt;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+        }
+
+        /* Status box */
+        .status-box {
+            display: inline-block;
+            border: 1px solid #999;
+            padding: 2px 8px;
+            font-size: 10pt;
+            border-radius: 2px;
+        }
+        .status-pending { background: #fff; }
+        .status-delivered { background: #d4edda; }
+        .status-partial { background: #fff3cd; }
+        .status-failed { background: #f8d7da; }
+
+        /* Notes cell */
+        .notes-cell {
+            font-size: 10pt;
+            color: #444;
+            font-style: italic;
+        }
+
+        /* Footer */
+        .footer {
+            border-top: 2px solid #000;
+            padding-top: 14px;
+            margin-top: 20px;
+            display: flex;
+            gap: 40px;
+        }
+        .footer-sig {
+            flex: 1;
+        }
+        .footer-sig-line {
+            border-bottom: 1px solid #000;
+            height: 30px;
+            margin-bottom: 4px;
+        }
+        .footer-sig-label {
+            font-size: 10pt;
+            color: #555;
+        }
+
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .stops-table tbody tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <div class="doc-title">DELIVERY MANIFEST</div>
+            <div class="run-name">{{ run.name }}</div>
+        </div>
+        <div class="header-right">
+            <div class="field"><span class="lbl">Truck:</span> {{ truck_name }}</div>
+            <div class="field"><span class="lbl">Date:</span> {{ run.scheduled_date }}</div>
+            <div class="field"><span class="lbl">Total Stops:</span> {{ total_stops }}</div>
+            <div class="field"><span class="lbl">Total Weight:</span> {{ total_weight }} lbs</div>
+        </div>
+    </div>
+
+    <!-- Summary bar -->
+    <div class="summary-bar">
+        <div class="summary-cell">
+            <div class="s-label">Stops</div>
+            <div class="s-value">{{ total_stops }}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="s-label">Total Pallets</div>
+            <div class="s-value">{{ total_pallets }}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="s-label">Total Weight</div>
+            <div class="s-value">{{ total_weight }}</div>
+        </div>
+        <div class="summary-cell">
+            <div class="s-label">Truck</div>
+            <div class="s-value" style="font-size:13pt;">{{ truck_name }}</div>
+        </div>
+    </div>
+
+    <!-- Stops table -->
+    <table class="stops-table">
+        <thead>
+            <tr>
+                <th style="width:50px;" class="center">#</th>
+                <th style="width:200px;">Customer</th>
+                <th>Address</th>
+                <th style="width:70px;" class="center">Pallets</th>
+                <th style="width:120px;">Orders</th>
+                <th style="width:80px;" class="center">Status</th>
+                <th style="width:120px;">Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stop in stops %}
+            <tr>
+                <td><div class="stop-num">{{ stop.sequence }}</div></td>
+                <td>
+                    <div class="customer-name">{{ stop.customer_name }}</div>
+                </td>
+                <td>
+                    <div style="font-size:12pt;">{{ stop.address }}</div>
+                    {% if stop.city %}<div class="address-text">{{ stop.city }}</div>{% endif %}
+                </td>
+                <td><div class="pallet-count">{{ stop.pallet_count }}</div></td>
+                <td>
+                    <div class="order-list">
+                        {% for order_number in stop.order_numbers %}
+                        {{ order_number }}<br>
+                        {% empty %}
+                        —
+                        {% endfor %}
+                    </div>
+                </td>
+                <td class="center">
+                    <span class="status-box status-{{ stop.status }}">{{ stop.status_display }}</span>
+                </td>
+                <td class="notes-cell">{{ stop.delivery_notes|default:"" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align:center; padding:20px; color:#999;">No stops</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="footer-sig">
+            <div class="footer-sig-line"></div>
+            <div class="footer-sig-label">Driver Signature</div>
+        </div>
+        <div class="footer-sig">
+            <div class="footer-sig-line"></div>
+            <div class="footer-sig-label">Date</div>
+        </div>
+        <div class="footer-sig" style="flex:2;">
+            <div class="footer-sig-line"></div>
+            <div class="footer-sig-label">Notes / Issues</div>
+        </div>
+    </div>
+
+</body>
+</html>

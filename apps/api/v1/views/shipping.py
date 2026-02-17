@@ -187,6 +187,18 @@ class BillOfLadingViewSet(viewsets.ModelViewSet):
         bol.save()
         return Response(BillOfLadingSerializer(bol, context={'request': request}).data)
 
+    @extend_schema(tags=['shipping'], summary='Download BOL as PDF')
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def download_pdf(self, request, pk=None):
+        """GET /api/v1/bols/{id}/pdf/ - Download BOL PDF."""
+        bol = self.get_object()
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+        pdf_bytes = PDFService.render_bill_of_lading(bol)
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="bol-{bol.bol_number}.pdf"'
+        return response
+
 
 class DeliveryRunCreateShipmentView(APIView):
     """Create a shipment from a delivery run."""

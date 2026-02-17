@@ -8,10 +8,12 @@ import LoginScreen from '../screens/LoginScreen'
 import SplashScreen from '../screens/SplashScreen'
 import MainTabs from './MainTabs'
 import OrderStack from './OrderStack'
+import DriverStack from './DriverStack'
 
 type RootStackParamList = {
   MainTabs: undefined
   OrderStack: undefined
+  DriverStack: { screen?: string; params?: any }
 }
 
 const RootStack = createNativeStackNavigator<RootStackParamList>()
@@ -57,6 +59,7 @@ function AppContent() {
         <RootStack.Navigator screenOptions={{ headerShown: false }}>
           <RootStack.Screen name="MainTabs" component={MainTabs} />
           <RootStack.Screen name="OrderStack" component={OrderStack} />
+          <RootStack.Screen name="DriverStack" component={DriverStack} />
         </RootStack.Navigator>
       ) : <AuthNavigator />}
     </NavigationContainer>

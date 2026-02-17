@@ -45,10 +45,11 @@ class ContractService:
                 f"Cannot create release from contract with status '{contract.status}'. Contract must be active."
             )
 
-        # Validate quantity against remaining balance
+        # Check quantity against remaining balance (warn but allow over-release)
+        warning = None
         remaining = contract_line.remaining_qty
         if quantity > remaining:
-            raise ValidationError(
+            warning = (
                 f"Release quantity ({quantity}) exceeds remaining balance ({remaining}) "
                 f"on contract line {contract_line.line_number}."
             )
@@ -112,7 +113,7 @@ class ContractService:
                 notes=notes,
             )
 
-            return sales_order, release
+            return sales_order, release, warning
 
     def validate_release(self, contract_line, quantity):
         """Check if a release is valid. Returns dict with validation result."""

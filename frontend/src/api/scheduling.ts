@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun, SchedulerNote, NoteColor } from '@/types/api'
+import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun, SchedulerNote, NoteColor, ApiError } from '@/types/api'
 
 // Polling interval as fallback when WebSocket is unavailable (30 seconds)
 // Primary real-time updates come via WebSocket connection
@@ -86,6 +87,10 @@ export function useCreateDeliveryRun() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Delivery run created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create delivery run')
     },
   })
 }
@@ -121,6 +126,10 @@ export function useUpdateDeliveryRun() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Delivery run updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update delivery run')
     },
   })
 }
@@ -135,6 +144,10 @@ export function useDeleteDeliveryRun() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Delivery run deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete delivery run')
     },
   })
 }
@@ -177,6 +190,9 @@ export function useUpdateSchedule() {
     onSuccess: () => {
       // Invalidate calendar queries to refetch
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update schedule')
     },
   })
 }
@@ -223,6 +239,9 @@ export function useBatchUpdateSchedule() {
       // Invalidate calendar queries only once after all updates complete
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
     },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update schedule')
+    },
   })
 }
 
@@ -244,6 +263,10 @@ export function useUpdateStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Status updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update status')
     },
   })
 }
@@ -266,6 +289,9 @@ export function useUpdateNotes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save notes')
     },
   })
 }
@@ -334,6 +360,10 @@ export function useCreateNote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
+      toast.success('Note created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create note')
     },
   })
 }
@@ -366,6 +396,9 @@ export function useUpdateNote() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
     },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update note')
+    },
   })
 }
 
@@ -379,6 +412,10 @@ export function useDeleteNote() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
+      toast.success('Note deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete note')
     },
   })
 }
@@ -397,6 +434,10 @@ export function useCreateShipmentFromRun() {
       queryClient.invalidateQueries({ queryKey: ['shipments'] })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
       queryClient.invalidateQueries({ queryKey: ['delivery-runs'] })
+      toast.success('Shipment created from delivery run')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create shipment')
     },
   })
 }

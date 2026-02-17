@@ -771,6 +771,7 @@ class ContractReleaseAPITests(ContractsTestCase):
             line_number=10,
             item=self.item1,
             blanket_qty=50,
+            unit_price=Decimal('10.00'),
             uom=self.uom_each,
         )
 

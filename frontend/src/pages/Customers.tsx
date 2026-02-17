@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Users, MapPin, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportButton } from '@/components/ui/export-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
@@ -13,6 +14,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useCustomers, useLocations, useDeleteCustomer } from '@/api/parties'
 import { CustomerDialog } from '@/components/parties/CustomerDialog'
 import { LocationDialog } from '@/components/parties/LocationDialog'
@@ -35,8 +37,8 @@ export default function Customers() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
-  const { data: customersData } = useCustomers()
-  const { data: locationsData } = useLocations()
+  const { data: customersData, isLoading: customersLoading } = useCustomers()
+  const { data: locationsData, isLoading: locationsLoading } = useLocations()
   const deleteCustomer = useDeleteCustomer()
 
   const handleConfirmDelete = async () => {
@@ -243,10 +245,24 @@ export default function Customers() {
             Manage customers and locations
           </p>
         </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          {activeTab === 'customers' ? 'Add Customer' : 'Add Location'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {activeTab === 'customers' && (
+            <ExportButton
+              data={customersData?.results ?? []}
+              filename="customers"
+              columns={[
+                { key: 'party_display_name', header: 'Customer Name' },
+                { key: 'payment_terms', header: 'Payment Terms' },
+                { key: 'open_sales_total', header: 'Open Sales Total' },
+                { key: 'open_order_count', header: 'Open Orders' },
+              ]}
+            />
+          )}
+          <Button onClick={handleAddNew}>
+            <Plus className="h-4 w-4 mr-2" />
+            {activeTab === 'customers' ? 'Add Customer' : 'Add Location'}
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -276,28 +292,36 @@ export default function Customers() {
         </CardHeader>
         <CardContent>
           {activeTab === 'customers' && (
-            <DataTable
-              columns={customerColumns}
-              data={customersData?.results ?? []}
-              searchColumn="party_display_name"
-              searchPlaceholder="Search customers..."
-              showSearchDropdown
-              searchDropdownLabel={(row) => (row as Customer).party_display_name}
-              searchDropdownSublabel={(row) => (row as Customer).party_code}
-              onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
-            />
+            customersLoading ? (
+              <TableSkeleton columns={6} rows={8} />
+            ) : (
+              <DataTable
+                columns={customerColumns}
+                data={customersData?.results ?? []}
+                searchColumn="party_display_name"
+                searchPlaceholder="Search customers..."
+                showSearchDropdown
+                searchDropdownLabel={(row) => (row as Customer).party_display_name}
+                searchDropdownSublabel={(row) => (row as Customer).party_code}
+                onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
+              />
+            )
           )}
           {activeTab === 'locations' && (
-            <DataTable
-              columns={locationColumns}
-              data={locationsData?.results ?? []}
-              searchColumn="name"
-              searchPlaceholder="Search locations..."
-              onRowClick={(location) => {
-                setEditingLocation(location)
-                setLocationDialogOpen(true)
-              }}
-            />
+            locationsLoading ? (
+              <TableSkeleton columns={6} rows={8} />
+            ) : (
+              <DataTable
+                columns={locationColumns}
+                data={locationsData?.results ?? []}
+                searchColumn="name"
+                searchPlaceholder="Search locations..."
+                onRowClick={(location) => {
+                  setEditingLocation(location)
+                  setLocationDialogOpen(true)
+                }}
+              />
+            )
           )}
         </CardContent>
       </Card>

@@ -1,6 +1,10 @@
+from decimal import Decimal, InvalidOperation
+from django.utils import timezone
+
 from apps.parties.models import Party, Customer, Vendor
 from apps.items.models import Item, UnitOfMeasure
 from apps.warehousing.models import WarehouseLocation, Warehouse
+from apps.accounting.models import Account, JournalEntry, JournalEntryLine
 from .base import BaseCsvImporter
 
 
@@ -169,3 +173,137 @@ class ItemImporter(BaseCsvImporter):
             },
         )
         return 'created' if created else 'updated'
+
+
+class GLOpeningBalanceImporter(BaseCsvImporter):
+    """
+    Import GL opening balances from CSV.
+
+    Creates a single posted Journal Entry with one line per row.
+    Each row debits or credits a GL account. The CSV must balance
+    (total debits == total credits) or an Opening Balance Equity
+    plug line is auto-generated.
+
+    Required columns: AccountCode, Debit, Credit
+    Optional columns: Description
+    """
+    required_columns = ['AccountCode', 'Debit', 'Credit']
+
+    def validate_row(self, row_num, row):
+        errors = []
+        if not row.get('AccountCode'):
+            errors.append(f"Row {row_num}: AccountCode is required.")
+
+        # Validate account exists
+        code = row.get('AccountCode', '').strip()
+        if code and not Account.objects.filter(tenant=self.tenant, code=code).exists():
+            errors.append(f"Row {row_num}: Account '{code}' not found in Chart of Accounts.")
+
+        # Validate amounts are valid decimals
+        debit_str = row.get('Debit', '').strip()
+        credit_str = row.get('Credit', '').strip()
+        debit_val = Decimal('0')
+        credit_val = Decimal('0')
+
+        if debit_str:
+            try:
+                debit_val = Decimal(debit_str)
+                if debit_val < 0:
+                    errors.append(f"Row {row_num}: Debit cannot be negative.")
+            except InvalidOperation:
+                errors.append(f"Row {row_num}: Invalid Debit amount '{debit_str}'.")
+
+        if credit_str:
+            try:
+                credit_val = Decimal(credit_str)
+                if credit_val < 0:
+                    errors.append(f"Row {row_num}: Credit cannot be negative.")
+            except InvalidOperation:
+                errors.append(f"Row {row_num}: Invalid Credit amount '{credit_str}'.")
+
+        if debit_val == 0 and credit_val == 0:
+            errors.append(f"Row {row_num}: Row must have a Debit or Credit amount.")
+
+        if debit_val > 0 and credit_val > 0:
+            errors.append(f"Row {row_num}: Row cannot have both Debit and Credit.")
+
+        return errors
+
+    def process_row(self, row_num, row):
+        # Rows are collected and processed in bulk via post_process
+        if not hasattr(self, '_pending_lines'):
+            self._pending_lines = []
+
+        code = row['AccountCode'].strip()
+        debit = Decimal(row.get('Debit', '').strip() or '0')
+        credit = Decimal(row.get('Credit', '').strip() or '0')
+        description = row.get('Description', '').strip()
+
+        self._pending_lines.append({
+            'account_code': code,
+            'debit': debit,
+            'credit': credit,
+            'description': description,
+        })
+        return 'created'
+
+    def post_process(self):
+        """Create a single Journal Entry with all opening balance lines."""
+        if not hasattr(self, '_pending_lines') or not self._pending_lines:
+            return
+
+        # Calculate totals
+        total_debit = sum(l['debit'] for l in self._pending_lines)
+        total_credit = sum(l['credit'] for l in self._pending_lines)
+
+        # Generate entry number
+        today = timezone.now().date()
+        count = JournalEntry.objects.filter(tenant=self.tenant).count()
+        entry_number = f"JE-OB-{today.strftime('%Y')}-{count + 1:04d}"
+
+        je = JournalEntry.objects.create(
+            tenant=self.tenant,
+            entry_number=entry_number,
+            date=today,
+            memo='Opening Balance Import',
+            entry_type='standard',
+            status='posted',
+            posted_at=timezone.now(),
+            posted_by=self.user,
+            created_by=self.user,
+        )
+
+        line_num = 10
+        for line_data in self._pending_lines:
+            account = Account.objects.get(
+                tenant=self.tenant,
+                code=line_data['account_code'],
+            )
+            JournalEntryLine.objects.create(
+                tenant=self.tenant,
+                entry=je,
+                line_number=line_num,
+                account=account,
+                description=line_data['description'] or f"Opening balance - {account.name}",
+                debit=line_data['debit'],
+                credit=line_data['credit'],
+            )
+            line_num += 10
+
+        # Auto-plug if unbalanced
+        diff = total_debit - total_credit
+        if diff != Decimal('0'):
+            equity_account = Account.objects.filter(
+                tenant=self.tenant,
+                account_type='EQUITY',
+            ).first()
+            if equity_account:
+                JournalEntryLine.objects.create(
+                    tenant=self.tenant,
+                    entry=je,
+                    line_number=line_num,
+                    account=equity_account,
+                    description='Opening Balance Equity (auto-plug)',
+                    debit=abs(diff) if diff < 0 else Decimal('0'),
+                    credit=diff if diff > 0 else Decimal('0'),
+                )

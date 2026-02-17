@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { GLAccount, PaginatedResponse } from '@/types/api'
+import type { GLAccount, PaginatedResponse, ApiError } from '@/types/api'
 
 export interface TenantSettings {
   id: number
@@ -42,6 +43,10 @@ export function useUpdateSettings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      toast.success('Settings saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save settings')
     },
   })
 }

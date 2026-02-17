@@ -25,6 +25,7 @@ class BaseOrder(TenantMixin, TimestampMixin):
     """
     STATUS_CHOICES = [
         ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
         ('confirmed', 'Confirmed'),
         ('scheduled', 'Scheduled'),
         ('picking', 'Pick Ticket'),

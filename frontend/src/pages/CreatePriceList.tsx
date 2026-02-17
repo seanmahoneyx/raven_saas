@@ -205,7 +205,7 @@ export default function CreatePriceList() {
               type="checkbox"
               checked={formData.is_active}
               onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-border"
             />
             <Label htmlFor="is_active">Active</Label>
             <p className="text-xs text-muted-foreground">

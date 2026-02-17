@@ -9,12 +9,13 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from apps.invoicing.models import Invoice, InvoiceLine, Payment
+from apps.invoicing.models import Invoice, InvoiceLine, Payment, TaxZone, TaxRule
 from apps.invoicing.services import DunningService
 from apps.documents.pdf import PDFService
 from apps.api.v1.serializers.invoicing import (
     InvoiceSerializer, InvoiceListSerializer, InvoiceDetailSerializer,
     InvoiceLineSerializer, PaymentSerializer,
+    TaxZoneSerializer, TaxRuleSerializer,
 )
 from apps.api.v1.views.documents import PDFActionMixin
 
@@ -247,3 +248,80 @@ class DunningSummaryView(APIView):
         svc = DunningService(request.tenant, request.user)
         summary = svc.get_dunning_summary()
         return Response(summary)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['invoicing'], summary='List tax zones'),
+    retrieve=extend_schema(tags=['invoicing'], summary='Get tax zone details'),
+    create=extend_schema(tags=['invoicing'], summary='Create a tax zone'),
+    update=extend_schema(tags=['invoicing'], summary='Update a tax zone'),
+    partial_update=extend_schema(tags=['invoicing'], summary='Partially update a tax zone'),
+    destroy=extend_schema(tags=['invoicing'], summary='Delete a tax zone'),
+)
+class TaxZoneViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for TaxZone model.
+
+    Manages tax zones with their associated rules.
+    """
+    serializer_class = TaxZoneSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name']
+    ordering_fields = ['name', 'rate', 'created_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        return TaxZone.objects.select_related('gl_account').prefetch_related('rules').all()
+
+    @extend_schema(
+        tags=['invoicing'],
+        summary='List rules for a tax zone',
+        responses={200: TaxRuleSerializer(many=True)}
+    )
+    @action(detail=True, methods=['get'])
+    def rules(self, request, pk=None):
+        """List all rules for this tax zone."""
+        zone = self.get_object()
+        rules = zone.rules.all()
+        serializer = TaxRuleSerializer(rules, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=['invoicing'],
+        summary='Add rule to tax zone',
+        request=TaxRuleSerializer,
+        responses={201: TaxRuleSerializer}
+    )
+    @rules.mapping.post
+    def add_rule(self, request, pk=None):
+        """Add a postal code rule to this tax zone."""
+        zone = self.get_object()
+        serializer = TaxRuleSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save(tax_zone=zone, tenant=request.tenant)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['invoicing'], summary='List tax rules'),
+    retrieve=extend_schema(tags=['invoicing'], summary='Get tax rule details'),
+    create=extend_schema(tags=['invoicing'], summary='Create a tax rule'),
+    update=extend_schema(tags=['invoicing'], summary='Update a tax rule'),
+    destroy=extend_schema(tags=['invoicing'], summary='Delete a tax rule'),
+)
+class TaxRuleViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for TaxRule model.
+
+    Maps postal codes to tax zones.
+    """
+    serializer_class = TaxRuleSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['tax_zone']
+    search_fields = ['postal_code']
+    ordering_fields = ['postal_code', 'created_at']
+    ordering = ['postal_code']
+
+    def get_queryset(self):
+        return TaxRule.objects.select_related('tax_zone').all()

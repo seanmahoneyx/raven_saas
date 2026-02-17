@@ -1,11 +1,14 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, FileText, CreditCard, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportButton } from '@/components/ui/export-button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useInvoices, usePayments, type Invoice, type Payment } from '@/api/invoicing'
 import { format } from 'date-fns'
 
@@ -22,11 +25,12 @@ const invoiceStatusVariant: Record<string, 'default' | 'secondary' | 'destructiv
 
 export default function Invoices() {
   usePageTitle('Invoices')
+  const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
 
-  const { data: invoicesData } = useInvoices()
-  const { data: paymentsData } = usePayments()
+  const { data: invoicesData, isLoading: invoicesLoading } = useInvoices()
+  const { data: paymentsData, isLoading: paymentsLoading } = usePayments()
 
   const invoiceColumns: ColumnDef<Invoice>[] = useMemo(
     () => [
@@ -34,7 +38,12 @@ export default function Invoices() {
         accessorKey: 'invoice_number',
         header: 'Invoice #',
         cell: ({ row }) => (
-          <span className="font-mono font-medium">{row.getValue('invoice_number')}</span>
+          <button
+            className="font-mono font-medium text-primary hover:underline"
+            onClick={() => navigate(`/invoices/${row.original.id}`)}
+          >
+            {row.getValue('invoice_number')}
+          </button>
         ),
       },
       {
@@ -186,10 +195,26 @@ export default function Invoices() {
             Manage invoices and payments
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New {activeTab === 'invoices' ? 'Invoice' : 'Payment'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportButton
+            data={activeTab === 'invoices' ? (invoicesData?.results ?? []) : (paymentsData?.results ?? [])}
+            filename={activeTab === 'invoices' ? 'invoices' : 'payments'}
+            columns={activeTab === 'invoices' ? [
+              { key: 'invoice_number', header: 'Invoice #' },
+              { key: 'invoice_type', header: 'Type' },
+              { key: 'party_name', header: 'Party' },
+              { key: 'invoice_date', header: 'Date' },
+              { key: 'due_date', header: 'Due Date' },
+              { key: 'status', header: 'Status' },
+              { key: 'total_amount', header: 'Total' },
+              { key: 'balance_due', header: 'Balance Due' },
+            ] : undefined}
+          />
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            New {activeTab === 'invoices' ? 'Invoice' : 'Payment'}
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -251,20 +276,28 @@ export default function Invoices() {
         </CardHeader>
         <CardContent>
           {activeTab === 'invoices' && (
-            <DataTable
-              columns={invoiceColumns}
-              data={invoicesData?.results ?? []}
-              searchColumn="invoice_number"
-              searchPlaceholder="Search invoices..."
-            />
+            invoicesLoading ? (
+              <TableSkeleton columns={8} rows={8} />
+            ) : (
+              <DataTable
+                columns={invoiceColumns}
+                data={invoicesData?.results ?? []}
+                searchColumn="invoice_number"
+                searchPlaceholder="Search invoices..."
+              />
+            )
           )}
           {activeTab === 'payments' && (
-            <DataTable
-              columns={paymentColumns}
-              data={paymentsData?.results ?? []}
-              searchColumn="payment_number"
-              searchPlaceholder="Search payments..."
-            />
+            paymentsLoading ? (
+              <TableSkeleton columns={6} rows={8} />
+            ) : (
+              <DataTable
+                columns={paymentColumns}
+                data={paymentsData?.results ?? []}
+                searchColumn="payment_number"
+                searchPlaceholder="Search payments..."
+              />
+            )
           )}
         </CardContent>
       </Card>

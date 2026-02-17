@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { AuthProvider } from '@/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import Login from '@/pages/Login'
@@ -18,7 +19,6 @@ import Inventory from '@/pages/Inventory'
 import Shipping from '@/pages/Shipping'
 import Invoices from '@/pages/Invoices'
 import ReceivePayment from '@/pages/ReceivePayment'
-import Reports from '@/pages/Reports'
 import Contracts from '@/pages/Contracts'
 import ContractDetail from '@/pages/ContractDetail'
 import PriorityList from '@/pages/PriorityList'
@@ -32,6 +32,8 @@ import CustomerDetail from '@/pages/CustomerDetail'
 import VendorDetail from '@/pages/VendorDetail'
 import CreateItem from '@/pages/CreateItem'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
+import ReportsDashboard from '@/pages/reports/ReportsDashboard'
+import CannedReport from '@/pages/reports/CannedReport'
 import Estimates from '@/pages/Estimates'
 import CreateEstimate from '@/pages/CreateEstimate'
 import EstimateDetail from '@/pages/EstimateDetail'
@@ -49,11 +51,17 @@ import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
 import SalesOrderDetail from '@/pages/SalesOrderDetail'
 import PurchaseOrderDetail from '@/pages/PurchaseOrderDetail'
 import DataImport from '@/pages/admin/DataImport'
+import TaxZones from '@/pages/admin/TaxZones'
 import ChartOfAccounts from '@/pages/ChartOfAccounts'
 import JournalEntries from '@/pages/JournalEntries'
 import CreateJournalEntry from '@/pages/CreateJournalEntry'
 import JournalEntryDetail from '@/pages/JournalEntryDetail'
+import InvoiceDetail from '@/pages/InvoiceDetail'
+import Scanner from '@/pages/warehouse/Scanner'
+import CycleCounts from '@/pages/warehouse/CycleCounts'
+import PrintLabels from '@/pages/warehouse/PrintLabels'
 import Settings from '@/pages/Settings'
+import Preferences from '@/pages/settings/Preferences'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -83,67 +91,83 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <BrowserRouter>
-            <Routes>
-            {/* Public routes */}
-            <Route path="/login" element={<Login />} />
+            <ErrorBoundary>
+              <Routes>
+              {/* Public routes */}
+              <Route path="/login" element={<Login />} />
 
-            {/* Protected routes */}
-            <Route
-              element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/customers" element={<Customers />} />
-              <Route path="/vendors" element={<Vendors />} />
-              <Route path="/trucks" element={<Trucks />} />
-              <Route path="/customers/open-orders" element={<OpenSalesOrders />} />
-              <Route path="/customers/new" element={<CreateCustomer />} />
-              <Route path="/customers/:id" element={<CustomerDetail />} />
-              <Route path="/vendors/open-orders" element={<OpenPurchaseOrders />} />
-              <Route path="/vendors/new" element={<CreateVendor />} />
-              <Route path="/vendors/:id" element={<VendorDetail />} />
-              <Route path="/contracts" element={<Contracts />} />
-              <Route path="/contracts/:id" element={<ContractDetail />} />
-              <Route path="/items" element={<Items />} />
-              <Route path="/items/new" element={<CreateItem />} />
-              <Route path="/items/:id" element={<ItemDetail />} />
-              <Route path="/estimates" element={<Estimates />} />
-              <Route path="/estimates/new" element={<CreateEstimate />} />
-              <Route path="/estimates/:id" element={<EstimateDetail />} />
-              <Route path="/contracts/new" element={<CreateContract />} />
-              <Route path="/orders" element={<Orders />} />
-              <Route path="/orders/sales/new" element={<CreateSalesOrder />} />
-              <Route path="/orders/purchase/new" element={<CreatePurchaseOrder />} />
-              <Route path="/orders/sales/:id" element={<SalesOrderDetail />} />
-              <Route path="/orders/purchase/:id" element={<PurchaseOrderDetail />} />
-              <Route path="/rfqs" element={<RFQs />} />
-              <Route path="/rfqs/new" element={<CreateRFQ />} />
-              <Route path="/rfqs/:id" element={<RFQDetail />} />
-              <Route path="/price-lists" element={<PriceLists />} />
-              <Route path="/price-lists/new" element={<CreatePriceList />} />
-              <Route path="/price-lists/:id" element={<PriceListDetail />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/shipping" element={<Shipping />} />
-              <Route path="/invoices" element={<Invoices />} />
-              <Route path="/receive-payment" element={<ReceivePayment />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/reports/item-quick-report" element={<ItemQuickReport />} />
-              <Route path="/scheduler" element={<Scheduler />} />
-              <Route path="/priority-list" element={<PriorityList />} />
-              <Route path="/design-requests" element={<DesignRequests />} />
-              <Route path="/design-requests/new" element={<CreateDesignRequest />} />
-              <Route path="/design-requests/:id" element={<DesignRequestDetail />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/admin/import" element={<DataImport />} />
-              <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
-              <Route path="/journal-entries" element={<JournalEntries />} />
-              <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
-              <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
-            </Route>
-            </Routes>
+              {/* Protected routes */}
+              <Route
+                element={
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/customers" element={<Customers />} />
+                <Route path="/vendors" element={<Vendors />} />
+                <Route path="/trucks" element={<Trucks />} />
+                <Route path="/customers/open-orders" element={<OpenSalesOrders />} />
+                <Route path="/customers/new" element={<CreateCustomer />} />
+                <Route path="/customers/:id" element={<CustomerDetail />} />
+                <Route path="/vendors/open-orders" element={<OpenPurchaseOrders />} />
+                <Route path="/vendors/new" element={<CreateVendor />} />
+                <Route path="/vendors/:id" element={<VendorDetail />} />
+                <Route path="/contracts" element={<Contracts />} />
+                <Route path="/contracts/:id" element={<ContractDetail />} />
+                <Route path="/items" element={<Items />} />
+                <Route path="/items/new" element={<CreateItem />} />
+                <Route path="/items/:id" element={<ItemDetail />} />
+                <Route path="/estimates" element={<Estimates />} />
+                <Route path="/estimates/new" element={<CreateEstimate />} />
+                <Route path="/estimates/:id" element={<EstimateDetail />} />
+                <Route path="/contracts/new" element={<CreateContract />} />
+                <Route path="/orders" element={<Orders />} />
+                <Route path="/orders/sales/new" element={<CreateSalesOrder />} />
+                <Route path="/orders/purchase/new" element={<CreatePurchaseOrder />} />
+                <Route path="/orders/sales/:id" element={<SalesOrderDetail />} />
+                <Route path="/orders/purchase/:id" element={<PurchaseOrderDetail />} />
+                <Route path="/rfqs" element={<RFQs />} />
+                <Route path="/rfqs/new" element={<CreateRFQ />} />
+                <Route path="/rfqs/:id" element={<RFQDetail />} />
+                <Route path="/price-lists" element={<PriceLists />} />
+                <Route path="/price-lists/new" element={<CreatePriceList />} />
+                <Route path="/price-lists/:id" element={<PriceListDetail />} />
+                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/shipping" element={<Shipping />} />
+                <Route path="/invoices" element={<Invoices />} />
+                <Route path="/invoices/:id" element={<InvoiceDetail />} />
+                <Route path="/receive-payment" element={<ReceivePayment />} />
+                <Route path="/reports" element={<ReportsDashboard />} />
+                <Route path="/reports/item-quick-report" element={<ItemQuickReport />} />
+                <Route path="/reports/:slug" element={<CannedReport />} />
+                <Route path="/scheduler" element={<Scheduler />} />
+                <Route path="/priority-list" element={<PriorityList />} />
+                <Route path="/design-requests" element={<DesignRequests />} />
+                <Route path="/design-requests/new" element={<CreateDesignRequest />} />
+                <Route path="/design-requests/:id" element={<DesignRequestDetail />} />
+                <Route path="/warehouse/scanner" element={<Scanner />} />
+                <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
+                <Route path="/warehouse/print-labels" element={<PrintLabels />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/settings/preferences" element={<Preferences />} />
+                <Route path="/admin/import" element={<DataImport />} />
+                <Route path="/admin/tax-zones" element={<TaxZones />} />
+                <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
+                <Route path="/journal-entries" element={<JournalEntries />} />
+                <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
+                <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
+                <Route path="*" element={
+                  <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                    <h1 className="text-4xl font-bold">404</h1>
+                    <p className="text-muted-foreground">Page not found</p>
+                    <a href="/" className="text-primary hover:underline">Back to Dashboard</a>
+                  </div>
+                } />
+              </Route>
+              </Routes>
+            </ErrorBoundary>
           </BrowserRouter>
           <Toaster />
         </AuthProvider>

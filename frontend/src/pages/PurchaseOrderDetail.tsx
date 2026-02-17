@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, Pencil, Calendar, MapPin, Package, DollarSign, Hash, Clock,
-  Printer, Save, X,
+  Printer, Save, X, Mail,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +23,7 @@ import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import EmailModal from '@/components/common/EmailModal'
 
 const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
   draft: 'secondary',
@@ -55,6 +56,7 @@ export default function PurchaseOrderDetail() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [formData, setFormData] = useState({
     status: 'draft' as OrderStatus,
     expected_date: '',
@@ -212,6 +214,9 @@ export default function PurchaseOrderDetail() {
                   <Pencil className="h-4 w-4 mr-2" /> Edit
                 </Button>
               )}
+              <Button variant="outline" onClick={() => setEmailModalOpen(true)}>
+                <Mail className="h-4 w-4 mr-2" /> Email
+              </Button>
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="h-4 w-4 mr-2" /> Print
               </Button>
@@ -403,6 +408,14 @@ export default function PurchaseOrderDetail() {
         variant="default"
         onConfirm={handleConfirmReceive}
         loading={receivePO.isPending}
+      />
+
+      <EmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        endpoint={`/purchase-orders/${purchaseOrderId}/email/`}
+        defaultSubject={`Purchase Order ${order.po_number}`}
+        defaultBody={`Please find attached Purchase Order ${order.po_number}.`}
       />
     </div>
   )

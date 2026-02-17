@@ -222,6 +222,21 @@ class ShippingService:
         shipment.status = 'delivered'
         shipment.arrival_time = arrival_time or timezone.now()
         shipment.save()
+
+        # Notify about delivery completion
+        try:
+            from apps.notifications.services import notify_group
+            notify_group(
+                tenant=self.tenant,
+                group_name='Sales',
+                title=f'Shipment {shipment.shipment_number} Delivered',
+                message=f'Shipment has been delivered.',
+                link=f'/shipping',
+                notification_type='SUCCESS',
+            )
+        except Exception:
+            pass  # Don't let notification failures break shipment flow
+
         return shipment
 
     def cancel_shipment(self, shipment):
@@ -274,7 +289,7 @@ class ShippingService:
         # Deduct inventory (FIFO COGS) for each SO line
         try:
             from apps.inventory.services import InventoryService
-            from apps.new_warehousing.models import Warehouse
+            from apps.warehousing.models import Warehouse
 
             default_warehouse = Warehouse.objects.filter(
                 tenant=self.tenant, is_default=True

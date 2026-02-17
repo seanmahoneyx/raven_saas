@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { PaginatedResponse } from '@/types/api'
+import type { PaginatedResponse, ApiError } from '@/types/api'
 
 export interface Invoice {
   id: number
@@ -66,6 +67,10 @@ export function useCreateInvoice() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      toast.success('Invoice created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create invoice')
     },
   })
 }
@@ -79,6 +84,10 @@ export function useUpdateInvoice() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      toast.success('Invoice updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update invoice')
     },
   })
 }
@@ -104,6 +113,10 @@ export function useCreatePayment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      toast.success('Payment recorded')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to record payment')
     },
   })
 }

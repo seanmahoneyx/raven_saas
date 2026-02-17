@@ -86,3 +86,56 @@ class SignDeliverySerializer(serializers.Serializer):
     """Payload for POST /logistics/stops/{stop_id}/sign/"""
     signature_base64 = serializers.CharField(help_text="Base64-encoded signature PNG image")
     signed_by = serializers.CharField(max_length=100, help_text="Name of person who signed")
+    photo_base64 = serializers.CharField(required=False, allow_blank=True, help_text="Base64-encoded photo JPG")
+    gps_lat = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
+    gps_lng = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
+    delivery_notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class DriverRunSerializer(serializers.Serializer):
+    """Response for GET /logistics/my-run/ - Driver's manifest."""
+
+    class StopOrderLineSerializer(serializers.Serializer):
+        item_sku = serializers.CharField()
+        item_name = serializers.CharField()
+        quantity = serializers.IntegerField()
+        uom_code = serializers.CharField()
+
+    class StopOrderSerializer(serializers.Serializer):
+        id = serializers.IntegerField()
+        order_number = serializers.CharField()
+        customer_po = serializers.CharField(allow_blank=True)
+        lines = serializers.ListField(child=serializers.DictField())
+
+    class ManifestStopSerializer(serializers.Serializer):
+        id = serializers.IntegerField()
+        sequence = serializers.IntegerField()
+        status = serializers.CharField()
+        customer_name = serializers.CharField()
+        address = serializers.CharField()
+        city = serializers.CharField()
+        delivery_notes = serializers.CharField(allow_blank=True)
+        pallet_count = serializers.IntegerField()
+        orders = serializers.ListField()
+        arrived_at = serializers.DateTimeField(allow_null=True)
+        delivered_at = serializers.DateTimeField(allow_null=True)
+
+    run_id = serializers.IntegerField()
+    run_name = serializers.CharField()
+    truck_name = serializers.CharField()
+    scheduled_date = serializers.DateField()
+    total_stops = serializers.IntegerField()
+    total_weight_lbs = serializers.DecimalField(max_digits=12, decimal_places=2)
+    is_complete = serializers.BooleanField()
+    stops = ManifestStopSerializer(many=True)
+
+
+class ArriveStopSerializer(serializers.Serializer):
+    """Payload for POST /logistics/stops/{id}/arrive/"""
+    gps_lat = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
+    gps_lng = serializers.DecimalField(max_digits=10, decimal_places=7, required=False, allow_null=True)
+
+
+class StartRunSerializer(serializers.Serializer):
+    """Payload for POST /logistics/my-run/start/"""
+    pass  # No required fields

@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
 import type {
   Item, UnitOfMeasure, PaginatedResponse,
   CorrugatedFeature, DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
-  ItemVendor
+  ItemVendor, ApiError
 } from '@/types/api'
 
 // =============================================================================
@@ -40,6 +41,10 @@ export function useCreateItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Item created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create item')
     },
   })
 }
@@ -53,6 +58,10 @@ export function useUpdateItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -65,6 +74,10 @@ export function useDeleteItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Item deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete item')
     },
   })
 }
@@ -92,6 +105,10 @@ export function useCreateUnitOfMeasure() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uom'] })
+      toast.success('Unit of measure created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create unit of measure')
     },
   })
 }
@@ -105,6 +122,10 @@ export function useUpdateUnitOfMeasure() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uom'] })
+      toast.success('Unit of measure updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to update unit of measure')
     },
   })
 }
@@ -148,6 +169,10 @@ export function useCreateBoxItem(boxType: BoxType) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
       queryClient.invalidateQueries({ queryKey: [`${boxType}-items`] })
+      toast.success('Item created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create item')
     },
   })
 }
@@ -162,6 +187,10 @@ export function useUpdateBoxItem(boxType: BoxType) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
       queryClient.invalidateQueries({ queryKey: [`${boxType}-items`] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -269,6 +298,10 @@ export function useDuplicateItem() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Item duplicated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to duplicate item')
     },
   })
 }
@@ -298,6 +331,10 @@ export function useCreateItemVendor(itemId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['item-vendors', itemId] })
       queryClient.invalidateQueries({ queryKey: ['items', itemId] })
+      toast.success('Vendor added')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to add vendor')
     },
   })
 }

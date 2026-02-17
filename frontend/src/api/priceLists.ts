@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
-import type { PriceList, PriceListInput, PaginatedResponse } from '@/types/api'
+import type { PriceList, PriceListInput, PaginatedResponse, ApiError } from '@/types/api'
 
 export function usePriceLists(params?: { search?: string; customer?: number; item?: number }) {
   return useQuery({
@@ -32,6 +33,10 @@ export function useCreatePriceList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['price-lists'] })
+      toast.success('Price list created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to create price list')
     },
   })
 }
@@ -46,6 +51,10 @@ export function useUpdatePriceList() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['price-lists'] })
       queryClient.invalidateQueries({ queryKey: ['price-lists', variables.id] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to save changes')
     },
   })
 }
@@ -58,6 +67,10 @@ export function useDeletePriceList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['price-lists'] })
+      toast.success('Price list deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete price list')
     },
   })
 }

@@ -1,3 +1,7 @@
+import type { AxiosError } from 'axios'
+
+export type ApiError = AxiosError<{ detail?: string; error?: string; message?: string }>
+
 // API Response types
 
 export interface PaginatedResponse<T> {
