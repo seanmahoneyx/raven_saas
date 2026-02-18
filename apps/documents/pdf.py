@@ -541,6 +541,73 @@ class PDFService:
         return cls.render_to_pdf('documents/delivery_manifest.html', context)
 
     @classmethod
+    def render_item_spec(cls, item):
+        """
+        Generate a PDF spec sheet for an Item.
+
+        Args:
+            item: Item model instance
+
+        Returns:
+            bytes: PDF file content
+        """
+        from datetime import date as date_cls
+        tenant_settings = item.tenant.settings
+
+        # Fetch related vendors
+        vendor_links = item.vendors.select_related('vendor').all()
+        vendors = [
+            {
+                'vendor_name': vl.vendor.display_name if hasattr(vl.vendor, 'display_name') else str(vl.vendor),
+                'mpn': vl.mpn,
+                'lead_time_days': vl.lead_time_days,
+                'min_order_qty': vl.min_order_qty,
+                'is_preferred': vl.is_preferred,
+            }
+            for vl in vendor_links
+        ]
+
+        # Fetch UOM conversions
+        uom_conversions = [
+            {
+                'uom_code': conv.uom.code,
+                'factor': conv.conversion_factor,
+            }
+            for conv in item.uom_conversions.select_related('uom').all()
+        ]
+
+        # Parent item info
+        parent_sku = item.parent.sku if item.parent else ''
+        parent_name = item.parent.name if item.parent else ''
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or item.tenant.name,
+            },
+            'generated_date': date_cls.today(),
+            'item': {
+                'sku': item.sku,
+                'name': item.name,
+                'division_display': item.get_division_display(),
+                'is_active': item.is_active,
+                'is_inventory': item.is_inventory,
+                'base_uom': item.base_uom.code if item.base_uom else '-',
+                'description': item.description,
+                'purch_desc': item.purch_desc,
+                'sell_desc': item.sell_desc,
+                'reorder_point': item.reorder_point,
+                'min_stock': item.min_stock,
+                'safety_stock': item.safety_stock,
+                'parent_sku': parent_sku,
+                'parent_name': parent_name,
+            },
+            'vendors': vendors,
+            'uom_conversions': uom_conversions,
+        }
+
+        return cls.render_to_pdf('documents/item_spec_sheet.html', context)
+
+    @classmethod
     def render_item_quick_report(cls, item, report_data, start_date, end_date):
         """
         Generate a PDF for an Item QuickReport.

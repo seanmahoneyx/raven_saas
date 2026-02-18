@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, DollarSign, Package, MapPin, FileText, Calendar,
-  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload, Printer,
+  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload, Printer, Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useVendor, useLocations, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment } from '@/api/parties'
+import { useVendor, useLocations, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment, useDuplicateVendor } from '@/api/parties'
 import { usePurchaseOrders } from '@/api/orders'
 import type { PurchaseOrder, Location, TimelineEvent } from '@/types/api'
 import { format } from 'date-fns'
@@ -49,6 +49,7 @@ export default function VendorDetail() {
   const { data: attachments } = useVendorAttachments(vendorId)
   const uploadAttachment = useUploadVendorAttachment()
   const deleteAttachment = useDeleteVendorAttachment()
+  const duplicateVendor = useDuplicateVendor()
 
   const [activeTab, setActiveTab] = useState<Tab>('timeline')
   const [timelineFilter, setTimelineFilter] = useState<string | undefined>(undefined)
@@ -96,6 +97,15 @@ export default function VendorDetail() {
     { key: 'payment', label: 'Payments' },
   ] as const
 
+  const handleDuplicate = () => {
+    if (!vendorId) return
+    duplicateVendor.mutate(vendorId, {
+      onSuccess: (newVendor) => {
+        navigate(`/vendors/${newVendor.id}`)
+      },
+    })
+  }
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -134,6 +144,15 @@ export default function VendorDetail() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            disabled={duplicateVendor.isPending}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            {duplicateVendor.isPending ? 'Duplicating...' : 'Save As Copy'}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-2" />
             Print

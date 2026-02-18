@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
@@ -17,12 +18,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useItem, useItemVendors, useDuplicateItem, useUpdateItem } from '@/api/items'
+import api from '@/api/client'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
-type Tab = 'history' | 'vendors' | 'audit' | 'attachments'
+type Tab = 'history' | 'vendors' | 'audit' | 'attachments' | 'children'
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -35,6 +37,14 @@ export default function ItemDetail() {
   const { data: vendors } = useItemVendors(itemId)
   const duplicateItem = useDuplicateItem()
   const updateItem = useUpdateItem()
+  const { data: childItems } = useQuery({
+    queryKey: ['items', itemId, 'children'],
+    queryFn: async () => {
+      const { data } = await api.get('/items/', { params: { parent: itemId } })
+      return data
+    },
+    enabled: !!itemId,
+  })
   const [activeTab, setActiveTab] = useState<Tab>('history')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -48,6 +58,7 @@ export default function ItemDetail() {
     reorder_point: '',
     min_stock: '',
     safety_stock: '',
+    parent: '',
   })
 
   useEffect(() => {
@@ -63,6 +74,7 @@ export default function ItemDetail() {
         reorder_point: item.reorder_point !== null ? String(item.reorder_point) : '',
         min_stock: item.min_stock !== null ? String(item.min_stock) : '',
         safety_stock: item.safety_stock !== null ? String(item.safety_stock) : '',
+        parent: item.parent ? String(item.parent) : '',
       })
     }
   }, [isEditing, item])
@@ -91,6 +103,7 @@ export default function ItemDetail() {
         reorder_point: formData.reorder_point ? parseInt(formData.reorder_point, 10) : null,
         min_stock: formData.min_stock ? parseInt(formData.min_stock, 10) : null,
         safety_stock: formData.safety_stock ? parseInt(formData.safety_stock, 10) : null,
+        parent: formData.parent ? parseInt(formData.parent, 10) : null,
       })
       setIsEditing(false)
     } catch (error) {
@@ -111,6 +124,7 @@ export default function ItemDetail() {
       reorder_point: '',
       min_stock: '',
       safety_stock: '',
+      parent: '',
     })
   }
 
@@ -135,6 +149,7 @@ export default function ItemDetail() {
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
     { id: 'attachments' as Tab, label: 'Attachments', icon: Paperclip },
     { id: 'audit' as Tab, label: 'Audit History', icon: FileText },
+    { id: 'children' as Tab, label: 'Sub-Items', icon: Package },
   ]
 
   return (
@@ -190,9 +205,11 @@ export default function ItemDetail() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Quick Report
               </Button>
-              <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Button variant="outline" size="sm" onClick={() => {
+                window.open(`/api/v1/items/${item.id}/spec_sheet/`, '_blank')
+              }}>
                 <Printer className="h-4 w-4 mr-2" />
-                Print
+                Spec Sheet
               </Button>
               <Button
                 variant="outline"
@@ -286,6 +303,16 @@ export default function ItemDetail() {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label>Parent Item (ID)</Label>
+                <Input
+                  type="number"
+                  value={formData.parent}
+                  onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+                  placeholder="Parent item ID (leave blank for top-level)"
+                  min="1"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
                   value={formData.description}
@@ -337,6 +364,19 @@ export default function ItemDetail() {
               <div>
                 <div className="text-sm font-medium text-muted-foreground mb-1">Division</div>
                 <div>{item.division || '-'}</div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-1">Parent Item</div>
+                <div>
+                  {item.parent ? (
+                    <button
+                      onClick={() => navigate(`/items/${item.parent}`)}
+                      className="text-primary hover:underline"
+                    >
+                      {item.parent_sku || `Item #${item.parent}`}
+                    </button>
+                  ) : '-'}
+                </div>
               </div>
               <div className="md:col-span-2">
                 <div className="text-sm font-medium text-muted-foreground mb-1">Description</div>
@@ -496,6 +536,40 @@ export default function ItemDetail() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   No vendors linked to this item
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'children' && (
+            <div>
+              {childItems?.results && childItems.results.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b text-muted-foreground text-sm">
+                      <th className="p-3 text-left">SKU</th>
+                      <th className="p-3 text-left">Name</th>
+                      <th className="p-3 text-left">Division</th>
+                      <th className="p-3 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {childItems.results.map((child: any) => (
+                      <tr key={child.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/items/${child.id}`)}>
+                        <td className="p-3 font-mono font-medium">{child.sku}</td>
+                        <td className="p-3">{child.name}</td>
+                        <td className="p-3">{child.division || '-'}</td>
+                        <td className="p-3">
+                          <Badge variant={child.is_active ? 'success' : 'secondary'}>
+                            {child.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No sub-items
                 </div>
               )}
             </div>

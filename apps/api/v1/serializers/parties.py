@@ -28,6 +28,7 @@ class CustomerSerializer(TenantModelSerializer):
     """Serializer for Customer model."""
     party_display_name = serializers.CharField(source='party.display_name', read_only=True)
     party_code = serializers.CharField(source='party.code', read_only=True)
+    parent_name = serializers.CharField(source='party.parent.display_name', read_only=True, allow_null=True)
     open_sales_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
     open_order_count = serializers.IntegerField(read_only=True, default=0)
     next_expected_delivery = serializers.DateField(read_only=True, allow_null=True, default=None)
@@ -38,6 +39,7 @@ class CustomerSerializer(TenantModelSerializer):
         model = Customer
         fields = [
             'id', 'party', 'party_display_name', 'party_code',
+            'parent_name',
             'payment_terms', 'default_ship_to', 'default_bill_to',
             'sales_rep',
             'open_sales_total', 'open_order_count', 'next_expected_delivery',

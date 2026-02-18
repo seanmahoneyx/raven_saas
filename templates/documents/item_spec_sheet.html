@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 11px; color: #333; margin: 20px; }
+        h1 { font-size: 18px; margin-bottom: 5px; }
+        h2 { font-size: 14px; color: #1e40af; margin-top: 25px; margin-bottom: 8px; border-bottom: 2px solid #1e40af; padding-bottom: 4px; }
+        .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+        .header .company { font-size: 16px; font-weight: bold; }
+        .header .subtitle { font-size: 12px; color: #666; margin-top: 4px; }
+        table.info-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        table.info-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+        table.info-table td.label { font-weight: bold; color: #555; width: 180px; white-space: nowrap; }
+        table.vendor-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        table.vendor-table th { background: #1e40af; color: white; text-align: left; padding: 6px 8px; font-size: 10px; text-transform: uppercase; }
+        table.vendor-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+        table.vendor-table tr:nth-child(even) { background: #f9fafb; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .badge-active { background: #dcfce7; color: #166534; }
+        .badge-inactive { background: #f3f4f6; color: #6b7280; }
+        .no-data { color: #999; font-style: italic; padding: 10px; text-align: center; }
+        .sku-title { font-size: 22px; font-family: monospace; font-weight: bold; margin: 0; }
+        .item-name { font-size: 14px; color: #555; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company">{{ company.name }}</div>
+        <h1>ITEM SPEC SHEET</h1>
+        <div class="subtitle">Generated {{ generated_date|date:"N j, Y" }}</div>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <div class="sku-title">{{ item.sku }}</div>
+        <div class="item-name">{{ item.name }}</div>
+    </div>
+
+    <!-- General Information -->
+    <h2>General Information</h2>
+    <table class="info-table">
+        <tr>
+            <td class="label">SKU</td>
+            <td style="font-family: monospace; font-weight: bold;">{{ item.sku }}</td>
+        </tr>
+        <tr>
+            <td class="label">Name</td>
+            <td>{{ item.name }}</td>
+        </tr>
+        <tr>
+            <td class="label">Division</td>
+            <td>{{ item.division_display }}</td>
+        </tr>
+        <tr>
+            <td class="label">Status</td>
+            <td>
+                {% if item.is_active %}
+                    <span class="badge badge-active">Active</span>
+                {% else %}
+                    <span class="badge badge-inactive">Inactive</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Base UOM</td>
+            <td>{{ item.base_uom }}</td>
+        </tr>
+        {% if item.parent_sku %}
+        <tr>
+            <td class="label">Parent Item</td>
+            <td>{{ item.parent_sku }} - {{ item.parent_name }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td class="label">Inventory Item</td>
+            <td>{{ item.is_inventory|yesno:"Yes,No" }}</td>
+        </tr>
+    </table>
+
+    <!-- Descriptions -->
+    <h2>Descriptions</h2>
+    <table class="info-table">
+        <tr>
+            <td class="label">Description</td>
+            <td>{{ item.description|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="label">Purchase Description</td>
+            <td>{{ item.purch_desc|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="label">Sales Description</td>
+            <td>{{ item.sell_desc|default:"-" }}</td>
+        </tr>
+    </table>
+
+    <!-- Inventory Settings (only if inventory item) -->
+    {% if item.is_inventory %}
+    <h2>Inventory Settings</h2>
+    <table class="info-table">
+        <tr>
+            <td class="label">Reorder Point</td>
+            <td>{{ item.reorder_point|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="label">Min Stock</td>
+            <td>{{ item.min_stock|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="label">Safety Stock</td>
+            <td>{{ item.safety_stock|default:"-" }}</td>
+        </tr>
+    </table>
+    {% endif %}
+
+    <!-- Vendors -->
+    <h2>Vendors</h2>
+    {% if vendors %}
+    <table class="vendor-table">
+        <thead>
+            <tr>
+                <th>Vendor</th>
+                <th>MPN</th>
+                <th>Lead Time</th>
+                <th>Min Order Qty</th>
+                <th>Preferred</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in vendors %}
+            <tr>
+                <td>{{ v.vendor_name }}</td>
+                <td style="font-family: monospace;">{{ v.mpn|default:"-" }}</td>
+                <td>{% if v.lead_time_days %}{{ v.lead_time_days }} days{% else %}-{% endif %}</td>
+                <td>{{ v.min_order_qty|default:"-" }}</td>
+                <td>{% if v.is_preferred %}Yes{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="no-data">No vendors linked to this item.</p>
+    {% endif %}
+
+    <!-- UOM Conversions -->
+    {% if uom_conversions %}
+    <h2>UOM Conversions</h2>
+    <table class="vendor-table">
+        <thead>
+            <tr>
+                <th>UOM</th>
+                <th>Conversion Factor</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for conv in uom_conversions %}
+            <tr>
+                <td>{{ conv.uom_code }}</td>
+                <td>1 {{ conv.uom_code }} = {{ conv.factor }} {{ item.base_uom }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</body>
+</html>

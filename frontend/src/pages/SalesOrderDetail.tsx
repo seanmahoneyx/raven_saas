@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, Pencil, Calendar, MapPin, ShoppingCart, Package, DollarSign, Hash,
-  Printer, Save, X, Paperclip,
+  Printer, Save, X, Paperclip, Copy,
 } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useSalesOrder, useUpdateSalesOrder } from '@/api/orders'
+import { useSalesOrder, useUpdateSalesOrder, useDuplicateSalesOrder } from '@/api/orders'
 import type { OrderStatus, SalesOrder } from '@/types/api'
 import { format } from 'date-fns'
 
@@ -51,6 +51,7 @@ export default function SalesOrderDetail() {
 
   const { data: order, isLoading } = useSalesOrder(orderId)
   const updateOrder = useUpdateSalesOrder()
+  const duplicateOrder = useDuplicateSalesOrder()
 
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -101,6 +102,15 @@ export default function SalesOrderDetail() {
       scheduled_date: '',
       priority: '5',
       notes: '',
+    })
+  }
+
+  const handleDuplicate = () => {
+    if (!orderId) return
+    duplicateOrder.mutate(orderId, {
+      onSuccess: (newOrder) => {
+        navigate(`/orders/sales/${newOrder.id}`)
+      },
     })
   }
 
@@ -177,6 +187,14 @@ export default function SalesOrderDetail() {
             </>
           ) : (
             <>
+              <Button
+                variant="outline"
+                onClick={handleDuplicate}
+                disabled={duplicateOrder.isPending}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                {duplicateOrder.isPending ? 'Duplicating...' : 'Save As Copy'}
+              </Button>
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="h-4 w-4 mr-2" /> Print
               </Button>

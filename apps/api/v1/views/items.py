@@ -163,7 +163,7 @@ class ItemViewSet(viewsets.ModelViewSet):
     For corrugated-specific items, use the corrugated item endpoints.
     """
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'is_inventory', 'division', 'base_uom', 'customer']
+    filterset_fields = ['is_active', 'is_inventory', 'division', 'base_uom', 'customer', 'parent']
     search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
     ordering_fields = ['sku', 'name', 'division', 'created_at']
     ordering = ['sku']
@@ -237,6 +237,19 @@ class ItemViewSet(viewsets.ModelViewSet):
             ItemVendorSerializer(instance, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(tags=['items'], summary='Generate item spec sheet PDF')
+    @action(detail=True, methods=['get'])
+    def spec_sheet(self, request, pk=None):
+        """Generate a PDF spec sheet for this item."""
+        item = self.get_object()
+        from apps.documents.pdf import PDFService
+        pdf_bytes = PDFService.render_item_spec(item)
+
+        from django.http import HttpResponse
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="spec-sheet-{item.sku}.pdf"'
+        return response
 
     @extend_schema(tags=['items'], summary='Duplicate an item (Save As Copy)')
     @action(detail=True, methods=['post'])

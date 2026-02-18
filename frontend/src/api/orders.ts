@@ -78,6 +78,23 @@ export function useDeleteSalesOrder() {
   })
 }
 
+export function useDuplicateSalesOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<SalesOrder>(`/sales-orders/${id}/duplicate/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      toast.success('Sales order duplicated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to duplicate sales order')
+    },
+  })
+}
+
 // Purchase Orders
 export function usePurchaseOrders(params?: { status?: OrderStatus; vendor?: number }) {
   return useQuery({

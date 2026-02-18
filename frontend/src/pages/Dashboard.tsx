@@ -134,7 +134,7 @@ export default function Dashboard() {
       {/* KPI Cards Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Revenue Today */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices')}>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices?date=today')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Revenue Today</CardTitle>
             <DollarSign className="h-4 w-4 text-green-500" />
@@ -149,7 +149,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Open Orders */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/customers/open-orders')}>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/orders?tab=sales&status=open')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open Orders</CardTitle>
             <ShoppingCart className="h-4 w-4 text-blue-500" />
@@ -175,7 +175,7 @@ export default function Dashboard() {
         </Card>
 
         {/* Overdue Invoices */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices')}>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices?status=overdue')}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Overdue Invoices</CardTitle>
             <AlertTriangle className={`h-4 w-4 ${(kpis?.overdue_invoices_count ?? 0) > 0 ? 'text-red-500' : 'text-green-500'}`} />

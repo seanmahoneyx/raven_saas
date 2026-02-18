@@ -5,7 +5,7 @@ ViewSets for Party-related models: Party, Customer, Vendor, Location, Truck.
 IMPORTANT: All ViewSets use get_queryset() method instead of class-level queryset
 attribute to ensure proper tenant filtering at request time.
 """
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -139,7 +139,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     """
     serializer_class = CustomerSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['payment_terms', 'sales_rep']
+    filterset_fields = ['payment_terms', 'sales_rep', 'party__parent']
     search_fields = ['party__code', 'party__display_name']
     ordering_fields = ['party__display_name', 'created_at']
     ordering = ['party__display_name']
@@ -349,6 +349,40 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response(status=204)
         except Attachment.DoesNotExist:
             return Response({'error': 'Attachment not found'}, status=404)
+
+    @extend_schema(tags=['parties'], summary='Duplicate a customer (Save As Copy)')
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Create a copy of this customer and its party record."""
+        customer = self.get_object()
+        original_party = customer.party
+
+        # Clone the party
+        new_party = Party(
+            tenant=original_party.tenant,
+            code=f"{original_party.code}-COPY",
+            display_name=f"{original_party.display_name} (Copy)",
+            legal_name=original_party.legal_name,
+            party_type=original_party.party_type,
+            is_active=original_party.is_active,
+            parent=original_party.parent,
+        )
+        new_party.save()
+
+        # Clone the customer record
+        new_customer = Customer(
+            tenant=customer.tenant,
+            party=new_party,
+            payment_terms=customer.payment_terms,
+            credit_limit=customer.credit_limit,
+            sales_rep=customer.sales_rep,
+        )
+        new_customer.save()
+
+        return Response(
+            CustomerSerializer(new_customer, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema_view(
@@ -567,6 +601,39 @@ class VendorViewSet(viewsets.ModelViewSet):
             return Response(status=204)
         except Attachment.DoesNotExist:
             return Response({'error': 'Attachment not found'}, status=404)
+
+    @extend_schema(tags=['parties'], summary='Duplicate a vendor (Save As Copy)')
+    @action(detail=True, methods=['post'])
+    def duplicate(self, request, pk=None):
+        """Create a copy of this vendor and its party record."""
+        vendor = self.get_object()
+        original_party = vendor.party
+
+        # Clone the party
+        new_party = Party(
+            tenant=original_party.tenant,
+            code=f"{original_party.code}-COPY",
+            display_name=f"{original_party.display_name} (Copy)",
+            legal_name=original_party.legal_name,
+            party_type=original_party.party_type,
+            is_active=original_party.is_active,
+            parent=original_party.parent,
+        )
+        new_party.save()
+
+        # Clone the vendor record
+        new_vendor = Vendor(
+            tenant=vendor.tenant,
+            party=new_party,
+            payment_terms=vendor.payment_terms,
+            buyer=vendor.buyer,
+        )
+        new_vendor.save()
+
+        return Response(
+            VendorSerializer(new_vendor, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 @extend_schema_view(

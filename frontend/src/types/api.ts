@@ -33,6 +33,7 @@ export interface Customer {
   party: number
   party_display_name: string
   party_code: string
+  parent_name: string | null
   payment_terms: string
   default_ship_to: number | null
   default_bill_to: number | null

@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, DollarSign, ShoppingCart, MapPin, FileText, Calendar,
   AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload,
-  Printer, BarChart3,
+  Printer, BarChart3, Copy, Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment } from '@/api/parties'
+import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment, useDuplicateCustomer } from '@/api/parties'
+import api from '@/api/client'
 import { useSalesOrders } from '@/api/orders'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { SalesOrder, Location, Contract, TimelineEvent } from '@/types/api'
@@ -17,7 +19,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
-type Tab = 'timeline' | 'orders' | 'locations' | 'documents' | 'contracts'
+type Tab = 'timeline' | 'orders' | 'locations' | 'documents' | 'contracts' | 'children'
 
 const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
   draft: 'secondary',
@@ -54,6 +56,15 @@ export default function CustomerDetail() {
   const { data: attachments } = useCustomerAttachments(customerId)
   const uploadAttachment = useUploadCustomerAttachment()
   const deleteAttachment = useDeleteCustomerAttachment()
+  const duplicateCustomer = useDuplicateCustomer()
+  const { data: childCustomers } = useQuery({
+    queryKey: ['customers', customerId, 'children'],
+    queryFn: async () => {
+      const { data } = await api.get('/customers/', { params: { party__parent: customer?.party } })
+      return data
+    },
+    enabled: !!customerId && !!customer?.party,
+  })
 
   const [activeTab, setActiveTab] = useState<Tab>('timeline')
   const [timelineFilter, setTimelineFilter] = useState<string | undefined>(undefined)
@@ -91,6 +102,7 @@ export default function CustomerDetail() {
     { id: 'locations' as Tab, label: 'Locations', icon: MapPin },
     { id: 'documents' as Tab, label: 'Documents', icon: Paperclip },
     { id: 'contracts' as Tab, label: 'Contracts', icon: FileText },
+    { id: 'children' as Tab, label: 'Sub-Customers', icon: Users },
   ]
 
   const timelineFilters = [
@@ -100,6 +112,15 @@ export default function CustomerDetail() {
     { key: 'invoice', label: 'Invoices' },
     { key: 'payment', label: 'Payments' },
   ] as const
+
+  const handleDuplicate = () => {
+    if (!customerId) return
+    duplicateCustomer.mutate(customerId, {
+      onSuccess: (newCustomer) => {
+        navigate(`/customers/${newCustomer.id}`)
+      },
+    })
+  }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -133,12 +154,26 @@ export default function CustomerDetail() {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">{customer.party_display_name}</h1>
             <Badge variant="outline" className="font-mono">{customer.party_code}</Badge>
+            {customer.parent_name && (
+              <span className="text-sm text-muted-foreground ml-2">
+                (Child of {customer.parent_name})
+              </span>
+            )}
           </div>
           <p className="text-muted-foreground">
             {customer.payment_terms ? `Terms: ${customer.payment_terms}` : 'Customer'}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDuplicate}
+            disabled={duplicateCustomer.isPending}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            {duplicateCustomer.isPending ? 'Duplicating...' : 'Save As Copy'}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => navigate('/reports/item-quick-report')}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Quick Report
@@ -580,6 +615,41 @@ export default function CustomerDetail() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 No contracts for this customer
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sub-Customers Tab */}
+      {activeTab === 'children' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Sub-Customers / Jobs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {childCustomers?.results && childCustomers.results.length > 0 ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b text-muted-foreground text-sm">
+                    <th className="p-3 text-left">Code</th>
+                    <th className="p-3 text-left">Name</th>
+                    <th className="p-3 text-left">Terms</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {childCustomers.results.map((child: any) => (
+                    <tr key={child.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/customers/${child.id}`)}>
+                      <td className="p-3 font-mono font-medium">{child.party_code}</td>
+                      <td className="p-3">{child.party_display_name}</td>
+                      <td className="p-3 text-muted-foreground">{child.payment_terms || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No sub-customers or jobs
               </div>
             )}
           </CardContent>

@@ -150,6 +150,24 @@ export function useDeleteCustomer() {
   })
 }
 
+export function useDuplicateCustomer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<Customer>(`/customers/${id}/duplicate/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Customer duplicated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to duplicate customer')
+    },
+  })
+}
+
 // Customer Timeline
 export function useCustomerTimeline(customerId: number, typeFilter?: string) {
   return useQuery({
@@ -292,6 +310,24 @@ export function useDeleteVendor() {
     },
     onError: (error: ApiError) => {
       toast.error(error?.response?.data?.detail || 'Failed to delete vendor')
+    },
+  })
+}
+
+export function useDuplicateVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post<Vendor>(`/vendors/${id}/duplicate/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] })
+      queryClient.invalidateQueries({ queryKey: ['parties'] })
+      toast.success('Vendor duplicated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to duplicate vendor')
     },
   })
 }
