@@ -136,6 +136,16 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
         for idx, line_data in enumerate(lines_data):
             if 'line_number' not in line_data:
                 line_data['line_number'] = (idx + 1) * 10
+            # Auto-fill unit_cost from CostingService if not provided
+            if not line_data.get('unit_cost') and line_data.get('item') and purchase_order.vendor:
+                from apps.costing.services import CostingService
+                cost = CostingService(purchase_order.tenant).get_cost(
+                    vendor=purchase_order.vendor,
+                    item=line_data['item'],
+                    quantity=line_data.get('quantity_ordered', 1),
+                )
+                if cost is not None:
+                    line_data['unit_cost'] = cost
             PurchaseOrderLine.objects.create(
                 purchase_order=purchase_order,
                 tenant=purchase_order.tenant,
@@ -317,6 +327,16 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
         for idx, line_data in enumerate(lines_data):
             if 'line_number' not in line_data:
                 line_data['line_number'] = (idx + 1) * 10
+            # Auto-fill unit_price from PricingService if not provided
+            if not line_data.get('unit_price') and line_data.get('item') and sales_order.customer:
+                from apps.pricing.services import PricingService
+                price = PricingService(sales_order.tenant).get_price(
+                    customer=sales_order.customer,
+                    item=line_data['item'],
+                    quantity=line_data.get('quantity_ordered', 1),
+                )
+                if price is not None:
+                    line_data['unit_price'] = price
             SalesOrderLine.objects.create(
                 sales_order=sales_order,
                 tenant=sales_order.tenant,

@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { purchaseOrderSchema, type PurchaseOrderFormData } from '@/schemas'
+import { FormField } from '@/components/ui/form-field'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreatePurchaseOrder } from '@/api/orders'
 import { useCostLookup } from '@/api/costLists'
@@ -7,7 +11,6 @@ import { useVendors, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -26,13 +29,6 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-interface OrderLineForm {
-  item: string
-  quantity_ordered: string
-  uom: string
-  unit_cost: string
-}
-
 export default function CreatePurchaseOrder() {
   usePageTitle('Create Purchase Order')
   const navigate = useNavigate()
@@ -44,114 +40,110 @@ export default function CreatePurchaseOrder() {
   const { data: uomData } = useUnitsOfMeasure()
 
   const [error, setError] = useState('')
-  const [formData, setFormData] = useState({
-    po_number: '',
-    status: 'draft',
-    priority: '5',
-    vendor: '',
-    ship_to: '',
-    order_date: new Date().toISOString().split('T')[0],
-    expected_date: '',
-    scheduled_date: '',
-    notes: '',
+  const [costLookupLine, setCostLookupLine] = useState<number | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<PurchaseOrderFormData>({
+    resolver: zodResolver(purchaseOrderSchema),
+    defaultValues: {
+      po_number: '',
+      status: 'draft',
+      priority: '5',
+      vendor: '',
+      ship_to: '',
+      order_date: new Date().toISOString().split('T')[0],
+      expected_date: '',
+      scheduled_date: '',
+      notes: '',
+      lines: [],
+    },
   })
 
-  const [lines, setLines] = useState<OrderLineForm[]>([])
-  const [costLookupLine, setCostLookupLine] = useState<number | null>(null)
+  const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
 
   const vendors = vendorsData?.results ?? []
   const locations = locationsData?.results ?? []
   const items = itemsData?.results ?? []
   const uoms = uomData?.results ?? []
 
+  const vendor = watch('vendor')
+  const watchedLines = watch('lines')
+
   const warehouseLocations = locations.filter((l) => l.location_type === 'WAREHOUSE')
 
-  const lookupLine = costLookupLine !== null ? lines[costLookupLine] : null
+  const lookupLine = costLookupLine !== null ? watchedLines[costLookupLine] : null
   const { data: costData } = useCostLookup(
-    formData.vendor ? Number(formData.vendor) : undefined,
+    vendor ? Number(vendor) : undefined,
     lookupLine?.item ? Number(lookupLine.item) : undefined,
     lookupLine?.quantity_ordered ? Number(lookupLine.quantity_ordered) : undefined,
   )
 
   // Auto-populate cost from cost list
   useEffect(() => {
-    if (costData?.unit_cost && costLookupLine !== null && costLookupLine < lines.length) {
-      const currentLine = lines[costLookupLine]
+    if (costData?.unit_cost && costLookupLine !== null && costLookupLine < watchedLines.length) {
+      const currentLine = watchedLines[costLookupLine]
       if (currentLine.unit_cost === '0.00' || currentLine.unit_cost === '') {
-        const newLines = [...lines]
-        newLines[costLookupLine] = { ...newLines[costLookupLine], unit_cost: costData.unit_cost }
-        setLines(newLines)
+        setValue(`lines.${costLookupLine}.unit_cost`, costData.unit_cost)
       }
       setCostLookupLine(null)
     }
-  }, [costData])
+  }, [costData, costLookupLine, watchedLines, setValue])
 
   const isPending = createOrder.isPending
 
-  const update = (field: string, value: string) =>
-    setFormData((prev) => ({ ...prev, [field]: value }))
-
   const handleAddLine = () => {
-    setLines([...lines, { item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00' }])
+    append({ item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00' })
   }
 
-  const handleRemoveLine = (index: number) => {
-    setLines(lines.filter((_, i) => i !== index))
-  }
-
-  const handleLineChange = (index: number, field: keyof OrderLineForm, value: string) => {
-    const newLines = [...lines]
-    newLines[index] = { ...newLines[index], [field]: value }
-
-    if (field === 'item' && value) {
+  const handleLineItemChange = (index: number, value: string) => {
+    setValue(`lines.${index}.item`, value)
+    if (value) {
       const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
       if (selectedItem) {
-        newLines[index].uom = String(selectedItem.base_uom)
+        setValue(`lines.${index}.uom`, String(selectedItem.base_uom))
       }
-      // Trigger cost lookup when item is set and vendor is selected
-      if (formData.vendor) {
-        newLines[index].unit_cost = '0.00'  // Reset to allow auto-populate
-        setLines(newLines)
+      if (vendor) {
+        setValue(`lines.${index}.unit_cost`, '0.00')
         setCostLookupLine(index)
-        return
       }
     }
-
-    if (field === 'quantity_ordered' && value && formData.vendor && newLines[index].item) {
-      // Re-lookup cost on quantity change
-      newLines[index].unit_cost = '0.00'
-      setLines(newLines)
-      setCostLookupLine(index)
-      return
-    }
-
-    setLines(newLines)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+  const handleLineQtyChange = (index: number, value: string) => {
+    setValue(`lines.${index}.quantity_ordered`, value)
+    if (value && vendor && watchedLines[index]?.item) {
+      setValue(`lines.${index}.unit_cost`, '0.00')
+      setCostLookupLine(index)
+    }
+  }
 
+  const onSubmit = async (data: PurchaseOrderFormData) => {
+    setError('')
     try {
       await createOrder.mutateAsync({
-        po_number: formData.po_number || undefined,
-        status: formData.status,
-        vendor: Number(formData.vendor),
-        order_date: formData.order_date,
-        expected_date: formData.expected_date || null,
-        scheduled_date: formData.scheduled_date || null,
-        ship_to: Number(formData.ship_to),
-        notes: formData.notes,
-        priority: Number(formData.priority),
-        lines: lines.map((line, index) => ({
-          line_number: index + 1,
+        po_number: data.po_number || undefined,
+        status: data.status,
+        vendor: Number(data.vendor),
+        order_date: data.order_date,
+        expected_date: data.expected_date || null,
+        scheduled_date: data.scheduled_date || null,
+        ship_to: Number(data.ship_to),
+        notes: data.notes || '',
+        priority: Number(data.priority),
+        lines: data.lines.map((line, idx) => ({
+          line_number: idx + 1,
           item: Number(line.item),
           quantity_ordered: Number(line.quantity_ordered),
           uom: Number(line.uom),
           unit_cost: line.unit_cost,
         })),
       } as any)
-
       navigate('/orders?tab=purchase')
     } catch (err: any) {
       const msg = err?.response?.data
@@ -179,48 +171,47 @@ export default function CreatePurchaseOrder() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
         {/* PO Details */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b pb-2">Order Details</h2>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="po_number">PO Number</Label>
+            <FormField label="PO Number" error={errors.po_number}>
               <Input
-                id="po_number"
-                value={formData.po_number}
-                onChange={(e) => update('po_number', e.target.value)}
+                {...register('po_number')}
                 placeholder="Auto-generated"
                 className="font-mono"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(v) => update('status', v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ORDER_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority (1-10)</Label>
+            </FormField>
+            <FormField label="Status" error={errors.status}>
+              <Controller
+                name="status"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORDER_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            <FormField label="Priority (1-10)" error={errors.priority}>
               <Input
-                id="priority"
+                {...register('priority')}
                 type="number"
                 min="1"
                 max="10"
-                value={formData.priority}
-                onChange={(e) => update('priority', e.target.value)}
               />
-            </div>
+            </FormField>
           </div>
         </section>
 
@@ -229,42 +220,46 @@ export default function CreatePurchaseOrder() {
           <h2 className="text-lg font-semibold border-b pb-2">Vendor & Destination</h2>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vendor">Vendor *</Label>
-              <Select
-                value={formData.vendor}
-                onValueChange={(v) => update('vendor', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vendor..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {vendors.map((v) => (
-                    <SelectItem key={v.id} value={String(v.id)}>
-                      {v.party_code} - {v.party_display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ship_to">Ship To (Warehouse) *</Label>
-              <Select
-                value={formData.ship_to}
-                onValueChange={(v) => update('ship_to', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select warehouse..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouseLocations.map((l) => (
-                    <SelectItem key={l.id} value={String(l.id)}>
-                      {l.code} - {l.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FormField label="Vendor" required error={errors.vendor}>
+              <Controller
+                name="vendor"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select vendor..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendors.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>
+                          {v.party_code} - {v.party_display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
+            <FormField label="Ship To (Warehouse)" required error={errors.ship_to}>
+              <Controller
+                name="ship_to"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select warehouse..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {warehouseLocations.map((l) => (
+                        <SelectItem key={l.id} value={String(l.id)}>
+                          {l.code} - {l.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </FormField>
           </div>
         </section>
 
@@ -273,34 +268,24 @@ export default function CreatePurchaseOrder() {
           <h2 className="text-lg font-semibold border-b pb-2">Dates</h2>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="order_date">Order Date *</Label>
+            <FormField label="Order Date" required error={errors.order_date}>
               <Input
-                id="order_date"
+                {...register('order_date')}
                 type="date"
-                value={formData.order_date}
-                onChange={(e) => update('order_date', e.target.value)}
-                required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expected_date">Expected Date</Label>
+            </FormField>
+            <FormField label="Expected Date" error={errors.expected_date}>
               <Input
-                id="expected_date"
+                {...register('expected_date')}
                 type="date"
-                value={formData.expected_date}
-                onChange={(e) => update('expected_date', e.target.value)}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="scheduled_date">Scheduled Date</Label>
+            </FormField>
+            <FormField label="Scheduled Date" error={errors.scheduled_date}>
               <Input
-                id="scheduled_date"
+                {...register('scheduled_date')}
                 type="date"
-                value={formData.scheduled_date}
-                onChange={(e) => update('scheduled_date', e.target.value)}
               />
-            </div>
+            </FormField>
           </div>
         </section>
 
@@ -308,9 +293,7 @@ export default function CreatePurchaseOrder() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold border-b pb-2">Notes</h2>
           <Textarea
-            id="notes"
-            value={formData.notes}
-            onChange={(e) => update('notes', e.target.value)}
+            {...register('notes')}
             placeholder="Order notes..."
             rows={3}
           />
@@ -326,83 +309,115 @@ export default function CreatePurchaseOrder() {
             </Button>
           </div>
 
-          {lines.length === 0 ? (
+          {errors.lines?.message && (
+            <p className="text-xs text-destructive">{errors.lines.message}</p>
+          )}
+
+          {fields.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No lines added. Click "Add Line" to add items to this order.
             </p>
           ) : (
             <div className="space-y-3">
-              {lines.map((line, index) => (
-                <div key={index} className="bg-muted/50 rounded-lg p-3">
+              {fields.map((field, index) => (
+                <div key={field.id} className="bg-muted/50 rounded-lg p-3">
                   <div className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-4 space-y-1">
-                      <Label className="text-xs">Item</Label>
-                      <Select
-                        value={line.item}
-                        onValueChange={(v) => handleLineChange(index, 'item', v)}
+                    <div className="col-span-4">
+                      <FormField
+                        label="Item"
+                        error={errors.lines?.[index]?.item}
+                        className="space-y-1"
                       >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Select item..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {items.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
-                              {item.sku} - {item.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <Controller
+                          name={`lines.${index}.item`}
+                          control={control}
+                          render={({ field: f }) => (
+                            <Select
+                              value={f.value}
+                              onValueChange={(v) => handleLineItemChange(index, v)}
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Select item..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {items.map((item) => (
+                                  <SelectItem key={item.id} value={String(item.id)}>
+                                    {item.sku} - {item.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FormField>
                     </div>
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">Qty</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={line.quantity_ordered}
-                        onChange={(e) => handleLineChange(index, 'quantity_ordered', e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">UOM</Label>
-                      <Select
-                        value={line.uom}
-                        onValueChange={(v) => handleLineChange(index, 'uom', v)}
+                    <div className="col-span-2">
+                      <FormField
+                        label="Qty"
+                        error={errors.lines?.[index]?.quantity_ordered}
+                        className="space-y-1"
                       >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="UOM" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {uoms.map((uom) => (
-                            <SelectItem key={uom.id} value={String(uom.id)}>
-                              {uom.code}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">Cost</Label>
-                      <div className="relative">
                         <Input
                           type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.unit_cost}
-                          onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
+                          min="1"
+                          {...register(`lines.${index}.quantity_ordered`)}
+                          onChange={(e) => handleLineQtyChange(index, e.target.value)}
                           className="h-9"
                         />
-                        {costLookupLine === index && (
-                          <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</div>
-                        )}
-                      </div>
+                      </FormField>
+                    </div>
+                    <div className="col-span-2">
+                      <FormField
+                        label="UOM"
+                        error={errors.lines?.[index]?.uom}
+                        className="space-y-1"
+                      >
+                        <Controller
+                          name={`lines.${index}.uom`}
+                          control={control}
+                          render={({ field: f }) => (
+                            <Select value={f.value} onValueChange={f.onChange}>
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="UOM" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {uoms.map((uom) => (
+                                  <SelectItem key={uom.id} value={String(uom.id)}>
+                                    {uom.code}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="col-span-2">
+                      <FormField
+                        label="Cost"
+                        error={errors.lines?.[index]?.unit_cost}
+                        className="space-y-1"
+                      >
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            {...register(`lines.${index}.unit_cost`)}
+                            className="h-9"
+                          />
+                          {costLookupLine === index && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</div>
+                          )}
+                        </div>
+                      </FormField>
                     </div>
                     <div className="col-span-2 flex justify-end">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveLine(index)}
+                        onClick={() => remove(index)}
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -427,7 +442,7 @@ export default function CreatePurchaseOrder() {
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isPending || !formData.vendor || !formData.ship_to}>
+          <Button type="submit" disabled={isPending}>
             {isPending ? 'Creating...' : 'Create Purchase Order'}
           </Button>
         </div>

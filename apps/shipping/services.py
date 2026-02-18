@@ -9,6 +9,7 @@ ShippingService handles:
 - Updating delivery status
 - Integrating with inventory for issuing goods
 """
+import logging
 from decimal import Decimal
 from collections import defaultdict
 from django.db import models, transaction
@@ -16,6 +17,8 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 from .models import Shipment, ShipmentLine, BillOfLading, BOLLine
+
+logger = logging.getLogger(__name__)
 
 
 class ShippingService:
@@ -345,10 +348,10 @@ class ShippingService:
                             sales_order=sales_order,
                             reference=f'Shipment delivery: {shipment_line.shipment.shipment_number}',
                         )
-                    except (ValidationError, Exception):
-                        pass  # Don't block delivery if inventory deduction fails
-        except Exception:
-            pass  # Don't block delivery if import or setup fails
+                    except Exception as e:
+                        logger.exception("Inventory deduction failed for SO line %s: %s", so_line.pk, e)
+        except Exception as e:
+            logger.exception("Inventory service setup failed for shipment %s: %s", shipment_line.shipment.pk, e)
 
         # Check if all lines delivered
         shipment = shipment_line.shipment
@@ -359,14 +362,32 @@ class ShippingService:
         if all_delivered:
             self.complete_shipment(shipment)
 
-            # Auto-create draft invoice from the shipment
+            # Auto-create draft invoices (one per customer in the shipment)
             try:
                 from apps.invoicing.services import InvoicingService
-                InvoicingService(self.tenant, self.user).create_invoice_from_shipment(
-                    shipment=shipment,
-                )
-            except Exception:
-                pass  # Don't block delivery if invoice creation fails
+                inv_svc = InvoicingService(self.tenant, self.user)
+                # Group shipment lines by customer
+                customer_ids = set()
+                for sl in shipment.lines.select_related('sales_order__customer').all():
+                    if sl.sales_order and sl.sales_order.customer_id:
+                        customer_ids.add(sl.sales_order.customer_id)
+                if len(customer_ids) <= 1:
+                    # Single customer -- use existing consolidated method
+                    inv_svc.create_invoice_from_shipment(shipment=shipment)
+                else:
+                    # Multiple customers -- create one invoice per SO
+                    for sl in shipment.lines.select_related('sales_order').all():
+                        try:
+                            inv_svc.create_invoice_from_order(
+                                sales_order=sl.sales_order,
+                            )
+                        except Exception as e:
+                            logger.exception(
+                                "Invoice creation failed for order %s on shipment %s: %s",
+                                sl.sales_order.order_number, shipment.pk, e,
+                            )
+            except Exception as e:
+                logger.exception("Auto-invoice creation failed for shipment %s: %s", shipment.pk, e)
 
         return shipment_line
 

@@ -93,6 +93,15 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
     return items
   }, [run, explodedGroups])
 
+  // Note count for the run (notes attached to this delivery run)
+  const noteCount = useSchedulerStore((s) => {
+    let count = 0
+    for (const noteId in s.notes) {
+      if (s.notes[noteId].deliveryRunId === runId) count++
+    }
+    return count
+  })
+
   // Total pallet count for the run
   const totalPallets = useMemo(() => {
     if (!run) return 0
@@ -233,6 +242,11 @@ export const RunContainer = memo(function RunContainer({ runId, isInbound }: Run
           <span className="text-[9px] opacity-70">
             {run.orderIds.length} orders
           </span>
+          {noteCount > 0 && (
+            <span className="bg-amber-400 text-amber-900 px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[16px] text-center leading-none">
+              {noteCount}
+            </span>
+          )}
           {/* Explode/Collapse All buttons - shown when there are collapsible groups */}
           {hasCollapsibleGroups && !isInbound && (
             <>

@@ -74,32 +74,24 @@ class ReportDefinitionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def execute(self, request, pk=None):
         """
-        Execute a report with the given filters.
+        Execute a report synchronously with the given filters.
 
-        This creates a SavedReport record and (in production) would
-        trigger async report generation.
+        Creates a SavedReport, runs the report generator, and returns
+        the completed report with results. For async execution (Celery),
+        this can be extended later.
         """
-        from django.utils import timezone
+        from apps.reporting.services import ReportingService
 
         report_def = self.get_object()
         filters = request.data.get('filters', {})
         output_format = request.data.get('output_format', report_def.default_format)
 
-        saved_report = SavedReport.objects.create(
-            tenant=request.tenant,
-            report=report_def,
-            name=f"{report_def.name} - {timezone.now().strftime('%Y-%m-%d %H:%M')}",
-            status='PENDING',
-            filter_values=filters,
-            output_format=output_format,
-            generated_by=request.user,
-        )
-
-        # In production, you would trigger async report generation here
-        # For now, just return the pending report record
+        service = ReportingService(request.tenant, request.user)
+        saved_report = service.run_report(report_def, filters=filters, output_format=output_format)
 
         serializer = SavedReportSerializer(saved_report, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        http_status = status.HTTP_201_CREATED if saved_report.status == 'COMPLETED' else status.HTTP_200_OK
+        return Response(serializer.data, status=http_status)
 
 
 @extend_schema_view(

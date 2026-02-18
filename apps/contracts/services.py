@@ -45,14 +45,29 @@ class ContractService:
                 f"Cannot create release from contract with status '{contract.status}'. Contract must be active."
             )
 
-        # Check quantity against remaining balance (warn but allow over-release)
-        warning = None
+        # Validate contract date range
+        today = timezone.now().date()
+        if contract.start_date and today < contract.start_date:
+            raise ValidationError(
+                f"Contract has not started yet (start date: {contract.start_date})."
+            )
+        if contract.end_date and today > contract.end_date:
+            raise ValidationError(
+                f"Contract has expired (end date: {contract.end_date})."
+            )
+
+        # Block over-release
         remaining = contract_line.remaining_qty
         if quantity > remaining:
-            warning = (
+            raise ValidationError(
                 f"Release quantity ({quantity}) exceeds remaining balance ({remaining}) "
                 f"on contract line {contract_line.line_number}."
             )
+
+        # Pre-validate release
+        validation = self.validate_release(contract_line, quantity)
+        if not validation['valid']:
+            raise ValidationError(validation['message'])
 
         # Resolve price
         resolved_price = unit_price
@@ -113,7 +128,7 @@ class ContractService:
                 notes=notes,
             )
 
-            return sales_order, release, warning
+            return sales_order, release
 
     def validate_release(self, contract_line, quantity):
         """Check if a release is valid. Returns dict with validation result."""

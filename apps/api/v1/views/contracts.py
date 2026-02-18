@@ -144,7 +144,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         try:
             service = ContractService(request.tenant, request.user)
-            sales_order, release, warning = service.create_release(
+            sales_order, release = service.create_release(
                 contract_line=contract_line,
                 quantity=serializer.validated_data['quantity'],
                 ship_to=ship_to,
@@ -159,8 +159,6 @@ class ContractViewSet(viewsets.ModelViewSet):
             )
 
         data = ContractReleaseSerializer(release, context={'request': request}).data
-        if warning:
-            data['warning'] = warning
         return Response(data, status=status.HTTP_201_CREATED)
 
     @extend_schema(tags=['contracts'], summary='Activate a draft contract')

@@ -379,3 +379,140 @@ export function useVendorScorecardReport(params?: { date_from?: string; date_to?
     },
   })
 }
+
+// =============================================================================
+// FINANCIAL STATEMENTS
+// =============================================================================
+
+export interface TrialBalanceAccount {
+  account_id: number
+  account_code: string
+  account_name: string
+  account_type: string
+  debit_balance: string
+  credit_balance: string
+}
+
+export interface TrialBalanceReport {
+  as_of_date: string
+  accounts: TrialBalanceAccount[]
+  total_debits: string
+  total_credits: string
+}
+
+export function useTrialBalance(date?: string) {
+  return useQuery({
+    queryKey: ['trial-balance', date],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (date) params.date = date
+      const { data } = await api.get<TrialBalanceReport>('/reports/trial-balance/', { params })
+      return data
+    },
+  })
+}
+
+export interface IncomeStatementSection {
+  label: string
+  accounts: { account_code: string; account_name: string; amount: string }[]
+  total: string
+}
+
+export interface IncomeStatementReport {
+  start_date: string
+  end_date: string
+  revenue: IncomeStatementSection
+  cogs: IncomeStatementSection
+  gross_profit: string
+  expenses: IncomeStatementSection
+  net_income: string
+}
+
+export function useIncomeStatement(startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['income-statement', startDate, endDate],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (startDate) params.start = startDate
+      if (endDate) params.end = endDate
+      const { data } = await api.get<IncomeStatementReport>('/reports/income-statement/', { params })
+      return data
+    },
+  })
+}
+
+export interface BalanceSheetSection {
+  label: string
+  accounts: { account_code: string; account_name: string; amount: string }[]
+  total: string
+}
+
+export interface BalanceSheetReport {
+  as_of_date: string
+  assets: BalanceSheetSection[]
+  liabilities: BalanceSheetSection[]
+  equity: BalanceSheetSection[]
+  total_assets: string
+  total_liabilities: string
+  total_equity: string
+}
+
+export function useBalanceSheet(date?: string) {
+  return useQuery({
+    queryKey: ['balance-sheet', date],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (date) params.date = date
+      const { data } = await api.get<BalanceSheetReport>('/reports/balance-sheet/', { params })
+      return data
+    },
+  })
+}
+
+export interface AgingRow {
+  party_id: number
+  party_name: string
+  current: string
+  days_1_30: string
+  days_31_60: string
+  days_61_90: string
+  over_90: string
+  total: string
+}
+
+export interface AgingReport {
+  as_of_date: string
+  rows: AgingRow[]
+  totals: {
+    current: string
+    days_1_30: string
+    days_31_60: string
+    days_61_90: string
+    over_90: string
+    total: string
+  }
+}
+
+export function useARAgingReport(date?: string) {
+  return useQuery({
+    queryKey: ['ar-aging', date],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (date) params.date = date
+      const { data } = await api.get<AgingReport>('/reports/ar-aging/', { params })
+      return data
+    },
+  })
+}
+
+export function useAPAgingReport(date?: string) {
+  return useQuery({
+    queryKey: ['ap-aging', date],
+    queryFn: async () => {
+      const params: Record<string, string> = {}
+      if (date) params.date = date
+      const { data } = await api.get<AgingReport>('/reports/ap-aging/', { params })
+      return data
+    },
+  })
+}

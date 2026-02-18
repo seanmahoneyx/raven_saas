@@ -30,6 +30,7 @@ class BaseOrder(TenantMixin, TimestampMixin):
         ('scheduled', 'Scheduled'),
         ('picking', 'Pick Ticket'),
         ('shipped', 'Shipped'),
+        ('partially_received', 'Partially Received'),
         ('complete', 'Completed'),
         ('crossdock', 'Crossdock'),
         ('cancelled', 'Cancelled'),
@@ -197,6 +198,10 @@ class PurchaseOrderLine(TenantMixin, TimestampMixin):
         decimal_places=4,
         help_text="Cost per unit"
     )
+    quantity_received = models.PositiveIntegerField(
+        default=0,
+        help_text="Quantity received so far (updated on each receive)"
+    )
     notes = models.TextField(
         blank=True,
         help_text="Line-specific notes"
@@ -217,6 +222,16 @@ class PurchaseOrderLine(TenantMixin, TimestampMixin):
     def line_total(self):
         """Calculate line total (quantity * unit_cost)."""
         return Decimal(self.quantity_ordered) * self.unit_cost
+
+    @property
+    def is_fully_received(self):
+        """Returns True if all ordered quantity has been received."""
+        return self.quantity_received >= self.quantity_ordered
+
+    @property
+    def quantity_remaining(self):
+        """Quantity still to be received."""
+        return max(self.quantity_ordered - self.quantity_received, 0)
 
     @property
     def quantity_in_base_uom(self):

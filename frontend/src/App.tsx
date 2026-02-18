@@ -35,6 +35,13 @@ import CreateItem from '@/pages/CreateItem'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import ReportsDashboard from '@/pages/reports/ReportsDashboard'
 import CannedReport from '@/pages/reports/CannedReport'
+import FinancialStatements from '@/pages/reports/FinancialStatements'
+import AgingReports from '@/pages/reports/AgingReports'
+import GrossMargin from '@/pages/reports/GrossMargin'
+import ContractUtilization from '@/pages/reports/ContractUtilization'
+import VendorScorecard from '@/pages/reports/VendorScorecard'
+import SalesCommission from '@/pages/reports/SalesCommission'
+import OrdersVsInventory from '@/pages/reports/OrdersVsInventory'
 import Estimates from '@/pages/Estimates'
 import CreateEstimate from '@/pages/CreateEstimate'
 import EstimateDetail from '@/pages/EstimateDetail'
@@ -174,6 +181,13 @@ function App() {
                 <Route path="/receive-payment" element={<ReceivePayment />} />
                 <Route path="/reports" element={<ReportsDashboard />} />
                 <Route path="/reports/item-quick-report" element={<ItemQuickReport />} />
+                <Route path="/reports/financial-statements" element={<FinancialStatements />} />
+                <Route path="/reports/aging" element={<AgingReports />} />
+                <Route path="/reports/gross-margin" element={<GrossMargin />} />
+                <Route path="/reports/contract-utilization" element={<ContractUtilization />} />
+                <Route path="/reports/vendor-scorecard" element={<VendorScorecard />} />
+                <Route path="/reports/sales-commission" element={<SalesCommission />} />
+                <Route path="/reports/orders-vs-inventory" element={<OrdersVsInventory />} />
                 <Route path="/reports/:slug" element={<CannedReport />} />
                 <Route path="/scheduler" element={<Scheduler />} />
                 <Route path="/priority-list" element={<PriorityList />} />

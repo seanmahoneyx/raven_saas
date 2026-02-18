@@ -15,6 +15,18 @@ interface ReportLink {
 
 const reportSections: { title: string; reports: ReportLink[] }[] = [
   {
+    title: 'Financial Statements & Analysis',
+    reports: [
+      { title: 'Financial Statements', description: 'Trial Balance, Income Statement, Balance Sheet', path: '/reports/financial-statements', icon: <FileText className="h-5 w-5 text-blue-600" /> },
+      { title: 'AR / AP Aging', description: 'Receivables and payables aging by bucket', path: '/reports/aging', icon: <Clock className="h-5 w-5 text-amber-600" /> },
+      { title: 'Gross Margin', description: 'Revenue vs COGS by customer and item', path: '/reports/gross-margin', icon: <TrendingDown className="h-5 w-5 text-green-600" /> },
+      { title: 'Contract Utilization', description: 'Commitment vs release with burn rate', path: '/reports/contract-utilization', icon: <FileText className="h-5 w-5 text-purple-600" /> },
+      { title: 'Vendor Scorecard', description: 'Delivery performance, spend, and lead time', path: '/reports/vendor-scorecard', icon: <Users className="h-5 w-5 text-cyan-600" /> },
+      { title: 'Sales Commission', description: 'Commission earned by rep from paid invoices', path: '/reports/sales-commission', icon: <DollarSign className="h-5 w-5 text-green-500" /> },
+      { title: 'Orders vs Inventory', description: 'Demand coverage and projected shortages', path: '/reports/orders-vs-inventory', icon: <Package className="h-5 w-5 text-blue-500" /> },
+    ],
+  },
+  {
     title: 'Sales',
     reports: [
       { title: 'Sales by Customer', description: 'Revenue, orders, and margin by customer', path: '/reports/sales-by-customer', icon: <Users className="h-5 w-5 text-blue-500" /> },

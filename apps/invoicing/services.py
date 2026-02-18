@@ -444,10 +444,12 @@ class InvoicingService:
                 line_num += 10
 
             # CREDIT: Sales tax liability (if applicable)
-            # TODO: Add sales_tax_liability_account to AccountingSettings
-            # For now, tax is included in the AR debit but not split to a tax account
             if invoice.tax_amount > 0:
-                tax_acct = getattr(acct_settings, 'default_sales_tax_account', None)
+                tax_acct = None
+                if invoice.tax_zone and invoice.tax_zone.gl_account:
+                    tax_acct = invoice.tax_zone.gl_account
+                elif acct_settings.default_sales_tax_account:
+                    tax_acct = acct_settings.default_sales_tax_account
                 if tax_acct:
                     JournalEntryLine.objects.create(
                         tenant=self.tenant,
@@ -472,6 +474,21 @@ class InvoicingService:
                         description=f"Freight - Invoice {invoice.invoice_number}",
                         debit=Decimal('0.00'),
                         credit=invoice.freight_amount,
+                    )
+                    line_num += 10
+
+            # DEBIT: Sales discount (if applicable)
+            if invoice.discount_amount and invoice.discount_amount > 0:
+                discount_acct = acct_settings.default_sales_discount_account
+                if discount_acct:
+                    JournalEntryLine.objects.create(
+                        tenant=self.tenant,
+                        entry=je,
+                        line_number=line_num,
+                        account=discount_acct,
+                        description=f"Discount - Invoice {invoice.invoice_number}",
+                        debit=invoice.discount_amount,
+                        credit=Decimal('0.00'),
                     )
                     line_num += 10
 

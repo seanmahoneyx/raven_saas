@@ -772,6 +772,15 @@ class AccountingSettings(TimestampMixin):
         help_text="Default account for purchase discounts received"
     )
 
+    default_sales_tax_account = models.ForeignKey(
+        Account,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text="Default GL account for sales tax liability"
+    )
+
     class Meta:
         verbose_name = 'Accounting Settings'
         verbose_name_plural = 'Accounting Settings'

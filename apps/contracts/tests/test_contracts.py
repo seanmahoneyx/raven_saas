@@ -757,8 +757,8 @@ class ContractReleaseAPITests(ContractsTestCase):
         order_line = SalesOrderLine.objects.first()
         self.assertEqual(order_line.unit_price, Decimal('6.50'))
 
-    def test_create_release_over_balance_warning(self):
-        """Test that over-release returns warning but succeeds."""
+    def test_create_release_over_balance_rejected(self):
+        """Test that over-release is rejected with 400."""
         contract = Contract.objects.create(
             tenant=self.tenant,
             customer=self.customer,
@@ -784,9 +784,7 @@ class ContractReleaseAPITests(ContractsTestCase):
             data,
             format='json'
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('warning', response.data)
-        self.assertIn('exceeds', response.data['warning'])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_release_from_non_active_contract_fails(self):
         """Test creating release from draft contract fails."""

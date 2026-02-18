@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { itemSchema, type ItemFormData } from '@/schemas'
+import { FormField } from '@/components/ui/form-field'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +28,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   useCreateItem,
   useUpdateItem,
@@ -31,11 +36,10 @@ import {
   useCreateBoxItem,
   useUpdateBoxItem,
   useBoxItem,
+  useCorrugatedFeatures,
 } from '@/api/items'
 import { useParties } from '@/api/parties'
-import type { Item, DivisionType, TestType, FluteType, PaperType, ItemType } from '@/types/api'
-// Features will be used for M2M editing in future
-// import { cn } from '@/lib/utils'
+import type { Item, DivisionType, TestType, FluteType, PaperType, ItemType, CorrugatedFeature } from '@/types/api'
 
 // Choice options
 const DIVISIONS: { value: DivisionType; label: string }[] = [
@@ -88,44 +92,7 @@ interface ItemDialogProps {
   item?: Item | null
 }
 
-interface FormData {
-  // Base item fields
-  sku: string
-  name: string
-  division: DivisionType
-  description: string
-  purch_desc: string
-  sell_desc: string
-  base_uom: string
-  customer: string
-  is_inventory: boolean
-  is_active: boolean
-  // Corrugated fields
-  box_type: ItemType
-  test: TestType | ''
-  flute: FluteType | ''
-  paper: PaperType | ''
-  is_printed: boolean
-  panels_printed: string
-  colors_printed: string
-  ink_list: string
-  // Dimensions
-  length: string
-  width: string
-  height: string
-  blank_length: string
-  blank_width: string
-  out_per_rotary: string
-  // Unitizing
-  units_per_layer: string
-  layers_per_pallet: string
-  units_per_pallet: string
-  unit_height: string
-  pallet_height: string
-  pallet_footprint: string
-}
-
-const initialFormData: FormData = {
+const defaultValues: ItemFormData = {
   sku: '',
   name: '',
   division: 'misc',
@@ -158,17 +125,37 @@ const initialFormData: FormData = {
   pallet_footprint: '',
 }
 
+// Feature selection state for M2M editing
+interface FeatureSelection {
+  featureId: number
+  selected: boolean
+  details: string
+}
+
 export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
-  const [formData, setFormData] = useState<FormData>(initialFormData)
   const [openSections, setOpenSections] = useState({
     descriptions: false,
     printing: false,
     unitizing: false,
+    features: false,
+  })
+  const [featureSelections, setFeatureSelections] = useState<FeatureSelection[]>([])
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<ItemFormData>({
+    resolver: zodResolver(itemSchema),
+    defaultValues,
   })
 
   const { data: uomData } = useUnitsOfMeasure()
   const { data: customersData } = useParties({ party_type: 'CUSTOMER' })
-  // TODO: Add features M2M editing in future
+  const { data: featuresData } = useCorrugatedFeatures()
 
   // Determine if we need to fetch corrugated item data
   const boxTypes = ['dc', 'rsc', 'hsc', 'fol', 'tele'] as const
@@ -179,21 +166,25 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
   // Fetch full corrugated item data when editing a corrugated item
   const { data: fullBoxItem } = useBoxItem(itemBoxType, item?.id ?? null)
 
+  const division = watch('division')
+  const boxType = watch('box_type')
+  const isPrinted = watch('is_printed')
+
   const createItem = useCreateItem()
   const updateItem = useUpdateItem()
-  const createBoxItem = useCreateBoxItem(formData.box_type as 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele')
-  const updateBoxItem = useUpdateBoxItem(formData.box_type as 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele')
+  const createBoxItem = useCreateBoxItem(boxType as 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele')
+  const updateBoxItem = useUpdateBoxItem(boxType as 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele')
 
   const isEditing = !!item
-  const isCorrugated = formData.division === 'corrugated'
-  const isDC = formData.box_type === 'dc'
+  const isCorrugated = division === 'corrugated'
+  const isDC = boxType === 'dc'
 
   useEffect(() => {
     if (item) {
       // Use fullBoxItem data if available (for corrugated items), otherwise use item
       const sourceData = fullBoxItem ?? item
       const itemAny = sourceData as any
-      setFormData({
+      reset({
         sku: sourceData.sku,
         name: sourceData.name,
         division: sourceData.division || 'misc',
@@ -227,14 +218,37 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
         pallet_height: sourceData.pallet_height ?? '',
         pallet_footprint: sourceData.pallet_footprint ?? '',
       })
+      // Initialize feature selections from existing item features
+      const itemAnyFeatures = (fullBoxItem ?? item) as any
+      const existingFeatures: { feature: number; details: string }[] = itemAnyFeatures?.item_features ?? []
+      if (featuresData?.results) {
+        setFeatureSelections(
+          featuresData.results.map((f: CorrugatedFeature) => {
+            const existing = existingFeatures.find((ef) => ef.feature === f.id)
+            return {
+              featureId: f.id,
+              selected: !!existing,
+              details: existing?.details ?? '',
+            }
+          })
+        )
+      }
     } else {
-      setFormData(initialFormData)
+      reset(defaultValues)
+      // Reset feature selections for new items
+      if (featuresData?.results) {
+        setFeatureSelections(
+          featuresData.results.map((f: CorrugatedFeature) => ({
+            featureId: f.id,
+            selected: false,
+            details: '',
+          }))
+        )
+      }
     }
-  }, [item, fullBoxItem, open])
+  }, [item, fullBoxItem, open, reset, featuresData])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const onSubmit = async (formData: ItemFormData) => {
     // Build payload based on division and box type
     const basePayload = {
       sku: formData.sku,
@@ -258,6 +272,11 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
     try {
       if (isCorrugated) {
         // Corrugated item payload
+        // Build features array from selections
+        const selectedFeatures = featureSelections
+          .filter((f) => f.selected)
+          .map((f) => ({ feature: f.featureId, details: f.details }))
+
         const corrugatedPayload = {
           ...basePayload,
           test: formData.test || undefined,
@@ -278,6 +297,9 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
             : {
                 height: formData.height,
               }),
+          // TODO: Backend needs to accept item_features in create/update endpoint
+          // for full M2M save integration. For now, features are sent but may be ignored.
+          item_features: selectedFeatures,
         }
 
         if (isEditing && item) {
@@ -318,186 +340,194 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Item' : 'Add Item'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 py-4">
             {/* Division & Box Type */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="division">Division *</Label>
-                <Select
-                  value={formData.division}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, division: value as DivisionType })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DIVISIONS.map((d) => (
-                      <SelectItem key={d.value} value={d.value}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <FormField label="Division" required error={errors.division}>
+                <Controller
+                  name="division"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DIVISIONS.map((d) => (
+                          <SelectItem key={d.value} value={d.value}>
+                            {d.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
               {isCorrugated && (
-                <div className="space-y-2">
-                  <Label htmlFor="box_type">Box Type *</Label>
-                  <Select
-                    value={formData.box_type}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, box_type: value as ItemType })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BOX_TYPES.map((bt) => (
-                        <SelectItem key={bt.value} value={bt.value}>
-                          {bt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FormField label="Box Type" required error={errors.box_type}>
+                  <Controller
+                    name="box_type"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BOX_TYPES.map((bt) => (
+                            <SelectItem key={bt.value} value={bt.value}>
+                              {bt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
               )}
             </div>
 
             {/* MSPN & UOM */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="sku">MSPN *</Label>
+              <FormField label="MSPN" required error={errors.sku}>
                 <Input
-                  id="sku"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                  {...register('sku')}
                   placeholder="ITEM-001"
-                  required
                   className="font-mono"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="base_uom">Unit of Measure *</Label>
-                <Select
-                  value={formData.base_uom}
-                  onValueChange={(value) => setFormData({ ...formData, base_uom: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select UOM..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {uomList.map((uom) => (
-                      <SelectItem key={uom.id} value={String(uom.id)}>
-                        {uom.code} - {uom.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              </FormField>
+              <FormField label="Unit of Measure" required error={errors.base_uom}>
+                <Controller
+                  name="base_uom"
+                  control={control}
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select UOM..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uomList.map((uom) => (
+                          <SelectItem key={uom.id} value={String(uom.id)}>
+                            {uom.code} - {uom.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
             </div>
 
             {/* Name & Customer */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
+              <FormField label="Name" required error={errors.name}>
                 <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  {...register('name')}
                   placeholder="Product name"
-                  required
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customer">Customer</Label>
-                <Select
-                  value={formData.customer || 'none'}
-                  onValueChange={(value) => setFormData({ ...formData, customer: value === 'none' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="None (stock item)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None (stock item)</SelectItem>
-                    {customerList.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)}>
-                        {c.code} - {c.display_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              </FormField>
+              <FormField label="Customer" error={errors.customer}>
+                <Controller
+                  name="customer"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value || 'none'}
+                      onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (stock item)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (stock item)</SelectItem>
+                        {customerList.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.code} - {c.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
             </div>
 
             {/* Corrugated: Board Specs */}
             {isCorrugated && (
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="test">Test (ECT)</Label>
-                  <Select
-                    value={formData.test || 'none'}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, test: (value === 'none' ? '' : value) as TestType | '' })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {TEST_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="flute">Flute</Label>
-                  <Select
-                    value={formData.flute || 'none'}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, flute: (value === 'none' ? '' : value) as FluteType | '' })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {FLUTE_TYPES.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>
-                          {f.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="paper">Paper</Label>
-                  <Select
-                    value={formData.paper || 'none'}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, paper: (value === 'none' ? '' : value) as PaperType | '' })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {PAPER_TYPES.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FormField label="Test (ECT)" error={errors.test}>
+                  <Controller
+                    name="test"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || 'none'}
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {TEST_TYPES.map((t) => (
+                            <SelectItem key={t.value} value={t.value}>
+                              {t.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
+                <FormField label="Flute" error={errors.flute}>
+                  <Controller
+                    name="flute"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || 'none'}
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {FLUTE_TYPES.map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
+                <FormField label="Paper" error={errors.paper}>
+                  <Controller
+                    name="paper"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value || 'none'}
+                        onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None</SelectItem>
+                          {PAPER_TYPES.map((p) => (
+                            <SelectItem key={p.value} value={p.value}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </FormField>
               </div>
             )}
 
@@ -509,42 +539,35 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="grid grid-cols-5 gap-2">
                     <div>
                       <Input
-                        value={formData.length}
-                        onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                        {...register('length')}
                         placeholder="L"
-                        required
                       />
                       <span className="text-xs text-muted-foreground">Length</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.width}
-                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                        {...register('width')}
                         placeholder="W"
-                        required
                       />
                       <span className="text-xs text-muted-foreground">Width</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.blank_length}
-                        onChange={(e) => setFormData({ ...formData, blank_length: e.target.value })}
+                        {...register('blank_length')}
                         placeholder="BL"
                       />
                       <span className="text-xs text-muted-foreground">Blank L</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.blank_width}
-                        onChange={(e) => setFormData({ ...formData, blank_width: e.target.value })}
+                        {...register('blank_width')}
                         placeholder="BW"
                       />
                       <span className="text-xs text-muted-foreground">Blank W</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.out_per_rotary}
-                        onChange={(e) => setFormData({ ...formData, out_per_rotary: e.target.value })}
+                        {...register('out_per_rotary')}
                         placeholder="#"
                         type="number"
                       />
@@ -555,28 +578,22 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="grid grid-cols-3 gap-2">
                     <div>
                       <Input
-                        value={formData.length}
-                        onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                        {...register('length')}
                         placeholder="L"
-                        required
                       />
                       <span className="text-xs text-muted-foreground">Length</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.width}
-                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                        {...register('width')}
                         placeholder="W"
-                        required
                       />
                       <span className="text-xs text-muted-foreground">Width</span>
                     </div>
                     <div>
                       <Input
-                        value={formData.height}
-                        onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                        {...register('height')}
                         placeholder="H"
-                        required
                       />
                       <span className="text-xs text-muted-foreground">Height</span>
                     </div>
@@ -601,9 +618,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                 <div className="space-y-2">
                   <Label htmlFor="description">General Description</Label>
                   <Textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    {...register('description')}
                     placeholder="General description..."
                     rows={2}
                   />
@@ -612,9 +627,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="space-y-2">
                     <Label htmlFor="purch_desc">Purchase Description</Label>
                     <Textarea
-                      id="purch_desc"
-                      value={formData.purch_desc}
-                      onChange={(e) => setFormData({ ...formData, purch_desc: e.target.value })}
+                      {...register('purch_desc')}
                       placeholder="Shows on POs..."
                       rows={2}
                     />
@@ -622,9 +635,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="space-y-2">
                     <Label htmlFor="sell_desc">Sales Description</Label>
                     <Textarea
-                      id="sell_desc"
-                      value={formData.sell_desc}
-                      onChange={(e) => setFormData({ ...formData, sell_desc: e.target.value })}
+                      {...register('sell_desc')}
                       placeholder="Shows on invoices..."
                       rows={2}
                     />
@@ -644,7 +655,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                       <ChevronRight className="h-4 w-4 mr-2" />
                     )}
                     <span className="text-sm font-medium">Printing</span>
-                    {formData.is_printed && (
+                    {isPrinted && (
                       <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                         Printed
                       </span>
@@ -653,37 +664,35 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-2">
                   <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is_printed"
-                      checked={formData.is_printed}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_printed: checked })}
+                    <Controller
+                      name="is_printed"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          id="is_printed"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
                     />
                     <Label htmlFor="is_printed">Printed Item</Label>
                   </div>
-                  {formData.is_printed && (
+                  {isPrinted && (
                     <>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="panels_printed">Panels Printed</Label>
                           <Input
-                            id="panels_printed"
+                            {...register('panels_printed')}
                             type="number"
-                            value={formData.panels_printed}
-                            onChange={(e) =>
-                              setFormData({ ...formData, panels_printed: e.target.value })
-                            }
                             placeholder="0"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="colors_printed">Colors</Label>
                           <Input
-                            id="colors_printed"
+                            {...register('colors_printed')}
                             type="number"
-                            value={formData.colors_printed}
-                            onChange={(e) =>
-                              setFormData({ ...formData, colors_printed: e.target.value })
-                            }
                             placeholder="0"
                           />
                         </div>
@@ -691,14 +700,81 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                       <div className="space-y-2">
                         <Label htmlFor="ink_list">Ink Colors</Label>
                         <Input
-                          id="ink_list"
-                          value={formData.ink_list}
-                          onChange={(e) => setFormData({ ...formData, ink_list: e.target.value })}
+                          {...register('ink_list')}
                           placeholder="e.g., PMS 286, Black, Red"
                         />
                       </div>
                     </>
                   )}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            {/* Features (collapsible, corrugated only) */}
+            {isCorrugated && featuresData?.results && featuresData.results.length > 0 && (
+              <Collapsible open={openSections.features} onOpenChange={() => toggleSection('features')}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full justify-start p-2 h-auto">
+                    {openSections.features ? (
+                      <ChevronDown className="h-4 w-4 mr-2" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 mr-2" />
+                    )}
+                    <span className="text-sm font-medium">Features</span>
+                    {featureSelections.some((f) => f.selected) && (
+                      <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        {featureSelections.filter((f) => f.selected).length} selected
+                      </span>
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  {featuresData.results.map((feature: CorrugatedFeature) => {
+                    const sel = featureSelections.find((f) => f.featureId === feature.id)
+                    return (
+                      <div key={feature.id} className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`feature-${feature.id}`}
+                            checked={sel?.selected ?? false}
+                            onCheckedChange={(checked) => {
+                              setFeatureSelections((prev) =>
+                                prev.map((f) =>
+                                  f.featureId === feature.id
+                                    ? { ...f, selected: !!checked }
+                                    : f
+                                )
+                              )
+                            }}
+                          />
+                          <Label htmlFor={`feature-${feature.id}`} className="text-sm font-normal cursor-pointer">
+                            {feature.name}
+                            {feature.requires_details && (
+                              <span className="text-xs text-muted-foreground ml-1">(details required)</span>
+                            )}
+                          </Label>
+                        </div>
+                        {sel?.selected && (
+                          <div className="ml-6">
+                            <Input
+                              placeholder={feature.requires_details ? 'Details required...' : 'Optional details...'}
+                              value={sel.details}
+                              onChange={(e) => {
+                                setFeatureSelections((prev) =>
+                                  prev.map((f) =>
+                                    f.featureId === feature.id
+                                      ? { ...f, details: e.target.value }
+                                      : f
+                                  )
+                                )
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </CollapsibleContent>
               </Collapsible>
             )}
@@ -720,32 +796,24 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="space-y-2">
                     <Label htmlFor="units_per_layer">Units/Layer</Label>
                     <Input
-                      id="units_per_layer"
+                      {...register('units_per_layer')}
                       type="number"
-                      value={formData.units_per_layer}
-                      onChange={(e) => setFormData({ ...formData, units_per_layer: e.target.value })}
                       placeholder="0"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="layers_per_pallet">Layers/Pallet</Label>
                     <Input
-                      id="layers_per_pallet"
+                      {...register('layers_per_pallet')}
                       type="number"
-                      value={formData.layers_per_pallet}
-                      onChange={(e) =>
-                        setFormData({ ...formData, layers_per_pallet: e.target.value })
-                      }
                       placeholder="0"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="units_per_pallet">Units/Pallet</Label>
                     <Input
-                      id="units_per_pallet"
+                      {...register('units_per_pallet')}
                       type="number"
-                      value={formData.units_per_pallet}
-                      onChange={(e) => setFormData({ ...formData, units_per_pallet: e.target.value })}
                       placeholder="0"
                     />
                   </div>
@@ -754,27 +822,21 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                   <div className="space-y-2">
                     <Label htmlFor="unit_height">Unit Height</Label>
                     <Input
-                      id="unit_height"
-                      value={formData.unit_height}
-                      onChange={(e) => setFormData({ ...formData, unit_height: e.target.value })}
+                      {...register('unit_height')}
                       placeholder="inches"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="pallet_height">Pallet Height</Label>
                     <Input
-                      id="pallet_height"
-                      value={formData.pallet_height}
-                      onChange={(e) => setFormData({ ...formData, pallet_height: e.target.value })}
+                      {...register('pallet_height')}
                       placeholder="inches"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="pallet_footprint">Pallet Footprint</Label>
                     <Input
-                      id="pallet_footprint"
-                      value={formData.pallet_footprint}
-                      onChange={(e) => setFormData({ ...formData, pallet_footprint: e.target.value })}
+                      {...register('pallet_footprint')}
                       placeholder="48x40"
                     />
                   </div>
@@ -785,18 +847,30 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
             {/* Flags */}
             <div className="flex items-center gap-6">
               <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_inventory"
-                  checked={formData.is_inventory}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_inventory: checked })}
+                <Controller
+                  name="is_inventory"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="is_inventory"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
                 />
                 <Label htmlFor="is_inventory">Track Inventory</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                <Controller
+                  name="is_active"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="is_active"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
                 />
                 <Label htmlFor="is_active">Active</Label>
               </div>
@@ -807,7 +881,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !formData.base_uom}>
+            <Button type="submit" disabled={isPending}>
               {isPending ? 'Saving...' : isEditing ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>

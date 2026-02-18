@@ -373,16 +373,16 @@ class OrderService:
         Receive goods against a PO, creating inventory lots, FIFO layers, and GL entries.
 
         Args:
-            purchase_order: PO instance (must be confirmed or scheduled)
+            purchase_order: PO instance (must be confirmed, scheduled, or partially_received)
             line_receipts: Optional list of dicts: [{'line_id': int, 'quantity': int, 'unit_cost': Decimal}, ...]
-                          If None, receives all lines at full quantity using line's unit_cost.
+                          If None, receives all lines at full remaining quantity using line's unit_cost.
 
         Returns:
             dict with 'lots_created' count and 'po_status'
         """
-        if purchase_order.status not in ('confirmed', 'scheduled'):
+        if purchase_order.status not in ('confirmed', 'scheduled', 'partially_received'):
             raise ValidationError(
-                f"Cannot receive PO with status '{purchase_order.status}'. Must be 'confirmed' or 'scheduled'."
+                f"Cannot receive PO with status '{purchase_order.status}'. Must be 'confirmed', 'scheduled', or 'partially_received'."
             )
 
         from apps.inventory.services import InventoryService
@@ -399,7 +399,7 @@ class OrderService:
                 # Partial / specified receive
                 for receipt in line_receipts:
                     line = purchase_order.lines.get(id=receipt['line_id'])
-                    qty = receipt.get('quantity', line.quantity_ordered)
+                    qty = receipt.get('quantity', line.quantity_remaining)
                     cost = Decimal(str(receipt.get('unit_cost', line.unit_cost)))
 
                     lot, pallets, layer = inv_svc.receive_stock(
@@ -417,14 +417,18 @@ class OrderService:
                         quantity=qty,
                         purchase_order=purchase_order,
                     )
+                    # Update quantity_received on the line
+                    line.quantity_received = (line.quantity_received or 0) + qty
+                    line.save(update_fields=['quantity_received'])
                     lots_created.append(lot)
             else:
-                # Full receive - all lines
+                # Full receive - all lines at remaining quantity
                 for line in purchase_order.lines.select_related('item').all():
+                    qty = line.quantity_remaining if line.quantity_remaining > 0 else line.quantity_ordered
                     lot, pallets, layer = inv_svc.receive_stock(
                         item=line.item,
                         warehouse=warehouse,
-                        quantity=line.quantity_ordered,
+                        quantity=qty,
                         unit_cost=line.unit_cost,
                         purchase_order=purchase_order,
                         vendor=purchase_order.vendor,
@@ -433,13 +437,30 @@ class OrderService:
                     inv_svc.remove_on_order(
                         item=line.item,
                         warehouse=warehouse,
-                        quantity=line.quantity_ordered,
+                        quantity=qty,
                         purchase_order=purchase_order,
                     )
+                    # Update quantity_received on the line
+                    line.quantity_received = (line.quantity_received or 0) + qty
+                    line.save(update_fields=['quantity_received'])
                     lots_created.append(lot)
 
-            # Mark PO as complete
-            purchase_order.status = 'complete'
+            # Determine PO status based on line receipt completeness
+            all_lines = purchase_order.lines.all()
+            all_fully_received = all(
+                line.quantity_received >= line.quantity_ordered
+                for line in all_lines
+            )
+            any_received = any(
+                (line.quantity_received or 0) > 0
+                for line in all_lines
+            )
+
+            if all_fully_received:
+                purchase_order.status = 'complete'
+            elif any_received:
+                purchase_order.status = 'partially_received'
+            # else: keep current status (shouldn't happen in normal flow)
             purchase_order.save()
 
             # Auto-create vendor bill
@@ -494,7 +515,7 @@ class OrderService:
                 tenant_id=self.tenant.pk,
                 order_type='purchase_order',
                 order_id=purchase_order.pk,
-                status='complete',
+                status=purchase_order.status,
                 data={'order_number': purchase_order.po_number},
             )
         except Exception:

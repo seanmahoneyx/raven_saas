@@ -1252,10 +1252,15 @@ class FinancialReportService:
             JournalEntryLine.objects.none()
         )
 
-        # Categorize by source type
-        operating_inflows = Decimal('0.00')
-        operating_outflows = Decimal('0.00')
-        details = []
+        # Investing account types: ASSET_FIXED, ASSET_OTHER (capital equipment purchases/sales)
+        investing_types = {AccountType.ASSET_FIXED, AccountType.ASSET_OTHER}
+        # Financing account types: LIABILITY_LONG_TERM, EQUITY (loan payments, owner distributions)
+        financing_types = {AccountType.LIABILITY_LONG_TERM, AccountType.EQUITY}
+
+        # Categorize cash movements by examining the other accounts in each journal entry
+        operating = {'inflows': Decimal('0.00'), 'outflows': Decimal('0.00'), 'details': []}
+        investing = {'inflows': Decimal('0.00'), 'outflows': Decimal('0.00'), 'details': []}
+        financing = {'inflows': Decimal('0.00'), 'outflows': Decimal('0.00'), 'details': []}
 
         for line in cash_movements.select_related('entry', 'account'):
             net = line.debit - line.credit
@@ -1266,14 +1271,33 @@ class FinancialReportService:
                 'amount': net,
                 'account': line.account.name,
             }
-            details.append(entry_info)
 
-            if net > 0:
-                operating_inflows += net
+            # Determine category by looking at the OTHER lines in this journal entry
+            # (i.e., the non-cash counterpart accounts)
+            counterpart_types = set(
+                JournalEntryLine.objects
+                .filter(entry=line.entry)
+                .exclude(account_id__in=cash_account_ids)
+                .values_list('account__account_type', flat=True)
+            )
+
+            if counterpart_types & investing_types:
+                bucket = investing
+            elif counterpart_types & financing_types:
+                bucket = financing
             else:
-                operating_outflows += abs(net)
+                bucket = operating
 
-        net_operating = operating_inflows - operating_outflows
+            bucket['details'].append(entry_info)
+            if net > 0:
+                bucket['inflows'] += net
+            else:
+                bucket['outflows'] += abs(net)
+
+        net_operating = operating['inflows'] - operating['outflows']
+        net_investing = investing['inflows'] - investing['outflows']
+        net_financing = financing['inflows'] - financing['outflows']
+        net_change = net_operating + net_investing + net_financing
 
         # Beginning and ending cash balances
         beginning_lines = (
@@ -1294,7 +1318,7 @@ class FinancialReportService:
             total_credit=Coalesce(Sum('credit'), Decimal('0.00')),
         )
         beginning_balance = beginning_totals['total_debit'] - beginning_totals['total_credit']
-        ending_balance = beginning_balance + net_operating
+        ending_balance = beginning_balance + net_change
 
         return {
             'start_date': str(start_date),
@@ -1303,27 +1327,27 @@ class FinancialReportService:
             'sections': {
                 'operating': {
                     'label': 'Cash from Operating Activities',
-                    'inflows': operating_inflows,
-                    'outflows': operating_outflows,
+                    'inflows': operating['inflows'],
+                    'outflows': operating['outflows'],
                     'net': net_operating,
-                    'details': sorted(details, key=lambda x: x['date']),
+                    'details': sorted(operating['details'], key=lambda x: x['date']),
                 },
                 'investing': {
                     'label': 'Cash from Investing Activities',
-                    'inflows': Decimal('0.00'),
-                    'outflows': Decimal('0.00'),
-                    'net': Decimal('0.00'),
-                    'details': [],
+                    'inflows': investing['inflows'],
+                    'outflows': investing['outflows'],
+                    'net': net_investing,
+                    'details': sorted(investing['details'], key=lambda x: x['date']),
                 },
                 'financing': {
                     'label': 'Cash from Financing Activities',
-                    'inflows': Decimal('0.00'),
-                    'outflows': Decimal('0.00'),
-                    'net': Decimal('0.00'),
-                    'details': [],
+                    'inflows': financing['inflows'],
+                    'outflows': financing['outflows'],
+                    'net': net_financing,
+                    'details': sorted(financing['details'], key=lambda x: x['date']),
                 },
             },
-            'net_change_in_cash': net_operating,
+            'net_change_in_cash': net_change,
             'ending_cash_balance': ending_balance,
         }
 

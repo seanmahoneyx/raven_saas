@@ -312,3 +312,130 @@ class VendorBillServiceTest(InvoicingBaseTestCase):
         bill.refresh_from_db()
         with self.assertRaises(ValidationError):
             svc.pay_vendor_bill(bill, amount=Decimal('0.00'), bank_account=self.cash_account)
+
+
+class InvoicingServiceGLPostingTest(InvoicingBaseTestCase):
+    """Tests for GL posting with tax, discount, and freight."""
+
+    def test_post_invoice_with_tax_discount_freight_balanced(self):
+        """Invoice with tax + discount + freight posts a balanced journal entry."""
+        # Create tax-related accounts
+        tax_account = Account.objects.create(
+            tenant=self.tenant, code='2100', name='Sales Tax Payable',
+            account_type=AccountType.LIABILITY_CURRENT,
+        )
+        freight_account = Account.objects.create(
+            tenant=self.tenant, code='4100', name='Freight Income',
+            account_type=AccountType.REVENUE,
+        )
+        discount_account = Account.objects.create(
+            tenant=self.tenant, code='4200', name='Sales Discounts',
+            account_type=AccountType.REVENUE,
+        )
+
+        # Configure accounting settings
+        acct = AccountingSettings.get_for_tenant(self.tenant)
+        acct.default_sales_tax_account = tax_account
+        acct.default_freight_income_account = freight_account
+        acct.default_sales_discount_account = discount_account
+        acct.save()
+
+        # Create invoice with tax, discount, freight
+        so = self._make_so()
+        svc = InvoicingService(self.tenant, self.user)
+        invoice = svc.create_invoice_from_order(so)
+
+        # Manually set tax, freight, discount amounts
+        # subtotal = 500.00 (50 x 10.00)
+        invoice.tax_amount = Decimal('40.00')
+        invoice.freight_amount = Decimal('25.00')
+        invoice.discount_amount = Decimal('15.00')
+        # total = subtotal + tax + freight - discount = 500 + 40 + 25 - 15 = 550
+        invoice.total_amount = Decimal('550.00')
+        invoice.save()
+
+        # Post the invoice
+        posted = svc.post_invoice(invoice)
+
+        # Verify JE exists and is balanced
+        je = posted.journal_entry
+        self.assertIsNotNone(je)
+        self.assertTrue(je.is_balanced)
+
+        # Verify specific lines exist
+        lines = je.lines.all().order_by('line_number')
+
+        # Check debits = credits
+        total_debit = sum(l.debit for l in lines)
+        total_credit = sum(l.credit for l in lines)
+        self.assertEqual(total_debit, total_credit)
+
+        # AR debit should be total_amount (550)
+        ar_line = lines.filter(account=self.ar_account, debit__gt=0).first()
+        self.assertIsNotNone(ar_line)
+        self.assertEqual(ar_line.debit, Decimal('550.00'))
+
+        # Tax credit should be 40
+        tax_line = lines.filter(account=tax_account, credit__gt=0).first()
+        self.assertIsNotNone(tax_line)
+        self.assertEqual(tax_line.credit, Decimal('40.00'))
+
+        # Freight credit should be 25
+        freight_line = lines.filter(account=freight_account, credit__gt=0).first()
+        self.assertIsNotNone(freight_line)
+        self.assertEqual(freight_line.credit, Decimal('25.00'))
+
+        # Discount debit should be 15
+        discount_line = lines.filter(account=discount_account, debit__gt=0).first()
+        self.assertIsNotNone(discount_line)
+        self.assertEqual(discount_line.debit, Decimal('15.00'))
+
+        # Income credit should be subtotal (500)
+        income_line = lines.filter(account=self.income_account, credit__gt=0).first()
+        self.assertIsNotNone(income_line)
+        self.assertEqual(income_line.credit, Decimal('500.00'))
+
+    def test_post_invoice_tax_uses_tax_zone_gl_account(self):
+        """Tax zone GL account takes priority over accounting settings default."""
+        from apps.invoicing.models import TaxZone
+
+        zone_tax_account = Account.objects.create(
+            tenant=self.tenant, code='2110', name='Cook County Tax',
+            account_type=AccountType.LIABILITY_CURRENT,
+        )
+        default_tax_account = Account.objects.create(
+            tenant=self.tenant, code='2100', name='Default Tax',
+            account_type=AccountType.LIABILITY_CURRENT,
+        )
+
+        # Set default
+        acct = AccountingSettings.get_for_tenant(self.tenant)
+        acct.default_sales_tax_account = default_tax_account
+        acct.save()
+
+        # Create tax zone with GL account
+        tax_zone = TaxZone.objects.create(
+            tenant=self.tenant, name='Cook County', rate=Decimal('0.0825'),
+            gl_account=zone_tax_account,
+        )
+
+        # Create invoice with tax zone
+        so = self._make_so()
+        svc = InvoicingService(self.tenant, self.user)
+        invoice = svc.create_invoice_from_order(so)
+        invoice.tax_zone = tax_zone
+        invoice.tax_amount = Decimal('41.25')
+        invoice.total_amount = Decimal('541.25')
+        invoice.save()
+
+        posted = svc.post_invoice(invoice)
+        je = posted.journal_entry
+
+        # Should use zone account, not default
+        tax_line = je.lines.filter(credit__gt=0, account=zone_tax_account).first()
+        self.assertIsNotNone(tax_line)
+        self.assertEqual(tax_line.credit, Decimal('41.25'))
+
+        # Default account should NOT be used
+        default_line = je.lines.filter(account=default_tax_account).first()
+        self.assertIsNone(default_line)
