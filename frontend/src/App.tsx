@@ -58,6 +58,7 @@ import OpenSalesOrders from '@/pages/OpenSalesOrders'
 import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
 import SalesOrderDetail from '@/pages/SalesOrderDetail'
 import PurchaseOrderDetail from '@/pages/PurchaseOrderDetail'
+import AdminHub from '@/pages/admin/AdminHub'
 import DataImport from '@/pages/admin/DataImport'
 import TaxZones from '@/pages/admin/TaxZones'
 import ChartOfAccounts from '@/pages/ChartOfAccounts'
@@ -69,7 +70,9 @@ import Scanner from '@/pages/warehouse/Scanner'
 import CycleCounts from '@/pages/warehouse/CycleCounts'
 import PrintLabels from '@/pages/warehouse/PrintLabels'
 import Settings from '@/pages/Settings'
+import AccountingSettings from '@/pages/AccountingSettings'
 import Preferences from '@/pages/settings/Preferences'
+import UsersPage from '@/pages/Users'
 import Onboarding from '@/pages/Onboarding'
 
 // Create a client
@@ -197,8 +200,11 @@ function App() {
                 <Route path="/warehouse/scanner" element={<Scanner />} />
                 <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
                 <Route path="/warehouse/print-labels" element={<PrintLabels />} />
+                <Route path="/users" element={<UsersPage />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/accounting-settings" element={<AccountingSettings />} />
                 <Route path="/settings/preferences" element={<Preferences />} />
+                <Route path="/admin" element={<AdminHub />} />
                 <Route path="/admin/import" element={<DataImport />} />
                 <Route path="/admin/tax-zones" element={<TaxZones />} />
                 <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />

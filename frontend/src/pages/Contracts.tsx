@@ -4,8 +4,6 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -26,13 +24,35 @@ import type { Contract, ContractStatus } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
-const statusColors: Record<ContractStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
-  draft: 'secondary',
-  active: 'success',
-  complete: 'default',
-  cancelled: 'destructive',
-  expired: 'outline',
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    partial:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    paid:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    overdue:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    void:      { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    expired:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    confirmed: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    applied:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    pending:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
 }
+
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 const statusLabels: Record<ContractStatus, string> = {
   draft: 'Draft',
@@ -60,7 +80,6 @@ export default function Contracts() {
     if (action === 'new') {
       setEditingContract(null)
       setDialogOpen(true)
-      // Clear the action param after opening dialog
       searchParams.delete('action')
       setSearchParams(searchParams, { replace: true })
     }
@@ -110,6 +129,12 @@ export default function Contracts() {
     }
   }
 
+  // KPI stats
+  const contracts = contractsData?.results ?? []
+  const activeCount = contracts.filter((c) => c.status === 'active').length
+  const draftCount = contracts.filter((c) => c.status === 'draft').length
+  const totalCommitted = contracts.reduce((sum, c) => sum + (c.total_committed_qty ?? 0), 0)
+
   const columns: ColumnDef<Contract>[] = useMemo(
     () => [
       {
@@ -117,7 +142,8 @@ export default function Contracts() {
         header: 'Contract #',
         cell: ({ row }) => (
           <button
-            className="font-medium text-primary hover:underline"
+            className="font-medium hover:underline"
+            style={{ color: 'var(--so-accent)' }}
             onClick={() => handleViewContract(row.original)}
           >
             CTR-{row.getValue('contract_number')}
@@ -127,38 +153,46 @@ export default function Contracts() {
       {
         accessorKey: 'customer_name',
         header: 'Customer',
+        cell: ({ row }) => (
+          <span style={{ color: 'var(--so-text-primary)' }}>{row.getValue('customer_name')}</span>
+        ),
       },
       {
         accessorKey: 'blanket_po',
         header: 'Blanket PO',
-        cell: ({ row }) => row.getValue('blanket_po') || '-',
+        cell: ({ row }) => (
+          <span style={{ color: 'var(--so-text-tertiary)' }}>{row.getValue('blanket_po') || '-'}</span>
+        ),
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => {
-          const status = row.getValue('status') as ContractStatus
-          return (
-            <Badge variant={statusColors[status]}>
-              {statusLabels[status]}
-            </Badge>
-          )
-        },
+        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
       },
       {
         accessorKey: 'num_lines',
         header: 'Lines',
-        cell: ({ row }) => row.getValue('num_lines') || 0,
+        cell: ({ row }) => (
+          <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines') || 0}</span>
+        ),
       },
       {
         accessorKey: 'total_committed_qty',
         header: 'Committed',
-        cell: ({ row }) => row.getValue('total_committed_qty')?.toLocaleString() || 0,
+        cell: ({ row }) => (
+          <span style={{ color: 'var(--so-text-secondary)' }}>
+            {row.getValue('total_committed_qty')?.toLocaleString() || 0}
+          </span>
+        ),
       },
       {
         accessorKey: 'total_released_qty',
         header: 'Released',
-        cell: ({ row }) => row.getValue('total_released_qty')?.toLocaleString() || 0,
+        cell: ({ row }) => (
+          <span style={{ color: 'var(--so-text-secondary)' }}>
+            {row.getValue('total_released_qty')?.toLocaleString() || 0}
+          </span>
+        ),
       },
       {
         accessorKey: 'completion_percentage',
@@ -167,13 +201,13 @@ export default function Contracts() {
           const pct = row.getValue('completion_percentage') as number
           return (
             <div className="flex items-center gap-2">
-              <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+              <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--so-border)' }}>
                 <div
-                  className="h-full bg-primary transition-all"
-                  style={{ width: `${Math.min(pct, 100)}%` }}
+                  className="h-full transition-all"
+                  style={{ width: `${Math.min(pct, 100)}%`, background: 'var(--so-accent)' }}
                 />
               </div>
-              <span className="text-sm text-muted-foreground">{pct}%</span>
+              <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{pct}%</span>
             </div>
           )
         },
@@ -183,7 +217,11 @@ export default function Contracts() {
         header: 'Issue Date',
         cell: ({ row }) => {
           const date = row.getValue('issue_date') as string
-          return date ? new Date(date).toLocaleDateString() : '-'
+          return (
+            <span style={{ color: 'var(--so-text-secondary)' }}>
+              {date ? new Date(date).toLocaleDateString() : '-'}
+            </span>
+          )
         },
       },
       {
@@ -266,41 +304,86 @@ export default function Contracts() {
   )
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Contracts</h1>
-          <p className="text-muted-foreground">
-            Manage blanket orders and customer commitments
-          </p>
-        </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Contract
-        </Button>
-      </div>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            All Contracts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={contractsData?.results ?? []}
-              searchColumn="customer_name"
-              searchPlaceholder="Search by customer..."
-              onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
-            />
-          )}
-        </CardContent>
-      </Card>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-7 animate-in">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Contracts</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
+              Manage blanket orders and customer commitments
+            </p>
+          </div>
+          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+            <Plus className="h-3.5 w-3.5" />
+            New Contract
+          </button>
+        </div>
+
+        {/* KPI Summary Cards */}
+        <div className="rounded-[14px] mb-6 overflow-hidden animate-in delay-1"
+          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
+          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-5">
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Total Contracts
+              </div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
+                {contracts.length}
+              </div>
+            </div>
+            <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Active
+              </div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--so-success-text)' }}>
+                {activeCount}
+              </div>
+            </div>
+            <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Draft
+              </div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--so-warning-text)' }}>
+                {draftCount}
+              </div>
+            </div>
+            <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Total Committed Qty
+              </div>
+              <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
+                {totalCommitted.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* DataTable Card */}
+        <div className="rounded-[14px] overflow-hidden animate-in delay-2"
+          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
+          <div className="px-6 py-4 flex items-center gap-2"
+            style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
+            <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>All Contracts</span>
+          </div>
+          <div className="p-4">
+            {isLoading ? (
+              <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={contractsData?.results ?? []}
+                searchColumn="customer_name"
+                searchPlaceholder="Search by customer..."
+                onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
+              />
+            )}
+          </div>
+        </div>
+
+      </div>
 
       <ContractDialog
         open={dialogOpen}
@@ -310,7 +393,6 @@ export default function Contracts() {
         }}
         contract={editingContract}
         onSuccess={(contract) => {
-          // Navigate to contract detail page after creation
           if (!editingContract) {
             navigate(`/contracts/${contract.id}`)
           }

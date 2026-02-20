@@ -77,7 +77,7 @@ from .views.history import ModelHistoryView
 from .views.websocket import get_websocket_ticket
 from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
 from .views.search import GlobalSearchView
-from .views.users import CurrentUserView, UserPreferencesView
+from .views.users import CurrentUserView, UserPreferencesView, UserListView, UserDetailView
 from .views.accounting import AccountViewSet, JournalEntryViewSet
 from .views.email import SendInvoiceEmailView, SendPurchaseOrderEmailView
 from .views.notifications import NotificationListView, NotificationMarkReadView
@@ -90,6 +90,7 @@ from .views.canned_reports import (
     SalesTaxLiabilityView, GrossMarginReportView,
 )
 from .views.health import health_check
+from .views.settings import TenantSettingsView
 from .views.onboarding import (
     OnboardingStatusView,
     OnboardingCompanyView,
@@ -207,6 +208,8 @@ urlpatterns = [
     path('auth/logout/', CookieLogoutView.as_view(), name='cookie_logout'),
 
     # User profile
+    path('users/', UserListView.as_view(), name='user-list'),
+    path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
     path('users/me/', CurrentUserView.as_view(), name='current-user'),
     path('users/me/preferences/', UserPreferencesView.as_view(), name='user-preferences'),
 
@@ -265,6 +268,9 @@ urlpatterns = [
 
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+
+    # Settings
+    path('settings/', TenantSettingsView.as_view(), name='tenant-settings'),
 
     # Global Search
     path('search/', GlobalSearchView.as_view(), name='global-search'),

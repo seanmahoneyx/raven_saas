@@ -3,16 +3,19 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import apiClient from '@/api/client'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, DollarSign } from 'lucide-react'
 import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 interface OpenInvoice {
   id: number
@@ -28,6 +31,9 @@ interface PaymentApplication {
   invoice_id: number
   amount: string
 }
+
+const inputStyle: React.CSSProperties = { borderColor: 'var(--so-border)', background: 'var(--so-surface)' }
+const labelStyle: React.CSSProperties = { color: 'var(--so-text-secondary)' }
 
 export default function ReceivePayment() {
   usePageTitle('Receive Payment')
@@ -95,8 +101,7 @@ export default function ReceivePayment() {
     const newApplications: Record<number, string> = {}
     const newSelected = new Set<number>()
 
-    // Sort by due_date ascending (FIFO)
-    const sorted = [...openInvoices].sort((a, b) =>
+    const sorted = [...openInvoices].sort((a: OpenInvoice, b: OpenInvoice) =>
       new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
     )
 
@@ -123,14 +128,14 @@ export default function ReceivePayment() {
   const handleApplicationChange = (invoiceId: number, value: string) => {
     const newApplications = { ...applications }
     const balance = parseFloat(openInvoices?.find((i: OpenInvoice) => i.id === invoiceId)?.balance_due || '0')
-    const amount = parseFloat(value) || 0
+    const amt = parseFloat(value) || 0
 
-    if (amount > balance) {
+    if (amt > balance) {
       toast.error(`Applied amount cannot exceed invoice balance of $${balance.toFixed(2)}`)
       return
     }
 
-    if (value === '' || amount === 0) {
+    if (value === '' || amt === 0) {
       delete newApplications[invoiceId]
       const newSelected = new Set(selectedInvoices)
       newSelected.delete(invoiceId)
@@ -147,15 +152,14 @@ export default function ReceivePayment() {
 
     if (checked) {
       newSelected.add(invoiceId)
-      // Auto-fill with balance if no amount entered
       if (!applications[invoiceId]) {
         const invoice = openInvoices?.find((i: OpenInvoice) => i.id === invoiceId)
         if (invoice) {
           const balance = parseFloat(invoice.balance_due)
           const remaining = checkAmount - totalApplied
-          const amount = Math.min(balance, remaining)
-          if (amount > 0) {
-            setApplications({ ...applications, [invoiceId]: amount.toFixed(2) })
+          const amt = Math.min(balance, remaining)
+          if (amt > 0) {
+            setApplications({ ...applications, [invoiceId]: amt.toFixed(2) })
           }
         }
       }
@@ -207,7 +211,6 @@ export default function ReceivePayment() {
       return
     }
 
-    // Validate applications
     const applicationsList = Object.entries(applications)
       .filter(([_, amt]) => parseFloat(amt) > 0)
       .map(([invoiceId, amt]) => ({
@@ -226,7 +229,6 @@ export default function ReceivePayment() {
     }
 
     try {
-      // First create the draft
       const payload = {
         customer: selectedCustomerId,
         payment_date: paymentDate,
@@ -238,7 +240,6 @@ export default function ReceivePayment() {
 
       const draft = await createDraft.mutateAsync(payload)
 
-      // Then post it with applications
       await postPayment.mutateAsync({
         id: draft.id,
         applications: applicationsList,
@@ -252,253 +253,217 @@ export default function ReceivePayment() {
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => navigate('/invoices')}>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-7 animate-in">
+          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate('/invoices')}>
             <ArrowLeft className="h-4 w-4" />
-          </Button>
+          </button>
           <div>
-            <h1 className="text-3xl font-bold">Receive Payment</h1>
-            <p className="text-muted-foreground">Record a customer payment and apply to invoices</p>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Receive Payment</h1>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Record a customer payment and apply to invoices</p>
           </div>
         </div>
-      </div>
 
-      {/* Payment Info Section */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
-            Payment Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="customer">Customer *</Label>
-              <Select
-                value={selectedCustomerId?.toString() || ''}
-                onValueChange={(val) => {
-                  setSelectedCustomerId(parseInt(val))
-                  setApplications({})
-                  setSelectedInvoices(new Set())
-                }}
-              >
-                <SelectTrigger id="customer">
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer: Customer) => (
-                    <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.party_display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div className="space-y-5">
+          {/* Payment Info Section */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <DollarSign className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+              <span className="text-sm font-semibold">Payment Information</span>
             </div>
-
-            <div>
-              <Label htmlFor="payment_date">Payment Date *</Label>
-              <Input
-                id="payment_date"
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="amount">Amount *</Label>
-              <Input
-                id="amount"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="payment_method">Payment Method</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger id="payment_method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CHECK">Check</SelectItem>
-                  <SelectItem value="ACH">ACH</SelectItem>
-                  <SelectItem value="WIRE">Wire</SelectItem>
-                  <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
-                  <SelectItem value="CASH">Cash</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="reference_number">Reference # / Check #</Label>
-              <Input
-                id="reference_number"
-                placeholder="Check number or reference"
-                value={referenceNumber}
-                onChange={(e) => setReferenceNumber(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="deposit_account">Deposit Account (optional)</Label>
-              <Input
-                id="deposit_account"
-                placeholder="e.g., Cash - Operating"
-                disabled
-              />
-            </div>
-          </div>
-
-          {/* Notes Section */}
-          <div className="mt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowNotes(!showNotes)}
-              className="mb-2"
-            >
-              {showNotes ? 'Hide' : 'Add'} Notes
-            </Button>
-            {showNotes && (
-              <Textarea
-                placeholder="Payment notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Invoice Application Grid */}
-      {selectedCustomerId && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Apply to Invoices</CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleAutoApply}>
-                  Auto-Apply (FIFO)
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleClearAll}>
-                  Clear All
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingInvoices ? (
-              <p className="text-muted-foreground">Loading invoices...</p>
-            ) : !openInvoices || openInvoices.length === 0 ? (
-              <p className="text-muted-foreground">No open invoices for this customer</p>
-            ) : (
-              <>
-                <div className="border rounded-md">
-                  <table className="w-full">
-                    <thead className="bg-muted/50">
-                      <tr className="border-b">
-                        <th className="p-2 text-left w-12"></th>
-                        <th className="p-2 text-left">Invoice #</th>
-                        <th className="p-2 text-left">Date</th>
-                        <th className="p-2 text-left">Due Date</th>
-                        <th className="p-2 text-right">Total</th>
-                        <th className="p-2 text-right">Paid</th>
-                        <th className="p-2 text-right">Balance Due</th>
-                        <th className="p-2 text-right w-28">Apply Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {openInvoices.map((invoice: OpenInvoice) => {
-                        const isSelected = selectedInvoices.has(invoice.id)
-                        const appliedAmount = applications[invoice.id] || ''
-
-                        return (
-                          <tr key={invoice.id} className="border-b hover:bg-muted/30">
-                            <td className="p-2">
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={(checked) => handleInvoiceSelect(invoice.id, checked as boolean)}
-                              />
-                            </td>
-                            <td className="p-2 font-mono font-medium">{invoice.invoice_number}</td>
-                            <td className="p-2">{new Date(invoice.invoice_date).toLocaleDateString()}</td>
-                            <td className="p-2">{new Date(invoice.due_date).toLocaleDateString()}</td>
-                            <td className="p-2 text-right">${parseFloat(invoice.total_amount).toFixed(2)}</td>
-                            <td className="p-2 text-right">${parseFloat(invoice.amount_paid).toFixed(2)}</td>
-                            <td className="p-2 text-right font-semibold text-red-600">
-                              ${parseFloat(invoice.balance_due).toFixed(2)}
-                            </td>
-                            <td className="p-2">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={appliedAmount}
-                                onChange={(e) => handleApplicationChange(invoice.id, e.target.value)}
-                                className="w-28 text-right"
-                              />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                    <tfoot className="bg-muted/50 font-semibold">
-                      <tr className="border-t-2">
-                        <td colSpan={7} className="p-2 text-right">Total Applied:</td>
-                        <td className="p-2 text-right">${totalApplied.toFixed(2)}</td>
-                      </tr>
-                      <tr>
-                        <td colSpan={7} className="p-2 text-right">
-                          <span className={unappliedAmount > 0 ? 'text-amber-600' : ''}>
-                            Unapplied Amount:
-                          </span>
-                        </td>
-                        <td className={`p-2 text-right ${unappliedAmount > 0 ? 'text-amber-600' : ''}`}>
-                          ${unappliedAmount.toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Customer *</Label>
+                  <Select
+                    value={selectedCustomerId?.toString() || ''}
+                    onValueChange={(val) => {
+                      setSelectedCustomerId(parseInt(val))
+                      setApplications({})
+                      setSelectedInvoices(new Set())
+                    }}
+                  >
+                    <SelectTrigger style={inputStyle}><SelectValue placeholder="Select customer..." /></SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer: Customer) => (
+                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                          {customer.party_display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                {unappliedAmount > 0 && (
-                  <p className="text-sm text-amber-600 mt-2">
-                    Note: ${unappliedAmount.toFixed(2)} will remain as an unapplied credit for this customer
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Payment Date *</Label>
+                  <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={inputStyle} />
+                </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3 mt-6">
-        <Button
-          variant="outline"
-          onClick={handleSaveDraft}
-          disabled={createDraft.isPending}
-        >
-          Save Draft
-        </Button>
-        <Button
-          onClick={handlePostPayment}
-          disabled={createDraft.isPending || postPayment.isPending}
-        >
-          Post Payment
-        </Button>
-        <Button variant="ghost" onClick={() => navigate('/invoices')}>
-          Cancel
-        </Button>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Amount *</Label>
+                  <Input type="number" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="font-mono" style={inputStyle} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Payment Method</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger style={inputStyle}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CHECK">Check</SelectItem>
+                      <SelectItem value="ACH">ACH</SelectItem>
+                      <SelectItem value="WIRE">Wire</SelectItem>
+                      <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Reference # / Check #</Label>
+                  <Input placeholder="Check number or reference" value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} style={inputStyle} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={labelStyle}>Deposit Account (optional)</Label>
+                  <Input placeholder="e.g., Cash - Operating" disabled style={{ ...inputStyle, opacity: 0.5 }} />
+                </div>
+              </div>
+
+              {/* Notes Section */}
+              <div className="mt-4">
+                <button
+                  className="text-[13px] font-medium cursor-pointer mb-2"
+                  style={{ color: 'var(--so-accent)' }}
+                  onClick={() => setShowNotes(!showNotes)}
+                >
+                  {showNotes ? 'Hide' : 'Add'} Notes
+                </button>
+                {showNotes && (
+                  <Textarea placeholder="Payment notes..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={inputStyle} />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice Application Grid */}
+          {selectedCustomerId && (
+            <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold">Apply to Invoices</span>
+                <div className="flex gap-2">
+                  <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAutoApply}>
+                    Auto-Apply (FIFO)
+                  </button>
+                  <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleClearAll}>
+                    Clear All
+                  </button>
+                </div>
+              </div>
+              <div className="px-6 py-5">
+                {loadingInvoices ? (
+                  <p className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>Loading invoices...</p>
+                ) : !openInvoices || openInvoices.length === 0 ? (
+                  <p className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>No open invoices for this customer</p>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                            <th className="p-2 text-left w-12" style={{ background: 'var(--so-bg)' }}></th>
+                            <th className="p-2 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Invoice #</th>
+                            <th className="p-2 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Date</th>
+                            <th className="p-2 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Due Date</th>
+                            <th className="p-2 text-right text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Total</th>
+                            <th className="p-2 text-right text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Paid</th>
+                            <th className="p-2 text-right text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Balance Due</th>
+                            <th className="p-2 text-right text-[11px] font-semibold uppercase tracking-widest w-28" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Apply Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {openInvoices.map((invoice: OpenInvoice) => {
+                            const isSelected = selectedInvoices.has(invoice.id)
+                            const appliedAmount = applications[invoice.id] || ''
+
+                            return (
+                              <tr key={invoice.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                                <td className="p-2">
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => handleInvoiceSelect(invoice.id, checked as boolean)}
+                                  />
+                                </td>
+                                <td className="p-2 font-mono font-medium">{invoice.invoice_number}</td>
+                                <td className="p-2" style={{ color: 'var(--so-text-secondary)' }}>{new Date(invoice.invoice_date).toLocaleDateString()}</td>
+                                <td className="p-2" style={{ color: 'var(--so-text-secondary)' }}>{new Date(invoice.due_date).toLocaleDateString()}</td>
+                                <td className="p-2 text-right font-mono">${parseFloat(invoice.total_amount).toFixed(2)}</td>
+                                <td className="p-2 text-right font-mono">${parseFloat(invoice.amount_paid).toFixed(2)}</td>
+                                <td className="p-2 text-right font-mono font-semibold" style={{ color: 'var(--so-danger-text)' }}>
+                                  ${parseFloat(invoice.balance_due).toFixed(2)}
+                                </td>
+                                <td className="p-2">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={appliedAmount}
+                                    onChange={(e) => handleApplicationChange(invoice.id, e.target.value)}
+                                    className="w-28 text-right font-mono"
+                                    style={inputStyle}
+                                  />
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: '2px solid var(--so-border)' }}>
+                            <td colSpan={7} className="p-2 text-right text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>Total Applied:</td>
+                            <td className="p-2 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>${totalApplied.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td colSpan={7} className="p-2 text-right text-sm font-semibold" style={{ color: unappliedAmount > 0 ? 'var(--so-warning-text)' : 'var(--so-text-primary)' }}>
+                              Unapplied Amount:
+                            </td>
+                            <td className="p-2 text-right font-mono text-sm font-semibold" style={{ color: unappliedAmount > 0 ? 'var(--so-warning-text)' : 'var(--so-text-primary)' }}>
+                              ${unappliedAmount.toFixed(2)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {unappliedAmount > 0 && (
+                      <p className="text-[12px] mt-2" style={{ color: 'var(--so-warning-text)' }}>
+                        Note: ${unappliedAmount.toFixed(2)} will remain as an unapplied credit for this customer
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleSaveDraft} disabled={createDraft.isPending}>
+              Save Draft
+            </button>
+            <button
+              className={`${primaryBtnClass} ${createDraft.isPending || postPayment.isPending ? 'opacity-50 pointer-events-none' : ''}`}
+              style={primaryBtnStyle}
+              onClick={handlePostPayment}
+              disabled={createDraft.isPending || postPayment.isPending}
+            >
+              Post Payment
+            </button>
+            <button className={outlineBtnClass} style={{ ...outlineBtnStyle, border: 'none' }} onClick={() => navigate('/invoices')}>
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

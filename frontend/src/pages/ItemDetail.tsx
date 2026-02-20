@@ -4,9 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,6 +22,39 @@ import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
 type Tab = 'history' | 'vendors' | 'audit' | 'attachments' | 'children'
+
+/* -- Status badge helper ---------------------------------------- */
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    active:   { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' },
+    inactive: { bg: 'var(--so-danger-bg)',  border: 'transparent', text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || configs.active
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
+}
+
+const getInventoryBadge = () => (
+  <span
+    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+    style={{ background: 'var(--so-info-bg)', border: '1px solid transparent', color: 'var(--so-info-text)' }}
+  >
+    Inventory
+  </span>
+)
+
+/* -- Shared button styles --------------------------------------- */
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -130,16 +160,20 @@ export default function ItemDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7">
+          <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+        </div>
       </div>
     )
   }
 
   if (!item) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Item not found</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7">
+          <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Item not found</div>
+        </div>
       </div>
     )
   }
@@ -152,430 +186,538 @@ export default function ItemDetail() {
     { id: 'children' as Tab, label: 'Sub-Items', icon: Package },
   ]
 
+  const statusKey = item.is_active ? 'active' : 'inactive'
+
+  /* -- Detail grid data ----------------------------------------- */
+  const detailItems = isEditing
+    ? [
+        { label: 'Name', value: formData.name, empty: !formData.name, editable: true, editNode: (
+          <Input
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Item name"
+            className="h-9 text-sm border rounded-md px-2"
+            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+          />
+        )},
+        { label: 'Division', value: formData.division, empty: !formData.division, editable: true, editNode: (
+          <Select
+            value={formData.division}
+            onValueChange={(v) => setFormData({ ...formData, division: v })}
+          >
+            <SelectTrigger
+              className="h-9 text-sm border rounded-md"
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="corrugated">Corrugated</SelectItem>
+              <SelectItem value="packaging">Packaging</SelectItem>
+              <SelectItem value="tooling">Tooling</SelectItem>
+              <SelectItem value="janitorial">Janitorial</SelectItem>
+              <SelectItem value="misc">Misc</SelectItem>
+            </SelectContent>
+          </Select>
+        )},
+        { label: 'Parent Item (ID)', value: formData.parent, empty: !formData.parent, editable: true, editNode: (
+          <Input
+            type="number"
+            value={formData.parent}
+            onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+            placeholder="Parent item ID"
+            min="1"
+            className="h-9 text-sm border rounded-md px-2"
+            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+          />
+        )},
+        { label: 'Is Inventory', value: formData.is_inventory, empty: false, editable: true, editNode: (
+          <Select
+            value={formData.is_inventory}
+            onValueChange={(v) => setFormData({ ...formData, is_inventory: v })}
+          >
+            <SelectTrigger
+              className="h-9 text-sm border rounded-md"
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">Yes</SelectItem>
+              <SelectItem value="false">No</SelectItem>
+            </SelectContent>
+          </Select>
+        )},
+      ]
+    : [
+        { label: 'Name', value: item.name || '-', empty: !item.name },
+        { label: 'Division', value: item.division || '-', empty: !item.division },
+        { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
+        { label: 'Is Inventory', value: item.is_inventory ? 'Yes' : 'No', empty: false },
+      ]
+
+  /* -- Summary stat cards --------------------------------------- */
+  const summaryItems = [
+    { label: 'Base UOM', value: item.base_uom_code || '-' },
+    { label: 'Division', value: item.division || '-' },
+    { label: 'Description', value: item.description || '-', isText: true },
+    { label: 'Vendors', value: String(vendors?.length ?? 0) },
+  ]
+
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/items')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold font-mono">{item.sku}</h1>
-            {isEditing ? (
-              <Select
-                value={formData.is_active}
-                onValueChange={(v) => setFormData({ ...formData, is_active: v })}
-              >
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">Active</SelectItem>
-                  <SelectItem value="false">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge variant={item.is_active ? 'success' : 'secondary'}>
-                {item.is_active ? 'Active' : 'Inactive'}
-              </Badge>
-            )}
-            {item.is_inventory && <Badge variant="outline">Inventory</Badge>}
-          </div>
-          <p className="text-muted-foreground">{item.name}</p>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16" data-print-hide>
+
+        {/* -- Breadcrumb ---------------------------------------- */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
+          <button
+            onClick={() => navigate('/items')}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Items
+          </button>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{item.sku}</span>
         </div>
-        <div className="flex items-center gap-2" data-print-hide>
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" /> Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={updateItem.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {updateItem.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate(`/reports/item-quick-report?item=${item.id}`)}>
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Quick Report
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => {
-                window.open(`/api/v1/items/${item.id}/spec_sheet/`, '_blank')
-              }}>
-                <Printer className="h-4 w-4 mr-2" />
-                Spec Sheet
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDuplicate}
-                disabled={duplicateItem.isPending}
+
+        {/* -- Title row ----------------------------------------- */}
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold font-mono" style={{ letterSpacing: '-0.03em' }}>{item.sku}</h1>
+              {isEditing ? (
+                <Select
+                  value={formData.is_active}
+                  onValueChange={(v) => setFormData({ ...formData, is_active: v })}
+                >
+                  <SelectTrigger
+                    className="h-8 text-sm border rounded-md w-[120px]"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Active</SelectItem>
+                    <SelectItem value="false">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                getStatusBadge(statusKey)
+              )}
+              {item.is_inventory && !isEditing && getInventoryBadge()}
+            </div>
+            <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>{item.name}</div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditing ? (
+              <>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </button>
+                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSave} disabled={updateItem.isPending}>
+                  <Save className="h-3.5 w-3.5" />
+                  {updateItem.isPending ? 'Saving...' : 'Save'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit
+                </button>
+                <button
+                  className={outlineBtnClass}
+                  style={outlineBtnStyle}
+                  onClick={() => navigate(`/reports/item-quick-report?item=${item.id}`)}
+                >
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  Quick Report
+                </button>
+                <button
+                  className={outlineBtnClass}
+                  style={outlineBtnStyle}
+                  onClick={() => window.open(`/api/v1/items/${item.id}/spec_sheet/`, '_blank')}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Spec Sheet
+                </button>
+                <button
+                  className={outlineBtnClass}
+                  style={outlineBtnStyle}
+                  onClick={handleDuplicate}
+                  disabled={duplicateItem.isPending}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {duplicateItem.isPending ? 'Duplicating...' : 'Save As Copy'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* -- Item Details Card --------------------------------- */}
+        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* Card header */}
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold">Item Details</span>
+          </div>
+
+          {/* Detail grid: 4 columns */}
+          <div className="grid grid-cols-4">
+            {detailItems.map((di, idx) => (
+              <div
+                key={idx}
+                className="px-5 py-4"
+                style={{
+                  borderRight: (idx + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none',
+                  borderBottom: idx < 4 ? '1px solid var(--so-border-light)' : 'none',
+                }}
               >
-                <Copy className="h-4 w-4 mr-2" />
-                {duplicateItem.isPending ? 'Duplicating...' : 'Save As Copy'}
-              </Button>
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                  {di.label}
+                </div>
+                {'editable' in di && di.editable && 'editNode' in di ? (
+                  (di as { editNode: React.ReactNode }).editNode
+                ) : 'isParentLink' in di && di.isParentLink ? (
+                  <button
+                    onClick={() => navigate(`/items/${item.parent}`)}
+                    className="text-sm font-medium transition-colors cursor-pointer"
+                    style={{ color: 'var(--so-accent)' }}
+                    onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                    onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                  >
+                    {di.value}
+                  </button>
+                ) : (
+                  <div
+                    className="text-sm font-medium"
+                    style={{
+                      color: di.empty ? 'var(--so-text-tertiary)' : 'var(--so-text-primary)',
+                      fontStyle: di.empty ? 'italic' : 'normal',
+                    }}
+                  >
+                    {di.value}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Description fields row (view mode) */}
+          {!isEditing && (
+            <>
+              <div
+                className="px-5 py-4"
+                style={{ borderTop: '1px solid var(--so-border-light)' }}
+              >
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Description</div>
+                <div className="text-sm whitespace-pre-wrap" style={{ color: item.description ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.description ? 'normal' : 'italic' }}>
+                  {item.description || 'Not set'}
+                </div>
+              </div>
+              <div
+                className="px-5 py-4"
+                style={{ borderTop: '1px solid var(--so-border-light)' }}
+              >
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</div>
+                <div className="text-sm whitespace-pre-wrap" style={{ color: item.purch_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.purch_desc ? 'normal' : 'italic' }}>
+                  {item.purch_desc || 'Not set'}
+                </div>
+              </div>
+              <div
+                className="px-5 py-4"
+                style={{ borderTop: '1px solid var(--so-border-light)' }}
+              >
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</div>
+                <div className="text-sm whitespace-pre-wrap" style={{ color: item.sell_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.sell_desc ? 'normal' : 'italic' }}>
+                  {item.sell_desc || 'Not set'}
+                </div>
+              </div>
             </>
           )}
-        </div>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Base UOM</p>
-                <p className="text-lg font-bold">{item.base_uom_code || '-'}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Division</p>
-              <p className="text-lg font-bold">{item.division || '-'}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Description</p>
-              <p className="text-sm">{item.description || '-'}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Vendors</p>
-              <p className="text-lg font-bold">{vendors?.length ?? 0}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Details Card */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
+          {/* Description fields (edit mode) */}
+          {isEditing && (
             <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Item name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Division</Label>
-                  <Select
-                    value={formData.division}
-                    onValueChange={(v) => setFormData({ ...formData, division: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="corrugated">Corrugated</SelectItem>
-                      <SelectItem value="packaging">Packaging</SelectItem>
-                      <SelectItem value="tooling">Tooling</SelectItem>
-                      <SelectItem value="janitorial">Janitorial</SelectItem>
-                      <SelectItem value="misc">Misc</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Parent Item (ID)</Label>
-                <Input
-                  type="number"
-                  value={formData.parent}
-                  onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-                  placeholder="Parent item ID (leave blank for top-level)"
-                  min="1"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
+              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Description</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="General description..."
                   rows={2}
+                  className="text-sm border rounded-md px-2"
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Purchase Description</Label>
+              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</Label>
                 <Textarea
                   value={formData.purch_desc}
                   onChange={(e) => setFormData({ ...formData, purch_desc: e.target.value })}
                   placeholder="Description for purchase orders..."
                   rows={2}
+                  className="text-sm border rounded-md px-2"
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Sales Description</Label>
+              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</Label>
                 <Textarea
                   value={formData.sell_desc}
                   onChange={(e) => setFormData({ ...formData, sell_desc: e.target.value })}
                   placeholder="Description for sales orders..."
                   rows={2}
+                  className="text-sm border rounded-md px-2"
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Is Inventory Item</Label>
-                <Select
-                  value={formData.is_inventory}
-                  onValueChange={(v) => setFormData({ ...formData, is_inventory: v })}
-                >
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Yes</SelectItem>
-                    <SelectItem value="false">No</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Name</div>
-                <div>{item.name || '-'}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Division</div>
-                <div>{item.division || '-'}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Parent Item</div>
-                <div>
-                  {item.parent ? (
-                    <button
-                      onClick={() => navigate(`/items/${item.parent}`)}
-                      className="text-primary hover:underline"
-                    >
-                      {item.parent_sku || `Item #${item.parent}`}
-                    </button>
-                  ) : '-'}
-                </div>
-              </div>
-              <div className="md:col-span-2">
-                <div className="text-sm font-medium text-muted-foreground mb-1">Description</div>
-                <div className="text-sm whitespace-pre-wrap">{item.description || '-'}</div>
-              </div>
-              <div className="md:col-span-2">
-                <div className="text-sm font-medium text-muted-foreground mb-1">Purchase Description</div>
-                <div className="text-sm whitespace-pre-wrap">{item.purch_desc || '-'}</div>
-              </div>
-              <div className="md:col-span-2">
-                <div className="text-sm font-medium text-muted-foreground mb-1">Sales Description</div>
-                <div className="text-sm whitespace-pre-wrap">{item.sell_desc || '-'}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-1">Is Inventory Item</div>
-                <div>{item.is_inventory ? 'Yes' : 'No'}</div>
-              </div>
-            </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Reorder Settings Card */}
-      {item.is_inventory && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Reorder Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
+          {/* Summary row */}
+          <div
+            className="grid grid-cols-4"
+            style={{ borderTop: '1px solid var(--so-border-light)', background: 'var(--so-bg)' }}
+          >
+            {summaryItems.map((si, idx) => (
+              <div
+                key={idx}
+                className="px-5 py-3.5"
+                style={{
+                  borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none',
+                }}
+              >
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>
+                  {si.label}
+                </div>
+                <span
+                  className={`font-mono text-sm font-bold ${si.isText ? 'truncate block' : ''}`}
+                  style={{ color: 'var(--so-text-primary)' }}
+                  title={si.isText ? si.value : undefined}
+                >
+                  {si.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* -- Reorder Settings Card ----------------------------- */}
+        {item.is_inventory && (
+          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            {/* Card header */}
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Reorder Settings</span>
+            </div>
+
             {isEditing ? (
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Reorder Point</Label>
-                  <Input
-                    type="number"
-                    value={formData.reorder_point}
-                    onChange={(e) => setFormData({ ...formData, reorder_point: e.target.value })}
-                    placeholder="Trigger reorder at this level"
-                    min="0"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Alert when on-hand reaches this level
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Min Stock</Label>
-                  <Input
-                    type="number"
-                    value={formData.min_stock}
-                    onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
-                    placeholder="Minimum stock level"
-                    min="0"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum acceptable stock level
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Safety Stock</Label>
-                  <Input
-                    type="number"
-                    value={formData.safety_stock}
-                    onChange={(e) => setFormData({ ...formData, safety_stock: e.target.value })}
-                    placeholder="Safety stock buffer"
-                    min="0"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Buffer above min stock
-                  </p>
-                </div>
+              <div className="grid grid-cols-3">
+                {[
+                  { field: 'reorder_point' as const, label: 'Reorder Point', hint: 'Alert when on-hand reaches this level', value: formData.reorder_point },
+                  { field: 'min_stock' as const, label: 'Min Stock', hint: 'Minimum acceptable stock level', value: formData.min_stock },
+                  { field: 'safety_stock' as const, label: 'Safety Stock', hint: 'Buffer above min stock', value: formData.safety_stock },
+                ].map((f, idx) => (
+                  <div
+                    key={f.field}
+                    className="px-5 py-4"
+                    style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                      {f.label}
+                    </div>
+                    <Input
+                      type="number"
+                      value={f.value}
+                      onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
+                      placeholder={f.hint}
+                      min="0"
+                      className="h-9 text-sm border rounded-md px-2 mb-1.5"
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    />
+                    <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{f.hint}</p>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">Reorder Point</div>
-                  <div className="text-lg font-semibold">{item.reorder_point ?? '-'}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Alert when on-hand reaches this level
-                  </p>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">Min Stock</div>
-                  <div className="text-lg font-semibold">{item.min_stock ?? '-'}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Minimum acceptable stock level
-                  </p>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">Safety Stock</div>
-                  <div className="text-lg font-semibold">{item.safety_stock ?? '-'}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Buffer above min stock
-                  </p>
-                </div>
+              <div className="grid grid-cols-3">
+                {[
+                  { label: 'Reorder Point', value: item.reorder_point, hint: 'Alert when on-hand reaches this level' },
+                  { label: 'Min Stock', value: item.min_stock, hint: 'Minimum acceptable stock level' },
+                  { label: 'Safety Stock', value: item.safety_stock, hint: 'Buffer above min stock' },
+                ].map((s, idx) => (
+                  <div
+                    key={s.label}
+                    className="px-5 py-4"
+                    style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                      {s.label}
+                    </div>
+                    <div className="text-lg font-semibold font-mono mb-1" style={{ color: s.value != null ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+                      {s.value ?? '-'}
+                    </div>
+                    <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{s.hint}</p>
+                  </div>
+                ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
+        {/* -- Tabs --------------------------------------------- */}
+        <div className="flex gap-1 mb-5 animate-in delay-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors cursor-pointer"
+              style={{
+                borderColor: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
+                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
+              }}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* -- Tab Content Card ---------------------------------- */}
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* Card header */}
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold">
+              {tabs.find((t) => t.id === activeTab)?.label}
+            </span>
+          </div>
+
+          <div className="px-6 py-5">
+            {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
+            {activeTab === 'attachments' && <FileUpload appLabel="items" modelName="item" objectId={itemId} />}
+            {activeTab === 'audit' && <FieldHistoryTab modelType="item" objectId={itemId} />}
+
+            {activeTab === 'vendors' && (
+              <div>
+                {vendors && vendors.length > 0 ? (
+                  <div className="overflow-x-auto -mx-6 -my-5">
+                    <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          {['Vendor', 'MPN', 'Lead Time', 'Min Order', 'Preferred'].map((h) => (
+                            <th
+                              key={h}
+                              className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left"
+                              style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vendors.map((v: ItemVendor) => (
+                          <tr key={v.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                            <td className="py-3.5 px-4 font-medium" style={{ color: 'var(--so-text-primary)' }}>
+                              {v.vendor_name || `Vendor ${v.vendor}`}
+                            </td>
+                            <td className="py-3.5 px-4 font-mono text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                              {v.mpn || '-'}
+                            </td>
+                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                              {v.lead_time_days ? `${v.lead_time_days} days` : '-'}
+                            </td>
+                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                              {v.min_order_qty ?? '-'}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {v.is_preferred
+                                ? (
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+                                    style={{ background: 'var(--so-success-bg)', border: '1px solid transparent', color: 'var(--so-success-text)' }}
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: 'var(--so-success-text)' }} />
+                                    Preferred
+                                  </span>
+                                )
+                                : <span style={{ color: 'var(--so-text-tertiary)' }}>-</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                    No vendors linked to this item
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'children' && (
+              <div>
+                {childItems?.results && childItems.results.length > 0 ? (
+                  <div className="overflow-x-auto -mx-6 -my-5">
+                    <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          {['SKU', 'Name', 'Division', 'Status'].map((h) => (
+                            <th
+                              key={h}
+                              className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left"
+                              style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                            >
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {childItems.results.map((child: any) => (
+                          <tr
+                            key={child.id}
+                            style={{ borderBottom: '1px solid var(--so-border-light)', cursor: 'pointer' }}
+                            onClick={() => navigate(`/items/${child.id}`)}
+                            onMouseEnter={e => ((e.currentTarget as HTMLTableRowElement).style.background = 'var(--so-bg)')}
+                            onMouseLeave={e => ((e.currentTarget as HTMLTableRowElement).style.background = 'transparent')}
+                          >
+                            <td className="py-3.5 px-4 font-mono font-medium" style={{ color: 'var(--so-accent)' }}>
+                              {child.sku}
+                            </td>
+                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-primary)' }}>
+                              {child.name}
+                            </td>
+                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                              {child.division || '-'}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {getStatusBadge(child.is_active ? 'active' : 'inactive')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                    No sub-items
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
-
-      {/* Tab Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {tabs.find((t) => t.id === activeTab)?.label}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
-          {activeTab === 'attachments' && <FileUpload appLabel="items" modelName="item" objectId={itemId} />}
-          {activeTab === 'audit' && <FieldHistoryTab modelType="item" objectId={itemId} />}
-          {activeTab === 'vendors' && (
-            <div>
-              {vendors && vendors.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b text-muted-foreground text-sm">
-                      <th className="p-3 text-left">Vendor</th>
-                      <th className="p-3 text-left">MPN</th>
-                      <th className="p-3 text-left">Lead Time</th>
-                      <th className="p-3 text-left">Min Order</th>
-                      <th className="p-3 text-left">Preferred</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vendors.map((v: ItemVendor) => (
-                      <tr key={v.id} className="border-b hover:bg-muted/50">
-                        <td className="p-3 font-medium">{v.vendor_name || `Vendor ${v.vendor}`}</td>
-                        <td className="p-3 font-mono">{v.mpn || '-'}</td>
-                        <td className="p-3">{v.lead_time_days ? `${v.lead_time_days} days` : '-'}</td>
-                        <td className="p-3">{v.min_order_qty ?? '-'}</td>
-                        <td className="p-3">
-                          {v.is_preferred && <Badge variant="success">Preferred</Badge>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No vendors linked to this item
-                </div>
-              )}
-            </div>
-          )}
-          {activeTab === 'children' && (
-            <div>
-              {childItems?.results && childItems.results.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b text-muted-foreground text-sm">
-                      <th className="p-3 text-left">SKU</th>
-                      <th className="p-3 text-left">Name</th>
-                      <th className="p-3 text-left">Division</th>
-                      <th className="p-3 text-left">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {childItems.results.map((child: any) => (
-                      <tr key={child.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/items/${child.id}`)}>
-                        <td className="p-3 font-mono font-medium">{child.sku}</td>
-                        <td className="p-3">{child.name}</td>
-                        <td className="p-3">{child.division || '-'}</td>
-                        <td className="p-3">
-                          <Badge variant={child.is_active ? 'success' : 'secondary'}>
-                            {child.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No sub-items
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

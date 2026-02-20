@@ -25,6 +25,7 @@ import {
   Search,
   Cog,
   Keyboard,
+  Calculator,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -93,11 +94,12 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Company',
     requiresAdmin: true,
     items: [
-      { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
-      { type: 'item', to: '/settings', icon: Users, label: 'Users' },
       { type: 'item', to: '/', icon: LayoutDashboard, label: 'Company Snapshot' },
+      { type: 'item', to: '/users', icon: Users, label: 'Users' },
+      { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
+      { type: 'item', to: '/accounting-settings', icon: Calculator, label: 'Accounting Settings' },
       { type: 'separator' },
-      { type: 'item', to: '/settings', icon: Cog, label: 'Settings' },
+      { type: 'item', to: '/admin', icon: Cog, label: 'Settings' },
     ],
   },
   // 2. Customers
@@ -111,12 +113,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/estimates', icon: FileText, label: 'Estimates' },
       { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
       { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
-      { type: 'separator' },
-      { type: 'item', to: '/customers/new', icon: Plus, label: 'Create Customer' },
-      { type: 'item', to: '/estimates/new', icon: Plus, label: 'Create Estimate' },
-      { type: 'item', to: '/contracts/new', icon: Plus, label: 'Create Contract' },
-      { type: 'item', to: '/orders/sales/new', icon: Plus, label: 'Create Sales Order' },
-      { type: 'item', to: '/price-lists/new', icon: Plus, label: 'Create Price List' },
     ],
   },
   // 3. Vendors
@@ -128,12 +124,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
       { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Purchase Orders' },
       { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
-      { type: 'separator' },
-      { type: 'item', to: '/vendors/new', icon: Plus, label: 'Create Vendor' },
-      { type: 'item', to: '/rfqs/new', icon: Plus, label: 'Create RFQ' },
-      { type: 'item', to: '/orders/purchase/new', icon: Plus, label: 'Create Purchase Order' },
-      { type: 'item', to: '/price-lists/new', icon: Plus, label: 'Create Cost List' },
-      { type: 'separator' },
       { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
     ],
   },
@@ -144,8 +134,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Items',
     items: [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
-      { type: 'separator' },
-      { type: 'item', to: '/items/new', icon: Plus, label: 'Create Item' },
       { type: 'separator' },
       { type: 'item', to: '/contracts', icon: Eye, label: 'View Active Contracts' },
       { type: 'item', to: '/orders?tab=sales', icon: Eye, label: 'View Active Sales Orders' },
@@ -159,8 +147,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Design',
     items: [
       { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Center' },
-      { type: 'separator' },
-      { type: 'item', to: '/design-requests/new', icon: Plus, label: 'Create New Design' },
     ],
   },
   // 6. Accounting
@@ -171,8 +157,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     items: [
       { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
       { type: 'item', to: '/journal-entries', icon: FileSpreadsheet, label: 'Journal Entries' },
-      { type: 'separator' },
-      { type: 'item', to: '/journal-entries/new', icon: Plus, label: 'Make Journal Entry' },
     ],
   },
   // 7. Reports (with nested submenus)
@@ -264,7 +248,7 @@ function NavDropdown({ item }: { item: NavDropdownItem }) {
                         return <DropdownMenuSeparator key={nestedIdx} />
                       }
                       return (
-                        <DropdownMenuItem key={nestedItem.to} asChild>
+                        <DropdownMenuItem key={nestedItem.label} asChild>
                           <NavLink to={nestedItem.to} className="flex items-center gap-2 cursor-pointer">
                             <nestedItem.icon className="h-4 w-4" />
                             {nestedItem.label}
@@ -278,7 +262,7 @@ function NavDropdown({ item }: { item: NavDropdownItem }) {
             )
           }
           return (
-            <DropdownMenuItem key={subItem.to} asChild>
+            <DropdownMenuItem key={subItem.label} asChild>
               <NavLink to={subItem.to} className="flex items-center gap-2 cursor-pointer">
                 <subItem.icon className="h-4 w-4" />
                 {subItem.label}

@@ -4,8 +4,6 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -21,13 +19,32 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
-const statusVariant: Record<EstimateStatus, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
-  draft: 'secondary',
-  sent: 'default',
-  accepted: 'success',
-  rejected: 'destructive',
-  converted: 'outline',
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    converted: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
 }
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function Estimates() {
   usePageTitle('Estimates')
@@ -110,9 +127,10 @@ export default function Estimates() {
         cell: ({ row }) => {
           const date = row.getValue('expiration_date') as string | null
           const estimate = row.original
-          if (!date) return <span className="text-muted-foreground">-</span>
+          if (!date) return <span style={{ color: 'var(--so-text-tertiary)' }}>-</span>
           return (
-            <span className={estimate.is_expired ? 'text-red-600 flex items-center gap-1' : ''}>
+            <span className={estimate.is_expired ? 'flex items-center gap-1' : ''}
+              style={estimate.is_expired ? { color: 'var(--so-danger-text)' } : undefined}>
               {estimate.is_expired && <AlertTriangle className="h-3 w-3" />}
               {format(new Date(date), 'MMM d, yyyy')}
             </span>
@@ -122,20 +140,13 @@ export default function Estimates() {
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => {
-          const status = row.getValue('status') as EstimateStatus
-          return (
-            <Badge variant={statusVariant[status]}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-          )
-        },
+        cell: ({ row }) => getStatusBadge(row.getValue('status') as EstimateStatus),
       },
       {
         accessorKey: 'num_lines',
         header: 'Lines',
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.getValue('num_lines')}</span>
+          <span style={{ color: 'var(--so-text-tertiary)' }}>{row.getValue('num_lines')}</span>
         ),
       },
       {
@@ -210,74 +221,60 @@ export default function Estimates() {
 
   const estimates = estimatesData?.results ?? []
 
+  const kpiStats = [
+    { label: 'Draft',     value: estimates.filter((e) => e.status === 'draft').length,     status: 'draft' },
+    { label: 'Sent',      value: estimates.filter((e) => e.status === 'sent').length,      status: 'sent' },
+    { label: 'Accepted',  value: estimates.filter((e) => e.status === 'accepted').length,  status: 'accepted' },
+    { label: 'Rejected',  value: estimates.filter((e) => e.status === 'rejected').length,  status: 'rejected' },
+    { label: 'Converted', value: estimates.filter((e) => e.status === 'converted').length, status: 'converted' },
+  ]
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Estimates</h1>
-          <p className="text-muted-foreground">
-            Create and manage customer estimates and quotes
-          </p>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+
+        {/* Header */}
+        <div className="flex items-center justify-between mb-7 animate-in">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Estimates</h1>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+              Create and manage customer estimates and quotes
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              New Estimate
+            </button>
+          </div>
         </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Estimate
-        </Button>
-      </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-5 mb-6">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {estimates.filter((e) => e.status === 'draft').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Draft</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {estimates.filter((e) => e.status === 'sent').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Sent</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {estimates.filter((e) => e.status === 'accepted').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Accepted</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {estimates.filter((e) => e.status === 'rejected').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Rejected</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {estimates.filter((e) => e.status === 'converted').length}
-            </div>
-            <div className="text-sm text-muted-foreground">Converted</div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* KPI Summary */}
+        <div className="rounded-[14px] border mb-6 animate-in delay-1"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-5 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+            {kpiStats.map((stat) => (
+              <div key={stat.label} className="px-6 py-5">
+                <div className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{stat.value}</div>
+                <div className="mt-1">{getStatusBadge(stat.status)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      {/* Estimates Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Estimates
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        {/* Estimates Table */}
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="flex items-center justify-between px-6 py-4"
+            style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+              Estimates
+            </span>
+            <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+              {estimates.length} total
+            </span>
+          </div>
           <DataTable
             columns={columns}
             data={estimates}
@@ -285,16 +282,16 @@ export default function Estimates() {
             searchPlaceholder="Search estimates..."
             onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
           />
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Dialog */}
+      </div>
+
+      {/* Dialogs */}
       <EstimateDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         estimate={editingEstimate}
       />
-
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -305,7 +302,6 @@ export default function Estimates() {
         onConfirm={handleConfirmDelete}
         loading={deleteEstimate.isPending}
       />
-
       <ConfirmDialog
         open={convertDialogOpen}
         onOpenChange={setConvertDialogOpen}

@@ -24,7 +24,7 @@ User = get_user_model()
 # Cookie configuration
 ACCESS_TOKEN_COOKIE = 'raven_access'
 REFRESH_TOKEN_COOKIE = 'raven_refresh'
-COOKIE_MAX_AGE_ACCESS = 60 * 60  # 1 hour
+COOKIE_MAX_AGE_ACCESS = 60 * 60 * 8  # 8 hours
 COOKIE_MAX_AGE_REFRESH = 60 * 60 * 24 * 7  # 7 days
 
 

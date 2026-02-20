@@ -7,8 +7,6 @@ import {
   CheckCircle, XCircle, Clock, Loader2, Check, Palette,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -44,22 +42,45 @@ import { DesignRequestDialog } from '@/components/design/DesignRequestDialog'
 import type { DesignRequest, DesignRequestStatus } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import React from 'react'
 
-const statusColors: Record<DesignRequestStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'secondary',
-  in_progress: 'default',
-  approved: 'success',
-  rejected: 'destructive',
-  completed: 'outline',
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:       { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    active:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    posted:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    confirmed:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    scheduled:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    picking:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    shipped:     { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    complete:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    crossdock:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    received:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    sent:        { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    converted:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    expired:     { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status.replace('_', ' ')}
+    </span>
+  )
 }
 
-const statusLabels: Record<DesignRequestStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  completed: 'Completed',
-}
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 const statusIcons: Record<DesignRequestStatus, React.ElementType> = {
   pending: Clock,
@@ -112,7 +133,7 @@ function PromoteDialog({
         <DialogHeader>
           <DialogTitle>Promote to Item</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
           Promote <strong>{designRequest?.file_number}</strong> ({designRequest?.ident || 'Untitled'}) to an item in the catalog.
         </p>
         <div className="grid gap-4 py-4">
@@ -133,10 +154,15 @@ function PromoteDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handlePromote} disabled={!sku || !uom || promoteMutation.isPending}>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => onOpenChange(false)}>Cancel</button>
+          <button
+            className={primaryBtnClass}
+            style={{ ...primaryBtnStyle, opacity: (!sku || !uom || promoteMutation.isPending) ? 0.6 : 1 }}
+            onClick={handlePromote}
+            disabled={!sku || !uom || promoteMutation.isPending}
+          >
             {promoteMutation.isPending ? 'Promoting...' : 'Promote'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -190,36 +216,30 @@ export default function DesignRequests() {
         accessorKey: 'file_number',
         header: 'File #',
         cell: ({ row }) => (
-          <span className="font-medium font-mono">{row.getValue('file_number')}</span>
+          <span className="font-medium font-mono" style={{ color: 'var(--so-text-primary)' }}>{row.getValue('file_number')}</span>
         ),
       },
       {
         accessorKey: 'ident',
         header: 'Identifier',
-        cell: ({ row }) => row.getValue('ident') || '-',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('ident') || '-'}</span>,
       },
       {
         accessorKey: 'style',
         header: 'Style',
-        cell: ({ row }) => row.getValue('style') || '-',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('style') || '-'}</span>,
       },
       {
         accessorKey: 'customer_name',
         header: 'Customer',
-        cell: ({ row }) => row.getValue('customer_name') || '-',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('customer_name') || '-'}</span>,
       },
       {
         accessorKey: 'status',
         header: 'Status',
         cell: ({ row }) => {
           const s = row.getValue('status') as DesignRequestStatus
-          const Icon = statusIcons[s]
-          return (
-            <Badge variant={statusColors[s]} className="gap-1">
-              <Icon className="h-3 w-3" />
-              {statusLabels[s]}
-            </Badge>
-          )
+          return getStatusBadge(s)
         },
       },
       {
@@ -228,7 +248,7 @@ export default function DesignRequests() {
         cell: ({ row }) => {
           const dr = row.original
           const parts = [dr.length, dr.width, dr.depth].filter(Boolean)
-          return parts.length > 0 ? parts.join(' x ') : '-'
+          return <span style={{ color: 'var(--so-text-secondary)' }}>{parts.length > 0 ? parts.join(' x ') : '-'}</span>
         },
       },
       {
@@ -239,21 +259,21 @@ export default function DesignRequests() {
           const checks = [dr.has_ard, dr.has_pdf, dr.has_eps, dr.has_dxf, dr.has_samples, dr.pallet_configuration]
           const done = checks.filter(Boolean).length
           return (
-            <span className="text-sm text-muted-foreground">{done}/{checks.length}</span>
+            <span className="text-sm" style={{ color: 'var(--so-text-muted)' }}>{done}/{checks.length}</span>
           )
         },
       },
       {
         accessorKey: 'assigned_to_name',
         header: 'Assigned To',
-        cell: ({ row }) => row.getValue('assigned_to_name') || '-',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('assigned_to_name') || '-'}</span>,
       },
       {
         accessorKey: 'created_at',
         header: 'Created',
         cell: ({ row }) => {
           const date = row.getValue('created_at') as string
-          return date ? new Date(date).toLocaleDateString() : '-'
+          return <span style={{ color: 'var(--so-text-muted)' }}>{date ? new Date(date).toLocaleDateString() : '-'}</span>
         },
       },
       {
@@ -341,30 +361,33 @@ export default function DesignRequests() {
   )
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Design Requests</h1>
-          <p className="text-muted-foreground">
-            Track packaging design requests from concept to production item
-          </p>
-        </div>
-        <Button onClick={handleAddNew}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Design Request
-        </Button>
-      </div>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            All Design Requests
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8 animate-in">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Design Requests</h1>
+            <p className="mt-1 text-[13.5px]" style={{ color: 'var(--so-text-muted)' }}>
+              Track packaging design requests from concept to production item
+            </p>
+          </div>
+          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+            <Plus className="h-4 w-4" />
+            New Design Request
+          </button>
+        </div>
+
+        {/* Table Card */}
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="flex items-center gap-2">
+              <Palette className="h-4 w-4" style={{ color: 'var(--so-text-muted)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>All Design Requests</span>
+            </div>
+          </div>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-12 text-sm" style={{ color: 'var(--so-text-muted)' }}>Loading...</div>
           ) : (
             <DataTable
               columns={columns}
@@ -374,8 +397,9 @@ export default function DesignRequests() {
               onRowClick={(row) => navigate(`/design-requests/${row.id}`)}
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+      </div>
 
       <DesignRequestDialog
         open={dialogOpen}

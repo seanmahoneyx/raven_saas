@@ -1,33 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: 'JetBrains Mono', monospace;
 
   /* ═══════════════════════════════════════════════
-     RAVEN TECH — Electric Blue · Cyber Purple · Onyx
-     #00E5FF · #6200EA · #C0C0C0 · #FFFFFF · #121212
+     RAVEN — Warm Neutral · Indigo Accent
+     #f6f5f2 · #4338ca · #1a1917 · #FFFFFF
      ═══════════════════════════════════════════════ */
 
-  /* Light Mode — clean white/silver with blue+purple pops */
-  --color-background: hsl(0 0% 100%);
-  --color-foreground: hsl(0 0% 7%);
+  /* Light Mode — warm neutrals with indigo accent */
+  --color-background: hsl(40 17% 96%);
+  --color-foreground: hsl(45 8% 10%);
   --color-card: hsl(0 0% 100%);
-  --color-card-foreground: hsl(0 0% 7%);
+  --color-card-foreground: hsl(45 8% 10%);
   --color-popover: hsl(0 0% 100%);
-  --color-popover-foreground: hsl(0 0% 7%);
-  --color-primary: hsl(200 90% 32%);
+  --color-popover-foreground: hsl(45 8% 10%);
+  --color-primary: hsl(245 58% 51%);
   --color-primary-foreground: hsl(0 0% 100%);
-  --color-secondary: hsl(265 70% 48%);
-  --color-secondary-foreground: hsl(0 0% 100%);
-  --color-muted: hsl(220 8% 95%);
-  --color-muted-foreground: hsl(0 0% 45%);
-  --color-accent: hsl(265 50% 96%);
-  --color-accent-foreground: hsl(265 80% 40%);
+  --color-secondary: hsl(40 6% 90%);
+  --color-secondary-foreground: hsl(40 6% 40%);
+  --color-muted: hsl(40 14% 93%);
+  --color-muted-foreground: hsl(40 6% 40%);
+  --color-accent: hsl(245 100% 97%);
+  --color-accent-foreground: hsl(245 58% 51%);
   --color-destructive: hsl(0 80% 55%);
   --color-destructive-foreground: hsl(0 0% 100%);
-  --color-border: hsl(0 0% 88%);
-  --color-input: hsl(0 0% 88%);
-  --color-ring: hsl(200 90% 32%);
+  --color-border: hsl(37 13% 90%);
+  --color-input: hsl(37 13% 90%);
+  --color-ring: hsl(245 58% 51%);
 
   /* Sidebar / Navbar — always dark, even in light mode */
   --color-sidebar: hsl(0 0% 5%);
@@ -40,11 +42,11 @@
   --color-sidebar-ring: hsl(187 100% 50%);
 
   /* Chart palette */
-  --color-chart-1: hsl(187 100% 50%);
-  --color-chart-2: hsl(265 100% 46%);
-  --color-chart-3: hsl(195 80% 55%);
+  --color-chart-1: hsl(245 58% 51%);
+  --color-chart-2: hsl(160 60% 45%);
+  --color-chart-3: hsl(35 90% 55%);
   --color-chart-4: hsl(280 65% 58%);
-  --color-chart-5: hsl(0 0% 75%);
+  --color-chart-5: hsl(40 6% 65%);
 
   /* Radius — modern rounded */
   --radius-sm: 0.3rem;
@@ -52,6 +54,45 @@
   --radius-lg: 0.625rem;
   --radius-xl: 0.875rem;
 }
+
+/* ═══════════════════════════════════════════════
+   RAVEN PAGE — warm neutral detail page palette
+   ═══════════════════════════════════════════════ */
+
+.raven-page,
+.so-detail-page {
+  --so-bg: #f6f5f2;
+  --so-surface: #ffffff;
+  --so-border: #e8e6e1;
+  --so-border-light: #f0eee9;
+  --so-text-primary: #1a1917;
+  --so-text-secondary: #6b6860;
+  --so-text-tertiary: #9e9a90;
+  --so-accent: #4338ca;
+  --so-accent-light: #eef2ff;
+  --so-accent-hover: #3730a3;
+  --so-warning-bg: #fef9ec;
+  --so-warning-border: #f5d670;
+  --so-warning-text: #92710a;
+  --so-success-bg: #ecfdf5;
+  --so-success-text: #065f46;
+  --so-info-bg: #eff6ff;
+  --so-info-text: #1e40af;
+  --so-danger-bg: #fef2f2;
+  --so-danger-text: #991b1b;
+  background: var(--so-bg);
+  color: var(--so-text-primary);
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeUp 0.4s ease-out both; }
+.delay-1 { animation-delay: 0.05s; }
+.delay-2 { animation-delay: 0.1s; }
+.delay-3 { animation-delay: 0.15s; }
+.delay-4 { animation-delay: 0.2s; }
 
 /* ═══════════════════════════════════════════════
    DARK MODE — the signature Raven look
@@ -219,9 +260,9 @@ table tbody tr {
   box-shadow: 0 0 12px hsl(187 100% 50% / 0.2);
 }
 
-/* Focus rings — electric blue */
+/* Focus rings — indigo */
 *:focus-visible {
-  outline: 2px solid hsl(187 100% 50%);
+  outline: 2px solid hsl(245 58% 51%);
   outline-offset: 2px;
 }
 
@@ -232,7 +273,7 @@ table tbody tr {
 
 /* Selection highlight */
 ::selection {
-  background: hsl(187 100% 50% / 0.2);
+  background: hsl(245 58% 51% / 0.15);
   color: inherit;
 }
 
@@ -377,6 +418,94 @@ table tbody tr {
 
 .dissolve-button:hover {
   background: #dc2626;
+}
+
+/* ═══════════════════════════════════════════════
+   PRINT STYLES — Clean professional form output
+   ═══════════════════════════════════════════════ */
+
+@media print {
+  /* Reset colors to black/white */
+  * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+
+  /* Hide navbar, toasts, dialogs, and interactive elements */
+  header.bg-sidebar,
+  [data-sonner-toaster],
+  [role="dialog"],
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Remove page padding from layout wrapper */
+  main, .flex-1 {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Remove card shadows and simplify borders */
+  [data-slot="card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+  }
+
+  [data-slot="card"]:hover {
+    box-shadow: none !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 0.6in 0.75in;
+    size: letter;
+  }
+
+  /* Links should not show underline */
+  a {
+    text-decoration: none !important;
+    color: black !important;
+  }
+
+  /* Badges print as simple text labels */
+  [data-slot="badge"] {
+    border: 1px solid #999 !important;
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    padding: 1px 6px !important;
+    font-size: 9pt;
+  }
+
+  /* Tables should not break across pages */
+  table {
+    break-inside: avoid;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}
+
+/* Hide print-only elements on screen */
+@media screen {
+  .print-only {
+    display: none !important;
+  }
 }
 
 /* Accessibility */

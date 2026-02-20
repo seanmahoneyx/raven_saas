@@ -1,17 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { salesOrderSchema, type SalesOrderFormData } from '@/schemas'
-import { FormField } from '@/components/ui/form-field'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useCreateSalesOrder } from '@/api/orders'
-import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
-import { usePriceLookup } from '@/api/priceLists'
-import { Button } from '@/components/ui/button'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -19,7 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { useCreateSalesOrder } from '@/api/orders'
+import { useCustomers, useLocations } from '@/api/parties'
+import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { usePriceLookup } from '@/api/priceLists'
+import { useContractsByCustomer } from '@/api/contracts'
+import { toast } from 'sonner'
 
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -31,9 +27,18 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const dangerBtnStyle: React.CSSProperties = { background: '#dc2626', border: '1px solid #dc2626' }
+
 export default function CreateSalesOrder() {
-  usePageTitle('Create Sales Order')
   const navigate = useNavigate()
+  const location = useLocation()
+  const copyData = (location.state as any)?.copyFrom
+  usePageTitle(copyData ? 'Copy Sales Order' : 'New Sales Order')
   const createOrder = useCreateSalesOrder()
 
   const { data: customersData } = useCustomers()
@@ -44,114 +49,179 @@ export default function CreateSalesOrder() {
   const [error, setError] = useState('')
   const [priceLookupLine, setPriceLookupLine] = useState<number | null>(null)
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<SalesOrderFormData>({
-    resolver: zodResolver(salesOrderSchema),
-    defaultValues: {
-      order_number: '',
-      status: 'draft',
-      priority: '5',
-      customer: '',
-      customer_po: '',
-      order_date: new Date().toISOString().split('T')[0],
-      scheduled_date: '',
-      ship_to: '',
-      bill_to: '',
-      notes: '',
-      lines: [],
-    },
+  const [formData, setFormData] = useState({
+    order_number: copyData?.order_number || '',
+    status: copyData?.status || 'draft',
+    customer: copyData?.customer || '',
+    customer_po: copyData?.customer_po || '',
+    order_date: copyData?.order_date || new Date().toISOString().split('T')[0],
+    scheduled_date: copyData?.scheduled_date || '',
+    ship_to: copyData?.ship_to || '',
+    bill_to: copyData?.bill_to || '',
+    notes: copyData?.notes || '',
   })
-
-  const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
+  const [linesFormData, setLinesFormData] = useState<
+    { item: string; quantity_ordered: string; uom: string; unit_price: string; notes: string; contract: string }[]
+  >(copyData?.lines?.map((l: any) => ({ ...l, notes: l.notes || '', contract: '' })) || [])
 
   const customers = customersData?.results ?? []
-  const locations = locationsData?.results ?? []
+  const allLocations = locationsData?.results ?? []
   const items = itemsData?.results ?? []
   const uoms = uomData?.results ?? []
 
-  const customer = watch('customer')
-  const watchedLines = watch('lines')
-
-  const selectedCustomer = customers.find((c) => String(c.id) === customer)
+  const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
   const customerLocations = selectedCustomer
-    ? locations.filter((l) => l.party === selectedCustomer.party)
+    ? allLocations.filter((l) => l.party === selectedCustomer.party)
     : []
 
-  const lookupLine = priceLookupLine !== null ? watchedLines[priceLookupLine] : null
-  const { data: priceData } = usePriceLookup(
-    customer ? Number(customer) : undefined,
+  // Contracts
+  const { data: customerContracts } = useContractsByCustomer(
+    formData.customer ? Number(formData.customer) : 0
+  )
+
+  const activeContracts = (customerContracts ?? []).filter(c => c.status === 'active')
+  const contractsByItem = new Map<number, { contractNumber: string; unitPrice: string; remainingQty: number }[]>()
+  activeContracts.forEach(contract => {
+    contract.lines?.forEach(cl => {
+      const options = contractsByItem.get(cl.item) || []
+      options.push({
+        contractNumber: contract.contract_number,
+        unitPrice: cl.unit_price,
+        remainingQty: cl.remaining_qty,
+      })
+      contractsByItem.set(cl.item, options)
+    })
+  })
+
+  // Price lookup
+  const lookupLine = priceLookupLine !== null ? linesFormData[priceLookupLine] : null
+  const { data: priceData, isFetching: isPriceFetching } = usePriceLookup(
+    formData.customer ? Number(formData.customer) : undefined,
     lookupLine?.item ? Number(lookupLine.item) : undefined,
     lookupLine?.quantity_ordered ? Number(lookupLine.quantity_ordered) : undefined,
   )
 
-  // Auto-populate price from price list
   useEffect(() => {
-    if (priceData?.unit_price && priceLookupLine !== null && priceLookupLine < watchedLines.length) {
-      const currentLine = watchedLines[priceLookupLine]
-      if (currentLine.unit_price === '0.00' || currentLine.unit_price === '') {
-        setValue(`lines.${priceLookupLine}.unit_price`, priceData.unit_price)
-      }
+    if (priceLookupLine === null || isPriceFetching) return
+    if (priceLookupLine >= linesFormData.length) {
       setPriceLookupLine(null)
+      return
     }
-  }, [priceData, priceLookupLine, watchedLines, setValue])
-
-  const isPending = createOrder.isPending
+    if (priceData?.unit_price) {
+      const currentLine = linesFormData[priceLookupLine]
+      if (currentLine.unit_price === '0.00' || currentLine.unit_price === '') {
+        setLinesFormData(prev => prev.map((line, i) =>
+          i === priceLookupLine ? { ...line, unit_price: priceData.unit_price } : line
+        ))
+      }
+    }
+    setPriceLookupLine(null)
+  }, [priceData, priceLookupLine, linesFormData, isPriceFetching])
 
   const handleAddLine = () => {
-    append({ item: '', quantity_ordered: '1', uom: '', unit_price: '0.00' })
+    setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '1', uom: '', unit_price: '0.00', notes: '', contract: '' }])
+  }
+
+  const handleRemoveLine = (index: number) => {
+    setLinesFormData(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleLineChange = (index: number, field: string, value: string) => {
+    setLinesFormData(prev => prev.map((line, i) =>
+      i === index ? { ...line, [field]: value } : line
+    ))
   }
 
   const handleLineItemChange = (index: number, value: string) => {
-    setValue(`lines.${index}.item`, value)
-    if (value) {
-      const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
-      if (selectedItem) {
-        setValue(`lines.${index}.uom`, String(selectedItem.base_uom))
-      }
-      if (customer) {
-        setValue(`lines.${index}.unit_price`, '0.00')
-        setPriceLookupLine(index)
-      }
-    }
-  }
+    const selectedItem = items.find(i => String(i.id) === value)
+    const itemContracts = value ? contractsByItem.get(Number(value)) : undefined
+    const bestContract = itemContracts?.[0]
 
-  const handleLineQtyChange = (index: number, value: string) => {
-    setValue(`lines.${index}.quantity_ordered`, value)
-    if (value && customer && watchedLines[index]?.item) {
-      setValue(`lines.${index}.unit_price`, '0.00')
+    setLinesFormData(prev => prev.map((line, i) => {
+      if (i !== index) return line
+      return {
+        ...line,
+        item: value,
+        uom: selectedItem ? String(selectedItem.base_uom) : line.uom,
+        unit_price: bestContract?.unitPrice || '0.00',
+        contract: bestContract?.contractNumber || '',
+      }
+    }))
+    if (value && formData.customer && !bestContract) {
       setPriceLookupLine(index)
     }
   }
 
-  const onSubmit = async (data: SalesOrderFormData) => {
+  const handleLineQtyChange = (index: number, value: string) => {
+    const hasContract = !!linesFormData[index]?.contract
+    setLinesFormData(prev => prev.map((line, i) =>
+      i === index ? { ...line, quantity_ordered: value, ...(hasContract ? {} : { unit_price: '0.00' }) } : line
+    ))
+    if (value && formData.customer && linesFormData[index]?.item && !hasContract) {
+      setPriceLookupLine(index)
+    }
+  }
+
+  const handleContractChange = (index: number, contractNumber: string) => {
+    const line = linesFormData[index]
+    const itemContracts = line.item ? contractsByItem.get(Number(line.item)) : undefined
+    const selected = itemContracts?.find(c => c.contractNumber === contractNumber)
+
+    setLinesFormData(prev => prev.map((l, i) => {
+      if (i !== index) return l
+      return {
+        ...l,
+        contract: contractNumber,
+        unit_price: selected?.unitPrice || l.unit_price,
+      }
+    }))
+  }
+
+  const fmtCurrency = (val: string | number) => {
+    const num = parseFloat(String(val))
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  const editTotal = linesFormData.reduce((sum, line) => {
+    const qty = parseFloat(line.quantity_ordered) || 0
+    const price = parseFloat(line.unit_price) || 0
+    return sum + qty * price
+  }, 0)
+
+  const isPending = createOrder.isPending
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setError('')
+
+    if (!formData.customer) {
+      setError('Customer is required')
+      return
+    }
+
+    const payload = {
+      order_number: formData.order_number || undefined,
+      status: formData.status,
+      customer: Number(formData.customer),
+      order_date: formData.order_date,
+      scheduled_date: formData.scheduled_date || null,
+      ship_to: formData.ship_to ? Number(formData.ship_to) : null,
+      bill_to: formData.bill_to ? Number(formData.bill_to) : null,
+      customer_po: formData.customer_po || '',
+      notes: formData.notes || '',
+      priority: 5,
+      lines: linesFormData.map((line, idx) => ({
+        line_number: idx + 1,
+        item: Number(line.item),
+        quantity_ordered: Number(line.quantity_ordered),
+        uom: Number(line.uom),
+        unit_price: line.unit_price,
+      })),
+    }
+
     try {
-      await createOrder.mutateAsync({
-        order_number: data.order_number || undefined,
-        status: data.status,
-        customer: Number(data.customer),
-        order_date: data.order_date,
-        scheduled_date: data.scheduled_date || null,
-        ship_to: data.ship_to ? Number(data.ship_to) : null,
-        bill_to: data.bill_to ? Number(data.bill_to) : null,
-        customer_po: data.customer_po || '',
-        notes: data.notes || '',
-        priority: Number(data.priority),
-        lines: data.lines.map((line, idx) => ({
-          line_number: idx + 1,
-          item: Number(line.item),
-          quantity_ordered: Number(line.quantity_ordered),
-          uom: Number(line.uom),
-          unit_price: line.unit_price,
-        })),
-      } as any)
-      navigate('/orders?tab=sales')
+      await createOrder.mutateAsync(payload as any)
+      navigate('/customers/open-orders')
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {
@@ -164,83 +234,102 @@ export default function CreateSalesOrder() {
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Create New Sales Order</h1>
-          <p className="text-sm text-muted-foreground">
-            Create a new sales order for a customer
-          </p>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Sales Orders
+          </button>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+            {copyData ? 'Copy Sales Order' : 'New Sales Order'}
+          </span>
         </div>
-      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-        {/* Order Details */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Order Details</h2>
-
-          <div className="grid grid-cols-3 gap-4">
-            <FormField label="Order Number" error={errors.order_number}>
-              <Input
-                {...register('order_number')}
-                placeholder="Auto-generated"
-                className="font-mono"
-              />
-            </FormField>
-            <FormField label="Status" error={errors.status}>
-              <Controller
-                name="status"
-                control={control}
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORDER_STATUSES.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </FormField>
-            <FormField label="Priority (1-10)" error={errors.priority}>
-              <Input
-                {...register('priority')}
-                type="number"
-                min="1"
-                max="10"
-              />
-            </FormField>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-7 animate-in delay-1">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
+              {copyData ? 'Copy Sales Order' : 'New Sales Order'}
+            </h1>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+              {selectedCustomer ? selectedCustomer.party_display_name : 'Fill in order details below'}
+            </p>
           </div>
-        </section>
+          <div className="flex items-center gap-2">
+            <Select
+              value={formData.status}
+              onValueChange={(value) => setFormData({ ...formData, status: value })}
+            >
+              <SelectTrigger
+                className="w-[130px] h-9 text-[13px]"
+                style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ORDER_STATUSES.map((status) => (
+                  <SelectItem key={status.value} value={status.value}>
+                    {status.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+              Cancel
+            </button>
+            <button
+              className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+              style={primaryBtnStyle}
+              onClick={onSubmit as any}
+              type="submit"
+              form="create-so-form"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              {isPending ? 'Creating...' : 'Create Order'}
+            </button>
+          </div>
+        </div>
 
-        {/* Customer */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Customer</h2>
+        <form id="create-so-form" onSubmit={onSubmit}>
+          {/* Error */}
+          {error && (
+            <div
+              className="rounded-md p-3 mb-4 text-sm animate-in"
+              style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)', border: '1px solid var(--so-danger-text)' }}
+            >
+              {error}
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Customer" required error={errors.customer}>
-              <Controller
-                name="customer"
-                control={control}
-                render={({ field }) => (
+          {/* Order Details Card */}
+          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Order Details</span>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex flex-wrap gap-4">
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Customer *</label>
                   <Select
-                    value={field.value}
+                    value={formData.customer}
                     onValueChange={(v) => {
-                      field.onChange(v)
-                      setValue('ship_to', '')
-                      setValue('bill_to', '')
+                      setFormData({ ...formData, customer: v, ship_to: '', bill_to: '' })
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      className="h-9 text-sm"
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    >
                       <SelectValue placeholder="Select customer..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -251,54 +340,48 @@ export default function CreateSalesOrder() {
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              />
-            </FormField>
-            <FormField label="Customer PO" error={errors.customer_po}>
-              <Input
-                {...register('customer_po')}
-                placeholder="Customer's PO reference"
-              />
-            </FormField>
-          </div>
-        </section>
-
-        {/* Dates */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Dates</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Order Date" required error={errors.order_date}>
-              <Input
-                {...register('order_date')}
-                type="date"
-              />
-            </FormField>
-            <FormField label="Scheduled Date" error={errors.scheduled_date}>
-              <Input
-                {...register('scheduled_date')}
-                type="date"
-              />
-            </FormField>
-          </div>
-        </section>
-
-        {/* Shipping */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Shipping & Billing</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FormField label="Ship To" error={errors.ship_to}>
-              <Controller
-                name="ship_to"
-                control={control}
-                render={({ field }) => (
+                </div>
+                <div className="flex-1 min-w-[140px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Customer PO</label>
+                  <Input
+                    value={formData.customer_po}
+                    onChange={(e) => setFormData({ ...formData, customer_po: e.target.value })}
+                    placeholder="PO reference"
+                    className="h-9 text-sm"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+                <div className="min-w-[150px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Order Date</label>
+                  <Input
+                    type="date"
+                    value={formData.order_date}
+                    onChange={(e) => setFormData({ ...formData, order_date: e.target.value })}
+                    className="h-9 text-sm"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+                <div className="min-w-[150px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Scheduled Date</label>
+                  <Input
+                    type="date"
+                    value={formData.scheduled_date}
+                    onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
+                    className="h-9 text-sm"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Ship To</label>
                   <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={!customer}
+                    value={formData.ship_to}
+                    onValueChange={(v) => setFormData({ ...formData, ship_to: v })}
+                    disabled={!formData.customer}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      className="h-9 text-sm"
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    >
                       <SelectValue placeholder="Select location..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -309,20 +392,18 @@ export default function CreateSalesOrder() {
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              />
-            </FormField>
-            <FormField label="Bill To" error={errors.bill_to}>
-              <Controller
-                name="bill_to"
-                control={control}
-                render={({ field }) => (
+                </div>
+                <div className="flex-1 min-w-[160px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Bill To</label>
                   <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={!customer}
+                    value={formData.bill_to}
+                    onValueChange={(v) => setFormData({ ...formData, bill_to: v })}
+                    disabled={!formData.customer}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger
+                      className="h-9 text-sm"
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    >
                       <SelectValue placeholder="Same as ship to" />
                     </SelectTrigger>
                     <SelectContent>
@@ -333,60 +414,76 @@ export default function CreateSalesOrder() {
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              />
-            </FormField>
-          </div>
-        </section>
-
-        {/* Notes */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Notes</h2>
-          <Textarea
-            {...register('notes')}
-            placeholder="Order notes..."
-            rows={3}
-          />
-        </section>
-
-        {/* Line Items */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold border-b pb-2 flex-1">Order Lines</h2>
-            <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Line
-            </Button>
+                </div>
+                <div className="flex-[2] min-w-[200px]">
+                  <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Notes</label>
+                  <Input
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Order notes..."
+                    className="h-9 text-sm"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {errors.lines?.message && (
-            <p className="text-xs text-destructive">{errors.lines.message}</p>
-          )}
+          {/* Line Items Card */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Line Items</span>
+              <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
+                {linesFormData.length} {linesFormData.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
 
-          {fields.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No lines added. Click "Add Line" to add items to this order.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {fields.map((field, index) => (
-                <div key={field.id} className="bg-muted/50 rounded-lg p-3">
-                  <div className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-4">
-                      <FormField
-                        label="Item"
-                        error={errors.lines?.[index]?.item}
-                        className="space-y-1"
-                      >
-                        <Controller
-                          name={`lines.${index}.item`}
-                          control={control}
-                          render={({ field: f }) => (
+            <div className="overflow-x-auto">
+              {linesFormData.length === 0 ? (
+                <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No lines. Click "Add Line" below to add items.
+                </div>
+              ) : (
+                <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {[
+                        { label: 'Item', align: 'text-left', cls: 'pl-6 w-[18%]' },
+                        { label: 'Description', align: 'text-left', cls: 'w-[15%]' },
+                        { label: 'Contract', align: 'text-left', cls: 'w-[14%]' },
+                        { label: 'Qty', align: 'text-right', cls: 'w-[8%]' },
+                        { label: 'UOM', align: 'text-left', cls: 'w-[8%]' },
+                        { label: 'Rate', align: 'text-right', cls: 'w-[10%]' },
+                        { label: 'Amount', align: 'text-right', cls: 'w-[10%]' },
+                        { label: 'Notes', align: 'text-left', cls: '' },
+                        { label: '', align: '', cls: 'pr-6 w-10' },
+                      ].map((col, i) => (
+                        <th
+                          key={col.label || `blank-${i}`}
+                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-3 ${col.align} ${col.cls}`}
+                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linesFormData.map((line, index) => {
+                      const selectedItem = items.find(i => String(i.id) === line.item)
+                      const itemContracts = line.item ? contractsByItem.get(Number(line.item)) : undefined
+                      const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_price) || 0)
+                      return (
+                        <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                          <td className="py-1.5 px-1 pl-6">
                             <Select
-                              value={f.value}
+                              value={line.item}
                               onValueChange={(v) => handleLineItemChange(index, v)}
                             >
-                              <SelectTrigger className="h-9">
+                              <SelectTrigger
+                                className="h-9 text-sm border-0 bg-transparent shadow-none"
+                                style={{ borderColor: 'transparent', background: 'transparent' }}
+                              >
                                 <SelectValue placeholder="Select item..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -397,37 +494,53 @@ export default function CreateSalesOrder() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          )}
-                        />
-                      </FormField>
-                    </div>
-                    <div className="col-span-2">
-                      <FormField
-                        label="Qty"
-                        error={errors.lines?.[index]?.quantity_ordered}
-                        className="space-y-1"
-                      >
-                        <Input
-                          type="number"
-                          min="1"
-                          {...register(`lines.${index}.quantity_ordered`)}
-                          onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                          className="h-9"
-                        />
-                      </FormField>
-                    </div>
-                    <div className="col-span-2">
-                      <FormField
-                        label="UOM"
-                        error={errors.lines?.[index]?.uom}
-                        className="space-y-1"
-                      >
-                        <Controller
-                          name={`lines.${index}.uom`}
-                          control={control}
-                          render={({ field: f }) => (
-                            <Select value={f.value} onValueChange={f.onChange}>
-                              <SelectTrigger className="h-9">
+                          </td>
+                          <td className="py-1.5 px-3 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                            {selectedItem?.name || '\u2014'}
+                          </td>
+                          <td className="py-1.5 px-1">
+                            {itemContracts && itemContracts.length > 0 ? (
+                              <Select
+                                value={line.contract || 'none'}
+                                onValueChange={(v) => handleContractChange(index, v === 'none' ? '' : v)}
+                              >
+                                <SelectTrigger
+                                  className="h-9 text-sm border-0 bg-transparent shadow-none"
+                                  style={{ borderColor: 'transparent', background: 'transparent', color: 'var(--so-accent)' }}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No contract</SelectItem>
+                                  {itemContracts.map((c) => (
+                                    <SelectItem key={c.contractNumber} value={c.contractNumber}>
+                                      {c.contractNumber} @ ${c.unitPrice} ({c.remainingQty.toLocaleString()} rem.)
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-[13px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>{'\u2014'}</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-1">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={line.quantity_ordered}
+                              onChange={(e) => handleLineQtyChange(index, e.target.value)}
+                              className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            />
+                          </td>
+                          <td className="py-1.5 px-1">
+                            <Select
+                              value={line.uom}
+                              onValueChange={(v) => handleLineChange(index, 'uom', v)}
+                            >
+                              <SelectTrigger
+                                className="h-9 text-sm border-0 bg-transparent shadow-none"
+                                style={{ borderColor: 'transparent', background: 'transparent' }}
+                              >
                                 <SelectValue placeholder="UOM" />
                               </SelectTrigger>
                               <SelectContent>
@@ -438,65 +551,83 @@ export default function CreateSalesOrder() {
                                 ))}
                               </SelectContent>
                             </Select>
-                          )}
-                        />
-                      </FormField>
-                    </div>
-                    <div className="col-span-2">
-                      <FormField
-                        label="Price"
-                        error={errors.lines?.[index]?.unit_price}
-                        className="space-y-1"
-                      >
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            {...register(`lines.${index}.unit_price`)}
-                            className="h-9"
-                          />
-                          {priceLookupLine === index && (
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</div>
-                          )}
-                        </div>
-                      </FormField>
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => remove(index)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                          </td>
+                          <td className="py-1.5 px-1">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={line.unit_price}
+                              onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                              className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            />
+                            {priceLookupLine === index && isPriceFetching && (
+                              <span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Looking up...</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                            ${fmtCurrency(lineAmount)}
+                          </td>
+                          <td className="py-1.5 px-1">
+                            <Input
+                              value={line.notes}
+                              onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
+                              className="h-9 text-sm border-0 bg-transparent shadow-none"
+                              placeholder="Notes..."
+                            />
+                          </td>
+                          <td className="py-1.5 px-1 pr-6">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLine(index)}
+                              className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
+                              style={{ color: '#dc2626' }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={9} className="py-3 px-3 pl-5">
+                        <button
+                          type="button"
+                          className={outlineBtnClass}
+                          style={{ ...outlineBtnStyle, padding: '5px 12px', fontSize: '12px' }}
+                          onClick={handleAddLine}
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Line
+                        </button>
+                      </td>
+                    </tr>
+                    <tr style={{ borderTop: '2px solid var(--so-border)' }}>
+                      <td colSpan={6} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
+                      <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(editTotal)}</td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+              {linesFormData.length === 0 && (
+                <div className="px-5 pb-4">
+                  <button
+                    type="button"
+                    className={outlineBtnClass}
+                    style={{ ...outlineBtnStyle, padding: '5px 12px', fontSize: '12px' }}
+                    onClick={handleAddLine}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Line
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </section>
-
-        {/* Error */}
-        {error && (
-          <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
-            {error}
           </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isPending}>
-            {isPending ? 'Creating...' : 'Create Sales Order'}
-          </Button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   )
 }

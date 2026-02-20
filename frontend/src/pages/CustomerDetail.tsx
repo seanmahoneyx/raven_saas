@@ -7,9 +7,6 @@ import {
   AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload,
   Printer, BarChart3, Copy, Users,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment, useDuplicateCustomer } from '@/api/parties'
 import api from '@/api/client'
 import { useSalesOrders } from '@/api/orders'
@@ -21,25 +18,44 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'timeline' | 'orders' | 'locations' | 'documents' | 'contracts' | 'children'
 
-const statusVariant: Record<string, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
-  draft: 'secondary',
-  confirmed: 'outline',
-  scheduled: 'default',
-  picking: 'warning',
-  shipped: 'success',
-  complete: 'success',
-  cancelled: 'destructive',
-  sent: 'outline',
-  accepted: 'success',
-  rejected: 'destructive',
-  converted: 'success',
-  posted: 'outline',
-  paid: 'success',
-  partial: 'warning',
-  overdue: 'destructive',
-  void: 'secondary',
-  received: 'success',
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    confirmed: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    scheduled: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    picking:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    shipped:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    converted: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    posted:    { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    paid:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    partial:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    overdue:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    void:      { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
 }
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function CustomerDetail() {
   usePageTitle('Customer 360')
@@ -77,16 +93,20 @@ export default function CustomerDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+        </div>
       </div>
     )
   }
 
   if (!customer) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Customer not found</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Customer not found</div>
+        </div>
       </div>
     )
   }
@@ -112,6 +132,55 @@ export default function CustomerDetail() {
     { key: 'invoice', label: 'Invoices' },
     { key: 'payment', label: 'Payments' },
   ] as const
+
+  const isOverdue = parseFloat(String(customer.overdue_balance || '0')) > 0
+
+  const kpiItems = [
+    {
+      label: 'Open Sales',
+      value: `$${fmtCurrency(customer.open_sales_total)}`,
+      mono: true,
+      danger: false,
+      onClick: () => navigate('/orders?tab=sales'),
+    },
+    {
+      label: 'Open Orders',
+      value: String(customer.open_order_count),
+      mono: false,
+      danger: false,
+      onClick: () => navigate('/orders?tab=sales'),
+    },
+    {
+      label: 'Overdue Balance',
+      value: `$${fmtCurrency(customer.overdue_balance)}`,
+      mono: true,
+      danger: isOverdue,
+      onClick: () => navigate('/invoices'),
+    },
+    {
+      label: 'Active Estimates',
+      value: String(customer.active_estimate_count),
+      mono: false,
+      danger: false,
+      onClick: () => navigate('/estimates'),
+    },
+    {
+      label: 'Next Delivery',
+      value: customer.next_expected_delivery
+        ? format(new Date(customer.next_expected_delivery + 'T00:00:00'), 'MMM d, yyyy')
+        : '\u2014',
+      mono: false,
+      danger: false,
+      onClick: () => navigate('/scheduler'),
+    },
+    {
+      label: 'Locations',
+      value: String(customerLocations.length),
+      mono: false,
+      danger: false,
+      onClick: () => setActiveTab('locations'),
+    },
+  ]
 
   const handleDuplicate = () => {
     if (!customerId) return
@@ -144,517 +213,497 @@ export default function CustomerDetail() {
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/customers')}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{customer.party_display_name}</h1>
-            <Badge variant="outline" className="font-mono">{customer.party_code}</Badge>
-            {customer.parent_name && (
-              <span className="text-sm text-muted-foreground ml-2">
-                (Child of {customer.parent_name})
-              </span>
-            )}
-          </div>
-          <p className="text-muted-foreground">
-            {customer.payment_terms ? `Terms: ${customer.payment_terms}` : 'Customer'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDuplicate}
-            disabled={duplicateCustomer.isPending}
-          >
-            <Copy className="h-4 w-4 mr-2" />
-            {duplicateCustomer.isPending ? 'Duplicating...' : 'Save As Copy'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('/reports/item-quick-report')}>
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Quick Report
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print
-          </Button>
-          <Button size="sm" onClick={() => navigate('/estimates/new')}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Quote
-          </Button>
-        </div>
-      </div>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16" data-print-hide>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-6">
-        {/* Open Sales */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/orders?tab=sales')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-500/10 rounded-lg">
-                <DollarSign className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Open Sales</p>
-                <p className="text-lg font-bold font-mono">${fmtCurrency(customer.open_sales_total)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Open Orders */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/orders?tab=sales')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <ShoppingCart className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Open Orders</p>
-                <p className="text-lg font-bold">{customer.open_order_count}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Overdue Balance */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/invoices')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${parseFloat(String(customer.overdue_balance || '0')) > 0 ? 'bg-red-500/10' : 'bg-muted'}`}>
-                <AlertCircle className={`h-5 w-5 ${parseFloat(String(customer.overdue_balance || '0')) > 0 ? 'text-red-600' : 'text-muted-foreground'}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Overdue Balance</p>
-                <p className={`text-lg font-bold font-mono ${parseFloat(String(customer.overdue_balance || '0')) > 0 ? 'text-red-600' : ''}`}>
-                  ${fmtCurrency(customer.overdue_balance)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Active Estimates */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/estimates')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <FileText className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Active Estimates</p>
-                <p className="text-lg font-bold">{customer.active_estimate_count}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Next Delivery */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/scheduler')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-lg">
-                <Calendar className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Next Delivery</p>
-                <p className="text-lg font-bold">
-                  {customer.next_expected_delivery
-                    ? format(new Date(customer.next_expected_delivery + 'T00:00:00'), 'MMM d, yyyy')
-                    : '\u2014'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Locations */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setActiveTab('locations')}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-500/10 rounded-lg">
-                <MapPin className="h-5 w-5 text-slate-600" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Locations</p>
-                <p className="text-lg font-bold">{customerLocations.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions Bar */}
-      <div className="flex flex-wrap gap-2 mb-6" data-print-hide>
-        <Button variant="outline" size="sm" onClick={() => navigate('/orders/sales/new')}>
-          <Plus className="h-4 w-4 mr-1" />
-          New Sales Order
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => navigate('/estimates/new')}>
-          <Plus className="h-4 w-4 mr-1" />
-          New Estimate
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => navigate('/contracts/new')}>
-          <Plus className="h-4 w-4 mr-1" />
-          New Contract
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => navigate('/price-lists')}>
-          <Eye className="h-4 w-4 mr-1" />
-          View Price Lists
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => setActiveTab('contracts')}>
-          <Eye className="h-4 w-4 mr-1" />
-          View Contracts
-        </Button>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b">
-        {tabs.map((tab) => (
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={() => navigate('/customers')}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
           >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Customers
           </button>
-        ))}
-      </div>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{customer.party_display_name}</span>
+        </div>
 
-      {/* Tab Content */}
-
-      {/* Timeline Tab */}
-      {activeTab === 'timeline' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Filter Chips */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {timelineFilters.map((f) => (
-                <Button
-                  key={f.label}
-                  variant={timelineFilter === f.key ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTimelineFilter(f.key)}
-                >
-                  {f.label}
-                </Button>
-              ))}
+        {/* Title Row */}
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{customer.party_display_name}</h1>
+              <span
+                className="font-mono text-[12px] px-2 py-0.5 rounded"
+                style={{ background: 'var(--so-bg)', color: 'var(--so-text-secondary)', border: '1px solid var(--so-border-light)' }}
+              >
+                {customer.party_code}
+              </span>
             </div>
+            <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+              {customer.payment_terms ? `Terms: ${customer.payment_terms}` : 'Customer'}
+              {customer.parent_name && (
+                <span style={{ color: 'var(--so-text-tertiary)' }}> · Child of {customer.parent_name}</span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0" data-print-hide>
+            <button
+              className={outlineBtnClass}
+              style={outlineBtnStyle}
+              onClick={handleDuplicate}
+              disabled={duplicateCustomer.isPending}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {duplicateCustomer.isPending ? 'Duplicating...' : 'Save As Copy'}
+            </button>
+            <button
+              className={outlineBtnClass}
+              style={outlineBtnStyle}
+              onClick={() => navigate('/reports/item-quick-report')}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Quick Report
+            </button>
+            <button
+              className={outlineBtnClass}
+              style={outlineBtnStyle}
+              onClick={() => window.print()}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print
+            </button>
+            <button
+              className={primaryBtnClass}
+              style={primaryBtnStyle}
+              onClick={() => navigate('/estimates/new')}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Quote
+            </button>
+          </div>
+        </div>
 
-            {/* Timeline Items */}
-            <div className="space-y-3">
-              {timeline && timeline.length > 0 ? (
-                timeline.map((event: TimelineEvent) => (
-                  <div
-                    key={event.id}
-                    className={`flex items-start gap-4 p-3 rounded-lg border-l-4 hover:bg-muted/50 cursor-pointer ${
-                      event.type === 'order' ? 'border-l-blue-500' :
-                      event.type === 'estimate' ? 'border-l-purple-500' :
-                      event.type === 'invoice' ? 'border-l-amber-500' :
-                      'border-l-green-500'
-                    }`}
-                    onClick={() => navigate(event.link)}
+        {/* KPI Cards */}
+        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-6">
+            {kpiItems.map((kpi, idx) => (
+              <button
+                key={idx}
+                onClick={kpi.onClick}
+                className="px-4 py-4 text-left transition-colors cursor-pointer"
+                style={{ borderRight: idx < 5 ? '1px solid var(--so-border-light)' : 'none' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
+                <div className={`text-lg font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>{kpi.value}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions Bar */}
+        <div className="flex flex-wrap gap-2 mb-6 animate-in delay-2" data-print-hide>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/orders/sales/new')}>
+            <Plus className="h-3.5 w-3.5" />
+            New Sales Order
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/estimates/new')}>
+            <Plus className="h-3.5 w-3.5" />
+            New Estimate
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/contracts/new')}>
+            <Plus className="h-3.5 w-3.5" />
+            New Contract
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/price-lists')}>
+            <Eye className="h-3.5 w-3.5" />
+            View Price Lists
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setActiveTab('contracts')}>
+            <Eye className="h-3.5 w-3.5" />
+            View Contracts
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 animate-in delay-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors cursor-pointer"
+              style={{
+                borderColor: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
+                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
+              }}
+            >
+              <tab.icon className="h-3.5 w-3.5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Timeline Tab */}
+        {activeTab === 'timeline' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Timeline</span>
+            </div>
+            <div className="px-6 py-5">
+              {/* Filter Chips */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {timelineFilters.map((f) => (
+                  <button
+                    key={f.label}
+                    onClick={() => setTimelineFilter(f.key)}
+                    className="px-3 py-1.5 rounded-md text-[12px] font-medium transition-all cursor-pointer"
+                    style={
+                      timelineFilter === f.key
+                        ? { background: 'var(--so-accent)', color: '#fff', border: '1px solid var(--so-accent)' }
+                        : { background: 'var(--so-surface)', color: 'var(--so-text-secondary)', border: '1px solid var(--so-border)' }
+                    }
                   >
-                    <div className="text-xs text-muted-foreground whitespace-nowrap pt-0.5">
-                      {format(new Date(event.date), 'MMM d, yyyy')}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{event.title}</span>
-                        <Badge variant={statusVariant[event.status] || 'outline'} className="text-xs">
-                          {event.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{event.description}</p>
-                    </div>
-                    <div className="text-sm font-mono font-medium">
-                      ${parseFloat(String(event.amount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No transactions found
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Sales Orders Tab */}
-      {activeTab === 'orders' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {orders.length > 0 ? (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b text-muted-foreground text-sm">
-                    <th className="p-3 text-left">Order #</th>
-                    <th className="p-3 text-left">Date</th>
-                    <th className="p-3 text-left">Status</th>
-                    <th className="p-3 text-left">Scheduled</th>
-                    <th className="p-3 text-left">Customer PO</th>
-                    <th className="p-3 text-right">Lines</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((so: SalesOrder) => (
-                    <tr key={so.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3 font-medium font-mono">{so.order_number}</td>
-                      <td className="p-3 text-sm">
-                        {format(new Date(so.order_date + 'T00:00:00'), 'MMM d, yyyy')}
-                      </td>
-                      <td className="p-3">
-                        <Badge variant={
-                          so.status === 'complete' ? 'success' :
-                          so.status === 'cancelled' ? 'destructive' :
-                          so.status === 'draft' ? 'secondary' : 'default'
-                        }>
-                          {so.status}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-sm">
-                        {so.scheduled_date
-                          ? format(new Date(so.scheduled_date + 'T00:00:00'), 'MMM d, yyyy')
-                          : '\u2014'}
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground">{so.customer_po || '\u2014'}</td>
-                      <td className="p-3 text-right font-mono">{so.num_lines ?? 0}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No sales orders for this customer
+                    {f.label}
+                  </button>
+                ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Locations Tab */}
-      {activeTab === 'locations' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Locations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {customerLocations.length > 0 ? (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b text-muted-foreground text-sm">
-                    <th className="p-3 text-left">Code</th>
-                    <th className="p-3 text-left">Name</th>
-                    <th className="p-3 text-left">Type</th>
-                    <th className="p-3 text-left">Address</th>
-                    <th className="p-3 text-left">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customerLocations.map((loc: Location) => (
-                    <tr key={loc.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3 font-medium font-mono">{loc.code}</td>
-                      <td className="p-3">{loc.name}</td>
-                      <td className="p-3">
-                        <Badge variant="outline">{loc.location_type}</Badge>
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground">
-                        {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
-                      </td>
-                      <td className="p-3">
-                        <Badge variant={loc.is_active ? 'success' : 'secondary'}>
-                          {loc.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No locations for this customer
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Documents Tab */}
-      {activeTab === 'documents' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Documents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Upload Area */}
-            <div data-print-hide className="mb-6">
-              <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                  <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold">Click to upload</span> or drag and drop
-                  </p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                />
-              </label>
-            </div>
-
-            {/* Attachments List */}
-            <div className="space-y-2">
-              {attachments && attachments.length > 0 ? (
-                attachments.map((att) => (
-                  <div key={att.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Paperclip className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1 min-w-0">
-                      <a
-                        href={att.file_url || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-sm hover:underline"
-                      >
-                        {att.filename}
-                      </a>
-                      <p className="text-xs text-muted-foreground">
-                        {att.category} &middot; {(att.file_size / 1024).toFixed(0)} KB &middot; {format(new Date(att.created_at), 'MMM d, yyyy')}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setPendingDeleteAttachmentId(att.id)
-                        setDeleteAttachmentDialogOpen(true)
+              {/* Timeline Items */}
+              <div className="space-y-2">
+                {timeline && timeline.length > 0 ? (
+                  timeline.map((event: TimelineEvent) => (
+                    <div
+                      key={event.id}
+                      className="flex items-start gap-4 p-3 rounded-lg border-l-4 cursor-pointer transition-colors"
+                      style={{
+                        borderLeftColor:
+                          event.type === 'order' ? '#3b82f6' :
+                          event.type === 'estimate' ? '#a855f7' :
+                          event.type === 'invoice' ? '#f59e0b' :
+                          '#22c55e',
                       }}
+                      onClick={() => navigate(event.link)}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                      <div className="text-xs whitespace-nowrap pt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                        {format(new Date(event.date), 'MMM d, yyyy')}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{event.title}</span>
+                          {getStatusBadge(event.status)}
+                        </div>
+                        <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{event.description}</p>
+                      </div>
+                      <div className="text-sm font-mono font-medium">
+                        ${parseFloat(String(event.amount)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                    No transactions found
                   </div>
-                ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sales Orders Tab */}
+        {activeTab === 'orders' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Sales Orders</span>
+            </div>
+            <div className="px-6 py-5">
+              {orders.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: 'var(--so-bg)' }}>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Order #</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Date</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Scheduled</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Customer PO</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Lines</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((so: SalesOrder) => (
+                      <tr
+                        key={so.id}
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td className="py-3 px-4 font-medium font-mono text-sm">{so.order_number}</td>
+                        <td className="py-3 px-4 text-sm">
+                          {format(new Date(so.order_date + 'T00:00:00'), 'MMM d, yyyy')}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(so.status)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {so.scheduled_date
+                            ? format(new Date(so.scheduled_date + 'T00:00:00'), 'MMM d, yyyy')
+                            : '\u2014'}
+                        </td>
+                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{so.customer_po || '\u2014'}</td>
+                        <td className="py-3 px-4 text-right font-mono text-sm">{so.num_lines ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No documents uploaded
+                <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No sales orders for this customer
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {/* Contracts Tab */}
-      {activeTab === 'contracts' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Contracts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {contracts && contracts.length > 0 ? (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b text-muted-foreground text-sm">
-                    <th className="p-3 text-left">Contract #</th>
-                    <th className="p-3 text-left">Blanket PO</th>
-                    <th className="p-3 text-left">Status</th>
-                    <th className="p-3 text-left">Start Date</th>
-                    <th className="p-3 text-left">End Date</th>
-                    <th className="p-3 text-right">Committed Qty</th>
-                    <th className="p-3 text-right">Released Qty</th>
-                    <th className="p-3 text-right">Completion %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contracts.map((c: Contract) => (
-                    <tr key={c.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/contracts/${c.id}`)}>
-                      <td className="p-3 font-medium font-mono">{c.contract_number}</td>
-                      <td className="p-3 text-sm">{c.blanket_po || '\u2014'}</td>
-                      <td className="p-3">
-                        <Badge variant={
-                          c.status === 'active' ? 'success' :
-                          c.status === 'draft' ? 'secondary' :
-                          c.status === 'complete' ? 'outline' :
-                          c.status === 'cancelled' ? 'destructive' : 'default'
-                        }>
-                          {c.status}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-sm">
-                        {c.start_date ? format(new Date(c.start_date + 'T00:00:00'), 'MMM d, yyyy') : '\u2014'}
-                      </td>
-                      <td className="p-3 text-sm">
-                        {c.end_date ? format(new Date(c.end_date + 'T00:00:00'), 'MMM d, yyyy') : '\u2014'}
-                      </td>
-                      <td className="p-3 text-right font-mono">{c.total_committed_qty.toLocaleString()}</td>
-                      <td className="p-3 text-right font-mono">{c.total_released_qty.toLocaleString()}</td>
-                      <td className="p-3 text-right font-mono">{c.completion_percentage.toFixed(1)}%</td>
+        {/* Locations Tab */}
+        {activeTab === 'locations' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Locations</span>
+            </div>
+            <div className="px-6 py-5">
+              {customerLocations.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: 'var(--so-bg)' }}>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No contracts for this customer
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  </thead>
+                  <tbody>
+                    {customerLocations.map((loc: Location) => (
+                      <tr
+                        key={loc.id}
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td className="py-3 px-4 font-medium font-mono text-sm">{loc.code}</td>
+                        <td className="py-3 px-4 text-sm">{loc.name}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+                            style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
+                          >
+                            {loc.location_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No locations for this customer
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-      {/* Sub-Customers Tab */}
-      {activeTab === 'children' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sub-Customers / Jobs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {childCustomers?.results && childCustomers.results.length > 0 ? (
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b text-muted-foreground text-sm">
-                    <th className="p-3 text-left">Code</th>
-                    <th className="p-3 text-left">Name</th>
-                    <th className="p-3 text-left">Terms</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {childCustomers.results.map((child: any) => (
-                    <tr key={child.id} className="border-b hover:bg-muted/50 cursor-pointer" onClick={() => navigate(`/customers/${child.id}`)}>
-                      <td className="p-3 font-mono font-medium">{child.party_code}</td>
-                      <td className="p-3">{child.party_display_name}</td>
-                      <td className="p-3 text-muted-foreground">{child.payment_terms || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No sub-customers or jobs
+        {/* Documents Tab */}
+        {activeTab === 'documents' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Documents</span>
+            </div>
+            <div className="px-6 py-5">
+              {/* Upload Area */}
+              <div data-print-hide className="mb-6">
+                <label
+                  className="flex flex-col items-center justify-center w-full h-32 cursor-pointer transition-colors"
+                  style={{ border: '2px dashed var(--so-border)', borderRadius: '12px' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="h-8 w-8 mb-2" style={{ color: 'var(--so-text-tertiary)' }} />
+                    <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                      <span className="font-semibold">Click to upload</span> or drag and drop
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </label>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+
+              {/* Attachments List */}
+              <div className="space-y-2">
+                {attachments && attachments.length > 0 ? (
+                  attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-3 p-3"
+                      style={{ border: '1px solid var(--so-border-light)', borderRadius: '10px' }}
+                    >
+                      <Paperclip className="h-4 w-4 shrink-0" style={{ color: 'var(--so-text-tertiary)' }} />
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={att.file_url || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-sm hover:underline"
+                        >
+                          {att.filename}
+                        </a>
+                        <p className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {att.category} &middot; {(att.file_size / 1024).toFixed(0)} KB &middot; {format(new Date(att.created_at), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                      <button
+                        className="h-8 w-8 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                        style={{ color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        onClick={() => {
+                          setPendingDeleteAttachmentId(att.id)
+                          setDeleteAttachmentDialogOpen(true)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                    No documents uploaded
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contracts Tab */}
+        {activeTab === 'contracts' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Contracts</span>
+            </div>
+            <div className="px-6 py-5">
+              {contracts && contracts.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: 'var(--so-bg)' }}>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Contract #</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Blanket PO</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Start Date</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>End Date</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Committed Qty</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Released Qty</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Completion %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contracts.map((c: Contract) => (
+                      <tr
+                        key={c.id}
+                        className="cursor-pointer"
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        onClick={() => navigate(`/contracts/${c.id}`)}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td className="py-3 px-4 font-medium font-mono text-sm">{c.contract_number}</td>
+                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.blanket_po || '\u2014'}</td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(c.status)}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {c.start_date ? format(new Date(c.start_date + 'T00:00:00'), 'MMM d, yyyy') : '\u2014'}
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          {c.end_date ? format(new Date(c.end_date + 'T00:00:00'), 'MMM d, yyyy') : '\u2014'}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-sm">{c.total_committed_qty.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-mono text-sm">{c.total_released_qty.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right font-mono text-sm">{c.completion_percentage.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No contracts for this customer
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sub-Customers Tab */}
+        {activeTab === 'children' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Sub-Customers / Jobs</span>
+            </div>
+            <div className="px-6 py-5">
+              {childCustomers?.results && childCustomers.results.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: 'var(--so-bg)' }}>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Terms</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {childCustomers.results.map((child: any) => (
+                      <tr
+                        key={child.id}
+                        className="cursor-pointer"
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        onClick={() => navigate(`/customers/${child.id}`)}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td className="py-3 px-4 font-mono font-medium text-sm">{child.party_code}</td>
+                        <td className="py-3 px-4 text-sm">{child.party_display_name}</td>
+                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{child.payment_terms || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No sub-customers or jobs
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
 
       <ConfirmDialog
         open={deleteAttachmentDialogOpen}

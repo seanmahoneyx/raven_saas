@@ -6,9 +6,6 @@ import {
   CheckCircle, XCircle, Clock, Loader2, Check,
   Paperclip, Upload, Trash2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -30,14 +27,6 @@ import type { DesignRequestStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-
-const statusColors: Record<DesignRequestStatus, 'default' | 'success' | 'secondary' | 'destructive' | 'outline'> = {
-  pending: 'secondary',
-  in_progress: 'default',
-  approved: 'success',
-  rejected: 'destructive',
-  completed: 'outline',
-}
 
 const statusLabels: Record<DesignRequestStatus, string> = {
   pending: 'Pending',
@@ -109,6 +98,33 @@ const CHECKLIST_ITEMS = [
   { key: 'has_samples' as const, label: 'Samples', description: 'Physical samples produced' },
   { key: 'pallet_configuration' as const, label: 'Pallet Config', description: 'Pallet layout configured' },
 ]
+
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+  }
+  const c = configs[status] || configs.pending
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {statusLabels[status as DesignRequestStatus] || status}
+    </span>
+  )
+}
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
 
 interface FormData {
   ident: string
@@ -248,378 +264,417 @@ export default function DesignRequestDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+        </div>
       </div>
     )
   }
 
   if (!designRequest) {
     return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Design request not found</div>
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>Design request not found</div>
+        </div>
       </div>
     )
   }
 
-  const StatusIcon = statusIcons[designRequest.status]
   const checklistDone = CHECKLIST_ITEMS.filter((item) => designRequest[item.key]).length
 
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/design-requests')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-bold font-mono">{designRequest.file_number}</h1>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
+          <button
+            onClick={() => navigate('/design-requests')}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />Design Requests
+          </button>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium font-mono" style={{ color: 'var(--so-text-secondary)' }}>{designRequest.file_number}</span>
+        </div>
+
+        {/* Title Row */}
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold font-mono" style={{ letterSpacing: '-0.03em' }}>{designRequest.file_number}</h1>
+              {isEditing ? (
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData({ ...formData, status: value as DesignRequestStatus })}
+                >
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DESIGN_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                getStatusBadge(designRequest.status)
+              )}
+              {designRequest.generated_item_sku && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold font-mono"
+                  style={{ background: 'var(--so-success-bg)', color: 'var(--so-success-text)', border: '1px solid transparent' }}
+                >
+                  <CheckCircle className="h-3 w-3" />Item: {designRequest.generated_item_sku}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+              {designRequest.customer_name ? (
+                <button
+                  onClick={() => navigate(`/customers/${designRequest.customer}`)}
+                  className="transition-colors cursor-pointer hover:underline"
+                  style={{ color: 'var(--so-text-secondary)' }}
+                >
+                  {designRequest.customer_name}
+                </button>
+              ) : (
+                <span style={{ color: 'var(--so-text-tertiary)' }}>No customer assigned</span>
+              )}
+              {designRequest.ident && (
+                <>
+                  <span style={{ color: 'var(--so-border)' }}>•</span>
+                  <span>{designRequest.ident}</span>
+                </>
+              )}
+              {designRequest.assigned_to_name && (
+                <>
+                  <span style={{ color: 'var(--so-border)' }}>•</span>
+                  <span>Assigned to {designRequest.assigned_to_name}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0" data-print-hide>
             {isEditing ? (
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value as DesignRequestStatus })}
-              >
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DESIGN_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge variant={statusColors[designRequest.status]} className="gap-1">
-                <StatusIcon className="h-3 w-3" />
-                {statusLabels[designRequest.status]}
-              </Badge>
-            )}
-            {designRequest.generated_item_sku && (
-              <Badge variant="outline" className="font-mono gap-1">
-                <CheckCircle className="h-3 w-3 text-green-500" />
-                Item: {designRequest.generated_item_sku}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            {designRequest.customer_name ? (
-              <button
-                onClick={() => navigate(`/customers/${designRequest.customer}`)}
-                className="hover:text-foreground transition-colors"
-              >
-                {designRequest.customer_name}
-              </button>
-            ) : (
-              <span>No customer assigned</span>
-            )}
-            {designRequest.ident && (
               <>
-                <span>•</span>
-                <span>{designRequest.ident}</span>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
+                  <X className="h-3.5 w-3.5" /> Cancel
+                </button>
+                <button
+                  className={primaryBtnClass}
+                  style={updateDesignRequest.isPending ? { ...primaryBtnStyle, opacity: 0.6 } : primaryBtnStyle}
+                  onClick={handleSave}
+                  disabled={updateDesignRequest.isPending}
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  {updateDesignRequest.isPending ? 'Saving...' : 'Save'}
+                </button>
               </>
-            )}
-            {designRequest.assigned_to_name && (
+            ) : (
               <>
-                <span>•</span>
-                <span>Assigned to {designRequest.assigned_to_name}</span>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+                {designRequest.status === 'approved' && !designRequest.generated_item && (
+                  <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setPromoteDialogOpen(true)}>
+                    <Rocket className="h-3.5 w-3.5" /> Promote to Item
+                  </button>
+                )}
+                {(designRequest.status === 'completed' || designRequest.status === 'approved') && designRequest.generated_item && (
+                  <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setCreateEstimateDialogOpen(true)}>
+                    <Rocket className="h-3.5 w-3.5" /> Create Estimate
+                  </button>
+                )}
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+                  <Printer className="h-3.5 w-3.5" /> Print
+                </button>
               </>
             )}
           </div>
         </div>
-        <div className="flex gap-2" data-print-hide>
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" /> Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={updateDesignRequest.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {updateDesignRequest.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-2" /> Edit
-              </Button>
-              {designRequest.status === 'approved' && !designRequest.generated_item && (
-                <Button variant="default" onClick={() => setPromoteDialogOpen(true)}>
-                  <Rocket className="h-4 w-4 mr-2" /> Promote to Item
-                </Button>
-              )}
-              {(designRequest.status === 'completed' || designRequest.status === 'approved') && designRequest.generated_item && (
-                <Button variant="default" onClick={() => setCreateEstimateDialogOpen(true)}>
-                  <Rocket className="h-4 w-4 mr-2" /> Create Estimate
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4 mr-2" /> Print
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
 
-      {/* Two-column layout: Form details on left, Checklist + Attachments on right */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* LEFT: Request Details (2 cols wide) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Request Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Request Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Identifier</Label>
-                      <Input
-                        value={formData.ident}
-                        onChange={(e) => setFormData({ ...formData, ident: e.target.value })}
-                        placeholder="Design identifier"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Style</Label>
-                      <Select
-                        value={formData.style}
-                        onValueChange={(value) => setFormData({ ...formData, style: value })}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select style..." /></SelectTrigger>
-                        <SelectContent>
-                          {STYLES.map((s) => (
-                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Customer</Label>
-                      <Select
-                        value={formData.customer}
-                        onValueChange={(value) => setFormData({ ...formData, customer: value })}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                        <SelectContent>
-                          {customers.map((c) => (
-                            <SelectItem key={c.id} value={String(c.id)}>
-                              {c.party_code} - {c.party_display_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Sample Quantity</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      className="max-w-[200px]"
-                      value={formData.sample_quantity}
-                      onChange={(e) => setFormData({ ...formData, sample_quantity: e.target.value })}
-                      placeholder="Sample qty"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Identifier</span>
-                    <span className="font-medium">{designRequest.ident || '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Style</span>
-                    <span className="font-medium">{designRequest.style || '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Customer</span>
-                    <span className="font-medium">
-                      {designRequest.customer_name ? (
-                        <button
-                          onClick={() => navigate(`/customers/${designRequest.customer}`)}
-                          className="hover:underline"
+        {/* Two-column layout */}
+        <div className="grid gap-6 lg:grid-cols-3">
+
+          {/* LEFT: Request Details (2 cols wide) */}
+          <div className="lg:col-span-2">
+
+            {/* Request Information Card */}
+            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold">Request Information</span>
+              </div>
+              <div className="px-6 py-5">
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Identifier</Label>
+                        <Input
+                          value={formData.ident}
+                          onChange={(e) => setFormData({ ...formData, ident: e.target.value })}
+                          placeholder="Design identifier"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Style</Label>
+                        <Select
+                          value={formData.style}
+                          onValueChange={(value) => setFormData({ ...formData, style: value })}
                         >
-                          {designRequest.customer_name}
-                        </button>
-                      ) : '\u2014'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Sample Qty</span>
-                    <span className="font-mono">{designRequest.sample_quantity ?? '\u2014'}</span>
-                  </div>
-                  {designRequest.requested_by_name && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm text-muted-foreground">Requested By</span>
-                      <span className="font-medium">{designRequest.requested_by_name}</span>
-                    </div>
-                  )}
-                  {designRequest.assigned_to_name && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm text-muted-foreground">Assigned To</span>
-                      <span className="font-medium">{designRequest.assigned_to_name}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Specifications */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Specifications</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Length</Label>
-                      <Input
-                        type="number" step="0.01"
-                        value={formData.length}
-                        onChange={(e) => setFormData({ ...formData, length: e.target.value })}
-                        placeholder="Length"
-                      />
+                          <SelectTrigger><SelectValue placeholder="Select style..." /></SelectTrigger>
+                          <SelectContent>
+                            {STYLES.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Customer</Label>
+                        <Select
+                          value={formData.customer}
+                          onValueChange={(value) => setFormData({ ...formData, customer: value })}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger>
+                          <SelectContent>
+                            {customers.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.party_code} - {c.party_display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Width</Label>
+                      <Label>Sample Quantity</Label>
                       <Input
-                        type="number" step="0.01"
-                        value={formData.width}
-                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
-                        placeholder="Width"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Depth</Label>
-                      <Input
-                        type="number" step="0.01"
-                        value={formData.depth}
-                        onChange={(e) => setFormData({ ...formData, depth: e.target.value })}
-                        placeholder="Depth"
+                        type="number"
+                        min="0"
+                        className="max-w-[200px]"
+                        value={formData.sample_quantity}
+                        onChange={(e) => setFormData({ ...formData, sample_quantity: e.target.value })}
+                        placeholder="Sample qty"
+                        style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                       />
                     </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="space-y-2">
-                      <Label>Test</Label>
-                      <Select value={formData.test} onValueChange={(v) => setFormData({ ...formData, test: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger>
-                        <SelectContent>
-                          {TESTS.map((t) => (
-                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                ) : (
+                  <div className="grid gap-x-8 gap-y-0 md:grid-cols-2">
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Identifier</span>
+                      <span className="font-medium text-sm">{designRequest.ident || '\u2014'}</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Flute</Label>
-                      <Select value={formData.flute} onValueChange={(v) => setFormData({ ...formData, flute: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select flute..." /></SelectTrigger>
-                        <SelectContent>
-                          {FLUTES.map((f) => (
-                            <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Style</span>
+                      <span className="font-medium text-sm">{designRequest.style || '\u2014'}</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Paper</Label>
-                      <Select value={formData.paper} onValueChange={(v) => setFormData({ ...formData, paper: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select paper..." /></SelectTrigger>
-                        <SelectContent>
-                          {PAPERS.map((p) => (
-                            <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Customer</span>
+                      <span className="font-medium text-sm">
+                        {designRequest.customer_name ? (
+                          <button
+                            onClick={() => navigate(`/customers/${designRequest.customer}`)}
+                            className="hover:underline cursor-pointer"
+                          >
+                            {designRequest.customer_name}
+                          </button>
+                        ) : '\u2014'}
+                      </span>
                     </div>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Sample Qty</span>
+                      <span className="font-mono text-sm">{designRequest.sample_quantity ?? '\u2014'}</span>
+                    </div>
+                    {designRequest.requested_by_name && (
+                      <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                        <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Requested By</span>
+                        <span className="font-medium text-sm">{designRequest.requested_by_name}</span>
+                      </div>
+                    )}
+                    {designRequest.assigned_to_name && (
+                      <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                        <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Assigned To</span>
+                        <span className="font-medium text-sm">{designRequest.assigned_to_name}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="grid gap-x-8 gap-y-3 md:grid-cols-2">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Dimensions (L x W x D)</span>
-                    <span className="font-mono">
-                      {[designRequest.length, designRequest.width, designRequest.depth].filter(Boolean).join(' x ') || '\u2014'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Test</span>
-                    <span>{designRequest.test ? designRequest.test.toUpperCase() : '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Flute</span>
-                    <span>{designRequest.flute ? designRequest.flute.toUpperCase() : '\u2014'}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-sm text-muted-foreground">Paper</span>
-                    <span>{designRequest.paper === 'k' ? 'Kraft' : designRequest.paper === 'mw' ? 'Mottled White' : '\u2014'}</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </div>
+            </div>
 
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isEditing ? (
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Design notes, special instructions..."
-                  rows={4}
-                />
-              ) : (
-                <p className="text-sm whitespace-pre-wrap">
-                  {designRequest.notes || 'No notes added.'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            {/* Specifications Card */}
+            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold">Specifications</span>
+              </div>
+              <div className="px-6 py-5">
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Length</Label>
+                        <Input
+                          type="number" step="0.01"
+                          value={formData.length}
+                          onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                          placeholder="Length"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Width</Label>
+                        <Input
+                          type="number" step="0.01"
+                          value={formData.width}
+                          onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                          placeholder="Width"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Depth</Label>
+                        <Input
+                          type="number" step="0.01"
+                          value={formData.depth}
+                          onChange={(e) => setFormData({ ...formData, depth: e.target.value })}
+                          placeholder="Depth"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label>Test</Label>
+                        <Select value={formData.test} onValueChange={(v) => setFormData({ ...formData, test: v })}>
+                          <SelectTrigger><SelectValue placeholder="Select test..." /></SelectTrigger>
+                          <SelectContent>
+                            {TESTS.map((t) => (
+                              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Flute</Label>
+                        <Select value={formData.flute} onValueChange={(v) => setFormData({ ...formData, flute: v })}>
+                          <SelectTrigger><SelectValue placeholder="Select flute..." /></SelectTrigger>
+                          <SelectContent>
+                            {FLUTES.map((f) => (
+                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Paper</Label>
+                        <Select value={formData.paper} onValueChange={(v) => setFormData({ ...formData, paper: v })}>
+                          <SelectTrigger><SelectValue placeholder="Select paper..." /></SelectTrigger>
+                          <SelectContent>
+                            {PAPERS.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-x-8 gap-y-0 md:grid-cols-2">
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Dimensions (L x W x D)</span>
+                      <span className="font-mono text-sm">
+                        {[designRequest.length, designRequest.width, designRequest.depth].filter(Boolean).join(' x ') || '\u2014'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Test</span>
+                      <span className="text-sm">{designRequest.test ? designRequest.test.toUpperCase() : '\u2014'}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Flute</span>
+                      <span className="text-sm">{designRequest.flute ? designRequest.flute.toUpperCase() : '\u2014'}</span>
+                    </div>
+                    <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                      <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Paper</span>
+                      <span className="text-sm">{designRequest.paper === 'k' ? 'Kraft' : designRequest.paper === 'mw' ? 'Mottled White' : '\u2014'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-          {/* Timestamps - small footer */}
-          <div className="flex gap-6 text-xs text-muted-foreground px-1">
-            <span>Created {format(new Date(designRequest.created_at), 'MMM d, yyyy h:mm a')}</span>
-            <span>Updated {format(new Date(designRequest.updated_at), 'MMM d, yyyy h:mm a')}</span>
+            {/* Notes Card */}
+            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold">Notes</span>
+              </div>
+              <div className="px-6 py-5">
+                {isEditing ? (
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Design notes, special instructions..."
+                    rows={4}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--so-text-secondary)' }}>
+                    {designRequest.notes || 'No notes added.'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Timestamps footer */}
+            <div className="flex gap-6 text-xs px-1" style={{ color: 'var(--so-text-tertiary)' }}>
+              <span>Created {format(new Date(designRequest.created_at), 'MMM d, yyyy h:mm a')}</span>
+              <span>Updated {format(new Date(designRequest.updated_at), 'MMM d, yyyy h:mm a')}</span>
+            </div>
           </div>
-        </div>
 
-        {/* RIGHT: Checklist + Attachments (1 col wide) */}
-        <div className="space-y-6">
-          {/* Design Checklist - ALWAYS LIVE */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle>Design Checklist</CardTitle>
-                <span className="text-sm text-muted-foreground">{checklistDone}/{CHECKLIST_ITEMS.length}</span>
+          {/* RIGHT: Checklist + Attachments (1 col wide) */}
+          <div>
+
+            {/* Design Checklist Card */}
+            <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Design Checklist</span>
+                  <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>{checklistDone}/{CHECKLIST_ITEMS.length}</span>
+                </div>
+                <div className="w-full h-2 rounded-full overflow-hidden mt-2" style={{ background: 'var(--so-border-light)' }}>
+                  <div
+                    className="h-full transition-all rounded-full"
+                    style={{
+                      width: `${(checklistDone / CHECKLIST_ITEMS.length) * 100}%`,
+                      background: checklistDone === CHECKLIST_ITEMS.length ? 'var(--so-success-text)' : 'var(--so-accent)',
+                    }}
+                  />
+                </div>
               </div>
-              {/* Progress bar */}
-              <div className="w-full h-2 bg-muted rounded-full overflow-hidden mt-2">
-                <div
-                  className={`h-full transition-all ${checklistDone === CHECKLIST_ITEMS.length ? 'bg-green-500' : 'bg-primary'}`}
-                  style={{ width: `${(checklistDone / CHECKLIST_ITEMS.length) * 100}%` }}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
+              <div className="px-4 py-3">
                 {CHECKLIST_ITEMS.map((item) => {
                   const isChecked = designRequest[item.key]
                   return (
                     <label
                       key={item.key}
-                      className="flex items-center gap-3 p-2.5 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                      className="flex items-center gap-3 px-2 py-2.5 rounded-md transition-colors cursor-pointer"
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       <Checkbox
                         checked={isChecked}
@@ -627,118 +682,124 @@ export default function DesignRequestDetail() {
                         disabled={updateDesignRequest.isPending}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className={`text-sm font-medium ${isChecked ? 'line-through text-muted-foreground' : ''}`}>
+                        <div
+                          className={`text-[13px] font-medium ${isChecked ? 'line-through' : ''}`}
+                          style={{ color: isChecked ? 'var(--so-text-tertiary)' : 'var(--so-text-primary)' }}
+                        >
                           {item.label}
                         </div>
-                        <div className="text-xs text-muted-foreground">{item.description}</div>
+                        <div className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>{item.description}</div>
                       </div>
-                      {isChecked && <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />}
+                      {isChecked && <CheckCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--so-success-text)' }} />}
                     </label>
                   )
                 })}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Attachments */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Paperclip className="h-4 w-4" />
-                Attachments
-                {attachments && attachments.length > 0 && (
-                  <span className="text-sm font-normal text-muted-foreground">({attachments.length})</span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Upload Area */}
-              <div data-print-hide className="mb-4">
-                <label className="flex flex-col items-center justify-center w-full py-6 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                  <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-semibold">Click to upload</span> or drag and drop
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
+            {/* Attachments Card */}
+            <div className="rounded-[14px] border overflow-hidden mt-4 animate-in delay-3"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold flex items-center gap-2">
+                  <Paperclip className="h-3.5 w-3.5" />Attachments
+                  {attachments && attachments.length > 0 && (
+                    <span className="text-[12px] font-normal" style={{ color: 'var(--so-text-tertiary)' }}>({attachments.length})</span>
+                  )}
+                </span>
               </div>
+              <div className="px-4 py-4">
+                {/* Upload Area */}
+                <div data-print-hide className="mb-3">
+                  <label
+                    className="flex flex-col items-center justify-center w-full py-5 rounded-xl cursor-pointer transition-colors"
+                    style={{ border: '2px dashed var(--so-border)', color: 'var(--so-text-tertiary)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <Upload className="h-5 w-5 mb-1 opacity-40" />
+                    <p className="text-[12px]"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                    <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+                  </label>
+                </div>
 
-              {/* File List */}
-              <div className="space-y-2">
-                {attachments && attachments.length > 0 ? (
-                  attachments.map((att) => (
-                    <div key={att.id} className="flex items-center gap-2 p-2 border rounded-md text-sm">
-                      <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <a
-                          href={att.file_url || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium hover:underline truncate block"
-                        >
-                          {att.filename}
-                        </a>
-                        <p className="text-xs text-muted-foreground">
-                          {(att.file_size / 1024).toFixed(0)} KB
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        data-print-hide
-                        onClick={() => {
-                          setPendingDeleteAttachmentId(att.id)
-                          setDeleteDialogOpen(true)
-                        }}
+                {/* File List */}
+                <div className="space-y-2">
+                  {attachments && attachments.length > 0 ? (
+                    attachments.map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]"
+                        style={{ border: '1px solid var(--so-border-light)' }}
                       >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
+                        <Paperclip className="h-3 w-3 shrink-0" style={{ color: 'var(--so-text-tertiary)' }} />
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={att.file_url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium hover:underline truncate block"
+                            style={{ color: 'var(--so-text-primary)' }}
+                          >
+                            {att.filename}
+                          </a>
+                          <p className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                            {(att.file_size / 1024).toFixed(0)} KB
+                          </p>
+                        </div>
+                        <button
+                          className="h-7 w-7 inline-flex items-center justify-center rounded transition-colors cursor-pointer shrink-0"
+                          data-print-hide
+                          style={{ color: 'var(--so-danger-text)' }}
+                          onClick={() => {
+                            setPendingDeleteAttachmentId(att.id)
+                            setDeleteDialogOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                      No attachments yet
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4 text-sm text-muted-foreground">
-                    No attachments yet
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+
+          </div>
         </div>
+
+        {/* Promote Dialog */}
+        <PromoteDialog
+          open={promoteDialogOpen}
+          onOpenChange={setPromoteDialogOpen}
+          designRequestId={designRequest.id}
+          fileNumber={designRequest.file_number}
+          ident={designRequest.ident}
+        />
+
+        {/* Create Estimate Dialog */}
+        <CreateEstimateDialog
+          open={createEstimateDialogOpen}
+          onOpenChange={setCreateEstimateDialogOpen}
+          designRequestId={designRequest.id}
+          fileNumber={designRequest.file_number}
+        />
+
+        <ConfirmDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete Attachment"
+          description="Are you sure you want to delete this attachment? This action cannot be undone."
+          confirmLabel="Delete"
+          variant="destructive"
+          onConfirm={handleConfirmDeleteAttachment}
+          loading={deleteAttachment.isPending}
+        />
       </div>
-
-      {/* Promote Dialog */}
-      <PromoteDialog
-        open={promoteDialogOpen}
-        onOpenChange={setPromoteDialogOpen}
-        designRequestId={designRequest.id}
-        fileNumber={designRequest.file_number}
-        ident={designRequest.ident}
-      />
-
-      {/* Create Estimate Dialog */}
-      <CreateEstimateDialog
-        open={createEstimateDialogOpen}
-        onOpenChange={setCreateEstimateDialogOpen}
-        designRequestId={designRequest.id}
-        fileNumber={designRequest.file_number}
-      />
-
-      <ConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        title="Delete Attachment"
-        description="Are you sure you want to delete this attachment? This action cannot be undone."
-        confirmLabel="Delete"
-        variant="destructive"
-        onConfirm={handleConfirmDeleteAttachment}
-        loading={deleteAttachment.isPending}
-      />
     </div>
   )
 }
@@ -790,13 +851,19 @@ function PromoteDialog({
         <DialogHeader>
           <DialogTitle>Promote to Item</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
           Promote <strong>{fileNumber}</strong> ({ident || 'Untitled'}) to an item in the catalog.
         </p>
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="promote-sku">MSPN (required)</Label>
-            <Input id="promote-sku" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Enter item MSPN" />
+            <Input
+              id="promote-sku"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              placeholder="Enter item MSPN"
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+            />
           </div>
           <div className="space-y-2">
             <Label>Base UOM (required)</Label>
@@ -811,10 +878,17 @@ function PromoteDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handlePromote} disabled={!sku || !uom || promoteMutation.isPending}>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => onOpenChange(false)}>
+            Cancel
+          </button>
+          <button
+            className={primaryBtnClass}
+            style={!sku || !uom || promoteMutation.isPending ? { ...primaryBtnStyle, opacity: 0.6 } : primaryBtnStyle}
+            onClick={handlePromote}
+            disabled={!sku || !uom || promoteMutation.isPending}
+          >
             {promoteMutation.isPending ? 'Promoting...' : 'Promote'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -870,7 +944,7 @@ function CreateEstimateDialog({
         <DialogHeader>
           <DialogTitle>Create Estimate</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
           Create an estimate from design <strong>{fileNumber}</strong>.
         </p>
         <div className="grid gap-4 py-4">
@@ -883,6 +957,7 @@ function CreateEstimateDialog({
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               placeholder="1"
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
             />
           </div>
           <div className="space-y-2">
@@ -895,6 +970,7 @@ function CreateEstimateDialog({
               value={unitPrice}
               onChange={(e) => setUnitPrice(e.target.value)}
               placeholder="0.00"
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
             />
           </div>
           <div className="space-y-2">
@@ -905,14 +981,22 @@ function CreateEstimateDialog({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional notes for the estimate..."
               rows={3}
+              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleCreate} disabled={createEstimateMutation.isPending}>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => onOpenChange(false)}>
+            Cancel
+          </button>
+          <button
+            className={primaryBtnClass}
+            style={createEstimateMutation.isPending ? { ...primaryBtnStyle, opacity: 0.6 } : primaryBtnStyle}
+            onClick={handleCreate}
+            disabled={createEstimateMutation.isPending}
+          >
             {createEstimateMutation.isPending ? 'Creating...' : 'Create Estimate'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

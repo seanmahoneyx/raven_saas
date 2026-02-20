@@ -225,12 +225,12 @@ class ContractViewSet(viewsets.ModelViewSet):
     @extend_schema(tags=['contracts'], summary='Get contracts by customer')
     @action(detail=False, methods=['get'])
     def by_customer(self, request):
-        """Get contracts filtered by customer."""
+        """Get contracts filtered by customer, including lines for pricing lookup."""
         customer_id = request.query_params.get('customer')
         queryset = self.filter_queryset(self.get_queryset())
         if customer_id:
             queryset = queryset.filter(customer_id=customer_id)
-        serializer = ContractListSerializer(queryset, many=True, context={'request': request})
+        serializer = ContractDetailSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
     @extend_schema(tags=['contracts'], summary='Get contracts containing item')

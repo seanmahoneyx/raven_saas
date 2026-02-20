@@ -5,8 +5,6 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Package, Ruler, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExportButton } from '@/components/ui/export-button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -23,6 +21,33 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'items' | 'uom'
+
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    converted: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
+}
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function Items() {
   usePageTitle('Items')
@@ -82,11 +107,11 @@ export default function Items() {
         cell: ({ row }) => {
           const desc = row.getValue('description') as string
           return desc ? (
-            <span className="text-muted-foreground truncate max-w-[200px] block">
+            <span className="truncate max-w-[200px] block" style={{ color: 'var(--so-text-tertiary)' }}>
               {desc}
             </span>
           ) : (
-            <span className="text-muted-foreground">-</span>
+            <span style={{ color: 'var(--so-text-tertiary)' }}>-</span>
           )
         },
       },
@@ -94,26 +119,21 @@ export default function Items() {
         accessorKey: 'base_uom_code',
         header: 'UOM',
         cell: ({ row }) => (
-          <Badge variant="outline">{row.getValue('base_uom_code')}</Badge>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-medium"
+            style={{ background: 'var(--so-surface-raised)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}>
+            {row.getValue('base_uom_code')}
+          </span>
         ),
       },
       {
         accessorKey: 'is_inventory',
         header: 'Inventory',
-        cell: ({ row }) => (
-          <Badge variant={row.getValue('is_inventory') ? 'success' : 'secondary'}>
-            {row.getValue('is_inventory') ? 'Yes' : 'No'}
-          </Badge>
-        ),
+        cell: ({ row }) => getStatusBadge(row.getValue('is_inventory') ? 'active' : 'inactive'),
       },
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ row }) => (
-          <Badge variant={row.getValue('is_active') ? 'success' : 'secondary'}>
-            {row.getValue('is_active') ? 'Active' : 'Inactive'}
-          </Badge>
-        ),
+        cell: ({ row }) => getStatusBadge(row.getValue('is_active') ? 'active' : 'inactive'),
       },
       {
         id: 'actions',
@@ -171,17 +191,13 @@ export default function Items() {
         header: 'Description',
         cell: ({ row }) => {
           const desc = row.getValue('description') as string
-          return desc || <span className="text-muted-foreground">-</span>
+          return desc || <span style={{ color: 'var(--so-text-tertiary)' }}>-</span>
         },
       },
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ row }) => (
-          <Badge variant={row.getValue('is_active') ? 'success' : 'secondary'}>
-            {row.getValue('is_active') ? 'Active' : 'Inactive'}
-          </Badge>
-        ),
+        cell: ({ row }) => getStatusBadge(row.getValue('is_active') ? 'active' : 'inactive'),
       },
       {
         id: 'actions',
@@ -217,64 +233,70 @@ export default function Items() {
   ]
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Items</h1>
-          <p className="text-muted-foreground">
-            Manage products and units of measure
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeTab === 'items' && (
-            <ExportButton
-              data={itemsData?.results ?? []}
-              filename="items"
-              columns={[
-                { key: 'sku', header: 'SKU' },
-                { key: 'name', header: 'Name' },
-                { key: 'description', header: 'Description' },
-                { key: 'base_uom_code', header: 'UOM' },
-                { key: 'is_active', header: 'Active' },
-              ]}
-            />
-          )}
-          <Button onClick={handleAddNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add {activeTab === 'items' ? 'Item' : 'UOM'}
-          </Button>
-        </div>
-      </div>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-7 animate-in">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Items</h1>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+              Manage products and units of measure
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {activeTab === 'items' && (
+              <ExportButton
+                data={itemsData?.results ?? []}
+                filename="items"
+                columns={[
+                  { key: 'sku', header: 'SKU' },
+                  { key: 'name', header: 'Name' },
+                  { key: 'description', header: 'Description' },
+                  { key: 'base_uom_code', header: 'UOM' },
+                  { key: 'is_active', header: 'Active' },
+                ]}
+              />
+            )}
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              Add {activeTab === 'items' ? 'Item' : 'UOM'}
+            </button>
+          </div>
+        </div>
 
-      {/* Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {tabs.find((t) => t.id === activeTab)?.label}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeTab === 'items' && (
-            itemsLoading ? (
-              <TableSkeleton columns={6} rows={8} />
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 animate-in delay-1"
+          style={{ borderBottom: '1px solid var(--so-border)' }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors -mb-px"
+              style={{
+                borderBottom: activeTab === tab.id ? '2px solid var(--so-accent)' : '2px solid transparent',
+                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
+              }}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Items DataTable */}
+        {activeTab === 'items' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Items</span>
+              <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                {itemsData?.results?.length ?? 0} total
+              </span>
+            </div>
+            {itemsLoading ? (
+              <div className="p-6"><TableSkeleton columns={6} rows={8} /></div>
             ) : (
               <DataTable
                 columns={itemColumns}
@@ -283,11 +305,23 @@ export default function Items() {
                 searchPlaceholder="Search items..."
                 onRowClick={(item) => navigate(`/items/${item.id}`)}
               />
-            )
-          )}
-          {activeTab === 'uom' && (
-            uomLoading ? (
-              <TableSkeleton columns={4} rows={8} />
+            )}
+          </div>
+        )}
+
+        {/* UOM DataTable */}
+        {activeTab === 'uom' && (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Units of Measure</span>
+              <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                {uomData?.results?.length ?? 0} total
+              </span>
+            </div>
+            {uomLoading ? (
+              <div className="p-6"><TableSkeleton columns={4} rows={8} /></div>
             ) : (
               <DataTable
                 columns={uomColumns}
@@ -295,10 +329,11 @@ export default function Items() {
                 searchColumn="name"
                 searchPlaceholder="Search units of measure..."
               />
-            )
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </div>
+        )}
+
+      </div>
 
       {/* Dialogs */}
       <ItemDialog
@@ -311,7 +346,6 @@ export default function Items() {
         onOpenChange={setUomDialogOpen}
         uom={editingUOM}
       />
-
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}

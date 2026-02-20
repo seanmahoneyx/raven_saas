@@ -6,8 +6,6 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, ShoppingCart, Package, Calendar, MoreHorizontal, Pencil, Trash2, FileDown, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExportButton } from '@/components/ui/export-button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -22,19 +20,47 @@ import type { SalesOrder, PurchaseOrder, OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import React from 'react'
 
 type Tab = 'sales' | 'purchase'
 
-const statusVariant: Record<OrderStatus, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'> = {
-  draft: 'secondary',
-  confirmed: 'outline',
-  scheduled: 'default',
-  picking: 'warning',
-  shipped: 'success',
-  complete: 'success',
-  crossdock: 'warning',
-  cancelled: 'destructive',
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    draft:       { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    active:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    inactive:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    posted:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    confirmed:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    scheduled:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    picking:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    shipped:     { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    complete:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    cancelled:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+    crossdock:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+    received:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    sent:        { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+    converted:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
+    expired:     { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
 }
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function Orders() {
   usePageTitle('Orders')
@@ -129,17 +155,18 @@ export default function Orders() {
         accessorKey: 'order_number',
         header: 'Order #',
         cell: ({ row }) => (
-          <span className="font-mono font-medium">{row.getValue('order_number')}</span>
+          <span className="font-mono font-medium" style={{ color: 'var(--so-text-primary)' }}>{row.getValue('order_number')}</span>
         ),
       },
       {
         accessorKey: 'customer_name',
         header: 'Customer',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('customer_name')}</span>,
       },
       {
         accessorKey: 'order_date',
         header: 'Order Date',
-        cell: ({ row }) => format(new Date(row.getValue('order_date')), 'MMM d, yyyy'),
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{format(new Date(row.getValue('order_date')), 'MMM d, yyyy')}</span>,
       },
       {
         accessorKey: 'scheduled_date',
@@ -147,39 +174,32 @@ export default function Orders() {
         cell: ({ row }) => {
           const date = row.getValue('scheduled_date') as string | null
           return date ? (
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-gray-400" />
+            <span className="flex items-center gap-1" style={{ color: 'var(--so-text-secondary)' }}>
+              <Calendar className="h-3 w-3" style={{ color: 'var(--so-text-muted)' }} />
               {format(new Date(date), 'MMM d')}
             </span>
           ) : (
-            <span className="text-gray-400">-</span>
+            <span style={{ color: 'var(--so-text-muted)' }}>-</span>
           )
         },
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => {
-          const status = row.getValue('status') as OrderStatus
-          return (
-            <Badge variant={statusVariant[status]}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-          )
-        },
+        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
       },
       {
         accessorKey: 'num_lines',
         header: 'Lines',
         cell: ({ row }) => (
-          <span className="text-gray-600">{row.getValue('num_lines')}</span>
+          <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines')}</span>
         ),
       },
       {
         accessorKey: 'subtotal',
         header: 'Total',
         cell: ({ row }) => (
-          <span className="font-medium">
+          <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
             ${parseFloat(row.getValue('subtotal')).toFixed(2)}
           </span>
         ),
@@ -190,7 +210,7 @@ export default function Orders() {
         cell: ({ row }) => {
           const priority = row.getValue('priority') as number
           return (
-            <span className={priority <= 3 ? 'text-red-600 font-medium' : ''}>
+            <span style={{ color: priority <= 3 ? 'var(--so-danger-text)' : 'var(--so-text-secondary)', fontWeight: priority <= 3 ? 600 : 400 }}>
               {priority}
             </span>
           )
@@ -240,24 +260,25 @@ export default function Orders() {
         accessorKey: 'po_number',
         header: 'PO #',
         cell: ({ row }) => (
-          <span className="font-mono font-medium">{row.getValue('po_number')}</span>
+          <span className="font-mono font-medium" style={{ color: 'var(--so-text-primary)' }}>{row.getValue('po_number')}</span>
         ),
       },
       {
         accessorKey: 'vendor_name',
         header: 'Vendor',
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('vendor_name')}</span>,
       },
       {
         accessorKey: 'order_date',
         header: 'Order Date',
-        cell: ({ row }) => format(new Date(row.getValue('order_date')), 'MMM d, yyyy'),
+        cell: ({ row }) => <span style={{ color: 'var(--so-text-secondary)' }}>{format(new Date(row.getValue('order_date')), 'MMM d, yyyy')}</span>,
       },
       {
         accessorKey: 'expected_date',
         header: 'Expected',
         cell: ({ row }) => {
           const date = row.getValue('expected_date') as string | null
-          return date ? format(new Date(date), 'MMM d, yyyy') : '-'
+          return <span style={{ color: 'var(--so-text-secondary)' }}>{date ? format(new Date(date), 'MMM d, yyyy') : '-'}</span>
         },
       },
       {
@@ -266,39 +287,32 @@ export default function Orders() {
         cell: ({ row }) => {
           const date = row.getValue('scheduled_date') as string | null
           return date ? (
-            <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-gray-400" />
+            <span className="flex items-center gap-1" style={{ color: 'var(--so-text-secondary)' }}>
+              <Calendar className="h-3 w-3" style={{ color: 'var(--so-text-muted)' }} />
               {format(new Date(date), 'MMM d')}
             </span>
           ) : (
-            <span className="text-gray-400">-</span>
+            <span style={{ color: 'var(--so-text-muted)' }}>-</span>
           )
         },
       },
       {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => {
-          const status = row.getValue('status') as OrderStatus
-          return (
-            <Badge variant={statusVariant[status]}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-          )
-        },
+        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
       },
       {
         accessorKey: 'num_lines',
         header: 'Lines',
         cell: ({ row }) => (
-          <span className="text-gray-600">{row.getValue('num_lines')}</span>
+          <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines')}</span>
         ),
       },
       {
         accessorKey: 'subtotal',
         header: 'Total',
         cell: ({ row }) => (
-          <span className="font-medium">
+          <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
             ${parseFloat(row.getValue('subtotal')).toFixed(2)}
           </span>
         ),
@@ -350,116 +364,98 @@ export default function Orders() {
     { id: 'purchase' as Tab, label: 'Purchase Orders', icon: Package },
   ]
 
+  const activeOrders = activeTab === 'sales' ? salesData?.results ?? [] : purchaseData?.results ?? []
+
+  const kpis = [
+    { label: 'Draft', count: activeOrders.filter((o) => o.status === 'draft').length },
+    { label: 'Scheduled', count: activeOrders.filter((o) => o.status === 'scheduled').length },
+    { label: 'In Progress', count: activeOrders.filter((o) => o.status === 'picking').length },
+    { label: 'Complete', count: activeOrders.filter((o) => o.status === 'complete').length },
+  ]
+
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Orders</h1>
-          <p className="text-muted-foreground">
-            Manage sales and purchase orders
-          </p>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-8 animate-in">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Orders</h1>
+            <p className="mt-1 text-[13.5px]" style={{ color: 'var(--so-text-muted)' }}>
+              Manage sales and purchase orders
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              data={activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])}
+              filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
+              columns={activeTab === 'sales' ? [
+                { key: 'order_number', header: 'Order #' },
+                { key: 'customer_name', header: 'Customer' },
+                { key: 'order_date', header: 'Order Date' },
+                { key: 'scheduled_date', header: 'Scheduled Date' },
+                { key: 'status', header: 'Status' },
+                { key: 'num_lines', header: 'Lines' },
+                { key: 'subtotal', header: 'Total' },
+                { key: 'priority', header: 'Priority' },
+              ] : [
+                { key: 'po_number', header: 'PO #' },
+                { key: 'vendor_name', header: 'Vendor' },
+                { key: 'order_date', header: 'Order Date' },
+                { key: 'expected_date', header: 'Expected Date' },
+                { key: 'scheduled_date', header: 'Scheduled Date' },
+                { key: 'status', header: 'Status' },
+                { key: 'num_lines', header: 'Lines' },
+                { key: 'subtotal', header: 'Total' },
+              ]}
+            />
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ExportButton
-            data={activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])}
-            filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
-            columns={activeTab === 'sales' ? [
-              { key: 'order_number', header: 'Order #' },
-              { key: 'customer_name', header: 'Customer' },
-              { key: 'order_date', header: 'Order Date' },
-              { key: 'scheduled_date', header: 'Scheduled Date' },
-              { key: 'status', header: 'Status' },
-              { key: 'num_lines', header: 'Lines' },
-              { key: 'subtotal', header: 'Total' },
-              { key: 'priority', header: 'Priority' },
-            ] : [
-              { key: 'po_number', header: 'PO #' },
-              { key: 'vendor_name', header: 'Vendor' },
-              { key: 'order_date', header: 'Order Date' },
-              { key: 'expected_date', header: 'Expected Date' },
-              { key: 'scheduled_date', header: 'Scheduled Date' },
-              { key: 'status', header: 'Status' },
-              { key: 'num_lines', header: 'Lines' },
-              { key: 'subtotal', header: 'Total' },
-            ]}
-          />
-          <Button onClick={handleAddNew}>
-            <Plus className="h-4 w-4 mr-2" />
-            New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
-          </Button>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 animate-in delay-1" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors -mb-px"
+                style={{
+                  borderBottom: isActive ? '2px solid var(--so-accent)' : '2px solid transparent',
+                  color: isActive ? 'var(--so-accent)' : 'var(--so-text-muted)',
+                }}
+              >
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <tab.icon className="h-4 w-4" />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        {/* KPI Cards */}
+        <div className="rounded-[14px] border mb-5 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border-light)' }}>
+            {kpis.map((kpi) => (
+              <div key={kpi.label} className="px-6 py-5">
+                <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>{kpi.count}</div>
+                <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--so-text-muted)' }}>{kpi.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {activeTab === 'sales'
-                ? salesData?.results.filter((o) => o.status === 'draft').length ?? 0
-                : purchaseData?.results.filter((o) => o.status === 'draft').length ?? 0}
-            </div>
-            <div className="text-sm text-muted-foreground">Draft</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {activeTab === 'sales'
-                ? salesData?.results.filter((o) => o.status === 'scheduled').length ?? 0
-                : purchaseData?.results.filter((o) => o.status === 'scheduled').length ?? 0}
-            </div>
-            <div className="text-sm text-muted-foreground">Scheduled</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {activeTab === 'sales'
-                ? salesData?.results.filter((o) => o.status === 'picking').length ?? 0
-                : purchaseData?.results.filter((o) => o.status === 'picking').length ?? 0}
-            </div>
-            <div className="text-sm text-muted-foreground">In Progress</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-2xl font-bold">
-              {activeTab === 'sales'
-                ? salesData?.results.filter((o) => o.status === 'complete').length ?? 0
-                : purchaseData?.results.filter((o) => o.status === 'complete').length ?? 0}
-            </div>
-            <div className="text-sm text-muted-foreground">Complete</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {tabs.find((t) => t.id === activeTab)?.label}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        {/* Orders Table */}
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {tabs.find((t) => t.id === activeTab)?.label}
+            </span>
+          </div>
           {activeTab === 'sales' && (
             <DataTable
               columns={salesColumns}
@@ -492,8 +488,9 @@ export default function Orders() {
               onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
             />
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+      </div>
 
       {/* Dialogs */}
       <SalesOrderDialog
@@ -501,7 +498,6 @@ export default function Orders() {
         onOpenChange={setSalesDialogOpen}
         order={editingSalesOrder}
         onSuccess={() => {
-          // Stay on sales tab after creation
           setActiveTab('sales')
         }}
       />
@@ -510,7 +506,6 @@ export default function Orders() {
         onOpenChange={setPurchaseDialogOpen}
         order={editingPurchaseOrder}
         onSuccess={() => {
-          // Stay on purchase tab after creation
           setActiveTab('purchase')
         }}
       />

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,6 +15,11 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { useCustomers } from '@/api/parties'
 import { useItems } from '@/api/items'
 import { useCreatePriceList } from '@/api/priceLists'
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 interface LineFormData {
   id: string
@@ -44,14 +48,7 @@ export default function CreatePriceList() {
   const [lines, setLines] = useState<LineFormData[]>([])
 
   const handleAddLine = () => {
-    setLines([
-      ...lines,
-      {
-        id: `new-${Date.now()}`,
-        min_quantity: '',
-        unit_price: '',
-      },
-    ])
+    setLines([...lines, { id: `new-${Date.now()}`, min_quantity: '', unit_price: '' }])
   }
 
   const handleRemoveLine = (id: string) => {
@@ -59,12 +56,7 @@ export default function CreatePriceList() {
   }
 
   const handleLineChange = (id: string, field: keyof LineFormData, value: string) => {
-    setLines(
-      lines.map((l) => {
-        if (l.id !== id) return l
-        return { ...l, [field]: value }
-      })
-    )
+    setLines(lines.map((l) => l.id !== id ? l : { ...l, [field]: value }))
   }
 
   const update = (field: string, value: string) =>
@@ -76,10 +68,7 @@ export default function CreatePriceList() {
 
     const linesPayload = lines
       .filter((l) => l.min_quantity && l.unit_price)
-      .map((l) => ({
-        min_quantity: Number(l.min_quantity),
-        unit_price: l.unit_price,
-      }))
+      .map((l) => ({ min_quantity: Number(l.min_quantity), unit_price: l.unit_price }))
 
     try {
       await createPriceList.mutateAsync({
@@ -106,199 +95,124 @@ export default function CreatePriceList() {
   const isPending = createPriceList.isPending
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">Create New Price List</h1>
-          <p className="text-sm text-muted-foreground">
-            Define quantity-based pricing for a customer and item
-          </p>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        {/* Header */}
+        <div className="flex items-center gap-4 mb-7 animate-in">
+          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Price List</h1>
+            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Define quantity-based pricing for a customer and item</p>
+          </div>
         </div>
-      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* ── Price List Details ── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Price List Details</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="customer">Customer *</Label>
-              <Select
-                value={formData.customer}
-                onValueChange={(v) => update('customer', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customersData?.results?.map((customer) => (
-                    <SelectItem key={customer.id} value={String(customer.id)}>
-                      {customer.party_code} - {customer.party_display_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Price List Details */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Price List Details</span>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="item">Item *</Label>
-              <Select
-                value={formData.item}
-                onValueChange={(v) => update('item', v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {itemsData?.results?.map((item) => (
-                    <SelectItem key={item.id} value={String(item.id)}>
-                      {item.sku} - {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Date Range ── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Date Range</h2>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="begin_date">Begin Date *</Label>
-              <Input
-                id="begin_date"
-                type="date"
-                value={formData.begin_date}
-                onChange={(e) => update('begin_date', e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="end_date">End Date</Label>
-              <Input
-                id="end_date"
-                type="date"
-                value={formData.end_date}
-                onChange={(e) => update('end_date', e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Leave blank for an open-ended price list.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── Status ── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Status</h2>
-
-          <div className="flex items-center gap-3">
-            <input
-              id="is_active"
-              type="checkbox"
-              checked={formData.is_active}
-              onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
-              className="h-4 w-4 rounded border-border"
-            />
-            <Label htmlFor="is_active">Active</Label>
-            <p className="text-xs text-muted-foreground">
-              Inactive price lists will not be applied during order entry.
-            </p>
-          </div>
-        </section>
-
-        {/* ── Notes ── */}
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold border-b pb-2">Notes</h2>
-          <Textarea
-            id="notes"
-            value={formData.notes}
-            onChange={(e) => update('notes', e.target.value)}
-            placeholder="Pricing notes, special conditions..."
-            rows={3}
-          />
-        </section>
-
-        {/* ── Price Break Lines ── */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold border-b pb-2 flex-1">Price Break Lines</h2>
-            <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Break
-            </Button>
-          </div>
-
-          {lines.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground border rounded-md">
-              No price breaks added yet. Click "Add Break" to define quantity-based pricing.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium text-muted-foreground px-1">
-                <span>Min Quantity</span>
-                <span>Unit Price</span>
-                <span></span>
-              </div>
-              {/* Lines */}
-              {lines.map((line) => (
-                <div
-                  key={line.id}
-                  className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center bg-muted/50 rounded-lg p-3"
-                >
-                  <Input
-                    type="number"
-                    placeholder="Minimum quantity"
-                    value={line.min_quantity}
-                    onChange={(e) => handleLineChange(line.id, 'min_quantity', e.target.value)}
-                  />
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Unit price"
-                    value={line.unit_price}
-                    onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive"
-                    onClick={() => handleRemoveLine(line.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+            <div className="px-6 py-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
+                  <Select value={formData.customer} onValueChange={(v) => update('customer', v)}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select customer..." /></SelectTrigger>
+                    <SelectContent>{customersData?.results?.map((customer) => (<SelectItem key={customer.id} value={String(customer.id)}>{customer.party_code} - {customer.party_display_name}</SelectItem>))}</SelectContent>
+                  </Select>
                 </div>
-              ))}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Item *</Label>
+                  <Select value={formData.item} onValueChange={(v) => update('item', v)}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select item..." /></SelectTrigger>
+                    <SelectContent>{itemsData?.results?.map((item) => (<SelectItem key={item.id} value={String(item.id)}>{item.sku} - {item.name}</SelectItem>))}</SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-          )}
-        </section>
-
-        {/* ── Error ── */}
-        {error && (
-          <div className="text-sm text-destructive bg-destructive/10 rounded-md p-3">
-            {error}
           </div>
-        )}
 
-        {/* ── Actions ── */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => navigate(-1)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isPending || !formData.customer || !formData.item}>
-            {isPending ? 'Creating...' : 'Create Price List'}
-          </Button>
-        </div>
-      </form>
+          {/* Date Range & Status */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Date Range &amp; Status</span>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Begin Date *</Label>
+                  <Input type="date" value={formData.begin_date} onChange={(e) => update('begin_date', e.target.value)} required style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>End Date</Label>
+                  <Input type="date" value={formData.end_date} onChange={(e) => update('end_date', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                  <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>Leave blank for an open-ended price list.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input id="is_active" type="checkbox" checked={formData.is_active} onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))} className="h-4 w-4 rounded" style={{ borderColor: 'var(--so-border)' }} />
+                <Label htmlFor="is_active" className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Active</Label>
+                <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>Inactive price lists will not be applied during order entry.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Notes</span>
+            </div>
+            <div className="px-6 py-5">
+              <Textarea value={formData.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Pricing notes, special conditions..." rows={3} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+            </div>
+          </div>
+
+          {/* Price Break Lines */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Price Break Lines</span>
+              <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
+                <Plus className="h-3.5 w-3.5" /> Add Break
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              {lines.length === 0 ? (
+                <div className="text-center py-6 text-[13px] rounded-md" style={{ color: 'var(--so-text-tertiary)', border: '1px solid var(--so-border-light)' }}>
+                  No price breaks added yet. Click &quot;Add Break&quot; to define quantity-based pricing.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-[11px] font-semibold uppercase tracking-widest px-1" style={{ color: 'var(--so-text-tertiary)' }}>
+                    <span>Min Quantity</span><span>Unit Price</span><span></span>
+                  </div>
+                  {lines.map((line) => (
+                    <div key={line.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
+                      <Input type="number" placeholder="Minimum quantity" value={line.min_quantity} onChange={(e) => handleLineChange(line.id, 'min_quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <Input type="number" step="0.01" placeholder="Unit price" value={line.unit_price} onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer" style={{ color: 'var(--so-danger-text)' }}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {error && (
+            <div className="text-[13px] rounded-md px-3 py-2.5" style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }}>{error}</div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+            <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>Cancel</button>
+            <button type="submit" className={`${primaryBtnClass} ${isPending || !formData.customer || !formData.item ? 'opacity-50 pointer-events-none' : ''}`} style={primaryBtnStyle} disabled={isPending || !formData.customer || !formData.item}>
+              {isPending ? 'Creating...' : 'Create Price List'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

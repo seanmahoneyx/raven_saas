@@ -2,12 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Pencil, Save, X, Printer, DollarSign, Calendar,
-  Package, Users, Plus, Trash2, Hash,
+  ArrowLeft, Pencil, Save, X, Printer, DollarSign,
+  Plus, Trash2,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -30,6 +27,28 @@ interface LineForm {
   min_quantity: string
   unit_price: string
 }
+
+const getStatusBadge = (status: string) => {
+  const configs: Record<string, { bg: string; border: string; text: string }> = {
+    active:   { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' },
+    inactive: { bg: 'var(--so-danger-bg)',  border: 'transparent', text: 'var(--so-danger-text)' },
+  }
+  const c = configs[status] || configs.active
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
+      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
+      {status}
+    </span>
+  )
+}
+
+const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
+const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
 
 export default function PriceListDetail() {
   const { id } = useParams<{ id: string }>()
@@ -118,22 +137,6 @@ export default function PriceListDetail() {
     setIsEditing(false)
   }
 
-  if (isLoading) {
-    return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
-      </div>
-    )
-  }
-
-  if (!priceList) {
-    return (
-      <div className="p-8">
-        <div className="text-center py-8 text-muted-foreground">Price list not found</div>
-      </div>
-    )
-  }
-
   const formatCurrency = (value: string) => {
     return `$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`
   }
@@ -143,332 +146,346 @@ export default function PriceListDetail() {
     return format(new Date(dateStr + 'T00:00:00'), 'MMM d, yyyy')
   }
 
+  if (isLoading) {
+    return (
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!priceList) {
+    return (
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+          <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Price list not found</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="p-8 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/price-lists')}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-3xl font-bold">Price List</h1>
-            <Badge variant={priceList.is_active ? 'success' : 'secondary'}>
-              {priceList.is_active ? 'Active' : 'Inactive'}
-            </Badge>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <button
-              onClick={() => navigate(`/customers/${priceList.customer}`)}
-              className="hover:text-foreground transition-colors"
-            >
-              {priceList.customer_name}
-            </button>
-            <span>/</span>
-            <button
-              onClick={() => navigate(`/items/${priceList.item}`)}
-              className="hover:text-foreground transition-colors font-mono"
-            >
-              {priceList.item_sku}
-            </button>
-          </div>
+    <div className="raven-page" style={{ minHeight: '100vh' }}>
+      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
+          <button
+            onClick={() => navigate('/price-lists')}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}>
+            <ArrowLeft className="h-3.5 w-3.5" />Price Lists
+          </button>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{priceList.customer_name} / {priceList.item_sku}</span>
         </div>
-        <div className="flex gap-2" data-print-hide>
-          {isEditing ? (
-            <>
-              <Button variant="outline" onClick={handleCancel}>
-                <X className="h-4 w-4 mr-2" /> Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={updatePriceList.isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {updatePriceList.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-2" /> Edit
-              </Button>
-              <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4 mr-2" /> Print
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
 
-      {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customer</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold truncate">{priceList.customer_name}</div>
-            <p className="text-xs text-muted-foreground font-mono">{priceList.customer_code}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Item</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold truncate font-mono">{priceList.item_sku}</div>
-            <p className="text-xs text-muted-foreground">{priceList.item_name}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Valid From</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatDate(priceList.begin_date)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiers</CardTitle>
-            <Hash className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{priceList.lines?.length ?? 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Details Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isEditing ? (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Customer</Label>
-                  <Select
-                    value={formData.customer}
-                    onValueChange={(value) => setFormData({ ...formData, customer: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select customer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.party_code} - {c.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Item</Label>
-                  <Select
-                    value={formData.item}
-                    onValueChange={(value) => setFormData({ ...formData, item: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select item..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {items.map((item) => (
-                        <SelectItem key={item.id} value={String(item.id)}>
-                          {item.sku} - {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Begin Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.begin_date}
-                    onChange={(e) => setFormData({ ...formData, begin_date: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input
-                    type="date"
-                    value={formData.end_date}
-                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="edit-is-active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: !!checked })}
-                />
-                <Label htmlFor="edit-is-active" className="text-sm font-normal cursor-pointer">
-                  Active
-                </Label>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Internal notes..."
-                  rows={3}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">Begin Date</div>
-                  <div className="font-medium">{formatDate(priceList.begin_date)}</div>
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">End Date</div>
-                  <div className="font-medium">{formatDate(priceList.end_date)}</div>
-                </div>
-              </div>
-              {priceList.notes && (
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-1">Notes</div>
-                  <div className="text-sm whitespace-pre-wrap">{priceList.notes}</div>
-                </div>
-              )}
-              <div className="grid gap-4 md:grid-cols-2 pt-2 border-t">
-                <div>
-                  <div className="text-xs text-muted-foreground">Created</div>
-                  <div className="text-sm">
-                    {format(new Date(priceList.created_at), 'MMM d, yyyy h:mm a')}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Last Updated</div>
-                  <div className="text-sm">
-                    {format(new Date(priceList.updated_at), 'MMM d, yyyy h:mm a')}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Quantity Break Tiers */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Quantity Break Tiers
-            </CardTitle>
-            {isEditing && (
-              <Button type="button" variant="outline" size="sm" onClick={handleAddLine}>
-                <Plus className="h-4 w-4 mr-1" /> Add Tier
-              </Button>
+        {/* Title Row */}
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Price List</h1>
+              {getStatusBadge(priceList.is_active ? 'active' : 'inactive')}
+            </div>
+            <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+              <button
+                onClick={() => navigate(`/customers/${priceList.customer}`)}
+                className="transition-colors cursor-pointer"
+                style={{ color: 'var(--so-text-secondary)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-accent)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}>
+                {priceList.customer_name}
+              </button>
+              {' · '}
+              <button
+                onClick={() => navigate(`/items/${priceList.item}`)}
+                className="font-mono transition-colors cursor-pointer"
+                style={{ color: 'var(--so-text-secondary)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-accent)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}>
+                {priceList.item_sku}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0" data-print-hide>
+            {isEditing ? (
+              <>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
+                  <X className="h-3.5 w-3.5" />Cancel
+                </button>
+                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSave} disabled={updatePriceList.isPending}>
+                  <Save className="h-3.5 w-3.5" />{updatePriceList.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" />Edit
+                </button>
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+                  <Printer className="h-3.5 w-3.5" />Print
+                </button>
+              </>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
-          {isEditing ? (
-            lines.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No tiers. Click &quot;Add Tier&quot; to begin.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {lines.map((line, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 bg-muted/50 rounded-lg">
-                    <div className="col-span-5 space-y-1">
-                      <Label className="text-xs">Min Quantity</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={line.min_quantity}
-                        onChange={(e) => handleLineChange(index, 'min_quantity', e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="col-span-5 space-y-1">
-                      <Label className="text-xs">Unit Price</Label>
-                      <Input
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        value={line.unit_price}
-                        onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                        className="h-9"
-                      />
-                    </div>
-                    <div className="col-span-2 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveLine(index)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+        </div>
+
+        {/* Overview KPI Card */}
+        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold">Overview</span>
+          </div>
+          <div className="grid grid-cols-4">
+            {[
+              { label: 'Customer', value: priceList.customer_name, sub: priceList.customer_code, mono: false },
+              { label: 'Item', value: priceList.item_sku, sub: priceList.item_name, mono: true },
+              { label: 'Valid From', value: formatDate(priceList.begin_date), mono: false },
+              { label: 'Tiers', value: String(priceList.lines?.length ?? 0), mono: true },
+            ].map((kpi, idx) => (
+              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none' }}>
+                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
+                <div className={`text-sm font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
+                {kpi.sub && <div className="text-[12px] mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.sub}</div>}
               </div>
-            )
-          ) : (
-            <div className="border border-border rounded-md overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-muted/50 dark:bg-muted/20">
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Min Quantity
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Unit Price
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {priceList.lines && priceList.lines.length > 0 ? (
-                    priceList.lines.map((line) => (
-                      <tr key={line.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 text-sm font-mono">
-                          {line.min_quantity.toLocaleString()}+
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right font-mono font-medium">
-                          {formatCurrency(line.unit_price)}
+            ))}
+          </div>
+        </div>
+
+        {/* Details Card */}
+        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold">Details</span>
+          </div>
+          <div className="px-6 py-5">
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Customer</Label>
+                    <Select
+                      value={formData.customer}
+                      onValueChange={(value) => setFormData({ ...formData, customer: value })}
+                    >
+                      <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                        <SelectValue placeholder="Select customer..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.party_code} - {c.party_display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Item</Label>
+                    <Select
+                      value={formData.item}
+                      onValueChange={(value) => setFormData({ ...formData, item: value })}
+                    >
+                      <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                        <SelectValue placeholder="Select item..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map((item) => (
+                          <SelectItem key={item.id} value={String(item.id)}>
+                            {item.sku} - {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Begin Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.begin_date}
+                      onChange={(e) => setFormData({ ...formData, begin_date: e.target.value })}
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>End Date</Label>
+                    <Input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-is-active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_active: !!checked })}
+                  />
+                  <Label htmlFor="edit-is-active" className="text-sm font-normal cursor-pointer">
+                    Active
+                  </Label>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Notes</Label>
+                  <Textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Internal notes..."
+                    rows={3}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-4 gap-6">
+                  <div>
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Begin Date</div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--so-text-primary)' }}>{formatDate(priceList.begin_date)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>End Date</div>
+                    <div className="text-sm font-medium" style={{ color: 'var(--so-text-primary)' }}>{formatDate(priceList.end_date)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Created</div>
+                    <div className="text-sm" style={{ color: 'var(--so-text-primary)' }}>{format(new Date(priceList.created_at), 'MMM d, yyyy')}</div>
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Last Updated</div>
+                    <div className="text-sm" style={{ color: 'var(--so-text-primary)' }}>{format(new Date(priceList.updated_at), 'MMM d, yyyy')}</div>
+                  </div>
+                </div>
+                {priceList.notes && (
+                  <div>
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Notes</div>
+                    <div className="text-sm whitespace-pre-wrap rounded-lg px-4 py-3" style={{ background: 'var(--so-bg)', color: 'var(--so-text-secondary)' }}>{priceList.notes}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quantity Break Tiers */}
+        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+              <span className="text-sm font-semibold">Quantity Break Tiers</span>
+            </div>
+            {isEditing && (
+              <button
+                type="button"
+                className={outlineBtnClass}
+                style={{ ...outlineBtnStyle, padding: '5px 12px' }}
+                onClick={handleAddLine}>
+                <Plus className="h-3.5 w-3.5" />Add Tier
+              </button>
+            )}
+          </div>
+          <div className="px-6 py-5">
+            {isEditing ? (
+              lines.length === 0 ? (
+                <p className="text-sm text-center py-4" style={{ color: 'var(--so-text-tertiary)' }}>
+                  No tiers. Click &quot;Add Tier&quot; to begin.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {lines.map((line, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 rounded-[10px]" style={{ background: 'var(--so-bg)' }}>
+                      <div className="col-span-5 space-y-1">
+                        <Label className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>Min Quantity</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={line.min_quantity}
+                          onChange={(e) => handleLineChange(index, 'min_quantity', e.target.value)}
+                          className="h-9"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div className="col-span-5 space-y-1">
+                        <Label className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>Unit Price</Label>
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          value={line.unit_price}
+                          onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                          className="h-9"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div className="col-span-2 flex justify-end">
+                        <button
+                          type="button"
+                          className={dangerBtnClass}
+                          style={{ ...dangerBtnStyle, padding: '6px 10px' }}
+                          onClick={() => handleRemoveLine(index)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="rounded-[10px] overflow-hidden" style={{ border: '1px solid var(--so-border)' }}>
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)', borderBottom: '1px solid var(--so-border-light)' }}>
+                        Min Quantity
+                      </th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)', borderBottom: '1px solid var(--so-border-light)' }}>
+                        Unit Price
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceList.lines && priceList.lines.length > 0 ? (
+                      priceList.lines.map((line, idx) => (
+                        <tr key={line.id} style={{ borderBottom: idx < priceList.lines!.length - 1 ? '1px solid var(--so-border-light)' : 'none' }}>
+                          <td className="px-4 py-3 text-sm font-mono" style={{ color: 'var(--so-text-primary)' }}>
+                            {line.min_quantity.toLocaleString()}+
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-mono font-medium" style={{ color: 'var(--so-text-primary)' }}>
+                            {formatCurrency(line.unit_price)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                          No pricing tiers defined
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={2} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                        No pricing tiers defined
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
 
-      {/* Audit History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Audit History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FieldHistoryTab modelType="pricelist" objectId={priceListId} />
-        </CardContent>
-      </Card>
+        {/* Audit History */}
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <span className="text-sm font-semibold">Audit History</span>
+          </div>
+          <div className="px-6 py-5">
+            <FieldHistoryTab modelType="pricelist" objectId={priceListId} />
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }
