@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -18,6 +18,8 @@ import type { Estimate, EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { useSettings } from '@/api/settings'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
 const getStatusBadge = (status: string) => {
   const configs: Record<string, { bg: string; border: string; text: string }> = {
@@ -70,6 +72,35 @@ export default function Estimates() {
   }, [searchParams, setSearchParams])
 
   const { data: estimatesData } = useEstimates()
+  const { data: settings } = useSettings()
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'Estimates List',
+    columns: [
+      { key: 'estimate_number', header: 'Estimate #' },
+      { key: 'customer_name', header: 'Customer' },
+      { key: 'date', header: 'Date' },
+      { key: 'expiration_date', header: 'Expires' },
+      { key: 'status', header: 'Status' },
+      { key: 'num_lines', header: 'Lines' },
+      { key: 'total_amount', header: 'Total' },
+    ],
+    rowFilters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: ['draft', 'sent', 'accepted', 'rejected', 'converted', 'cancelled'].map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
   const deleteEstimate = useDeleteEstimate()
   const sendEstimate = useSendEstimate()
   const convertEstimate = useConvertEstimate()
@@ -221,6 +252,23 @@ export default function Estimates() {
 
   const estimates = estimatesData?.results ?? []
 
+  const printFilteredEstimates = useMemo(() => {
+    let rows = estimates
+    if (printFilters) {
+      if (printFilters.rowFilters.status && printFilters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === printFilters.rowFilters.status)
+      }
+      // Apply date filter
+      if (printFilters.dateFrom) {
+        rows = rows.filter(r => r.date >= printFilters.dateFrom)
+      }
+      if (printFilters.dateTo) {
+        rows = rows.filter(r => r.date <= printFilters.dateTo)
+      }
+    }
+    return rows
+  }, [estimates, printFilters])
+
   const kpiStats = [
     { label: 'Draft',     value: estimates.filter((e) => e.status === 'draft').length,     status: 'draft' },
     { label: 'Sent',      value: estimates.filter((e) => e.status === 'sent').length,      status: 'sent' },
@@ -270,12 +318,21 @@ export default function Estimates() {
             <span className="text-sm font-semibold flex items-center gap-2">
               <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
               Estimates
+              <button
+                onClick={() => setPrintFilterOpen(true)}
+                title="Print estimates list"
+                className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
+              >
+                <Printer className="h-3.5 w-3.5" />
+              </button>
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
               {estimates.length} total
             </span>
           </div>
           <DataTable
+            storageKey="estimates"
             columns={columns}
             data={estimates}
             searchColumn="estimate_number"
@@ -285,6 +342,92 @@ export default function Estimates() {
         </div>
 
       </div>
+
+      {/* Print-only estimates list */}
+      <div className="print-only" style={{ color: 'black' }}>
+        {/* Letterhead */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '16px', borderBottom: '3px solid #333' }}>
+          <div>
+            <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '-0.5px' }}>
+              {settings?.company_name || 'Company'}
+            </div>
+            {settings?.company_address && (
+              <div style={{ fontSize: '9pt', color: '#555', whiteSpace: 'pre-line', marginTop: '4px' }}>
+                {settings.company_address}
+              </div>
+            )}
+            {(settings?.company_phone || settings?.company_email) && (
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>
+                {[settings?.company_phone, settings?.company_email].filter(Boolean).join(' | ')}
+              </div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '18pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px' }}>
+              Estimates List
+            </div>
+            <div style={{ fontSize: '10pt', color: '#555', marginTop: '4px' }}>
+              {printFilters?.dateRangeLabel || `January 1, ${new Date().getFullYear()} \u2013 ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`}
+            </div>
+            <div style={{ fontSize: '9pt', color: '#555', marginTop: '4px', padding: '2px 10px', border: '1px solid #999', display: 'inline-block' }}>
+              {printFilteredEstimates.length} estimates
+            </div>
+          </div>
+        </div>
+
+        {/* Estimates Table */}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+          <thead>
+            <tr>
+              {[
+                { key: 'estimate_number', label: 'Estimate #' },
+                { key: 'customer_name', label: 'Customer' },
+                { key: 'date', label: 'Date' },
+                { key: 'expiration_date', label: 'Expires' },
+                { key: 'status', label: 'Status' },
+                { key: 'num_lines', label: 'Lines' },
+                { key: 'total_amount', label: 'Total' },
+              ].filter(h => !printFilters || printFilters.visibleColumns.includes(h.key)).map((h) => (
+                <th key={h.label} style={{ padding: '5px 6px', border: '1px solid #ccc', background: '#f5f5f5', fontWeight: 600, textAlign: h.label === 'Total' ? 'right' : 'left' }}>
+                  {h.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {printFilteredEstimates.map((e) => {
+              const showCol = (key: string) => !printFilters || printFilters.visibleColumns.includes(key)
+              return (
+                <tr key={e.id}>
+                  {showCol('estimate_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace', fontSize: '8pt' }}>{e.estimate_number}</td>}
+                  {showCol('customer_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{e.customer_name}</td>}
+                  {showCol('date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{new Date(e.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>}
+                  {showCol('expiration_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{e.expiration_date ? new Date(e.expiration_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '\u2014'}</td>}
+                  {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', textTransform: 'capitalize' }}>{e.status}</td>}
+                  {showCol('num_lines') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{e.num_lines}</td>}
+                  {showCol('total_amount') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', textAlign: 'right', fontFamily: 'monospace' }}>
+                    ${parseFloat(e.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        <div style={{ marginTop: '40px', paddingTop: '12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', fontSize: '8pt', color: '#999' }}>
+          <span>Printed {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
+          <span>{settings?.company_name || ''}</span>
+        </div>
+      </div>
+
+      <ReportFilterModal
+        open={printFilterOpen}
+        onOpenChange={setPrintFilterOpen}
+        config={reportFilterConfig}
+        mode="print"
+        onConfirm={handleFilteredPrint}
+      />
 
       {/* Dialogs */}
       <EstimateDialog

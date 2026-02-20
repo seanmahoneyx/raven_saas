@@ -201,3 +201,127 @@ class PartyModelTestCase(TestCase):
         self.assertEqual(locations.count(), 4)
         types = set(locations.values_list('location_type', flat=True))
         self.assertEqual(types, {'SHIP_TO', 'BILL_TO', 'WAREHOUSE', 'OFFICE'})
+
+
+class VendorFieldsTestCase(TestCase):
+    """Tests for new vendor fields added in Phase 7."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tenant = Tenant.objects.create(name='Vendor Fields Co', subdomain='test-vendor-fields')
+        cls.user = User.objects.create_user(username='vendortest', password='pass')
+        set_current_tenant(cls.tenant)
+
+    def setUp(self):
+        set_current_tenant(self.tenant)
+
+    def test_vendor_type_default(self):
+        """Vendor type defaults to SUPPLIER."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-001', display_name='Default Type Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertEqual(vendor.vendor_type, 'SUPPLIER')
+
+    def test_vendor_type_choices(self):
+        """Vendor type can be set to different choices."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-002', display_name='Broker Vendor',
+        )
+        vendor = Vendor.objects.create(
+            tenant=self.tenant, party=party, vendor_type='BROKER',
+        )
+        self.assertEqual(vendor.vendor_type, 'BROKER')
+
+    def test_vendor_tax_fields(self):
+        """Vendor tax_code and tax_id can be set."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-003', display_name='Tax Vendor',
+        )
+        vendor = Vendor.objects.create(
+            tenant=self.tenant, party=party,
+            tax_code='EXEMPT', tax_id='12-3456789',
+        )
+        self.assertEqual(vendor.tax_code, 'EXEMPT')
+        self.assertEqual(vendor.tax_id, '12-3456789')
+
+    def test_vendor_credit_limit(self):
+        """Vendor credit_limit can be set."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-004', display_name='Credit Vendor',
+        )
+        vendor = Vendor.objects.create(
+            tenant=self.tenant, party=party, credit_limit=25000,
+        )
+        self.assertEqual(vendor.credit_limit, 25000)
+
+    def test_vendor_credit_limit_nullable(self):
+        """Vendor credit_limit can be null."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-005', display_name='No Credit Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertIsNone(vendor.credit_limit)
+
+    def test_vendor_charge_freight_default(self):
+        """Vendor charge_freight defaults to True."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-006', display_name='Freight Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertTrue(vendor.charge_freight)
+
+    def test_vendor_charge_freight_false(self):
+        """Vendor charge_freight can be set to False."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-007', display_name='No Freight Vendor',
+        )
+        vendor = Vendor.objects.create(
+            tenant=self.tenant, party=party, charge_freight=False,
+        )
+        self.assertFalse(vendor.charge_freight)
+
+    def test_vendor_invoice_delivery_method_default(self):
+        """Vendor invoice_delivery_method defaults to EMAIL."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-008', display_name='Invoice Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertEqual(vendor.invoice_delivery_method, 'EMAIL')
+
+    def test_vendor_buyer_assignment(self):
+        """Vendor can be assigned a buyer (user)."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-009', display_name='Buyer Vendor',
+        )
+        vendor = Vendor.objects.create(
+            tenant=self.tenant, party=party, buyer=self.user,
+        )
+        self.assertEqual(vendor.buyer, self.user)
+
+    def test_vendor_buyer_nullable(self):
+        """Vendor buyer can be null."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-010', display_name='No Buyer Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertIsNone(vendor.buyer)
+
+    def test_vendor_str(self):
+        """Vendor __str__ returns expected format."""
+        party = Party.objects.create(
+            tenant=self.tenant, party_type='VENDOR',
+            code='VT-011', display_name='Str Vendor',
+        )
+        vendor = Vendor.objects.create(tenant=self.tenant, party=party)
+        self.assertEqual(str(vendor), 'Vendor: Str Vendor')

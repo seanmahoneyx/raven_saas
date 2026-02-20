@@ -142,6 +142,7 @@ export default function ChartOfAccounts() {
               data={accountsData?.results ?? []}
               searchColumn="name"
               searchPlaceholder="Search accounts..."
+              storageKey="chart-of-accounts"
             />
           )}
         </div>

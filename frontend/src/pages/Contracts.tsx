@@ -373,6 +373,7 @@ export default function Contracts() {
               <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
             ) : (
               <DataTable
+                storageKey="contracts"
                 columns={columns}
                 data={contractsData?.results ?? []}
                 searchColumn="customer_name"

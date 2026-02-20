@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { ChevronDown, ChevronRight, ShoppingCart } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { DataTable } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -200,10 +200,9 @@ export default function OpenSalesOrders() {
         <div className="flex items-center justify-between mb-7 animate-in">
           <div>
             <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Sales Orders</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>View all open sales orders grouped by customer</p>
           </div>
           <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/orders/sales/new')}>
-            <ShoppingCart className="h-3.5 w-3.5" /> Create Sales Order
+            <Plus className="h-3.5 w-3.5" /> Create Sales Order
           </button>
         </div>
 
@@ -220,11 +219,8 @@ export default function OpenSalesOrders() {
         </div>
 
         {/* Filters */}
-        <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">Filters</span>
-          </div>
-          <div className="px-6 py-5">
+        <div className="mb-5 animate-in delay-2">
+          <div className="py-3">
             <div className="grid gap-4 md:grid-cols-5">
               <div className="space-y-2">
                 <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search Order #</label>
@@ -335,6 +331,7 @@ export default function OpenSalesOrders() {
                       <DataTable
                         columns={columns}
                         data={orders}
+                        storageKey="open-sales-orders"
                         onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
                       />
                     </div>

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, MapPin, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Users, MapPin, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useVendors, useLocations, useDeleteVendor } from '@/api/parties'
+import { useSettings } from '@/api/settings'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import { VendorDialog } from '@/components/parties/VendorDialog'
 import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Vendor, Location } from '@/types/api'
@@ -54,6 +56,12 @@ export default function Vendors() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
+  const { data: settings } = useSettings()
+
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors()
   const { data: locationsData, isLoading: locationsLoading } = useLocations()
   const deleteVendor = useDeleteVendor()
@@ -77,6 +85,63 @@ export default function Vendors() {
       setEditingLocation(null)
       setLocationDialogOpen(true)
     }
+  }
+
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'Vendor List',
+    columns: [
+      { key: 'party_display_name', header: 'Vendor Name' },
+      { key: 'party_code', header: 'Code' },
+      { key: 'vendor_type', header: 'Vendor Type' },
+      { key: 'payment_terms', header: 'Payment Terms' },
+      { key: 'buyer_name', header: 'Buyer' },
+      { key: 'open_po_total', header: 'Open PO Total' },
+      { key: 'open_balance', header: 'Open Balance' },
+    ],
+    rowFilters: [
+      {
+        key: 'vendor_type',
+        label: 'Vendor Type',
+        options: Array.from(new Set((vendorsData?.results ?? []).map(v => v.vendor_type).filter(Boolean))).sort().map(t => ({ value: t!, label: t! })),
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows = vendorsData?.results ?? []
+    if (rows.length === 0) return
+
+    if (filters.rowFilters.vendor_type && filters.rowFilters.vendor_type !== 'all') {
+      rows = rows.filter(r => r.vendor_type === filters.rowFilters.vendor_type)
+    }
+
+    const allCols = [
+      { key: 'party_display_name', header: 'Vendor Name' },
+      { key: 'party_code', header: 'Code' },
+      { key: 'vendor_type', header: 'Vendor Type' },
+      { key: 'payment_terms', header: 'Payment Terms' },
+      { key: 'buyer_name', header: 'Buyer' },
+      { key: 'open_po_total', header: 'Open PO Total' },
+      { key: 'open_balance', header: 'Open Balance' },
+    ]
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'vendors.csv'; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const vendorColumns: ColumnDef<Vendor>[] = useMemo(
@@ -152,6 +217,53 @@ export default function Vendors() {
         cell: ({ row }) => (
           <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.payment_terms || '—'}</span>
         ),
+      },
+      {
+        accessorKey: 'buyer_name',
+        header: 'Buyer',
+        cell: ({ row }) => (
+          <span className="text-sm" style={{ color: row.original.buyer_name ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+            {row.original.buyer_name || '—'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'vendor_type',
+        header: 'Type',
+        cell: ({ row }) => {
+          const t = row.original.vendor_type
+          if (!t) return <span style={{ color: 'var(--so-text-tertiary)' }}>—</span>
+          return (
+            <span
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+              style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
+            >
+              {t}
+            </span>
+          )
+        },
+      },
+      {
+        accessorKey: 'open_balance',
+        header: 'Open Balance',
+        cell: ({ row }) => {
+          const val = parseFloat(row.original.open_balance || '0')
+          return (
+            <span
+              className="font-mono font-medium"
+              style={{ color: val > 0 ? 'var(--so-danger-text)' : 'var(--so-text-tertiary)' }}
+            >
+              {val > 0 ? `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+            </span>
+          )
+        },
+      },
+      {
+        accessorKey: 'has_attachments',
+        header: '',
+        cell: ({ row }) => row.original.has_attachments ? (
+          <Paperclip className="h-3.5 w-3.5" style={{ color: 'var(--so-text-tertiary)' }} />
+        ) : null,
       },
       {
         id: 'actions',
@@ -312,8 +424,28 @@ export default function Vendors() {
             className="flex items-center justify-between px-6 py-4"
             style={{ borderBottom: '1px solid var(--so-border-light)' }}
           >
-            <span className="text-sm font-semibold">
+            <span className="flex items-center gap-2 text-sm font-semibold">
               {tabs.find((t) => t.id === activeTab)?.label}
+              {activeTab === 'vendors' && (
+                <>
+                  <button
+                    onClick={() => setPrintFilterOpen(true)}
+                    title="Print vendor list"
+                    className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setExportFilterOpen(true)}
+                    title="Export CSV"
+                    className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
               {activeCount} total
@@ -325,6 +457,7 @@ export default function Vendors() {
                 <div className="p-6"><TableSkeleton columns={6} rows={8} /></div>
               ) : (
                 <DataTable
+                  storageKey="vendors"
                   columns={vendorColumns}
                   data={vendorsData?.results ?? []}
                   searchColumn="party_display_name"
@@ -341,6 +474,7 @@ export default function Vendors() {
                 <div className="p-6"><TableSkeleton columns={6} rows={8} /></div>
               ) : (
                 <DataTable
+                  storageKey="vendor-locations"
                   columns={locationColumns}
                   data={locationsData?.results ?? []}
                   searchColumn="name"

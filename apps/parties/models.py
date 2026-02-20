@@ -59,6 +59,15 @@ class Party(TenantMixin, TimestampMixin):
         default=True,
         help_text="Inactive parties are hidden from selections"
     )
+    main_phone = models.CharField(
+        max_length=30,
+        blank=True,
+        help_text="Primary phone number"
+    )
+    main_email = models.EmailField(
+        blank=True,
+        help_text="Primary email address"
+    )
     notes = models.TextField(
         blank=True,
         help_text="General notes about this party"
@@ -167,10 +176,79 @@ class Customer(TenantMixin, TimestampMixin):
         help_text="Credit limit for this customer (approval triggered when exceeded)"
     )
 
+    INVOICE_DELIVERY_CHOICES = [
+        ('EMAIL', 'Email'),
+        ('MAIL', 'Mail'),
+        ('FAX', 'Fax'),
+        ('PORTAL', 'Customer Portal'),
+    ]
+    invoice_delivery_method = models.CharField(
+        max_length=10,
+        choices=INVOICE_DELIVERY_CHOICES,
+        default='EMAIL',
+        help_text="Preferred method for sending invoices"
+    )
+
+    CUSTOMER_TYPE_CHOICES = [
+        ('BEAUTY_HEALTH', 'Beauty/Health'),
+        ('CLEANING_RESTORATION', 'Cleaning/Restoration'),
+        ('DISTRIBUTOR', 'Distributor'),
+        ('FOOD', 'Food'),
+        ('FREIGHT', 'Freight'),
+        ('GOVERNMENT', 'Government'),
+        ('INDUSTRIAL', 'Industrial'),
+        ('JANITORIAL', 'Janitorial'),
+        ('MANUFACTURER', 'Manufacturer'),
+        ('MEDICAL', 'Medical'),
+        ('PHARMACEUTICAL', 'Pharmaceutical'),
+        ('PIZZA', 'Pizza'),
+        ('RETAIL', 'Retail'),
+        ('TEXTILE', 'Textile'),
+        ('WHOLESALE', 'Wholesale'),
+        ('AUTOMOTIVE', 'Automotive'),
+        ('CONSTRUCTION', 'Construction'),
+        ('HOSPITALITY', 'Hospitality'),
+        ('OTHER', 'Other'),
+    ]
+    customer_type = models.CharField(
+        max_length=30,
+        choices=CUSTOMER_TYPE_CHOICES,
+        blank=True,
+        help_text="Customer classification"
+    )
+
+    tax_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Tax code for this customer"
+    )
+    resale_number = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Resale certificate number (tax-exempt resellers)"
+    )
+
+    csr = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='csr_customers',
+        help_text="Customer service representative"
+    )
+
+    charge_freight = models.BooleanField(
+        default=True,
+        help_text="Whether freight charges are applied to this customer's orders"
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'party']),
             models.Index(fields=['sales_rep']),
+            models.Index(fields=['csr']),
+            models.Index(fields=['customer_type']),
         ]
 
     def __str__(self):
@@ -223,10 +301,64 @@ class Vendor(TenantMixin, TimestampMixin):
         help_text="Override A/P account for this vendor (uses default if blank)"
     )
 
+    VENDOR_TYPE_CHOICES = [
+        ('SUPPLIER', 'Supplier'),
+        ('MANUFACTURER', 'Manufacturer'),
+        ('DISTRIBUTOR', 'Distributor'),
+        ('BROKER', 'Broker'),
+        ('CONTRACTOR', 'Contractor'),
+        ('OTHER', 'Other'),
+    ]
+    vendor_type = models.CharField(
+        max_length=20,
+        choices=VENDOR_TYPE_CHOICES,
+        default='SUPPLIER',
+        help_text="Vendor classification"
+    )
+
+    INVOICE_DELIVERY_CHOICES = [
+        ('EMAIL', 'Email'),
+        ('MAIL', 'Mail'),
+        ('FAX', 'Fax'),
+        ('PORTAL', 'Vendor Portal'),
+    ]
+    invoice_delivery_method = models.CharField(
+        max_length=10,
+        choices=INVOICE_DELIVERY_CHOICES,
+        default='EMAIL',
+        help_text="Preferred method for receiving vendor invoices/bills"
+    )
+
+    tax_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Tax code for this vendor"
+    )
+    tax_id = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text="Vendor tax ID / EIN"
+    )
+
+    credit_limit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Credit limit extended by this vendor"
+    )
+
+    charge_freight = models.BooleanField(
+        default=True,
+        help_text="Whether this vendor charges freight on orders"
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'party']),
             models.Index(fields=['buyer']),
+            models.Index(fields=['vendor_type']),
         ]
 
     def __str__(self):

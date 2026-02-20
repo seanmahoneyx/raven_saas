@@ -237,7 +237,7 @@ class SalesOrderSerializer(TenantModelSerializer):
             'id', 'order_number', 'status', 'customer', 'customer_name',
             'order_date', 'scheduled_date', 'scheduled_truck',
             'ship_to', 'ship_to_name', 'bill_to', 'bill_to_name',
-            'customer_po', 'notes', 'priority', 'num_lines', 'subtotal', 'is_editable',
+            'customer_po', 'order_class', 'notes', 'priority', 'num_lines', 'subtotal', 'is_editable',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -260,7 +260,7 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
             'id', 'order_number', 'status', 'customer', 'customer_name',
             'order_date', 'scheduled_date', 'scheduled_truck',
             'ship_to', 'ship_to_name', 'bill_to', 'bill_to_name',
-            'customer_po', 'notes', 'priority', 'lines', 'num_lines', 'subtotal', 'is_editable',
+            'customer_po', 'order_class', 'notes', 'priority', 'lines', 'num_lines', 'subtotal', 'is_editable',
             'contract_reference',
             'created_at', 'updated_at',
         ]
@@ -293,7 +293,7 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
         fields = [
             'id', 'order_number', 'status', 'customer',
             'order_date', 'scheduled_date', 'scheduled_truck',
-            'ship_to', 'bill_to', 'customer_po', 'notes', 'priority', 'lines',
+            'ship_to', 'bill_to', 'customer_po', 'order_class', 'notes', 'priority', 'lines',
         ]
 
     def _generate_order_number(self, tenant):

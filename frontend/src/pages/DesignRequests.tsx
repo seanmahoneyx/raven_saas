@@ -390,6 +390,7 @@ export default function DesignRequests() {
             <div className="text-center py-12 text-sm" style={{ color: 'var(--so-text-muted)' }}>Loading...</div>
           ) : (
             <DataTable
+              storageKey="design-requests"
               columns={columns}
               data={requestsData?.results ?? []}
               searchColumn="ident"

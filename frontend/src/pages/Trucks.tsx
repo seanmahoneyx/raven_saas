@@ -159,6 +159,7 @@ export default function Trucks() {
               data={trucksData?.results ?? []}
               searchColumn="name"
               searchPlaceholder="Search trucks..."
+              storageKey="trucks"
             />
           </div>
         </div>

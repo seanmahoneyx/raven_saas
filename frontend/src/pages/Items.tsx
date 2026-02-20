@@ -299,6 +299,7 @@ export default function Items() {
               <div className="p-6"><TableSkeleton columns={6} rows={8} /></div>
             ) : (
               <DataTable
+                storageKey="items"
                 columns={itemColumns}
                 data={itemsData?.results ?? []}
                 searchColumn="name"
@@ -324,6 +325,7 @@ export default function Items() {
               <div className="p-6"><TableSkeleton columns={4} rows={8} /></div>
             ) : (
               <DataTable
+                storageKey="item-categories"
                 columns={uomColumns}
                 data={uomData?.results ?? []}
                 searchColumn="name"

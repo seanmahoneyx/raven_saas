@@ -25,6 +25,8 @@ interface LocationDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   location?: Location | null
+  /** Pre-fill party and hide the party selector */
+  partyId?: number
 }
 
 const LOCATION_TYPES = [
@@ -34,9 +36,9 @@ const LOCATION_TYPES = [
   { value: 'OFFICE', label: 'Office' },
 ]
 
-export function LocationDialog({ open, onOpenChange, location }: LocationDialogProps) {
+export function LocationDialog({ open, onOpenChange, location, partyId }: LocationDialogProps) {
   const [formData, setFormData] = useState({
-    party: '',
+    party: partyId ? String(partyId) : '',
     location_type: 'SHIP_TO' as Location['location_type'],
     name: '',
     code: '',
@@ -82,7 +84,7 @@ export function LocationDialog({ open, onOpenChange, location }: LocationDialogP
       })
     } else {
       setFormData({
-        party: '',
+        party: partyId ? String(partyId) : '',
         location_type: 'SHIP_TO',
         name: '',
         code: '',
@@ -100,7 +102,7 @@ export function LocationDialog({ open, onOpenChange, location }: LocationDialogP
         is_active: true,
       })
     }
-  }, [location, open])
+  }, [location, open, partyId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -133,26 +135,28 @@ export function LocationDialog({ open, onOpenChange, location }: LocationDialogP
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="party">Party *</Label>
-                <Select
-                  value={formData.party}
-                  onValueChange={(value) => setFormData({ ...formData, party: value })}
-                  disabled={isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select party..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {parties.map((party) => (
-                      <SelectItem key={party.id} value={String(party.id)}>
-                        {party.code} - {party.display_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={partyId ? '' : 'grid grid-cols-2 gap-4'}>
+              {!partyId && (
+                <div className="space-y-2">
+                  <Label htmlFor="party">Party *</Label>
+                  <Select
+                    value={formData.party}
+                    onValueChange={(value) => setFormData({ ...formData, party: value })}
+                    disabled={isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select party..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {parties.map((party) => (
+                        <SelectItem key={party.id} value={String(party.id)}>
+                          {party.code} - {party.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="location_type">Type *</Label>
                 <Select
@@ -314,7 +318,7 @@ export function LocationDialog({ open, onOpenChange, location }: LocationDialogP
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !formData.party}>
+            <Button type="submit" disabled={isPending || (!partyId && !formData.party)}>
               {isPending ? 'Saving...' : isEditing ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>

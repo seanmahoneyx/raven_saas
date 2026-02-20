@@ -16,9 +16,12 @@ class CustomerInline(admin.StackedInline):
     verbose_name = "Customer Details"
     verbose_name_plural = "Customer Details"
     fields = [
-        'payment_terms',
+        'payment_terms', 'customer_type',
         ('default_ship_to', 'default_bill_to'),
-        'sales_rep',
+        ('sales_rep', 'csr'),
+        ('credit_limit', 'charge_freight'),
+        'invoice_delivery_method',
+        ('tax_code', 'resale_number'),
     ]
     extra = 0
 
@@ -30,9 +33,12 @@ class VendorInline(admin.StackedInline):
     verbose_name = "Vendor Details"
     verbose_name_plural = "Vendor Details"
     fields = [
-        'payment_terms',
+        'payment_terms', 'vendor_type',
         'default_ship_from',
         'buyer',
+        ('credit_limit', 'charge_freight'),
+        'invoice_delivery_method',
+        ('tax_code', 'tax_id'),
     ]
     extra = 0
 
@@ -66,6 +72,9 @@ class PartyAdmin(admin.ModelAdmin):
     fieldsets = [
         (None, {
             'fields': ['code', 'display_name', 'party_type']
+        }),
+        ('Contact', {
+            'fields': ['main_phone', 'main_email'],
         }),
         ('Additional Info', {
             'fields': ['legal_name', 'notes', 'is_active'],
@@ -110,17 +119,21 @@ class PartyAdmin(admin.ModelAdmin):
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
     """Direct admin interface for Customer model."""
-    list_display = ['party', 'payment_terms', 'sales_rep', 'created_at']
-    list_filter = ['payment_terms', 'sales_rep', 'created_at']
+    list_display = ['party', 'customer_type', 'payment_terms', 'sales_rep', 'csr', 'charge_freight', 'created_at']
+    list_filter = ['customer_type', 'payment_terms', 'charge_freight', 'sales_rep', 'created_at']
     search_fields = ['party__code', 'party__display_name']
-    raw_id_fields = ['party', 'default_ship_to', 'default_bill_to', 'sales_rep']
+    raw_id_fields = ['party', 'default_ship_to', 'default_bill_to', 'sales_rep', 'csr']
 
     fieldsets = [
         (None, {
-            'fields': ['party']
+            'fields': ['party', 'customer_type']
         }),
         ('Defaults', {
-            'fields': ['payment_terms', 'default_ship_to', 'default_bill_to', 'sales_rep']
+            'fields': ['payment_terms', 'default_ship_to', 'default_bill_to',
+                        ('sales_rep', 'csr'), 'invoice_delivery_method']
+        }),
+        ('Financial', {
+            'fields': [('credit_limit', 'charge_freight'), ('tax_code', 'resale_number')]
         }),
     ]
 
@@ -128,17 +141,20 @@ class CustomerAdmin(admin.ModelAdmin):
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
     """Direct admin interface for Vendor model."""
-    list_display = ['party', 'payment_terms', 'buyer', 'created_at']
-    list_filter = ['payment_terms', 'buyer', 'created_at']
+    list_display = ['party', 'vendor_type', 'payment_terms', 'buyer', 'charge_freight', 'created_at']
+    list_filter = ['vendor_type', 'payment_terms', 'charge_freight', 'buyer', 'created_at']
     search_fields = ['party__code', 'party__display_name']
     raw_id_fields = ['party', 'default_ship_from', 'buyer']
 
     fieldsets = [
         (None, {
-            'fields': ['party']
+            'fields': ['party', 'vendor_type']
         }),
         ('Defaults', {
-            'fields': ['payment_terms', 'default_ship_from', 'buyer']
+            'fields': ['payment_terms', 'default_ship_from', 'buyer', 'invoice_delivery_method']
+        }),
+        ('Financial', {
+            'fields': [('credit_limit', 'charge_freight'), ('tax_code', 'tax_id')]
         }),
     ]
 

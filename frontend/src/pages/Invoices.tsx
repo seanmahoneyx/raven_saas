@@ -339,6 +339,7 @@ export default function Invoices() {
                   data={invoicesData?.results ?? []}
                   searchColumn="invoice_number"
                   searchPlaceholder="Search invoices..."
+                  storageKey="invoices"
                 />
               )
             )}
@@ -351,6 +352,7 @@ export default function Invoices() {
                   data={paymentsData?.results ?? []}
                   searchColumn="payment_number"
                   searchPlaceholder="Search payments..."
+                  storageKey="bills"
                 />
               )
             )}

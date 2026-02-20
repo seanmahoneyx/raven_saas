@@ -4,10 +4,11 @@ import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, DollarSign, ShoppingCart, MapPin, FileText, Calendar,
-  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload,
+  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload, Pencil,
   Printer, BarChart3, Copy, Users,
 } from 'lucide-react'
-import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment, useDuplicateCustomer } from '@/api/parties'
+import { useCustomer, useLocations, useDeleteLocation, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment, useDuplicateCustomer } from '@/api/parties'
+import { LocationDialog } from '@/components/parties/LocationDialog'
 import api from '@/api/client'
 import { useSalesOrders } from '@/api/orders'
 import { useContractsByCustomer } from '@/api/contracts'
@@ -87,6 +88,11 @@ export default function CustomerDetail() {
   const { data: timeline } = useCustomerTimeline(customerId, timelineFilter)
   const [deleteAttachmentDialogOpen, setDeleteAttachmentDialogOpen] = useState(false)
   const [pendingDeleteAttachmentId, setPendingDeleteAttachmentId] = useState<number | null>(null)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+  const [deleteLocationDialogOpen, setDeleteLocationDialogOpen] = useState(false)
+  const [pendingDeleteLocationId, setPendingDeleteLocationId] = useState<number | null>(null)
+  const deleteLocation = useDeleteLocation()
 
   const customerLocations = locationsData?.results ?? []
   const orders = ordersData?.results ?? []
@@ -209,6 +215,17 @@ export default function CustomerDetail() {
     } catch (error) {
       console.error('Failed to delete attachment:', error)
       toast.error('Failed to delete attachment')
+    }
+  }
+
+  const handleConfirmDeleteLocation = async () => {
+    if (!pendingDeleteLocationId) return
+    try {
+      await deleteLocation.mutateAsync(pendingDeleteLocationId)
+      setDeleteLocationDialogOpen(false)
+      setPendingDeleteLocationId(null)
+    } catch {
+      // error toast handled by the hook
     }
   }
 
@@ -474,8 +491,16 @@ export default function CustomerDetail() {
         {/* Locations Tab */}
         {activeTab === 'locations' && (
           <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Locations</span>
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={() => { setEditingLocation(null); setLocationDialogOpen(true) }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Location
+              </button>
             </div>
             <div className="px-6 py-5">
               {customerLocations.length > 0 ? (
@@ -487,6 +512,7 @@ export default function CustomerDetail() {
                       <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
                       <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
                       <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -513,13 +539,46 @@ export default function CustomerDetail() {
                         <td className="py-3 px-4">
                           {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
                         </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                              style={{ color: 'var(--so-text-tertiary)', background: 'transparent', border: 'none' }}
+                              title="Edit location"
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              onClick={() => { setEditingLocation(loc); setLocationDialogOpen(true) }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                              style={{ color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
+                              title="Delete location"
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              onClick={() => { setPendingDeleteLocationId(loc.id); setDeleteLocationDialogOpen(true) }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
                 <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
-                  No locations for this customer
+                  <MapPin className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p>No locations for this customer</p>
+                  <button
+                    className={outlineBtnClass + ' mt-3'}
+                    style={outlineBtnStyle}
+                    onClick={() => { setEditingLocation(null); setLocationDialogOpen(true) }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add First Location
+                  </button>
                 </div>
               )}
             </div>
@@ -714,6 +773,25 @@ export default function CustomerDetail() {
         variant="destructive"
         onConfirm={handleConfirmDeleteAttachment}
         loading={deleteAttachment.isPending}
+      />
+      <LocationDialog
+        open={locationDialogOpen}
+        onOpenChange={(open) => {
+          setLocationDialogOpen(open)
+          if (!open) setEditingLocation(null)
+        }}
+        location={editingLocation}
+        partyId={customer.party}
+      />
+      <ConfirmDialog
+        open={deleteLocationDialogOpen}
+        onOpenChange={setDeleteLocationDialogOpen}
+        title="Delete Location"
+        description="Are you sure you want to delete this location? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDeleteLocation}
+        loading={deleteLocation.isPending}
       />
     </div>
   )

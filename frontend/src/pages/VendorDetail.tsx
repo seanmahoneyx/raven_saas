@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ArrowLeft, DollarSign, Package, MapPin, FileText, Calendar,
-  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload, Printer, Copy,
+  AlertCircle, Plus, Eye, History, Paperclip, Trash2, Upload, Printer, Copy, Pencil,
 } from 'lucide-react'
-import { useVendor, useLocations, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment, useDuplicateVendor } from '@/api/parties'
+import { useVendor, useLocations, useDeleteLocation, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment, useDuplicateVendor } from '@/api/parties'
+import { LocationDialog } from '@/components/parties/LocationDialog'
 import { usePurchaseOrders } from '@/api/orders'
 import type { PurchaseOrder, Location, TimelineEvent } from '@/types/api'
 import { format } from 'date-fns'
@@ -72,6 +73,11 @@ export default function VendorDetail() {
   const { data: timeline } = useVendorTimeline(vendorId, timelineFilter)
   const [deleteAttachmentDialogOpen, setDeleteAttachmentDialogOpen] = useState(false)
   const [pendingDeleteAttachmentId, setPendingDeleteAttachmentId] = useState<number | null>(null)
+  const [locationDialogOpen, setLocationDialogOpen] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null)
+  const [deleteLocationDialogOpen, setDeleteLocationDialogOpen] = useState(false)
+  const [pendingDeleteLocationId, setPendingDeleteLocationId] = useState<number | null>(null)
+  const deleteLocation = useDeleteLocation()
 
   const vendorLocations = locationsData?.results ?? []
   const orders = ordersData?.results ?? []
@@ -144,6 +150,17 @@ export default function VendorDetail() {
     } catch (error) {
       console.error('Failed to delete attachment:', error)
       toast.error('Failed to delete attachment')
+    }
+  }
+
+  const handleConfirmDeleteLocation = async () => {
+    if (!pendingDeleteLocationId) return
+    try {
+      await deleteLocation.mutateAsync(pendingDeleteLocationId)
+      setDeleteLocationDialogOpen(false)
+      setPendingDeleteLocationId(null)
+    } catch {
+      // error toast handled by the hook
     }
   }
 
@@ -487,52 +504,97 @@ export default function VendorDetail() {
             className="rounded-[14px] animate-in delay-3"
             style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
           >
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <h2 className="text-[14px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>Locations</h2>
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={() => { setEditingLocation(null); setLocationDialogOpen(true) }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Location
+              </button>
             </div>
-            {vendorLocations.length > 0 ? (
-              <table className="w-full">
-                <thead>
-                  <tr style={{ background: 'var(--so-bg)', borderBottom: '1px solid var(--so-border-light)' }}>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendorLocations.map((loc: Location) => (
-                    <tr
-                      key={loc.id}
-                      className="transition-colors"
-                      style={{ borderBottom: '1px solid var(--so-border-light)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    >
-                      <td className="px-6 py-3 font-medium font-mono text-[13px]" style={{ color: 'var(--so-text-primary)' }}>{loc.code}</td>
-                      <td className="px-6 py-3 text-[13px]" style={{ color: 'var(--so-text-primary)' }}>{loc.name}</td>
-                      <td className="px-6 py-3">
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium"
-                          style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
-                        >
-                          {loc.location_type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                        {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
-                      </td>
-                      <td className="px-6 py-3">{getStatusBadge(loc.is_active ? 'active' : 'inactive')}</td>
+            <div className="px-6 py-5">
+              {vendorLocations.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr style={{ background: 'var(--so-bg)' }}>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
+                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                No locations for this vendor
-              </div>
-            )}
+                  </thead>
+                  <tbody>
+                    {vendorLocations.map((loc: Location) => (
+                      <tr
+                        key={loc.id}
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <td className="py-3 px-4 font-medium font-mono text-sm">{loc.code}</td>
+                        <td className="py-3 px-4 text-sm">{loc.name}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+                            style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
+                          >
+                            {loc.location_type}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                              style={{ color: 'var(--so-text-tertiary)', background: 'transparent', border: 'none' }}
+                              title="Edit location"
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              onClick={() => { setEditingLocation(loc); setLocationDialogOpen(true) }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                              style={{ color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
+                              title="Delete location"
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              onClick={() => { setPendingDeleteLocationId(loc.id); setDeleteLocationDialogOpen(true) }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
+                  <MapPin className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p>No locations for this vendor</p>
+                  <button
+                    className={outlineBtnClass + ' mt-3'}
+                    style={outlineBtnStyle}
+                    onClick={() => { setEditingLocation(null); setLocationDialogOpen(true) }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add First Location
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -656,6 +718,25 @@ export default function VendorDetail() {
         variant="destructive"
         onConfirm={handleConfirmDeleteAttachment}
         loading={deleteAttachment.isPending}
+      />
+      <LocationDialog
+        open={locationDialogOpen}
+        onOpenChange={(open) => {
+          setLocationDialogOpen(open)
+          if (!open) setEditingLocation(null)
+        }}
+        location={editingLocation}
+        partyId={vendor.party}
+      />
+      <ConfirmDialog
+        open={deleteLocationDialogOpen}
+        onOpenChange={setDeleteLocationDialogOpen}
+        title="Delete Location"
+        description="Are you sure you want to delete this location? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleConfirmDeleteLocation}
+        loading={deleteLocation.isPending}
       />
     </div>
   )

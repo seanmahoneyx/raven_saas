@@ -10,11 +10,13 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from django.db.models import Sum, Count, Min, Q, DecimalField, Value, F
+from django.db.models import Sum, Count, Min, Q, DecimalField, Value, F, Exists, OuterRef
 from django.db.models.functions import Coalesce
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 from apps.parties.models import Party, Customer, Vendor, Location, Truck
+from apps.documents.models import Attachment
 from apps.api.v1.serializers.parties import (
     PartySerializer, PartyListSerializer, PartyDetailSerializer,
     CustomerSerializer, VendorSerializer, LocationSerializer, TruckSerializer,
@@ -147,7 +149,10 @@ class CustomerViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Get queryset at request time with KPI annotations."""
         active_statuses = ['confirmed', 'scheduled', 'picking']
-        return Customer.objects.select_related('party').annotate(
+        party_ct = ContentType.objects.get_for_model(Party)
+        return Customer.objects.select_related(
+            'party', 'sales_rep', 'csr',
+        ).annotate(
             open_sales_total=Coalesce(
                 Sum(
                     F('sales_orders__lines__unit_price') * F('sales_orders__lines__quantity_ordered'),
@@ -185,6 +190,21 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 'estimates',
                 filter=Q(estimates__status__in=['draft', 'sent']),
                 distinct=True,
+            ),
+            open_balance=Coalesce(
+                Sum(
+                    F('invoices__total_amount') - F('invoices__amount_paid'),
+                    filter=Q(invoices__status__in=['posted', 'sent', 'partial', 'overdue']),
+                    output_field=DecimalField(),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+            has_attachments=Exists(
+                Attachment.objects.filter(
+                    content_type=party_ct,
+                    object_id=OuterRef('party_id'),
+                )
             ),
         )
 
@@ -409,7 +429,7 @@ class VendorViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Get queryset at request time with KPI annotations."""
         active_statuses = ['confirmed', 'scheduled', 'shipped']
-        return Vendor.objects.select_related('party').annotate(
+        return Vendor.objects.select_related('party', 'buyer').annotate(
             open_po_total=Coalesce(
                 Sum(
                     F('purchase_orders__lines__unit_cost') * F('purchase_orders__lines__quantity_ordered'),
@@ -447,6 +467,21 @@ class VendorViewSet(viewsets.ModelViewSet):
                 'rfqs',
                 filter=Q(rfqs__status__in=['draft', 'sent']),
                 distinct=True,
+            ),
+            open_balance=Coalesce(
+                Sum(
+                    F('bills__total_amount') - F('bills__amount_paid'),
+                    filter=Q(bills__status__in=['posted', 'partial', 'overdue']),
+                    output_field=DecimalField(),
+                ),
+                Value(0),
+                output_field=DecimalField(),
+            ),
+            has_attachments=Exists(
+                Attachment.objects.filter(
+                    content_type=ContentType.objects.get_for_model(Party),
+                    object_id=OuterRef('party_id'),
+                )
             ),
         )
 

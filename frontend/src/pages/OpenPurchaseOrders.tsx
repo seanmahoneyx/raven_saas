@@ -358,6 +358,7 @@ export default function OpenPurchaseOrders() {
                         <DataTable
                           columns={columns}
                           data={orders}
+                          storageKey="open-purchase-orders"
                           onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
                         />
                       </div>

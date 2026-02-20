@@ -462,6 +462,7 @@ export default function Orders() {
               data={salesData?.results ?? []}
               searchColumn="order_number"
               searchPlaceholder="Search orders..."
+              storageKey="all-sales-orders"
               onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
               enableSelection
               bulkActions={[
@@ -485,6 +486,7 @@ export default function Orders() {
               data={purchaseData?.results ?? []}
               searchColumn="po_number"
               searchPlaceholder="Search POs..."
+              storageKey="all-purchase-orders"
               onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
             />
           )}

@@ -202,6 +202,7 @@ export default function RFQs() {
             </span>
           </div>
           <DataTable
+            storageKey="rfqs"
             columns={columns}
             data={rfqs}
             searchColumn="rfq_number"

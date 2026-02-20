@@ -176,6 +176,7 @@ export default function PriceLists() {
                 data={priceListsData?.results ?? []}
                 searchColumn="customer_name"
                 searchPlaceholder="Search by customer..."
+                storageKey="price-lists"
                 onRowClick={(row) => navigate(`/price-lists/${row.id}`)}
               />
             )}

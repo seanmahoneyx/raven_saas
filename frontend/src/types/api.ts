@@ -38,11 +38,22 @@ export interface Customer {
   default_ship_to: number | null
   default_bill_to: number | null
   sales_rep: number | null
+  sales_rep_name: string | null
+  csr: number | null
+  csr_name: string | null
+  credit_limit: string | null
+  customer_type: string
+  tax_code: string
+  resale_number: string | null
+  invoice_delivery_method: string
+  charge_freight: boolean
   open_sales_total: string
   open_order_count: number
   next_expected_delivery: string | null
   overdue_balance: string
   active_estimate_count: number
+  open_balance: string
+  has_attachments: boolean
   created_at: string
   updated_at: string
 }
@@ -81,11 +92,20 @@ export interface Vendor {
   payment_terms: string
   default_ship_from: number | null
   buyer: number | null
+  buyer_name: string | null
+  vendor_type: string
+  invoice_delivery_method: string
+  tax_code: string
+  tax_id: string | null
+  credit_limit: string | null
+  charge_freight: boolean
   open_po_total: string
   open_po_count: number
   next_incoming: string | null
   overdue_bill_balance: string
   active_rfq_count: number
+  open_balance: string
+  has_attachments: boolean
   created_at: string
   updated_at: string
 }
@@ -395,6 +415,8 @@ export interface ContractReference {
   blanket_po?: string
 }
 
+export type SalesOrderClass = 'STANDARD' | 'RUSH' | 'BLANKET' | 'SAMPLE' | 'INTERNAL'
+
 export interface SalesOrder {
   id: number
   order_number: string
@@ -409,6 +431,7 @@ export interface SalesOrder {
   bill_to: number | null
   bill_to_name: string | null
   customer_po: string
+  order_class: SalesOrderClass
   notes: string
   priority: number
   num_lines: number

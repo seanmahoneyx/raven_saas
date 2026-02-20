@@ -160,10 +160,10 @@ export default function Inventory() {
             <span className="text-sm font-semibold">{tabs.find((t) => t.id === activeTab)?.label}</span>
           </div>
           <div className="px-6 py-5">
-            {activeTab === 'balances' && <DataTable columns={balanceColumns} data={balancesData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search items..." />}
-            {activeTab === 'lots' && <DataTable columns={lotColumns} data={lotsData?.results ?? []} searchColumn="lot_number" searchPlaceholder="Search lots..." />}
-            {activeTab === 'pallets' && <DataTable columns={palletColumns} data={palletsData?.results ?? []} searchColumn="pallet_id" searchPlaceholder="Search pallets..." />}
-            {activeTab === 'transactions' && <DataTable columns={transactionColumns} data={transactionsData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search transactions..." />}
+            {activeTab === 'balances' && <DataTable columns={balanceColumns} data={balancesData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search items..." storageKey="inventory-balances" />}
+            {activeTab === 'lots' && <DataTable columns={lotColumns} data={lotsData?.results ?? []} searchColumn="lot_number" searchPlaceholder="Search lots..." storageKey="inventory-lots" />}
+            {activeTab === 'pallets' && <DataTable columns={palletColumns} data={palletsData?.results ?? []} searchColumn="pallet_id" searchPlaceholder="Search pallets..." storageKey="inventory-pallets" />}
+            {activeTab === 'transactions' && <DataTable columns={transactionColumns} data={transactionsData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search transactions..." storageKey="inventory-transactions" />}
           </div>
         </div>
       </div>

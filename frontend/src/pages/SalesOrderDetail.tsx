@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Paperclip, Copy, Plus, Trash2, Clock,
-  MoreHorizontal, FileText,
+  ArrowLeft, Plus, Trash2, Clock,
+  FileText,
 } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { useAttachments } from '@/api/attachments'
@@ -17,13 +17,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useSalesOrder, useUpdateSalesOrder } from '@/api/orders'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useSalesOrder, useUpdateSalesOrder, useSalesOrders, useDeleteSalesOrder } from '@/api/orders'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { EntryToolbar } from '@/components/common/EntryToolbar'
 
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -73,9 +75,23 @@ export default function SalesOrderDetail() {
 
   const { data: order, isLoading } = useSalesOrder(orderId)
   const updateOrder = useUpdateSalesOrder()
+  const deleteSO = useDeleteSalesOrder()
+
+  const { data: allOrdersData } = useSalesOrders()
+  const allOrders = allOrdersData?.results ?? []
+  const currentIndex = allOrders.findIndex(o => o.id === orderId)
+  const hasPrev = currentIndex > 0
+  const hasNext = currentIndex >= 0 && currentIndex < allOrders.length - 1
+  const handlePrev = () => {
+    if (hasPrev) navigate(`/orders/sales/${allOrders[currentIndex - 1].id}`)
+  }
+  const handleNext = () => {
+    if (hasNext) navigate(`/orders/sales/${allOrders[currentIndex + 1].id}`)
+  }
 
   const [isEditing, setIsEditing] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const { data: attachments } = useAttachments('orders', 'salesorder', orderId)
   const attachmentCount = attachments?.length ?? 0
   const [formData, setFormData] = useState({
@@ -259,6 +275,10 @@ export default function SalesOrderDetail() {
     setLinesFormData([])
   }
 
+  const handleDelete = () => {
+    setShowDeleteConfirm(true)
+  }
+
   const handleSaveAsCopy = () => {
     if (!order) return
     navigate('/orders/sales/new', {
@@ -417,8 +437,36 @@ export default function SalesOrderDetail() {
           <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{order.order_number}</span>
         </div>
 
+        {/* ── Entry Toolbar ───────────────────────── */}
+        <div className="mb-4 animate-in delay-1">
+          {isEditing ? (
+            <EntryToolbar
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onSave={handleSave}
+              isSaving={updateOrder.isPending}
+            />
+          ) : (
+            <EntryToolbar
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onDelete={order?.is_editable ? handleDelete : undefined}
+              onDuplicate={handleSaveAsCopy}
+              onPrint={() => window.print()}
+              onAttachments={() => setAttachmentsOpen(true)}
+              attachmentCount={attachmentCount}
+              onCreateInvoice={() => toast.info('Create Invoice coming soon')}
+              onCreatePO={() => toast.info('Create PO coming soon')}
+            />
+          )}
+        </div>
+
         {/* ── Title row ──────────────────────────── */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-2">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{order.order_number}</h1>
@@ -452,41 +500,16 @@ export default function SalesOrderDetail() {
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
             {isEditing ? (
-              <>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
-                  Cancel
-                </button>
-                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSave} disabled={updateOrder.isPending}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  {updateOrder.isPending ? 'Saving...' : 'Save Changes'}
-                </button>
-              </>
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
+                Cancel
+              </button>
             ) : (
-              <>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setAttachmentsOpen(true)}>
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Attach
-                  {attachmentCount > 0 && (
-                    <span className="ml-0.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold text-white" style={{ background: 'var(--so-accent)' }}>
-                      {attachmentCount}
-                    </span>
-                  )}
+              order.is_editable && (
+                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit Order
                 </button>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleSaveAsCopy}>
-                  <Copy className="h-3.5 w-3.5" />
-                  Duplicate
-                </button>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                  More
-                </button>
-                {order.is_editable && (
-                  <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    Edit Order
-                  </button>
-                )}
-              </>
+              )
             )}
           </div>
         </div>
@@ -878,6 +901,21 @@ export default function SalesOrderDetail() {
           </div>
         )}
       </div>
+
+      {/* ── Delete Confirm Dialog ─────────────────── */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Sales Order?"
+        description={`Are you sure you want to delete ${order?.order_number}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={async () => {
+          await deleteSO.mutateAsync(orderId)
+          navigate('/customers/open-orders')
+        }}
+        loading={deleteSO.isPending}
+      />
 
       {/* ── Attachments Dialog ────────────────────── */}
       <Dialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen}>

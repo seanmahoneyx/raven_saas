@@ -136,10 +136,10 @@ export default function Shipping() {
           </div>
           <div className="px-6 py-5">
             {activeTab === 'shipments' && (
-              <DataTable columns={shipmentColumns} data={shipmentsData?.results ?? []} searchColumn="shipment_number" searchPlaceholder="Search shipments..." />
+              <DataTable columns={shipmentColumns} data={shipmentsData?.results ?? []} searchColumn="shipment_number" searchPlaceholder="Search shipments..." storageKey="shipments" />
             )}
             {activeTab === 'bols' && (
-              <DataTable columns={bolColumns} data={bolsData?.results ?? []} searchColumn="bol_number" searchPlaceholder="Search BOLs..." />
+              <DataTable columns={bolColumns} data={bolsData?.results ?? []} searchColumn="bol_number" searchPlaceholder="Search BOLs..." storageKey="bols" />
             )}
           </div>
         </div>

@@ -150,6 +150,7 @@ export default function JournalEntries() {
               data={entriesData?.results ?? []}
               searchColumn="memo"
               searchPlaceholder="Search by memo..."
+              storageKey="journal-entries"
               onRowClick={(row) => navigate(`/journal-entries/${row.id}`)}
             />
           )}

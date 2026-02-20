@@ -449,6 +449,22 @@ export function useUpdateLocation() {
   })
 }
 
+export function useDeleteLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/locations/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['locations'] })
+      toast.success('Location deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(error?.response?.data?.detail || 'Failed to delete location')
+    },
+  })
+}
+
 // Trucks
 export function useTrucks() {
   return useQuery({

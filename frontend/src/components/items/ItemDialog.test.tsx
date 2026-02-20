@@ -44,6 +44,9 @@ vi.mock('@/api/items', () => ({
     data: null,
     isLoading: false,
   }),
+  useCorrugatedFeatures: () => ({
+    data: { results: [] },
+  }),
 }))
 
 vi.mock('@/api/parties', () => ({

@@ -281,6 +281,20 @@ class SalesOrder(BaseOrder):
         help_text="Customer's PO reference number"
     )
 
+    ORDER_CLASS_CHOICES = [
+        ('STANDARD', 'Standard'),
+        ('RUSH', 'Rush'),
+        ('BLANKET', 'Blanket'),
+        ('SAMPLE', 'Sample'),
+        ('INTERNAL', 'Internal'),
+    ]
+    order_class = models.CharField(
+        max_length=20,
+        choices=ORDER_CLASS_CHOICES,
+        default='STANDARD',
+        help_text="Order classification (e.g., Standard, Rush, Blanket)"
+    )
+
     # Estimate conversion link
     source_estimate = models.ForeignKey(
         'orders.Estimate',
