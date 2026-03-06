@@ -287,6 +287,7 @@ class SalesOrder(BaseOrder):
         ('BLANKET', 'Blanket'),
         ('SAMPLE', 'Sample'),
         ('INTERNAL', 'Internal'),
+        ('DIRECT', 'Direct'),
     ]
     order_class = models.CharField(
         max_length=20,

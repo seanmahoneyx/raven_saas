@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { apiClient } from '@/api/client'
+import { getApiErrorMessage } from '@/lib/errors'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -95,7 +96,7 @@ export default function DataImport() {
       setReport(data)
       setStep(commit && data.error_count === 0 ? 'done' : 'review')
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Import failed. Check your file format.'
+      const message = getApiErrorMessage(err, 'Import failed. Check your file format.')
       setReport({
         import_type: importType,
         mode: commit ? 'commit' : 'dry_run',

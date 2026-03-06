@@ -21,8 +21,9 @@ import {
   useContractLines,
   useAddContractLine,
   useCreateRelease,
+  useCreateMultiLineRelease,
 } from './contracts'
-import type { Contract, ContractLine, ContractRelease } from '@/types/api'
+import type { Contract, ContractLine, ContractRelease, SalesOrder } from '@/types/api'
 
 // Mock the API client
 vi.mock('./client', () => ({
@@ -56,6 +57,8 @@ const mockContract: Contract = {
   contract_number: '0001',
   blanket_po: 'PO-12345',
   status: 'draft',
+  contract_type: 'blanket',
+  source_estimate: null,
   customer: 1,
   customer_code: 'CUST001',
   customer_name: 'Test Customer',
@@ -80,6 +83,19 @@ const mockActiveContract: Contract = {
   id: 2,
   contract_number: '0002',
   status: 'active',
+  contract_type: 'blanket',
+  source_estimate: null,
+}
+
+const mockSalesOrder = {
+  id: 10,
+  order_number: 'SO-000010',
+  customer: 1,
+  customer_name: 'Test Customer',
+  status: 'confirmed',
+  order_class: 'STANDARD',
+  order_date: '2025-01-20',
+  lines: [],
 }
 
 const mockContractLine: ContractLine = {
@@ -466,6 +482,67 @@ describe('Contracts API Hooks', () => {
         quantity: 25,
         notes: 'Urgent delivery requested',
       })
+    })
+  })
+
+  describe('useCreateMultiLineRelease', () => {
+    it('creates a multi-line release', async () => {
+      vi.mocked(api.post).mockResolvedValue({ data: mockSalesOrder })
+
+      const { result } = renderHook(() => useCreateMultiLineRelease(), { wrapper: createWrapper() })
+
+      await result.current.mutateAsync({
+        lines: [
+          { contract_line_id: 1, quantity: 25 },
+          { contract_line_id: 2, quantity: 50 },
+        ],
+      })
+
+      expect(api.post).toHaveBeenCalledWith('/contracts/create_multi_line_release/', {
+        lines: [
+          { contract_line_id: 1, quantity: 25 },
+          { contract_line_id: 2, quantity: 50 },
+        ],
+      })
+    })
+
+    it('creates a multi-line release with optional fields', async () => {
+      vi.mocked(api.post).mockResolvedValue({ data: mockSalesOrder })
+
+      const { result } = renderHook(() => useCreateMultiLineRelease(), { wrapper: createWrapper() })
+
+      await result.current.mutateAsync({
+        lines: [
+          { contract_line_id: 1, quantity: 25, unit_price: '6.50' },
+        ],
+        ship_to_id: 1,
+        scheduled_date: '2025-02-01',
+        customer_po: 'PO-999',
+        notes: 'Rush order',
+      })
+
+      expect(api.post).toHaveBeenCalledWith('/contracts/create_multi_line_release/', {
+        lines: [
+          { contract_line_id: 1, quantity: 25, unit_price: '6.50' },
+        ],
+        ship_to_id: 1,
+        scheduled_date: '2025-02-01',
+        customer_po: 'PO-999',
+        notes: 'Rush order',
+      })
+    })
+
+    it('returns the created sales order', async () => {
+      vi.mocked(api.post).mockResolvedValue({ data: mockSalesOrder })
+
+      const { result } = renderHook(() => useCreateMultiLineRelease(), { wrapper: createWrapper() })
+
+      const response = await result.current.mutateAsync({
+        lines: [{ contract_line_id: 1, quantity: 25 }],
+      })
+
+      expect(response.id).toBe(10)
+      expect(response.order_number).toBe('SO-000010')
     })
   })
 })

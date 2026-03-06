@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { usePageTitle } from '@/hooks/usePageTitle'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -65,6 +64,9 @@ import ChartOfAccounts from '@/pages/ChartOfAccounts'
 import JournalEntries from '@/pages/JournalEntries'
 import CreateJournalEntry from '@/pages/CreateJournalEntry'
 import JournalEntryDetail from '@/pages/JournalEntryDetail'
+import CreateInvoice from '@/pages/CreateInvoice'
+import Pipeline from '@/pages/Pipeline'
+import ContactDetail from '@/pages/ContactDetail'
 import InvoiceDetail from '@/pages/InvoiceDetail'
 import Scanner from '@/pages/warehouse/Scanner'
 import CycleCounts from '@/pages/warehouse/CycleCounts'
@@ -102,18 +104,6 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>
-}
-
-// Placeholder pages
-function PlaceholderPage({ title }: { title: string }) {
-  usePageTitle(title)
-
-  return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold">{title}</h1>
-      <p className="text-muted-foreground mt-2">This page is under construction.</p>
-    </div>
-  )
 }
 
 function App() {
@@ -159,6 +149,8 @@ function App() {
                 <Route path="/vendors/:id" element={<VendorDetail />} />
                 <Route path="/contracts" element={<Contracts />} />
                 <Route path="/contracts/:id" element={<ContractDetail />} />
+                <Route path="/contacts/new" element={<ContactDetail />} />
+                <Route path="/contacts/:id" element={<ContactDetail />} />
                 <Route path="/items" element={<Items />} />
                 <Route path="/items/new" element={<CreateItem />} />
                 <Route path="/items/:id" element={<ItemDetail />} />
@@ -180,6 +172,7 @@ function App() {
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/shipping" element={<Shipping />} />
                 <Route path="/invoices" element={<Invoices />} />
+                <Route path="/invoices/new" element={<CreateInvoice />} />
                 <Route path="/invoices/:id" element={<InvoiceDetail />} />
                 <Route path="/receive-payment" element={<ReceivePayment />} />
                 <Route path="/reports" element={<ReportsDashboard />} />
@@ -211,6 +204,7 @@ function App() {
                 <Route path="/journal-entries" element={<JournalEntries />} />
                 <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
                 <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
+                <Route path="/pipeline" element={<Pipeline />} />
                 <Route path="*" element={
                   <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
                     <h1 className="text-4xl font-bold">404</h1>

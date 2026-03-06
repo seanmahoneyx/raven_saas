@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { PaginatedResponse, ApiError } from '@/types/api'
 
 export interface Shipment {
@@ -72,7 +73,7 @@ export function useCreateShipment() {
       toast.success('Shipment created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create shipment')
+      toast.error(getApiErrorMessage(error, 'Failed to create shipment'))
     },
   })
 }
@@ -89,7 +90,7 @@ export function useUpdateShipment() {
       toast.success('Shipment updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update shipment')
+      toast.error(getApiErrorMessage(error, 'Failed to update shipment'))
     },
   })
 }
@@ -128,7 +129,7 @@ export function useCreateBillOfLading() {
       toast.success('Bill of lading created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create bill of lading')
+      toast.error(getApiErrorMessage(error, 'Failed to create bill of lading'))
     },
   })
 }
@@ -145,7 +146,7 @@ export function useUpdateBillOfLading() {
       toast.success('Bill of lading updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update bill of lading')
+      toast.error(getApiErrorMessage(error, 'Failed to update bill of lading'))
     },
   })
 }

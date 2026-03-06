@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { CalendarOrder, TruckCalendar, Truck, HistoryRecord, DeliveryRun, SchedulerNote, NoteColor, ApiError } from '@/types/api'
 
 // Polling interval as fallback when WebSocket is unavailable (30 seconds)
@@ -90,7 +91,7 @@ export function useCreateDeliveryRun() {
       toast.success('Delivery run created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create delivery run')
+      toast.error(getApiErrorMessage(error, 'Failed to create delivery run'))
     },
   })
 }
@@ -129,7 +130,7 @@ export function useUpdateDeliveryRun() {
       toast.success('Delivery run updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update delivery run')
+      toast.error(getApiErrorMessage(error, 'Failed to update delivery run'))
     },
   })
 }
@@ -147,7 +148,7 @@ export function useDeleteDeliveryRun() {
       toast.success('Delivery run deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete delivery run')
+      toast.error(getApiErrorMessage(error, 'Failed to delete delivery run'))
     },
   })
 }
@@ -192,7 +193,7 @@ export function useUpdateSchedule() {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update schedule')
+      toast.error(getApiErrorMessage(error, 'Failed to update schedule'))
     },
   })
 }
@@ -240,7 +241,7 @@ export function useBatchUpdateSchedule() {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update schedule')
+      toast.error(getApiErrorMessage(error, 'Failed to update schedule'))
     },
   })
 }
@@ -266,7 +267,7 @@ export function useUpdateStatus() {
       toast.success('Status updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update status')
+      toast.error(getApiErrorMessage(error, 'Failed to update status'))
     },
   })
 }
@@ -291,7 +292,7 @@ export function useUpdateNotes() {
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save notes')
+      toast.error(getApiErrorMessage(error, 'Failed to save notes'))
     },
   })
 }
@@ -363,7 +364,7 @@ export function useCreateNote() {
       toast.success('Note created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create note')
+      toast.error(getApiErrorMessage(error, 'Failed to create note'))
     },
   })
 }
@@ -397,7 +398,7 @@ export function useUpdateNote() {
       queryClient.invalidateQueries({ queryKey: ['calendar', 'notes'] })
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update note')
+      toast.error(getApiErrorMessage(error, 'Failed to update note'))
     },
   })
 }
@@ -415,7 +416,7 @@ export function useDeleteNote() {
       toast.success('Note deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete note')
+      toast.error(getApiErrorMessage(error, 'Failed to delete note'))
     },
   })
 }
@@ -437,7 +438,7 @@ export function useCreateShipmentFromRun() {
       toast.success('Shipment created from delivery run')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create shipment')
+      toast.error(getApiErrorMessage(error, 'Failed to create shipment'))
     },
   })
 }

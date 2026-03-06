@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Paperclip, Plus, Trash2, Clock,
-  ArrowRightLeft, FileText,
+  ArrowLeft, Paperclip, Plus, Trash2,
+  ArrowRightLeft, FileText, ChevronDown,
 } from 'lucide-react'
-import FileUpload from '@/components/common/FileUpload'
 import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
 import {
@@ -17,13 +17,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useEstimate, useUpdateEstimate, useConvertEstimate } from '@/api/estimates'
+import { useEstimate, useUpdateEstimate, useConvertEstimateToContract } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import type { EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 const ESTIMATE_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -31,33 +32,6 @@ const ESTIMATE_STATUSES = [
   { value: 'accepted', label: 'Accepted' },
   { value: 'rejected', label: 'Rejected' },
 ]
-
-/* ── Status badge helper ─────────────────────────────── */
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-    converted: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-  }
-  const c = configs[status] || configs.draft
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-/* ── Shared button styles ────────────────────────────── */
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 interface LineForm {
   id?: number
@@ -77,10 +51,10 @@ export default function EstimateDetail() {
 
   const { data: estimate, isLoading } = useEstimate(estimateId)
   const updateEstimate = useUpdateEstimate()
-  const convertEstimate = useConvertEstimate()
+  const convertToContract = useConvertEstimateToContract()
 
   const [isEditing, setIsEditing] = useState(false)
-  const [convertDialogOpen, setConvertDialogOpen] = useState(false)
+  const [convertMenuOpen, setConvertMenuOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const { data: attachments } = useAttachments('estimates', 'estimate', estimateId)
   const attachmentCount = attachments?.length ?? 0
@@ -221,15 +195,40 @@ export default function EstimateDetail() {
     setLines([])
   }
 
-  const handleConfirmConvert = async () => {
+  const handleConvertToContract = async () => {
     if (!estimate) return
     try {
-      await convertEstimate.mutateAsync(estimate.id)
-      toast.success('Estimate converted to Sales Order')
-      setConvertDialogOpen(false)
-    } catch (error) {
-      toast.error('Failed to convert estimate')
+      const contract = await convertToContract.mutateAsync(estimate.id)
+      toast.success('Estimate converted to contract')
+      navigate(`/contracts/${(contract as any).id}`)
+    } catch {
+      // error toast handled by hook
     }
+  }
+
+  const handleConvertToSO = () => {
+    if (!estimate) return
+    navigate('/orders/sales/new', {
+      state: {
+        fromEstimate: {
+          id: estimate.id,
+          estimate_number: estimate.estimate_number,
+          customer: String(estimate.customer),
+          customer_po: estimate.customer_po || '',
+          ship_to: estimate.ship_to ? String(estimate.ship_to) : '',
+          bill_to: estimate.bill_to ? String(estimate.bill_to) : '',
+          notes: estimate.notes || '',
+          lines: (estimate.lines ?? []).map((line) => ({
+            item: String(line.item),
+            quantity_ordered: String(line.quantity),
+            uom: String(line.uom),
+            unit_price: line.unit_price,
+            notes: line.notes || '',
+            contract: '',
+          })),
+        },
+      },
+    })
   }
 
   /* ── Loading / Not Found ───────────────────────── */
@@ -476,10 +475,47 @@ export default function EstimateDetail() {
             ) : (
               <>
                 {estimate.is_convertible && (
-                  <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setConvertDialogOpen(true)}>
-                    <ArrowRightLeft className="h-3.5 w-3.5" />
-                    Convert to SO
-                  </button>
+                  <div className="relative">
+                    <button
+                      className={outlineBtnClass}
+                      style={outlineBtnStyle}
+                      onClick={() => setConvertMenuOpen(!convertMenuOpen)}
+                      onBlur={() => setTimeout(() => setConvertMenuOpen(false), 150)}
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      Convert
+                      <ChevronDown className="h-3 w-3 ml-0.5" />
+                    </button>
+                    {convertMenuOpen && (
+                      <div
+                        className="absolute right-0 top-full mt-1 w-56 rounded-lg border shadow-lg z-50 py-1"
+                        style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+                      >
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer flex items-center gap-2"
+                          style={{ color: 'var(--so-text-primary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          onMouseDown={handleConvertToContract}
+                        >
+                          <FileText className="h-3.5 w-3.5" style={{ color: 'var(--so-text-tertiary)' }} />
+                          Blanket Contract
+                          <span className="ml-auto text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Multi-release</span>
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer flex items-center gap-2"
+                          style={{ color: 'var(--so-text-primary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          onMouseDown={handleConvertToSO}
+                        >
+                          <ArrowRightLeft className="h-3.5 w-3.5" style={{ color: 'var(--so-text-tertiary)' }} />
+                          Direct Order
+                          <span className="ml-auto text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>One-off</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setAttachmentsOpen(true)}>
                   <Paperclip className="h-3.5 w-3.5" />
@@ -595,18 +631,29 @@ export default function EstimateDetail() {
             </div>
           ) : null}
 
-          {/* Converted order reference */}
-          {!isEditing && estimate.converted_order_number && (
+          {/* Converted reference */}
+          {!isEditing && (estimate.converted_order_number || (estimate as any).converted_contract_number) && (
             <div
               className="flex items-center gap-2 px-5 py-3"
               style={{ borderTop: '1px solid var(--so-border-light)', background: 'var(--so-accent-light)' }}
             >
-              <span
-                className="font-mono text-xs px-2 py-0.5 rounded"
-                style={{ border: '1px solid var(--so-border)', color: 'var(--so-accent)' }}
-              >
-                Converted to: {estimate.converted_order_number}
-              </span>
+              {estimate.converted_order_number && (
+                <span
+                  className="font-mono text-xs px-2 py-0.5 rounded"
+                  style={{ border: '1px solid var(--so-border)', color: 'var(--so-accent)' }}
+                >
+                  Converted to: {estimate.converted_order_number}
+                </span>
+              )}
+              {(estimate as any).converted_contract_number && (
+                <button
+                  className="font-mono text-xs px-2 py-0.5 rounded cursor-pointer transition-colors"
+                  style={{ border: '1px solid var(--so-border)', color: 'var(--so-accent)' }}
+                  onClick={() => navigate(`/contracts/${(estimate as any).converted_contract_id}`)}
+                >
+                  Converted to: {(estimate as any).converted_contract_number}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -853,64 +900,16 @@ export default function EstimateDetail() {
           )}
         </div>
 
-        {/* ── Two-column: Attachments + Activity ── */}
         {!isEditing && (
-          <div className="grid grid-cols-2 gap-4 mt-4 animate-in delay-4">
-            {/* Attachments Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Attachments</span>
-                {attachmentCount > 0 && (
-                  <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{attachmentCount} {attachmentCount === 1 ? 'file' : 'files'}</span>
-                )}
-              </div>
-              <button
-                onClick={() => setAttachmentsOpen(true)}
-                className="w-full text-center py-8 px-6 transition-colors cursor-pointer"
-                style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Paperclip className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                {attachmentCount > 0 ? `${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}` : 'No attachments yet'}
-              </button>
-            </div>
-
-            {/* Activity Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Activity</span>
-              </div>
-              <div className="text-center py-8 px-6" style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}>
-                <Clock className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                No activity recorded
-              </div>
-            </div>
-          </div>
+          <AttachmentsActivityFooter
+            attachmentCount={attachmentCount}
+            onAttachmentsOpen={() => setAttachmentsOpen(true)}
+          />
         )}
       </div>
 
-      {/* ── Attachments Dialog ────────────────────── */}
-      <Dialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Attachments</DialogTitle>
-          </DialogHeader>
-          <FileUpload appLabel="estimates" modelName="estimate" objectId={estimateId} />
-        </DialogContent>
-      </Dialog>
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="estimates" modelName="estimate" objectId={estimateId} />
 
-      {/* ── Convert Confirm Dialog ────────────────── */}
-      <ConfirmDialog
-        open={convertDialogOpen}
-        onOpenChange={setConvertDialogOpen}
-        title="Convert to Sales Order"
-        description="Convert this estimate to a Sales Order? This action cannot be undone."
-        confirmLabel="Convert"
-        variant="default"
-        onConfirm={handleConfirmConvert}
-        loading={convertEstimate.isPending}
-      />
     </div>
   )
 }

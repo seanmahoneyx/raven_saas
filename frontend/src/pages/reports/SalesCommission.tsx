@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useSalesCommissionReport } from '@/api/reports'
+import type { SalesCommissionRep } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
@@ -42,13 +45,38 @@ export default function SalesCommission() {
 
   const { data, isLoading } = useSalesCommissionReport(params)
 
+  const handleExportCsv = () => {
+    if (!data || data.by_rep.length === 0) return
+    const headers = ['Sales Rep', 'Invoices', 'Total Invoiced', 'Total Paid', 'Rate %', 'Commission']
+    const rows = data.by_rep.map((r: SalesCommissionRep) => [
+      r.rep_name, String(r.invoice_count), String(r.total_invoiced),
+      String(r.total_paid), parseFloat(r.commission_rate).toFixed(1), String(r.commission_earned),
+    ])
+    const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `sales-commission-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Reports
-        </Button>
-        <h1 className="text-2xl font-bold">Sales Commission</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Reports
+          </Button>
+          <h1 className="text-2xl font-bold">Sales Commission</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

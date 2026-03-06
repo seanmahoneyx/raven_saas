@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 import api from '@/api/client'
 
 interface CycleCountLine {
@@ -141,7 +142,7 @@ export default function CycleCounts() {
       refetchDetail()
       toast.success('Count started - quantities snapshotted')
     },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to start'),
+    onError: (err: any) => toast.error(getApiErrorMessage(err, 'Failed to start')),
   })
 
   const recordLine = useMutation({
@@ -156,7 +157,7 @@ export default function CycleCounts() {
       refetchDetail()
       queryClient.invalidateQueries({ queryKey: ['cycle-counts'] })
     },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to record'),
+    onError: (err: any) => toast.error(getApiErrorMessage(err, 'Failed to record')),
   })
 
   const finalizeCount = useMutation({
@@ -169,7 +170,7 @@ export default function CycleCounts() {
       refetchDetail()
       toast.success('Count finalized - adjustments applied')
     },
-    onError: (err: any) => toast.error(err?.response?.data?.detail || 'Failed to finalize'),
+    onError: (err: any) => toast.error(getApiErrorMessage(err, 'Failed to finalize')),
   })
 
   const columns: ColumnDef<CycleCount>[] = useMemo(() => [

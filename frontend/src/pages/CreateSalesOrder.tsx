@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, FileText, AlertTriangle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -14,7 +14,10 @@ import {
 } from '@/components/ui/select'
 import { useCreateSalesOrder } from '@/api/orders'
 import { useCustomers, useLocations } from '@/api/parties'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
+import api from '@/api/client'
+import type { SimilarItemsResponse } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { SalesOrderClass } from '@/types/api'
@@ -35,6 +38,7 @@ const ORDER_CLASSES: { value: SalesOrderClass; label: string }[] = [
   { value: 'BLANKET', label: 'Blanket' },
   { value: 'SAMPLE', label: 'Sample' },
   { value: 'INTERNAL', label: 'Internal' },
+  { value: 'DIRECT', label: 'Direct' },
 ]
 
 const EMPTY_LINE = { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '' }
@@ -44,11 +48,6 @@ const INITIAL_EMPTY_ROWS = 5
 
 /** Column indices for keyboard navigation */
 const COL_COUNT = 6 // item, qty, uom, rate, notes, (contract is conditional but skip it for tab)
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
 const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
@@ -60,8 +59,10 @@ const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
 export default function CreateSalesOrder() {
   const navigate = useNavigate()
   const location = useLocation()
-  const copyData = (location.state as any)?.copyFrom
-  usePageTitle(copyData ? 'Copy Sales Order' : 'New Sales Order')
+  const fromEstimate = (location.state as any)?.fromEstimate
+  const copyData = fromEstimate || (location.state as any)?.copyFrom
+  const sourceEstimateId = fromEstimate?.id as number | undefined
+  usePageTitle(fromEstimate ? 'Convert Estimate to Sales Order' : copyData ? 'Copy Sales Order' : 'New Sales Order')
   const createOrder = useCreateSalesOrder()
 
   const { data: customersData } = useCustomers()
@@ -71,6 +72,7 @@ export default function CreateSalesOrder() {
 
   const [error, setError] = useState('')
   const [priceLookupLine, setPriceLookupLine] = useState<number | null>(null)
+  const [similarWarnings, setSimilarWarnings] = useState<Record<number, SimilarItemsResponse>>({})
   const [showDraftConfirm, setShowDraftConfirm] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -83,7 +85,7 @@ export default function CreateSalesOrder() {
     ship_to: copyData?.ship_to || '',
     bill_to: copyData?.bill_to || '',
     notes: copyData?.notes || '',
-    order_class: (copyData?.order_class as SalesOrderClass) || 'STANDARD',
+    order_class: (fromEstimate ? 'DIRECT' : copyData?.order_class as SalesOrderClass) || 'STANDARD',
   })
 
   const buildInitialLines = () => {
@@ -251,6 +253,18 @@ export default function CreateSalesOrder() {
     if (value && formData.customer && !bestContract) {
       setPriceLookupLine(index)
     }
+    // Fire-and-forget similar items lookup
+    if (value) {
+      api.get<SimilarItemsResponse>(`/items/${value}/similar/`).then(({ data }) => {
+        if (data.exact_matches.length > 0 || data.close_matches.length > 0) {
+          setSimilarWarnings(prev => ({ ...prev, [index]: data }))
+        } else {
+          setSimilarWarnings(prev => { const next = { ...prev }; delete next[index]; return next })
+        }
+      }).catch(() => {})
+    } else {
+      setSimilarWarnings(prev => { const next = { ...prev }; delete next[index]; return next })
+    }
   }
 
   const handleLineQtyChange = (index: number, value: string) => {
@@ -320,6 +334,7 @@ export default function CreateSalesOrder() {
       notes: formData.notes || '',
       order_class: formData.order_class,
       priority: 5,
+      ...(sourceEstimateId ? { source_estimate: sourceEstimateId } : {}),
       lines: filledLines.map((line, idx) => ({
         line_number: idx + 1,
         item: Number(line.item),
@@ -330,8 +345,12 @@ export default function CreateSalesOrder() {
     }
 
     try {
-      await createOrder.mutateAsync(payload as any)
-      navigate('/customers/open-orders')
+      const newOrder = await createOrder.mutateAsync(payload as any)
+      if (sourceEstimateId) {
+        navigate(`/orders/sales/${(newOrder as any).id}`)
+      } else {
+        navigate('/customers/open-orders')
+      }
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {
@@ -374,7 +393,7 @@ export default function CreateSalesOrder() {
           </button>
           <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
           <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
-            {copyData ? 'Copy Sales Order' : 'New Sales Order'}
+            {fromEstimate ? 'Convert Estimate' : copyData ? 'Copy Sales Order' : 'New Sales Order'}
           </span>
         </div>
 
@@ -382,7 +401,7 @@ export default function CreateSalesOrder() {
         <div className="flex items-center justify-between mb-7 animate-in delay-1">
           <div>
             <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
-              {copyData ? 'Copy Sales Order' : 'New Sales Order'}
+              {fromEstimate ? 'Convert Estimate to Sales Order' : copyData ? 'Copy Sales Order' : 'New Sales Order'}
             </h1>
             <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
               {selectedCustomer ? selectedCustomer.party_display_name : 'Fill in order details below'}
@@ -406,6 +425,27 @@ export default function CreateSalesOrder() {
         </div>
 
         <form id="create-so-form" onSubmit={onSubmit}>
+          {/* Estimate conversion banner */}
+          {fromEstimate && (
+            <div
+              className="rounded-md p-3 mb-4 text-sm flex items-center gap-2 animate-in"
+              style={{ background: 'var(--so-accent-light)', border: '1px solid var(--so-accent)', color: 'var(--so-text-primary)' }}
+            >
+              <FileText className="h-4 w-4 shrink-0" style={{ color: 'var(--so-accent)' }} />
+              <span>
+                Converting from Estimate{' '}
+                <Link
+                  to={`/estimates/${fromEstimate.id}`}
+                  className="font-semibold underline"
+                  style={{ color: 'var(--so-accent)' }}
+                >
+                  {fromEstimate.estimate_number}
+                </Link>
+                {' '}&mdash; review and edit fields below, then save to create the Sales Order.
+              </span>
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div
@@ -653,9 +693,10 @@ export default function CreateSalesOrder() {
                     const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_price) || 0)
                     const isEmpty = !lineHasData(line)
 
+                    const warning = similarWarnings[index]
                     return (
+                      <React.Fragment key={index}>
                       <tr
-                        key={index}
                         style={{
                           borderBottom: '1px solid var(--so-border-light)',
                           opacity: isEmpty ? 0.5 : 1,
@@ -821,6 +862,29 @@ export default function CreateSalesOrder() {
                           )}
                         </td>
                       </tr>
+                      {warning && (
+                        <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                          <td colSpan={9} className="px-6 py-2">
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              <span className="font-medium">
+                                {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
+                              </span>
+                              <span className="mx-1">·</span>
+                              <a
+                                href={`/items/${line.item}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline font-medium"
+                                style={{ color: 'var(--so-warning-text)' }}
+                              >
+                                View similar items
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     )
                   })}
                 </tbody>

@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play, Printer, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -23,36 +25,11 @@ import { ContractDialog } from '@/components/contracts/ContractDialog'
 import type { Contract, ContractStatus } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    partial:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    paid:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    overdue:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    void:      { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    expired:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    confirmed: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    applied:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    pending:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { useSettings } from '@/api/settings'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 
 const statusLabels: Record<ContractStatus, string> = {
   draft: 'Draft',
@@ -84,6 +61,11 @@ export default function Contracts() {
       setSearchParams(searchParams, { replace: true })
     }
   }, [searchParams, setSearchParams])
+
+  const { data: settingsData } = useSettings()
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
 
   const { data: contractsData, isLoading } = useContracts()
   const deleteContract = useDeleteContract()
@@ -129,11 +111,39 @@ export default function Contracts() {
     }
   }
 
+  const [activeTab, setActiveTab] = useState<'all' | 'blanket' | 'direct'>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   // KPI stats
   const contracts = contractsData?.results ?? []
-  const activeCount = contracts.filter((c) => c.status === 'active').length
-  const draftCount = contracts.filter((c) => c.status === 'draft').length
-  const totalCommitted = contracts.reduce((sum, c) => sum + (c.total_committed_qty ?? 0), 0)
+  const tabContracts = activeTab === 'all' ? contracts : contracts.filter(c => c.contract_type === activeTab)
+
+  const customerOptions = useMemo(() => {
+    const names = new Set(tabContracts.map(c => c.customer_name).filter(Boolean))
+    return Array.from(names).sort()
+  }, [tabContracts])
+
+  const filteredContracts = useMemo(() => {
+    return tabContracts.filter(c => {
+      if (searchTerm && !c.contract_number.toLowerCase().includes(searchTerm.toLowerCase()) &&
+          !(c.blanket_po || '').toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false
+      }
+      if (selectedCustomer !== 'all' && c.customer_name !== selectedCustomer) return false
+      if (selectedStatus !== 'all' && c.status !== selectedStatus) return false
+      if (dateFrom && c.issue_date < dateFrom) return false
+      if (dateTo && c.issue_date > dateTo) return false
+      return true
+    })
+  }, [tabContracts, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
+
+  const activeCount = filteredContracts.filter((c) => c.status === 'active').length
+  const draftCount = filteredContracts.filter((c) => c.status === 'draft').length
+  const totalCommitted = filteredContracts.reduce((sum, c) => sum + (c.total_committed_qty ?? 0), 0)
 
   const columns: ColumnDef<Contract>[] = useMemo(
     () => [
@@ -164,6 +174,26 @@ export default function Contracts() {
           <span style={{ color: 'var(--so-text-tertiary)' }}>{row.getValue('blanket_po') || '-'}</span>
         ),
       },
+      ...(activeTab === 'all' ? [{
+        accessorKey: 'contract_type' as const,
+        header: 'Type',
+        cell: ({ row }: { row: { getValue: (key: string) => unknown } }) => {
+          const type = row.getValue('contract_type') as string
+          return (
+            <span
+              className="text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{
+                background: type === 'blanket' ? 'var(--so-accent-subtle)' : 'var(--so-surface-raised)',
+                color: type === 'blanket' ? 'var(--so-accent)' : 'var(--so-text-secondary)',
+                border: '1px solid',
+                borderColor: type === 'blanket' ? 'var(--so-accent-border, var(--so-accent))' : 'var(--so-border)',
+              }}
+            >
+              {type === 'blanket' ? 'Blanket' : 'Direct'}
+            </span>
+          )
+        },
+      }] : []),
       {
         accessorKey: 'status',
         header: 'Status',
@@ -300,8 +330,69 @@ export default function Contracts() {
         },
       },
     ],
-    [deleteContract, activateContract, cancelContract, completeContract, navigate]
+    [deleteContract, activateContract, cancelContract, completeContract, navigate, activeTab]
   )
+
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'Contracts',
+    columns: [
+      { key: 'contract_number', header: 'Contract #' },
+      { key: 'customer_name', header: 'Customer' },
+      { key: 'issue_date', header: 'Start' },
+      { key: 'expiration_date', header: 'End' },
+      { key: 'status', header: 'Status' },
+      { key: 'total_committed_qty', header: 'Value' },
+    ],
+    rowFilters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'active', label: 'Active' },
+          { value: 'expired', label: 'Expired' },
+          { value: 'draft', label: 'Draft' },
+          { value: 'cancelled', label: 'Cancelled' },
+        ],
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows = contracts
+    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+      rows = rows.filter(r => r.status === filters.rowFilters.status)
+    }
+    if (rows.length === 0) return
+
+    const allCols = reportFilterConfig.columns
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `contracts-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredData = useMemo(() => {
+    let rows = contracts
+    if (printFilters) {
+      if (printFilters.rowFilters.status && printFilters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === printFilters.rowFilters.status)
+      }
+    }
+    return rows
+  }, [contracts, printFilters])
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -312,13 +403,34 @@ export default function Contracts() {
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Contracts</h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage blanket orders and customer commitments
+              Manage contracts and customer commitments
             </p>
           </div>
-          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-            <Plus className="h-3.5 w-3.5" />
-            New Contract
-          </button>
+          <div className="flex items-center gap-2">
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              New Contract
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Bar */}
+        <div className="mb-6 animate-in">
+          <FolderTabs
+            tabs={[
+              { id: 'all', label: 'All Contracts' },
+              { id: 'blanket', label: 'Blanket' },
+              { id: 'direct', label: 'Direct' },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as 'all' | 'blanket' | 'direct')}
+          />
         </div>
 
         {/* KPI Summary Cards */}
@@ -330,7 +442,7 @@ export default function Contracts() {
                 Total Contracts
               </div>
               <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
-                {contracts.length}
+                {filteredContracts.length}
               </div>
             </div>
             <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
@@ -360,13 +472,86 @@ export default function Contracts() {
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="mb-5 animate-in delay-2">
+          <div className="py-3">
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search</label>
+                <Input
+                  placeholder="Contract # or PO..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer</label>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All customers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All customers</SelectItem>
+                    {customerOptions.map(customer => (
+                      <SelectItem key={customer} value={customer}>
+                        {customer}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Status</label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {Object.entries(statusLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* DataTable Card */}
-        <div className="rounded-[14px] overflow-hidden animate-in delay-2"
+        <div className="rounded-[14px] overflow-hidden animate-in delay-3"
           style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
           <div className="px-6 py-4 flex items-center gap-2"
             style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
             <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
-            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>All Contracts</span>
+            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {activeTab === 'all' ? 'All Contracts' : activeTab === 'blanket' ? 'Blanket Contracts' : 'Direct Contracts'}
+            </span>
           </div>
           <div className="p-4">
             {isLoading ? (
@@ -375,9 +560,7 @@ export default function Contracts() {
               <DataTable
                 storageKey="contracts"
                 columns={columns}
-                data={contractsData?.results ?? []}
-                searchColumn="customer_name"
-                searchPlaceholder="Search by customer..."
+                data={filteredContracts}
                 onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
               />
             )}
@@ -421,6 +604,62 @@ export default function Contracts() {
         onConfirm={handleConfirmCancel}
         loading={cancelContract.isPending}
       />
+
+      {/* Print-only section */}
+      <div className="print-only" style={{ color: 'black' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '16px', borderBottom: '3px solid #333' }}>
+          <div>
+            <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '-0.5px' }}>{settingsData?.company_name || 'Company'}</div>
+            {settingsData?.company_address && <div style={{ fontSize: '9pt', color: '#555', whiteSpace: 'pre-line', marginTop: '4px' }}>{settingsData.company_address}</div>}
+            {(settingsData?.company_phone || settingsData?.company_email) && (
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>{[settingsData?.company_phone, settingsData?.company_email].filter(Boolean).join(' | ')}</div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '18pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px' }}>Contracts</div>
+            <div style={{ fontSize: '10pt', color: '#555', marginTop: '4px' }}>{printFilters?.dateRangeLabel || ''}</div>
+            <div style={{ fontSize: '9pt', color: '#555', marginTop: '4px', padding: '2px 10px', border: '1px solid #999', display: 'inline-block' }}>{printFilteredData.length} contracts</div>
+          </div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+          <thead>
+            <tr>
+              {[
+                { key: 'contract_number', label: 'Contract #' },
+                { key: 'customer_name', label: 'Customer' },
+                { key: 'issue_date', label: 'Start' },
+                { key: 'expiration_date', label: 'End' },
+                { key: 'status', label: 'Status' },
+                { key: 'total_committed_qty', label: 'Value' },
+              ].filter(h => !printFilters || printFilters.visibleColumns.includes(h.key)).map(h => (
+                <th key={h.key} style={{ padding: '5px 6px', border: '1px solid #ccc', background: '#f5f5f5', fontWeight: 600, textAlign: 'left' }}>{h.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {printFilteredData.map(row => {
+              const showCol = (key: string) => !printFilters || printFilters.visibleColumns.includes(key)
+              return (
+                <tr key={row.id}>
+                  {showCol('contract_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace' }}>CTR-{row.contract_number}</td>}
+                  {showCol('customer_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.customer_name}</td>}
+                  {showCol('issue_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.issue_date ? new Date(row.issue_date).toLocaleDateString() : '\u2014'}</td>}
+                  {showCol('expiration_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.expiration_date ? new Date(row.expiration_date).toLocaleDateString() : '\u2014'}</td>}
+                  {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.status}</td>}
+                  {showCol('total_committed_qty') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.total_committed_qty?.toLocaleString() || 0}</td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: '40px', paddingTop: '12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', fontSize: '8pt', color: '#999' }}>
+          <span>Printed {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
+          <span>{settingsData?.company_name || ''}</span>
+        </div>
+      </div>
+
+      <ReportFilterModal open={printFilterOpen} onOpenChange={setPrintFilterOpen} config={reportFilterConfig} mode="print" onConfirm={handleFilteredPrint} />
+      <ReportFilterModal open={exportFilterOpen} onOpenChange={setExportFilterOpen} config={reportFilterConfig} mode="export" onConfirm={handleFilteredExport} />
     </div>
   )
 }

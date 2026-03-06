@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse, TimelineEvent, CustomerAttachment, ApiError } from '@/types/api'
 
 // Parties
@@ -37,7 +38,7 @@ export function useCreateParty() {
       toast.success('Party created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create party')
+      toast.error(getApiErrorMessage(error, 'Failed to create party'))
     },
   })
 }
@@ -54,7 +55,7 @@ export function useUpdateParty() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -70,7 +71,7 @@ export function useDeleteParty() {
       toast.success('Deleted successfully')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete')
+      toast.error(getApiErrorMessage(error, 'Failed to delete'))
     },
   })
 }
@@ -110,7 +111,7 @@ export function useCreateCustomer() {
       toast.success('Customer created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create customer')
+      toast.error(getApiErrorMessage(error, 'Failed to create customer'))
     },
   })
 }
@@ -128,7 +129,7 @@ export function useUpdateCustomer() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -145,7 +146,7 @@ export function useDeleteCustomer() {
       toast.success('Customer deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete customer')
+      toast.error(getApiErrorMessage(error, 'Failed to delete customer'))
     },
   })
 }
@@ -163,7 +164,7 @@ export function useDuplicateCustomer() {
       toast.success('Customer duplicated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to duplicate customer')
+      toast.error(getApiErrorMessage(error, 'Failed to duplicate customer'))
     },
   })
 }
@@ -218,7 +219,7 @@ export function useUploadCustomerAttachment() {
       toast.success('File uploaded')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to upload file')
+      toast.error(getApiErrorMessage(error, 'Failed to upload file'))
     },
   })
 }
@@ -234,7 +235,7 @@ export function useDeleteCustomerAttachment() {
       toast.success('File deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete file')
+      toast.error(getApiErrorMessage(error, 'Failed to delete file'))
     },
   })
 }
@@ -274,7 +275,7 @@ export function useCreateVendor() {
       toast.success('Vendor created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create vendor')
+      toast.error(getApiErrorMessage(error, 'Failed to create vendor'))
     },
   })
 }
@@ -292,7 +293,7 @@ export function useUpdateVendor() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -309,7 +310,7 @@ export function useDeleteVendor() {
       toast.success('Vendor deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete vendor')
+      toast.error(getApiErrorMessage(error, 'Failed to delete vendor'))
     },
   })
 }
@@ -327,7 +328,7 @@ export function useDuplicateVendor() {
       toast.success('Vendor duplicated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to duplicate vendor')
+      toast.error(getApiErrorMessage(error, 'Failed to duplicate vendor'))
     },
   })
 }
@@ -382,7 +383,7 @@ export function useUploadVendorAttachment() {
       toast.success('File uploaded')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to upload file')
+      toast.error(getApiErrorMessage(error, 'Failed to upload file'))
     },
   })
 }
@@ -398,7 +399,7 @@ export function useDeleteVendorAttachment() {
       toast.success('File deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete file')
+      toast.error(getApiErrorMessage(error, 'Failed to delete file'))
     },
   })
 }
@@ -427,7 +428,7 @@ export function useCreateLocation() {
       toast.success('Location created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create location')
+      toast.error(getApiErrorMessage(error, 'Failed to create location'))
     },
   })
 }
@@ -444,7 +445,7 @@ export function useUpdateLocation() {
       toast.success('Location updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update location')
+      toast.error(getApiErrorMessage(error, 'Failed to update location'))
     },
   })
 }
@@ -460,7 +461,7 @@ export function useDeleteLocation() {
       toast.success('Location deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete location')
+      toast.error(getApiErrorMessage(error, 'Failed to delete location'))
     },
   })
 }
@@ -489,7 +490,7 @@ export function useCreateTruck() {
       toast.success('Truck created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create truck')
+      toast.error(getApiErrorMessage(error, 'Failed to create truck'))
     },
   })
 }
@@ -507,7 +508,7 @@ export function useUpdateTruck() {
       toast.success('Truck updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update truck')
+      toast.error(getApiErrorMessage(error, 'Failed to update truck'))
     },
   })
 }
@@ -524,7 +525,7 @@ export function useDeleteTruck() {
       toast.success('Truck deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete truck')
+      toast.error(getApiErrorMessage(error, 'Failed to delete truck'))
     },
   })
 }

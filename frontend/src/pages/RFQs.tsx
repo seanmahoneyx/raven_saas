@@ -2,8 +2,10 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Trash2, FileText } from 'lucide-react'
+import { Plus, MoreHorizontal, Trash2, FileText, Printer, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -17,33 +19,11 @@ import type { RFQ, RFQStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { useSettings } from '@/api/settings'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    converted: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function RFQs() {
   usePageTitle('RFQs')
@@ -52,8 +32,18 @@ export default function RFQs() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRFQ, setDeletingRFQ] = useState<RFQ | null>(null)
 
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedVendor, setSelectedVendor] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   const { data: rfqsData } = useRFQs()
   const deleteRFQ = useDeleteRFQ()
+  const { data: settingsData } = useSettings()
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
 
   const handleDeleteClick = (rfq: RFQ) => {
     setDeletingRFQ(rfq)
@@ -147,6 +137,32 @@ export default function RFQs() {
 
   const rfqs = rfqsData?.results ?? []
 
+  const vendorOptions = useMemo(() => {
+    const names = new Set(rfqs.map(r => r.vendor_name).filter(Boolean))
+    return Array.from(names).sort()
+  }, [rfqs])
+
+  const filteredRFQs = useMemo(() => {
+    return rfqs.filter(rfq => {
+      if (searchTerm && !rfq.rfq_number.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false
+      }
+      if (selectedVendor !== 'all' && rfq.vendor_name !== selectedVendor) {
+        return false
+      }
+      if (selectedStatus !== 'all' && rfq.status !== selectedStatus) {
+        return false
+      }
+      if (dateFrom && rfq.date < dateFrom) {
+        return false
+      }
+      if (dateTo && rfq.date > dateTo) {
+        return false
+      }
+      return true
+    })
+  }, [rfqs, searchTerm, selectedVendor, selectedStatus, dateFrom, dateTo])
+
   const kpiStats = [
     { label: 'Draft',     value: rfqs.filter((r) => r.status === 'draft').length,     status: 'draft' },
     { label: 'Sent',      value: rfqs.filter((r) => r.status === 'sent').length,      status: 'sent' },
@@ -154,6 +170,67 @@ export default function RFQs() {
     { label: 'Converted', value: rfqs.filter((r) => r.status === 'converted').length, status: 'converted' },
     { label: 'Cancelled', value: rfqs.filter((r) => r.status === 'cancelled').length, status: 'cancelled' },
   ]
+
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'RFQ List',
+    columns: [
+      { key: 'rfq_number', header: 'RFQ #' },
+      { key: 'vendor_name', header: 'Vendor' },
+      { key: 'date', header: 'Date' },
+      { key: 'expected_date', header: 'Due' },
+      { key: 'status', header: 'Status' },
+      { key: 'num_lines', header: 'Lines' },
+    ],
+    rowFilters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'draft', label: 'Draft' },
+          { value: 'sent', label: 'Sent' },
+          { value: 'received', label: 'Received' },
+          { value: 'cancelled', label: 'Closed' },
+        ],
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows = rfqs
+    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+      rows = rows.filter(r => r.status === filters.rowFilters.status)
+    }
+    if (rows.length === 0) return
+
+    const allCols = reportFilterConfig.columns
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `rfqs-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredData = useMemo(() => {
+    let rows = rfqs
+    if (printFilters) {
+      if (printFilters.rowFilters.status && printFilters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === printFilters.rowFilters.status)
+      }
+    }
+    return rows
+  }, [rfqs, printFilters])
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -172,6 +249,12 @@ export default function RFQs() {
               <Plus className="h-4 w-4" />
               Create RFQ
             </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -188,8 +271,79 @@ export default function RFQs() {
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="mb-5 animate-in delay-2">
+          <div className="py-3">
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search RFQ #</label>
+                <Input
+                  placeholder="Search RFQ number..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor</label>
+                <Select value={selectedVendor} onValueChange={setSelectedVendor}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All vendors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All vendors</SelectItem>
+                    {vendorOptions.map(vendor => (
+                      <SelectItem key={vendor} value={vendor}>
+                        {vendor}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Status</label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {['draft', 'sent', 'received', 'cancelled'].map(status => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* RFQs Table */}
-        <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-3"
           style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           <div className="flex items-center justify-between px-6 py-4"
             style={{ borderBottom: '1px solid var(--so-border-light)' }}>
@@ -198,15 +352,13 @@ export default function RFQs() {
               RFQs
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-              {rfqs.length} total
+              {filteredRFQs.length} of {rfqs.length}
             </span>
           </div>
           <DataTable
             storageKey="rfqs"
             columns={columns}
-            data={rfqs}
-            searchColumn="rfq_number"
-            searchPlaceholder="Search RFQs..."
+            data={filteredRFQs}
             onRowClick={(rfq) => navigate(`/rfqs/${rfq.id}`)}
           />
         </div>
@@ -224,6 +376,62 @@ export default function RFQs() {
         onConfirm={handleConfirmDelete}
         loading={deleteRFQ.isPending}
       />
+
+      {/* Print-only section */}
+      <div className="print-only" style={{ color: 'black' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '16px', borderBottom: '3px solid #333' }}>
+          <div>
+            <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '-0.5px' }}>{settingsData?.company_name || 'Company'}</div>
+            {settingsData?.company_address && <div style={{ fontSize: '9pt', color: '#555', whiteSpace: 'pre-line', marginTop: '4px' }}>{settingsData.company_address}</div>}
+            {(settingsData?.company_phone || settingsData?.company_email) && (
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>{[settingsData?.company_phone, settingsData?.company_email].filter(Boolean).join(' | ')}</div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '18pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px' }}>RFQ List</div>
+            <div style={{ fontSize: '10pt', color: '#555', marginTop: '4px' }}>{printFilters?.dateRangeLabel || ''}</div>
+            <div style={{ fontSize: '9pt', color: '#555', marginTop: '4px', padding: '2px 10px', border: '1px solid #999', display: 'inline-block' }}>{printFilteredData.length} RFQs</div>
+          </div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+          <thead>
+            <tr>
+              {[
+                { key: 'rfq_number', label: 'RFQ #' },
+                { key: 'vendor_name', label: 'Vendor' },
+                { key: 'date', label: 'Date' },
+                { key: 'expected_date', label: 'Due' },
+                { key: 'status', label: 'Status' },
+                { key: 'num_lines', label: 'Lines' },
+              ].filter(h => !printFilters || printFilters.visibleColumns.includes(h.key)).map(h => (
+                <th key={h.key} style={{ padding: '5px 6px', border: '1px solid #ccc', background: '#f5f5f5', fontWeight: 600, textAlign: 'left' }}>{h.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {printFilteredData.map(row => {
+              const showCol = (key: string) => !printFilters || printFilters.visibleColumns.includes(key)
+              return (
+                <tr key={row.id}>
+                  {showCol('rfq_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace' }}>{row.rfq_number}</td>}
+                  {showCol('vendor_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.vendor_name}</td>}
+                  {showCol('date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.date}</td>}
+                  {showCol('expected_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.expected_date || '\u2014'}</td>}
+                  {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.status}</td>}
+                  {showCol('num_lines') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.num_lines}</td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: '40px', paddingTop: '12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', fontSize: '8pt', color: '#999' }}>
+          <span>Printed {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
+          <span>{settingsData?.company_name || ''}</span>
+        </div>
+      </div>
+
+      <ReportFilterModal open={printFilterOpen} onOpenChange={setPrintFilterOpen} config={reportFilterConfig} mode="print" onConfirm={handleFilteredPrint} />
+      <ReportFilterModal open={exportFilterOpen} onOpenChange={setExportFilterOpen} config={reportFilterConfig} mode="export" onConfirm={handleFilteredExport} />
     </div>
   )
 }

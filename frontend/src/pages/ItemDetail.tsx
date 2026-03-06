@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,32 +14,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useItem, useItemVendors, useDuplicateItem, useUpdateItem } from '@/api/items'
+import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems } from '@/api/items'
+import type { SimilarItemEntry } from '@/api/items'
 import api from '@/api/client'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
-type Tab = 'history' | 'vendors' | 'audit' | 'attachments' | 'children'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
-/* -- Status badge helper ---------------------------------------- */
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    active:   { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' },
-    inactive: { bg: 'var(--so-danger-bg)',  border: 'transparent', text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || configs.active
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
+type Tab = 'history' | 'similar' | 'vendors' | 'audit' | 'attachments' | 'children'
 
 const getInventoryBadge = () => (
   <span
@@ -50,11 +35,7 @@ const getInventoryBadge = () => (
   </span>
 )
 
-/* -- Shared button styles --------------------------------------- */
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -65,6 +46,7 @@ export default function ItemDetail() {
 
   const { data: item, isLoading } = useItem(itemId)
   const { data: vendors } = useItemVendors(itemId)
+  const { data: similarItems } = useSimilarItems(itemId)
   const duplicateItem = useDuplicateItem()
   const updateItem = useUpdateItem()
   const { data: childItems } = useQuery({
@@ -180,6 +162,7 @@ export default function ItemDetail() {
 
   const tabs = [
     { id: 'history' as Tab, label: 'Transaction History', icon: History },
+    { id: 'similar' as Tab, label: 'Similar Items', icon: Search },
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
     { id: 'attachments' as Tab, label: 'Attachments', icon: Paperclip },
     { id: 'audit' as Tab, label: 'Audit History', icon: FileText },
@@ -573,18 +556,20 @@ export default function ItemDetail() {
         )}
 
         {/* -- Tabs --------------------------------------------- */}
-        <div className="flex gap-1 mb-5 animate-in delay-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+        <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5"
+             style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium rounded-lg transition-all cursor-pointer"
               style={{
-                borderColor: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
+                background: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
+                color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
+                boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
               }}
             >
-              <tab.icon className="h-4 w-4" />
+              <tab.icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           ))}
@@ -601,6 +586,95 @@ export default function ItemDetail() {
 
           <div className="px-6 py-5">
             {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
+
+            {activeTab === 'similar' && (
+              <div>
+                {similarItems && (similarItems.exact_matches.length > 0 || similarItems.close_matches.length > 0) ? (
+                  <div className="space-y-6">
+                    {/* Exact Matches */}
+                    {similarItems.exact_matches.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--so-text-primary)' }}>
+                          Exact Matches ({similarItems.exact_matches.length})
+                        </h3>
+                        <div className="overflow-x-auto -mx-6 rounded-lg border" style={{ borderColor: 'var(--so-border-light)' }}>
+                          <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                {['SKU', 'Name', 'Customer', 'Dimensions', 'Diff', 'Type'].map((h) => (
+                                  <th key={h} className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {similarItems.exact_matches.map((m: SimilarItemEntry) => (
+                                <tr key={m.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                                  <td className="py-3 px-4">
+                                    <button onClick={() => navigate(`/items/${m.id}`)} className="font-mono font-medium text-sm cursor-pointer" style={{ color: 'var(--so-accent)' }} onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>{m.sku}</button>
+                                  </td>
+                                  <td className="py-3 px-4" style={{ color: 'var(--so-text-primary)' }}>{m.name}</td>
+                                  <td className="py-3 px-4" style={{ color: 'var(--so-text-secondary)' }}>{m.customer_name || '-'}</td>
+                                  <td className="py-3 px-4 font-mono text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                                    {m.length && m.width ? `${m.length}×${m.width}${m.height ? `×${m.height}` : ''}` : '-'}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider" style={{ background: 'var(--so-success-bg)', color: 'var(--so-success-text)' }}>{m.dimension_diff}</span>
+                                  </td>
+                                  <td className="py-3 px-4 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>{m.item_type}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Close Matches */}
+                    {similarItems.close_matches.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--so-text-primary)' }}>
+                          Close Matches (&plusmn;0.5&quot;) ({similarItems.close_matches.length})
+                        </h3>
+                        <div className="overflow-x-auto -mx-6 rounded-lg border" style={{ borderColor: 'var(--so-border-light)' }}>
+                          <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                {['SKU', 'Name', 'Customer', 'Dimensions', 'Diff', 'Type'].map((h) => (
+                                  <th key={h} className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {similarItems.close_matches.map((m: SimilarItemEntry) => (
+                                <tr key={m.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                                  <td className="py-3 px-4">
+                                    <button onClick={() => navigate(`/items/${m.id}`)} className="font-mono font-medium text-sm cursor-pointer" style={{ color: 'var(--so-accent)' }} onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}>{m.sku}</button>
+                                  </td>
+                                  <td className="py-3 px-4" style={{ color: 'var(--so-text-primary)' }}>{m.name}</td>
+                                  <td className="py-3 px-4" style={{ color: 'var(--so-text-secondary)' }}>{m.customer_name || '-'}</td>
+                                  <td className="py-3 px-4 font-mono text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                                    {m.length && m.width ? `${m.length}×${m.width}${m.height ? `×${m.height}` : ''}` : '-'}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>{m.dimension_diff}</span>
+                                  </td>
+                                  <td className="py-3 px-4 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>{m.item_type}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                    No similar items found
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'attachments' && <FileUpload appLabel="items" modelName="item" objectId={itemId} />}
             {activeTab === 'audit' && <FieldHistoryTab modelType="item" objectId={itemId} />}
 

@@ -21,6 +21,7 @@ import { useCustomers } from '@/api/parties'
 import { useItems } from '@/api/items'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { format } from 'date-fns'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 interface LineForm {
   id?: number
@@ -28,25 +29,7 @@ interface LineForm {
   unit_price: string
 }
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    active:   { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' },
-    inactive: { bg: 'var(--so-danger-bg)',  border: 'transparent', text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || configs.active
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
 const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
 

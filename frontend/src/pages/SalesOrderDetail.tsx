@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Plus, Trash2, Clock,
+  ArrowLeft, Plus, Trash2,
   FileText,
 } from 'lucide-react'
-import FileUpload from '@/components/common/FileUpload'
 import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
 import {
@@ -16,9 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { useSalesOrder, useUpdateSalesOrder, useSalesOrders, useDeleteSalesOrder } from '@/api/orders'
+import { useSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder } from '@/api/orders'
+import { useCreateInvoice } from '@/api/invoicing'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
@@ -26,6 +26,8 @@ import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { EntryToolbar } from '@/components/common/EntryToolbar'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { DetailCard } from '@/components/common/DetailCard'
 
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -37,35 +39,7 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
-/* ── Status badge helper ─────────────────────────────── */
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    confirmed: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    scheduled: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-    picking:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    shipped:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    crossdock: { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-  }
-  const c = configs[status] || configs.draft
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-/* ── Shared button styles ────────────────────────────── */
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 /* ═══════════════════════════════════════════════════════ */
 export default function SalesOrderDetail() {
@@ -76,17 +50,15 @@ export default function SalesOrderDetail() {
   const { data: order, isLoading } = useSalesOrder(orderId)
   const updateOrder = useUpdateSalesOrder()
   const deleteSO = useDeleteSalesOrder()
+  const createInvoice = useCreateInvoice()
 
-  const { data: allOrdersData } = useSalesOrders()
-  const allOrders = allOrdersData?.results ?? []
-  const currentIndex = allOrders.findIndex(o => o.id === orderId)
-  const hasPrev = currentIndex > 0
-  const hasNext = currentIndex >= 0 && currentIndex < allOrders.length - 1
+  const hasPrev = !!order?.prev_id
+  const hasNext = !!order?.next_id
   const handlePrev = () => {
-    if (hasPrev) navigate(`/orders/sales/${allOrders[currentIndex - 1].id}`)
+    if (order?.prev_id) navigate(`/orders/sales/${order.prev_id}`)
   }
   const handleNext = () => {
-    if (hasNext) navigate(`/orders/sales/${allOrders[currentIndex + 1].id}`)
+    if (order?.next_id) navigate(`/orders/sales/${order.next_id}`)
   }
 
   const [isEditing, setIsEditing] = useState(false)
@@ -459,8 +431,44 @@ export default function SalesOrderDetail() {
               onPrint={() => window.print()}
               onAttachments={() => setAttachmentsOpen(true)}
               attachmentCount={attachmentCount}
-              onCreateInvoice={() => toast.info('Create Invoice coming soon')}
-              onCreatePO={() => toast.info('Create PO coming soon')}
+              onCreateInvoice={async () => {
+                try {
+                  const inv = await createInvoice.mutateAsync({
+                    invoice_type: 'AR',
+                    party: order.customer,
+                    sales_order: order.id,
+                    invoice_date: new Date().toISOString().split('T')[0],
+                    due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                    lines: order.lines?.map(line => ({
+                      item: line.item,
+                      description: line.item_name,
+                      quantity: line.quantity_ordered,
+                      unit_price: line.unit_price,
+                    })) || [],
+                  })
+                  navigate(`/invoices/${inv.id}`)
+                } catch {
+                  // error toast handled by mutation
+                }
+              }}
+              onCreatePO={() => {
+                navigate('/orders/purchase/new', {
+                  state: {
+                    copyFrom: {
+                      status: 'draft',
+                      priority: String(order.priority),
+                      order_date: new Date().toISOString().split('T')[0],
+                      notes: `PO from ${order.order_number}`,
+                      lines: order.lines?.map(line => ({
+                        item: String(line.item),
+                        quantity_ordered: String(line.quantity_ordered),
+                        uom: String(line.uom),
+                        unit_cost: '0.00',
+                      })) || [],
+                    }
+                  }
+                })
+              }}
             />
           )}
         </div>
@@ -612,14 +620,12 @@ export default function SalesOrderDetail() {
         </div>
 
         {/* ── Line Items Card ────────────────────── */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          {/* Card header */}
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">Line Items</span>
-            <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-              {lineCount} {lineCount === 1 ? 'item' : 'items'}
-            </span>
-          </div>
+        <DetailCard
+          title="Line Items"
+          headerRight={<span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>}
+          className="mb-4"
+          animateDelay="delay-3"
+        >
 
           {/* ── EDIT MODE TABLE ──────────────────── */}
           {isEditing ? (
@@ -863,42 +869,13 @@ export default function SalesOrderDetail() {
               </span>
             </div>
           )}
-        </div>
+        </DetailCard>
 
-        {/* ── Two-column: Attachments + Activity ── */}
         {!isEditing && (
-          <div className="grid grid-cols-2 gap-4 mt-4 animate-in delay-4">
-            {/* Attachments Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Attachments</span>
-                {attachmentCount > 0 && (
-                  <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{attachmentCount} {attachmentCount === 1 ? 'file' : 'files'}</span>
-                )}
-              </div>
-              <button
-                onClick={() => setAttachmentsOpen(true)}
-                className="w-full text-center py-8 px-6 transition-colors cursor-pointer"
-                style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Paperclip className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                {attachmentCount > 0 ? `${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}` : 'No attachments yet'}
-              </button>
-            </div>
-
-            {/* Activity Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Activity</span>
-              </div>
-              <div className="text-center py-8 px-6" style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}>
-                <Clock className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                No activity recorded
-              </div>
-            </div>
-          </div>
+          <AttachmentsActivityFooter
+            attachmentCount={attachmentCount}
+            onAttachmentsOpen={() => setAttachmentsOpen(true)}
+          />
         )}
       </div>
 
@@ -917,15 +894,7 @@ export default function SalesOrderDetail() {
         loading={deleteSO.isPending}
       />
 
-      {/* ── Attachments Dialog ────────────────────── */}
-      <Dialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Attachments</DialogTitle>
-          </DialogHeader>
-          <FileUpload appLabel="orders" modelName="salesorder" objectId={orderId} />
-        </DialogContent>
-      </Dialog>
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="salesorder" objectId={orderId} />
     </div>
   )
 }

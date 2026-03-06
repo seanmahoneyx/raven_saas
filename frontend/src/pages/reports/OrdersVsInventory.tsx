@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useOrdersVsInventoryReport } from '@/api/reports'
+import type { OrdersVsInventoryItem } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 function statusColor(status: string): string {
   switch (status) {
@@ -40,16 +43,42 @@ export default function OrdersVsInventory() {
 
   const items = data?.items ?? []
 
+  const handleExportCsv = () => {
+    if (items.length === 0) return
+    const headers = ['SKU', 'Item', 'Open SO', 'On Hand', 'Allocated', 'Available', 'On Order', 'Incoming PO', 'Projected', 'Shortage', 'Coverage %', 'Status']
+    const rows = items.map((r: OrdersVsInventoryItem) => [
+      r.item_sku, r.item_name, String(r.open_so_qty), String(r.on_hand),
+      String(r.allocated), String(r.available), String(r.on_order), String(r.incoming_po),
+      String(r.projected), String(r.shortage), r.coverage_pct.toFixed(1), r.status,
+    ])
+    const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `orders-vs-inventory-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Reports
-        </Button>
-        <h1 className="text-2xl font-bold">Orders vs Inventory</h1>
-        {data && (
-          <span className="text-sm text-muted-foreground">({data.count} items)</span>
-        )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Reports
+          </Button>
+          <h1 className="text-2xl font-bold">Orders vs Inventory</h1>
+          {data && (
+            <span className="text-sm text-muted-foreground">({data.count} items)</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

@@ -14,22 +14,8 @@ import { TruckDialog } from '@/components/parties/TruckDialog'
 import type { Truck } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
-
-const getStatusBadge = (active: boolean) => {
-  const c = active
-    ? { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' }
-    : { bg: 'var(--so-border-light)', border: 'transparent', text: 'var(--so-text-tertiary)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {active ? 'Active' : 'Inactive'}
-    </span>
-  )
-}
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 export default function Trucks() {
   usePageTitle('Trucks')
@@ -68,7 +54,7 @@ export default function Trucks() {
       {
         accessorKey: 'is_active',
         header: 'Status',
-        cell: ({ row }) => getStatusBadge(row.getValue('is_active') as boolean),
+        cell: ({ row }) => getStatusBadge((row.getValue('is_active') as boolean) ? 'active' : 'inactive'),
       },
       {
         id: 'actions',

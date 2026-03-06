@@ -9,6 +9,7 @@ import {
   ScanLine, Package, MapPin, Hash, ArrowRight, Check, RotateCcw, AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 import api from '@/api/client'
 
 type ScanStep = 'source' | 'item' | 'lot' | 'qty' | 'destination' | 'confirm'
@@ -93,7 +94,7 @@ export default function Scanner() {
       resetAll()
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.detail || 'Move failed'
+      const msg = getApiErrorMessage(err, 'Move failed')
       setError(msg)
       toast.error(msg)
     },
@@ -146,7 +147,7 @@ export default function Scanner() {
         }
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.detail || 'Lookup failed'
+      const msg = getApiErrorMessage(err, 'Lookup failed')
       setError(msg)
     }
   }

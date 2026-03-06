@@ -34,6 +34,9 @@ export interface Customer {
   party_display_name: string
   party_code: string
   parent_name: string | null
+  main_phone: string
+  main_email: string
+  notes: string
   payment_terms: string
   default_ship_to: number | null
   default_bill_to: number | null
@@ -89,6 +92,9 @@ export interface Vendor {
   party: number
   party_display_name: string
   party_code: string
+  main_phone: string
+  main_email: string
+  notes: string
   payment_terms: string
   default_ship_from: number | null
   buyer: number | null
@@ -129,6 +135,23 @@ export interface Location {
   is_default: boolean
   is_active: boolean
   full_address: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Contact {
+  id: number
+  party: number
+  party_name: string
+  first_name: string
+  last_name: string
+  title: string
+  email: string
+  phone: string
+  mobile: string
+  is_primary: boolean
+  is_active: boolean
+  notes: string
   created_at: string
   updated_at: string
 }
@@ -383,6 +406,8 @@ export interface PurchaseOrder {
   subtotal: string
   is_editable: boolean
   lines?: PurchaseOrderLine[]
+  prev_id: number | null
+  next_id: number | null
   created_at: string
   updated_at: string
 }
@@ -415,7 +440,7 @@ export interface ContractReference {
   blanket_po?: string
 }
 
-export type SalesOrderClass = 'STANDARD' | 'RUSH' | 'BLANKET' | 'SAMPLE' | 'INTERNAL'
+export type SalesOrderClass = 'STANDARD' | 'RUSH' | 'BLANKET' | 'SAMPLE' | 'INTERNAL' | 'DIRECT'
 
 export interface SalesOrder {
   id: number
@@ -440,6 +465,8 @@ export interface SalesOrder {
   lines?: SalesOrderLine[]
   // Contract reference (from first line's contract release)
   contract_reference?: ContractReference | null
+  prev_id: number | null
+  next_id: number | null
   created_at: string
   updated_at: string
 }
@@ -518,6 +545,7 @@ export interface SchedulerNote {
 
 // Contract types
 export type ContractStatus = 'draft' | 'active' | 'complete' | 'cancelled' | 'expired'
+export type ContractType = 'blanket' | 'direct'
 
 export interface ContractRelease {
   id: number
@@ -560,10 +588,12 @@ export interface Contract {
   id: number
   contract_number: string
   blanket_po: string
+  contract_type: ContractType
   status: ContractStatus
   customer: number
   customer_code: string
   customer_name: string
+  source_estimate: number | null
   issue_date: string
   start_date: string | null
   end_date: string | null
@@ -577,6 +607,8 @@ export interface Contract {
   completion_percentage: number
   num_lines: number
   lines?: ContractLine[]
+  prev_id: number | null
+  next_id: number | null
   created_at: string
   updated_at: string
 }
@@ -608,6 +640,20 @@ export interface CreateReleasePayload {
   ship_to_id?: number | null
   scheduled_date?: string | null
   unit_price?: string | null
+  notes?: string
+}
+
+export interface MultiLineReleaseLine {
+  contract_line_id: number
+  quantity: number
+  unit_price?: string | null
+}
+
+export interface CreateMultiLineReleasePayload {
+  lines: MultiLineReleaseLine[]
+  ship_to_id?: number | null
+  scheduled_date?: string | null
+  customer_po?: string
   notes?: string
 }
 
@@ -955,4 +1001,37 @@ export interface RFQ {
   lines?: RFQLine[]
   created_at: string
   updated_at: string
+}
+
+// Pipeline Kanban types
+export interface PipelineCard {
+  id: number
+  number: string
+  entity_type: string
+  customer_name: string | null
+  vendor_name: string | null
+  total_value: string | null
+  status: string
+  age_days: number
+  created_at: string
+  links: Record<string, number | number[] | null>
+}
+
+export interface PipelineStageKPI {
+  count: number
+  total_value: string | null
+  avg_days_in_stage: number | null
+}
+
+export interface PipelineStage {
+  stage: string
+  label: string
+  kpi: PipelineStageKPI
+  cards: PipelineCard[]
+  total_count: number
+}
+
+export interface PipelineData {
+  customer_track: PipelineStage[]
+  vendor_track: PipelineStage[]
 }

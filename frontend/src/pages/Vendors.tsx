@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Users, MapPin, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer } from 'lucide-react'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -23,25 +24,8 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 type Tab = 'vendors' | 'locations'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    active:   { bg: 'var(--so-success-bg)', border: 'transparent', text: 'var(--so-success-text)' },
-    inactive: { bg: 'var(--so-danger-bg)',  border: 'transparent', text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || configs.active
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 export default function Vendors() {
   usePageTitle('Vendor Center')
@@ -369,11 +353,6 @@ export default function Vendors() {
     []
   )
 
-  const tabs = [
-    { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
-    { id: 'locations' as Tab, label: 'Locations', icon: MapPin },
-  ]
-
   const activeCount = activeTab === 'vendors'
     ? (vendorsData?.results ?? []).length
     : (locationsData?.results ?? []).length
@@ -390,29 +369,28 @@ export default function Vendors() {
           </div>
           <div className="flex items-center gap-2">
             <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               {activeTab === 'vendors' ? 'Add Vendor' : 'Add Location'}
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-5 animate-in delay-1" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium border-b-2 -mb-px transition-colors cursor-pointer"
-              style={{
-                borderColor: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
-                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                background: 'transparent',
-              }}
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-5 animate-in delay-1">
+          <FolderTabs
+            tabs={[
+              { id: 'vendors', label: 'Vendors', icon: <Users className="h-3.5 w-3.5" /> },
+              { id: 'locations', label: 'Locations', icon: <MapPin className="h-3.5 w-3.5" /> },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as Tab)}
+          />
         </div>
 
         {/* DataTable card */}
@@ -425,27 +403,7 @@ export default function Vendors() {
             style={{ borderBottom: '1px solid var(--so-border-light)' }}
           >
             <span className="flex items-center gap-2 text-sm font-semibold">
-              {tabs.find((t) => t.id === activeTab)?.label}
-              {activeTab === 'vendors' && (
-                <>
-                  <button
-                    onClick={() => setPrintFilterOpen(true)}
-                    title="Print vendor list"
-                    className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
-                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setExportFilterOpen(true)}
-                    title="Export CSV"
-                    className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
-                    style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </button>
-                </>
-              )}
+              {{ vendors: 'Vendors', locations: 'Locations' }[activeTab]}
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
               {activeCount} total

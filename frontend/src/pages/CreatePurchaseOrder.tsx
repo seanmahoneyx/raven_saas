@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreatePurchaseOrder } from '@/api/orders'
@@ -13,12 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, X, Save } from 'lucide-react'
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { ArrowLeft, Plus, Trash2, X, Save, AlertTriangle } from 'lucide-react'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import api from '@/api/client'
+import type { SimilarItemsResponse } from '@/api/items'
 
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -42,6 +40,7 @@ export default function CreatePurchaseOrder() {
 
   const [error, setError] = useState('')
   const [costLookupLine, setCostLookupLine] = useState<number | null>(null)
+  const [similarWarnings, setSimilarWarnings] = useState<Record<number, SimilarItemsResponse>>({})
 
   const [formData, setFormData] = useState({
     po_number: copyData?.po_number || '',
@@ -119,6 +118,18 @@ export default function CreatePurchaseOrder() {
     }))
     if (value && formData.vendor) {
       setCostLookupLine(index)
+    }
+    // Fire-and-forget similar items lookup
+    if (value) {
+      api.get<SimilarItemsResponse>(`/items/${value}/similar/`).then(({ data }) => {
+        if (data.exact_matches.length > 0 || data.close_matches.length > 0) {
+          setSimilarWarnings(prev => ({ ...prev, [index]: data }))
+        } else {
+          setSimilarWarnings(prev => { const next = { ...prev }; delete next[index]; return next })
+        }
+      }).catch(() => {})
+    } else {
+      setSimilarWarnings(prev => { const next = { ...prev }; delete next[index]; return next })
     }
   }
 
@@ -349,8 +360,10 @@ export default function CreatePurchaseOrder() {
                       linesFormData.map((line, index) => {
                         const selectedItem = items.find(i => String(i.id) === line.item)
                         const lineAmount = calcLineAmount(line.quantity_ordered, line.unit_cost)
+                        const warning = similarWarnings[index]
                         return (
-                          <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)', background: index % 2 === 1 ? 'var(--so-bg)' : 'transparent' }}>
+                          <React.Fragment key={index}>
+                          <tr style={{ borderBottom: warning ? 'none' : '1px solid var(--so-border-light)', background: index % 2 === 1 ? 'var(--so-bg)' : 'transparent' }}>
                             <td className="py-1.5 px-1 pl-6">
                               <Select
                                 value={line.item}
@@ -428,6 +441,29 @@ export default function CreatePurchaseOrder() {
                               </button>
                             </td>
                           </tr>
+                          {warning && (
+                            <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                              <td colSpan={8} className="px-6 py-2">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
+                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="font-medium">
+                                    {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
+                                  </span>
+                                  <span className="mx-1">·</span>
+                                  <a
+                                    href={`/items/${line.item}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline font-medium"
+                                    style={{ color: 'var(--so-warning-text)' }}
+                                  >
+                                    View similar items
+                                  </a>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         )
                       })
                     )}

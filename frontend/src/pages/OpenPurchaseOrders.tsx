@@ -2,40 +2,18 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Calendar, ChevronDown, ChevronRight, Package } from 'lucide-react'
+import { Calendar, ChevronDown, ChevronRight, Package, Printer, Download } from 'lucide-react'
 import { DataTable } from '@/components/ui/data-table'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { usePurchaseOrders } from '@/api/orders'
+import { useSettings } from '@/api/settings'
 import type { PurchaseOrder, OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    confirmed: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    scheduled: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    picking:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    shipped:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    crossdock: { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-  }
-  const c = configs[status] || configs.draft
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 const openStatuses: OrderStatus[] = ['draft', 'confirmed', 'scheduled', 'picking', 'shipped', 'crossdock']
 
@@ -44,6 +22,10 @@ export default function OpenPurchaseOrders() {
   const navigate = useNavigate()
 
   const { data: ordersData } = usePurchaseOrders()
+  const { data: settingsData } = useSettings()
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedVendor, setSelectedVendor] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
@@ -213,6 +195,68 @@ export default function OpenPurchaseOrders() {
     },
   ]
 
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'Open Purchase Orders',
+    columns: [
+      { key: 'po_number', header: 'PO #' },
+      { key: 'vendor_name', header: 'Vendor' },
+      { key: 'order_date', header: 'Order Date' },
+      { key: 'expected_date', header: 'Expected' },
+      { key: 'status', header: 'Status' },
+      { key: 'num_lines', header: 'Lines' },
+      { key: 'subtotal', header: 'Total' },
+    ],
+    rowFilters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'draft', label: 'Draft' },
+          { value: 'confirmed', label: 'Confirmed' },
+          { value: 'scheduled', label: 'Scheduled' },
+          { value: 'shipped', label: 'Shipped' },
+        ],
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows: PurchaseOrder[] = filteredOrders
+    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+      rows = rows.filter(r => r.status === filters.rowFilters.status)
+    }
+    if (rows.length === 0) return
+
+    const allCols = reportFilterConfig.columns
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `open-purchase-orders-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredData = useMemo(() => {
+    let rows = filteredOrders
+    if (printFilters) {
+      if (printFilters.rowFilters.status && printFilters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === printFilters.rowFilters.status)
+      }
+    }
+    return rows
+  }, [filteredOrders, printFilters])
+
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
       <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
@@ -223,9 +267,17 @@ export default function OpenPurchaseOrders() {
             <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Purchase Orders</h1>
             <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>View all open purchase orders grouped by vendor</p>
           </div>
-          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/orders/purchase/new')}>
-            <Package className="h-3.5 w-3.5" /> Create Purchase Order
-          </button>
+          <div className="flex items-center gap-2">
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/orders/purchase/new')}>
+              <Package className="h-4 w-4" /> Create Purchase Order
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* KPI Summary */}
@@ -370,6 +422,64 @@ export default function OpenPurchaseOrders() {
         </div>
 
       </div>
+
+      {/* Print-only section */}
+      <div className="print-only" style={{ color: 'black' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '16px', borderBottom: '3px solid #333' }}>
+          <div>
+            <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '-0.5px' }}>{settingsData?.company_name || 'Company'}</div>
+            {settingsData?.company_address && <div style={{ fontSize: '9pt', color: '#555', whiteSpace: 'pre-line', marginTop: '4px' }}>{settingsData.company_address}</div>}
+            {(settingsData?.company_phone || settingsData?.company_email) && (
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>{[settingsData?.company_phone, settingsData?.company_email].filter(Boolean).join(' | ')}</div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '18pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px' }}>Open Purchase Orders</div>
+            <div style={{ fontSize: '10pt', color: '#555', marginTop: '4px' }}>{printFilters?.dateRangeLabel || ''}</div>
+            <div style={{ fontSize: '9pt', color: '#555', marginTop: '4px', padding: '2px 10px', border: '1px solid #999', display: 'inline-block' }}>{printFilteredData.length} orders</div>
+          </div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+          <thead>
+            <tr>
+              {[
+                { key: 'po_number', label: 'PO #' },
+                { key: 'vendor_name', label: 'Vendor' },
+                { key: 'order_date', label: 'Order Date' },
+                { key: 'expected_date', label: 'Expected' },
+                { key: 'status', label: 'Status' },
+                { key: 'num_lines', label: 'Lines' },
+                { key: 'subtotal', label: 'Total' },
+              ].filter(h => !printFilters || printFilters.visibleColumns.includes(h.key)).map(h => (
+                <th key={h.key} style={{ padding: '5px 6px', border: '1px solid #ccc', background: '#f5f5f5', fontWeight: 600, textAlign: h.key === 'subtotal' ? 'right' : 'left' }}>{h.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {printFilteredData.map(row => {
+              const showCol = (key: string) => !printFilters || printFilters.visibleColumns.includes(key)
+              return (
+                <tr key={row.id}>
+                  {showCol('po_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace' }}>{row.po_number}</td>}
+                  {showCol('vendor_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.vendor_name}</td>}
+                  {showCol('order_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.order_date}</td>}
+                  {showCol('expected_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.expected_date || '\u2014'}</td>}
+                  {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.status}</td>}
+                  {showCol('num_lines') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.num_lines}</td>}
+                  {showCol('subtotal') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', textAlign: 'right', fontFamily: 'monospace' }}>${parseFloat(row.subtotal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: '40px', paddingTop: '12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', fontSize: '8pt', color: '#999' }}>
+          <span>Printed {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
+          <span>{settingsData?.company_name || ''}</span>
+        </div>
+      </div>
+
+      <ReportFilterModal open={printFilterOpen} onOpenChange={setPrintFilterOpen} config={reportFilterConfig} mode="print" onConfirm={handleFilteredPrint} />
+      <ReportFilterModal open={exportFilterOpen} onOpenChange={setExportFilterOpen} config={reportFilterConfig} mode="export" onConfirm={handleFilteredExport} />
     </div>
   )
 }

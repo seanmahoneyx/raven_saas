@@ -26,7 +26,10 @@ import { useUnitsOfMeasure } from '@/api/items'
 import type { DesignRequestStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 const statusLabels: Record<DesignRequestStatus, string> = {
   pending: 'Pending',
@@ -99,30 +102,6 @@ const CHECKLIST_ITEMS = [
   { key: 'pallet_configuration' as const, label: 'Pallet Config', description: 'Pallet layout configured' },
 ]
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-  }
-  const c = configs[status] || configs.pending
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {statusLabels[status as DesignRequestStatus] || status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
 const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
 
@@ -934,7 +913,7 @@ function CreateEstimateDialog({
       navigate(`/estimates/${result.id}`)
     } catch (err: any) {
       console.error('Failed to create estimate:', err)
-      toast.error(err?.response?.data?.error || 'Failed to create estimate')
+      toast.error(getApiErrorMessage(err, 'Failed to create estimate'))
     }
   }
 

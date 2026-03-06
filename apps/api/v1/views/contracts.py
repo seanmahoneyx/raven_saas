@@ -16,7 +16,9 @@ from apps.api.v1.serializers.contracts import (
     ContractDetailSerializer, ContractWriteSerializer,
     ContractLineSerializer, ContractLineDetailSerializer,
     ContractReleaseSerializer, CreateReleaseSerializer,
+    CreateMultiLineReleaseSerializer,
 )
+from apps.api.v1.serializers.orders import SalesOrderSerializer
 
 
 @extend_schema_view(
@@ -248,6 +250,52 @@ class ContractViewSet(viewsets.ModelViewSet):
         ).distinct()
         serializer = ContractListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=['contracts'],
+        summary='Create a multi-line release from one or more contract lines',
+        request=CreateMultiLineReleaseSerializer,
+        responses={201: SalesOrderSerializer}
+    )
+    @action(detail=False, methods=['post'])
+    def create_multi_line_release(self, request):
+        """Create a sales order release drawing from multiple contract lines."""
+        serializer = CreateMultiLineReleaseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Resolve ship_to if provided
+        ship_to = None
+        ship_to_id = serializer.validated_data.get('ship_to_id')
+        if ship_to_id:
+            from apps.parties.models import Location
+            try:
+                ship_to = Location.objects.get(id=ship_to_id, tenant=request.tenant)
+            except Location.DoesNotExist:
+                return Response(
+                    {'error': 'Ship-to location not found'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        from apps.contracts.services import ContractService
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            service = ContractService(request.tenant, request.user)
+            sales_order = service.create_multi_line_release(
+                release_lines=serializer.validated_data['lines'],
+                ship_to=ship_to,
+                scheduled_date=serializer.validated_data.get('scheduled_date'),
+                notes=serializer.validated_data.get('notes', ''),
+                customer_po=serializer.validated_data.get('customer_po', ''),
+            )
+        except DjangoValidationError as e:
+            return Response(
+                {'error': str(e.message if hasattr(e, 'message') else e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data = SalesOrderSerializer(sales_order, context={'request': request}).data
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @extend_schema(tags=['contracts'], summary='Get active contracts')
     @action(detail=False, methods=['get'])

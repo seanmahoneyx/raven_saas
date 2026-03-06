@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown, Printer } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Send, ArrowRightLeft, FileText, AlertTriangle, FileDown, Printer, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
 import {
   DropdownMenu,
@@ -13,7 +15,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useEstimates, useDeleteEstimate, useSendEstimate, useConvertEstimate } from '@/api/estimates'
-import { EstimateDialog } from '@/components/estimates/EstimateDialog'
 import type { Estimate, EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -21,59 +22,28 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    accepted:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    converted: { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    received:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Estimates() {
   usePageTitle('Estimates')
-  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingEstimate, setEditingEstimate] = useState<Estimate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
   const [pendingConvertId, setPendingConvertId] = useState<number | null>(null)
 
-  // Handle URL params for action=new
-  useEffect(() => {
-    const action = searchParams.get('action')
-    if (action === 'new') {
-      setEditingEstimate(null)
-      setDialogOpen(true)
-      searchParams.delete('action')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const { data: estimatesData } = useEstimates()
   const { data: settings } = useSettings()
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
 
   const reportFilterConfig: ReportFilterConfig = {
@@ -101,14 +71,37 @@ export default function Estimates() {
     setTimeout(() => window.print(), 100)
   }
 
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows = filteredEstimates
+    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+      rows = rows.filter(r => r.status === filters.rowFilters.status)
+    }
+    if (filters.dateFrom) {
+      rows = rows.filter(r => r.date >= filters.dateFrom)
+    }
+    if (filters.dateTo) {
+      rows = rows.filter(r => r.date <= filters.dateTo)
+    }
+    if (rows.length === 0) return
+
+    const allCols = reportFilterConfig.columns
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `estimates-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const deleteEstimate = useDeleteEstimate()
   const sendEstimate = useSendEstimate()
   const convertEstimate = useConvertEstimate()
-
-  const handleAddNew = () => {
-    setEditingEstimate(null)
-    setDialogOpen(true)
-  }
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
@@ -201,10 +194,7 @@ export default function Estimates() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {
-                  setEditingEstimate(est)
-                  setDialogOpen(true)
-                }}>
+                <DropdownMenuItem onClick={() => navigate(`/estimates/${est.id}`)}>
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
@@ -252,6 +242,32 @@ export default function Estimates() {
 
   const estimates = estimatesData?.results ?? []
 
+  const customerOptions = useMemo(() => {
+    const names = new Set(estimates.map(e => e.customer_name).filter(Boolean))
+    return Array.from(names).sort()
+  }, [estimates])
+
+  const filteredEstimates = useMemo(() => {
+    return estimates.filter(est => {
+      if (searchTerm && !est.estimate_number.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false
+      }
+      if (selectedCustomer !== 'all' && est.customer_name !== selectedCustomer) {
+        return false
+      }
+      if (selectedStatus !== 'all' && est.status !== selectedStatus) {
+        return false
+      }
+      if (dateFrom && est.date < dateFrom) {
+        return false
+      }
+      if (dateTo && est.date > dateTo) {
+        return false
+      }
+      return true
+    })
+  }, [estimates, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
+
   const printFilteredEstimates = useMemo(() => {
     let rows = estimates
     if (printFilters) {
@@ -290,9 +306,15 @@ export default function Estimates() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/estimates/new')}>
               <Plus className="h-4 w-4" />
               New Estimate
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -310,33 +332,94 @@ export default function Estimates() {
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="mb-5 animate-in delay-2">
+          <div className="py-3">
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search Estimate #</label>
+                <Input
+                  placeholder="Search estimate number..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer</label>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All customers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All customers</SelectItem>
+                    {customerOptions.map(customer => (
+                      <SelectItem key={customer} value={customer}>
+                        {customer}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Status</label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {['draft', 'sent', 'accepted', 'rejected', 'converted', 'cancelled'].map(status => (
+                      <SelectItem key={status} value={status}>
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Estimates Table */}
-        <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+        <div className="rounded-[14px] border overflow-hidden animate-in delay-3"
           style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           <div className="flex items-center justify-between px-6 py-4"
             style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold flex items-center gap-2">
               <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
               Estimates
-              <button
-                onClick={() => setPrintFilterOpen(true)}
-                title="Print estimates list"
-                className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
-                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
-              >
-                <Printer className="h-3.5 w-3.5" />
-              </button>
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-              {estimates.length} total
+              {filteredEstimates.length} of {estimates.length}
             </span>
           </div>
           <DataTable
             storageKey="estimates"
             columns={columns}
-            data={estimates}
-            searchColumn="estimate_number"
-            searchPlaceholder="Search estimates..."
+            data={filteredEstimates}
             onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
           />
         </div>
@@ -428,13 +511,15 @@ export default function Estimates() {
         mode="print"
         onConfirm={handleFilteredPrint}
       />
+      <ReportFilterModal
+        open={exportFilterOpen}
+        onOpenChange={setExportFilterOpen}
+        config={reportFilterConfig}
+        mode="export"
+        onConfirm={handleFilteredExport}
+      />
 
       {/* Dialogs */}
-      <EstimateDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        estimate={editingEstimate}
-      />
       <ConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}

@@ -8,7 +8,9 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
@@ -41,13 +43,39 @@ export default function VendorScorecard() {
   const { data, isLoading } = useVendorScorecardReport({ date_from: dateFrom, date_to: dateTo })
   const vendors: VendorScorecardRow[] = data?.vendors ?? []
 
+  const handleExportCsv = () => {
+    if (vendors.length === 0) return
+    const headers = ['Vendor', 'Total POs', 'Completed', 'On Time', 'Late', 'On-Time %', 'Total Spend', 'Avg Lead Time']
+    const rows = vendors.map(r => [
+      r.vendor_name, String(r.total_pos), String(r.completed_pos), String(r.on_time_count),
+      String(r.late_count), r.on_time_pct.toFixed(1), String(r.total_spend),
+      r.avg_lead_time_days !== null ? r.avg_lead_time_days.toFixed(0) : '',
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `vendor-scorecard-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Reports
-        </Button>
-        <h1 className="text-2xl font-bold">Vendor Scorecard</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Reports
+          </Button>
+          <h1 className="text-2xl font-bold">Vendor Scorecard</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

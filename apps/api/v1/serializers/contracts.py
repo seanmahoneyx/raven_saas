@@ -89,8 +89,9 @@ class ContractListSerializer(TenantModelSerializer):
     class Meta:
         model = Contract
         fields = [
-            'id', 'contract_number', 'blanket_po', 'status',
+            'id', 'contract_number', 'blanket_po', 'contract_type', 'status',
             'customer', 'customer_code', 'customer_name',
+            'source_estimate',
             'issue_date', 'start_date', 'end_date',
             'num_lines', 'total_committed_qty', 'total_released_qty',
             'completion_percentage',
@@ -112,8 +113,9 @@ class ContractSerializer(TenantModelSerializer):
     class Meta:
         model = Contract
         fields = [
-            'id', 'contract_number', 'blanket_po', 'status',
+            'id', 'contract_number', 'blanket_po', 'contract_type', 'status',
             'customer', 'customer_code', 'customer_name',
+            'source_estimate',
             'issue_date', 'start_date', 'end_date',
             'ship_to', 'ship_to_name', 'notes', 'is_active',
             'total_committed_qty', 'total_released_qty',
@@ -126,9 +128,21 @@ class ContractSerializer(TenantModelSerializer):
 class ContractDetailSerializer(ContractSerializer):
     """Detailed serializer with nested lines."""
     lines = ContractLineDetailSerializer(many=True, read_only=True)
+    prev_id = serializers.SerializerMethodField()
+    next_id = serializers.SerializerMethodField()
 
     class Meta(ContractSerializer.Meta):
-        fields = ContractSerializer.Meta.fields + ['lines']
+        fields = ContractSerializer.Meta.fields + ['lines', 'prev_id', 'next_id']
+
+    def get_prev_id(self, obj):
+        return Contract.objects.filter(
+            tenant=obj.tenant, id__lt=obj.id
+        ).order_by('-id').values_list('id', flat=True).first()
+
+    def get_next_id(self, obj):
+        return Contract.objects.filter(
+            tenant=obj.tenant, id__gt=obj.id
+        ).order_by('id').values_list('id', flat=True).first()
 
 
 class ContractWriteSerializer(TenantModelSerializer):
@@ -138,7 +152,8 @@ class ContractWriteSerializer(TenantModelSerializer):
     class Meta:
         model = Contract
         fields = [
-            'id', 'blanket_po', 'status', 'customer',
+            'id', 'blanket_po', 'contract_type', 'status', 'customer',
+            'source_estimate',
             'issue_date', 'start_date', 'end_date', 'ship_to', 'notes', 'lines',
         ]
 
@@ -192,4 +207,22 @@ class CreateReleaseSerializer(serializers.Serializer):
     unit_price = serializers.DecimalField(
         max_digits=12, decimal_places=4, required=False, allow_null=True
     )
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class CreateMultiLineReleaseLineSerializer(serializers.Serializer):
+    """A single line in a multi-line release."""
+    contract_line_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
+    unit_price = serializers.DecimalField(
+        max_digits=12, decimal_places=4, required=False, allow_null=True
+    )
+
+
+class CreateMultiLineReleaseSerializer(serializers.Serializer):
+    """Serializer for creating a multi-line release from one or more contract lines."""
+    lines = CreateMultiLineReleaseLineSerializer(many=True, min_length=1)
+    ship_to_id = serializers.IntegerField(required=False, allow_null=True)
+    scheduled_date = serializers.DateField(required=False, allow_null=True)
+    customer_po = serializers.CharField(required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')

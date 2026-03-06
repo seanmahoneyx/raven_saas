@@ -4,6 +4,7 @@ Order-related business logic services.
 
 Services:
 - convert_estimate_to_order: Convert an accepted Estimate into a SalesOrder
+- convert_estimate_to_contract: Convert an accepted Estimate into a Contract
 """
 import re
 from decimal import Decimal
@@ -87,6 +88,65 @@ def convert_estimate_to_order(estimate, tenant, user=None):
         Estimate.objects.filter(pk=estimate.pk).update(status='converted')
 
         return sales_order
+
+
+def convert_estimate_to_contract(estimate, tenant, user=None):
+    """
+    Convert an Estimate into a blanket Contract.
+
+    Creates a Contract with lines matching the estimate's line items.
+    The estimate is marked as CONVERTED and linked to the new contract.
+
+    Args:
+        estimate: Estimate instance to convert
+        tenant: Tenant instance
+        user: Optional user performing the conversion
+
+    Returns:
+        Contract: The newly created contract
+
+    Raises:
+        ValidationError: If estimate is not in a convertible state
+    """
+    from apps.orders.models import Estimate
+    from apps.contracts.models import Contract, ContractLine
+
+    if estimate.status not in ('sent', 'accepted'):
+        raise ValidationError(
+            f"Cannot convert estimate with status '{estimate.status}'. "
+            "Estimate must be 'sent' or 'accepted'."
+        )
+
+    with transaction.atomic():
+        contract = Contract(
+            tenant=tenant,
+            customer=estimate.customer,
+            contract_type='blanket',
+            status='draft',
+            issue_date=estimate.date,
+            ship_to=estimate.ship_to,
+            source_estimate=estimate,
+            blanket_po=estimate.customer_po or '',
+            notes=estimate.notes or '',
+        )
+        contract.save()
+
+        for est_line in estimate.lines.select_related('item', 'uom').all():
+            ContractLine.objects.create(
+                tenant=tenant,
+                contract=contract,
+                line_number=est_line.line_number,
+                item=est_line.item,
+                blanket_qty=est_line.quantity,
+                uom=est_line.uom,
+                unit_price=est_line.unit_price,
+                notes=est_line.notes,
+            )
+
+        # Mark estimate as converted
+        Estimate.objects.filter(pk=estimate.pk).update(status='converted')
+
+        return contract
 
 
 def _generate_so_number(tenant):

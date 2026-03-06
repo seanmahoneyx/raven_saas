@@ -5,9 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Save, Calculator } from 'lucide-react'
 import { useSettings, useUpdateSettings, useAccounts } from '@/api/settings'
 import { toast } from 'sonner'
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function AccountingSettings() {
   usePageTitle('Accounting Settings')

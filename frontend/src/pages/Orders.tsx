@@ -13,54 +13,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useSalesOrders, usePurchaseOrders, useDeleteSalesOrder, useDeletePurchaseOrder } from '@/api/orders'
+import { useSalesOrders, usePurchaseOrders, useDeleteSalesOrder, useDeletePurchaseOrder, useUpdateSalesOrder } from '@/api/orders'
 import { SalesOrderDialog } from '@/components/orders/SalesOrderDialog'
 import { PurchaseOrderDialog } from '@/components/orders/PurchaseOrderDialog'
 import type { SalesOrder, PurchaseOrder, OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import React from 'react'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { FolderTabs } from '@/components/ui/folder-tabs'
+
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 type Tab = 'sales' | 'purchase'
-
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:       { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    posted:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    confirmed:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    scheduled:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    picking:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    shipped:     { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    complete:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    crossdock:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    received:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    sent:        { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    converted:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    expired:     { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 export default function Orders() {
   usePageTitle('Orders')
@@ -82,6 +50,9 @@ export default function Orders() {
   const [deletePurchaseDialogOpen, setDeletePurchaseDialogOpen] = useState(false)
   const [pendingDeleteSalesId, setPendingDeleteSalesId] = useState<number | null>(null)
   const [pendingDeletePurchaseId, setPendingDeletePurchaseId] = useState<number | null>(null)
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false)
+  const [statusDialogRows, setStatusDialogRows] = useState<SalesOrder[]>([])
+  const [newStatus, setNewStatus] = useState<string>('confirmed')
 
   // Handle URL params for tab and action
   useEffect(() => {
@@ -114,6 +85,7 @@ export default function Orders() {
   const { data: purchaseData } = usePurchaseOrders()
   const deleteSalesOrder = useDeleteSalesOrder()
   const deletePurchaseOrder = useDeletePurchaseOrder()
+  const updateOrder = useUpdateSalesOrder()
 
   const handleAddNew = () => {
     if (activeTab === 'sales') {
@@ -146,6 +118,21 @@ export default function Orders() {
       setPendingDeletePurchaseId(null)
     } catch (error) {
       toast.error('Failed to delete purchase order')
+    }
+  }
+
+  const handleBulkStatusUpdate = async () => {
+    try {
+      await Promise.all(
+        statusDialogRows.map(order =>
+          updateOrder.mutateAsync({ id: order.id, status: newStatus as any })
+        )
+      )
+      toast.success(`Updated ${statusDialogRows.length} order(s) to ${newStatus}`)
+      setStatusDialogOpen(false)
+      setStatusDialogRows([])
+    } catch {
+      toast.error('Failed to update some orders')
     }
   }
 
@@ -417,24 +404,18 @@ export default function Orders() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 animate-in delay-1" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors -mb-px"
-                style={{
-                  borderBottom: isActive ? '2px solid var(--so-accent)' : '2px solid transparent',
-                  color: isActive ? 'var(--so-accent)' : 'var(--so-text-muted)',
-                }}
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
+        <div className="mb-6 animate-in">
+          <FolderTabs
+            tabs={[
+              { id: 'sales', label: 'Sales Orders' },
+              { id: 'purchase', label: 'Purchase Orders' },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => {
+              setActiveTab(id as Tab)
+              setSearchParams({ tab: id }, { replace: true })
+            }}
+          />
         </div>
 
         {/* KPI Cards */}
@@ -475,7 +456,8 @@ export default function Orders() {
                     window.open(`/api/v1/sales-orders/${row.id}/pick-ticket/`, '_blank')
                   })
                 } else if (action === 'status') {
-                  toast.info(`${rows.length} orders selected for status update`)
+                  setStatusDialogRows(rows as SalesOrder[])
+                  setStatusDialogOpen(true)
                 }
               }}
             />
@@ -533,6 +515,46 @@ export default function Orders() {
         onConfirm={handleConfirmDeletePurchase}
         loading={deletePurchaseOrder.isPending}
       />
+
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <DialogHeader>
+            <DialogTitle style={{ color: 'var(--so-text-primary)' }}>Update Order Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+              Update {statusDialogRows.length} selected order(s) to:
+            </p>
+            <Select value={newStatus} onValueChange={setNewStatus}>
+              <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {['draft', 'confirmed', 'scheduled', 'picking', 'shipped', 'complete', 'cancelled'].map(s => (
+                  <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <button
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[13px] font-medium transition-all cursor-pointer"
+              style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }}
+              onClick={() => setStatusDialogOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer"
+              style={{ background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }}
+              onClick={handleBulkStatusUpdate}
+              disabled={updateOrder.isPending}
+            >
+              {updateOrder.isPending ? 'Updating...' : 'Update Status'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

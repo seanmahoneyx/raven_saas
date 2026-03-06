@@ -19,9 +19,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Customers() {
   usePageTitle('Customer Center')
@@ -308,8 +306,14 @@ export default function Customers() {
           </div>
           <div className="flex items-center gap-2">
             <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
               Add Customer
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -325,22 +329,6 @@ export default function Customers() {
           >
             <span className="flex items-center gap-2 text-sm font-semibold">
               Customers
-              <button
-                onClick={() => setPrintFilterOpen(true)}
-                title="Print customer list"
-                className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
-                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
-              >
-                <Printer className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => setExportFilterOpen(true)}
-                title="Export CSV"
-                className="inline-flex items-center opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
-                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--so-text-tertiary)' }}
-              >
-                <Download className="h-3.5 w-3.5" />
-              </button>
             </span>
             <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
               {customerCount} total

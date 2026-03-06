@@ -3,6 +3,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useInventorySync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Package, Layers, BarChart3, History } from 'lucide-react'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import {
   useInventoryBalances,
@@ -15,25 +16,9 @@ import {
   type InventoryTransaction,
 } from '@/api/inventory'
 import { format } from 'date-fns'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 type Tab = 'balances' | 'lots' | 'pallets' | 'transactions'
-
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    available:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    reserved:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    damaged:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    quarantine: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-border-light)', border: 'transparent', text: 'var(--so-text-secondary)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
 
 const getTypeBadge = (type: string) => (
   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
@@ -94,13 +79,6 @@ export default function Inventory() {
     { accessorKey: 'created_by_name', header: 'By' },
   ], [])
 
-  const tabs = [
-    { id: 'balances' as Tab, label: 'Balances', icon: BarChart3 },
-    { id: 'lots' as Tab, label: 'Lots', icon: Package },
-    { id: 'pallets' as Tab, label: 'Pallets', icon: Layers },
-    { id: 'transactions' as Tab, label: 'Transactions', icon: History },
-  ]
-
   const totalOnHand = balancesData?.results.reduce((sum, b) => sum + b.quantity_on_hand, 0) ?? 0
   const totalReserved = balancesData?.results.reduce((sum, b) => sum + b.quantity_reserved, 0) ?? 0
   const totalAvailable = balancesData?.results.reduce((sum, b) => sum + b.quantity_available, 0) ?? 0
@@ -137,27 +115,23 @@ export default function Inventory() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-0 mb-5 animate-in delay-2" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors relative -mb-px"
-              style={{
-                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                borderBottom: activeTab === tab.id ? '2px solid var(--so-accent)' : '2px solid transparent',
-              }}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-5 animate-in delay-2">
+          <FolderTabs
+            tabs={[
+              { id: 'balances', label: 'Balances', icon: <BarChart3 className="h-3.5 w-3.5" /> },
+              { id: 'lots', label: 'Lots', icon: <Package className="h-3.5 w-3.5" /> },
+              { id: 'pallets', label: 'Pallets', icon: <Layers className="h-3.5 w-3.5" /> },
+              { id: 'transactions', label: 'Transactions', icon: <History className="h-3.5 w-3.5" /> },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as Tab)}
+          />
         </div>
 
         {/* Content */}
         <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">{tabs.find((t) => t.id === activeTab)?.label}</span>
+            <span className="text-sm font-semibold">{{ balances: 'Balances', lots: 'Lots', pallets: 'Pallets', transactions: 'Transactions' }[activeTab]}</span>
           </div>
           <div className="px-6 py-5">
             {activeTab === 'balances' && <DataTable columns={balanceColumns} data={balancesData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search items..." storageKey="inventory-balances" />}

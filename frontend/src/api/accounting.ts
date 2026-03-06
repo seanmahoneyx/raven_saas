@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { GLAccount, JournalEntry, JournalEntryInput, PaginatedResponse, ApiError } from '@/types/api'
 
 export function useAccounts(params?: { search?: string; account_type?: string; is_active?: boolean }) {
@@ -36,7 +37,7 @@ export function useCreateAccount() {
       toast.success('Account created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create account')
+      toast.error(getApiErrorMessage(error, 'Failed to create account'))
     },
   })
 }
@@ -53,7 +54,7 @@ export function useUpdateAccount() {
       toast.success('Account updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update account')
+      toast.error(getApiErrorMessage(error, 'Failed to update account'))
     },
   })
 }
@@ -91,7 +92,7 @@ export function useCreateJournalEntry() {
       toast.success('Journal entry created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create journal entry')
+      toast.error(getApiErrorMessage(error, 'Failed to create journal entry'))
     },
   })
 }
@@ -109,7 +110,7 @@ export function usePostJournalEntry() {
       toast.success('Journal entry posted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to post journal entry')
+      toast.error(getApiErrorMessage(error, 'Failed to post journal entry'))
     },
   })
 }
@@ -127,7 +128,7 @@ export function useReverseJournalEntry() {
       toast.success('Journal entry reversed')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to reverse journal entry')
+      toast.error(getApiErrorMessage(error, 'Failed to reverse journal entry'))
     },
   })
 }

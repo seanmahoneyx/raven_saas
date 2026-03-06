@@ -81,6 +81,7 @@ export const PriorityListView = memo(function PriorityListView({
   // UI state
   const [showAllotmentModal, setShowAllotmentModal] = useState(false)
   const [activeDragLine, setActiveDragLine] = useState<PriorityLine | null>(null)
+  const [dragWidth, setDragWidth] = useState<number>(0)
 
   // Sensors for drag-and-drop
   const sensors = useSensors(
@@ -119,6 +120,11 @@ export const PriorityListView = memo(function PriorityListView({
     const lineId = String(event.active.id)
     const line = lines[lineId]
     if (line) {
+      // Capture the width of the original element for the DragOverlay
+      const rect = event.active.rect.current.initial
+      if (rect) {
+        setDragWidth(rect.width)
+      }
       const binId = lineToBin[lineId]
       if (binId) {
         const bin = bins[binId]
@@ -326,7 +332,10 @@ export const PriorityListView = memo(function PriorityListView({
             {/* Drag overlay */}
             <DragOverlay>
               {activeDragLine && (
-                <div className="bg-white shadow-lg rounded border border-blue-400 opacity-90">
+                <div
+                  className="bg-white shadow-lg rounded border border-blue-400 opacity-90"
+                  style={dragWidth ? { width: dragWidth } : undefined}
+                >
                   <PriorityLineRow line={activeDragLine} scheduledDate={startDate} />
                 </div>
               )}

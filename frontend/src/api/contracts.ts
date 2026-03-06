@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type {
   Contract,
   ContractLine,
@@ -8,6 +9,8 @@ import type {
   ContractInput,
   ContractLineInput,
   CreateReleasePayload,
+  CreateMultiLineReleasePayload,
+  SalesOrder,
   PaginatedResponse,
   ApiError,
 } from '@/types/api'
@@ -87,7 +90,7 @@ export function useCreateContract() {
       toast.success('Contract created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create contract')
+      toast.error(getApiErrorMessage(error, 'Failed to create contract'))
     },
   })
 }
@@ -105,7 +108,7 @@ export function useUpdateContract() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -121,7 +124,7 @@ export function useDeleteContract() {
       toast.success('Contract deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete contract')
+      toast.error(getApiErrorMessage(error, 'Failed to delete contract'))
     },
   })
 }
@@ -141,7 +144,7 @@ export function useActivateContract() {
       toast.success('Contract activated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to activate contract')
+      toast.error(getApiErrorMessage(error, 'Failed to activate contract'))
     },
   })
 }
@@ -159,7 +162,7 @@ export function useCompleteContract() {
       toast.success('Contract marked complete')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to complete contract')
+      toast.error(getApiErrorMessage(error, 'Failed to complete contract'))
     },
   })
 }
@@ -177,7 +180,7 @@ export function useCancelContract() {
       toast.success('Contract cancelled')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to cancel contract')
+      toast.error(getApiErrorMessage(error, 'Failed to cancel contract'))
     },
   })
 }
@@ -195,7 +198,7 @@ export function useDeactivateContract() {
       toast.success('Contract deactivated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to deactivate contract')
+      toast.error(getApiErrorMessage(error, 'Failed to deactivate contract'))
     },
   })
 }
@@ -235,7 +238,7 @@ export function useAddContractLine() {
       toast.success('Line added')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to add line')
+      toast.error(getApiErrorMessage(error, 'Failed to add line'))
     },
   })
 }
@@ -267,7 +270,29 @@ export function useCreateRelease() {
       toast.success('Release created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create release')
+      toast.error(getApiErrorMessage(error, 'Failed to create release'))
+    },
+  })
+}
+
+export function useCreateMultiLineRelease() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CreateMultiLineReleasePayload) => {
+      const { data } = await api.post<SalesOrder>(
+        '/contracts/create_multi_line_release/',
+        payload
+      )
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['sales-orders'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar'] })
+      toast.success('Multi-line release created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to create multi-line release'))
     },
   })
 }

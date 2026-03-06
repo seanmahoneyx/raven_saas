@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useAccounts } from '@/api/accounting'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -11,11 +12,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft, DollarSign } from 'lucide-react'
 import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 interface OpenInvoice {
   id: number
@@ -50,6 +49,13 @@ export default function ReceivePayment() {
   const [showNotes, setShowNotes] = useState(false)
   const [applications, setApplications] = useState<Record<number, string>>({})
   const [selectedInvoices, setSelectedInvoices] = useState<Set<number>>(new Set())
+  const [depositAccount, setDepositAccount] = useState<string>('')
+
+  // Fetch bank/cash accounts for deposit account dropdown
+  const { data: accountsData } = useAccounts({ account_type: 'asset', is_active: true })
+  const bankAccounts = (accountsData?.results ?? []).filter(a =>
+    a.account_type === 'asset' && (a.name?.toLowerCase().includes('bank') || a.name?.toLowerCase().includes('cash') || a.account_number?.startsWith('1'))
+  )
 
   // Fetch customers
   const { data: customersData } = useQuery({
@@ -197,7 +203,7 @@ export default function ReceivePayment() {
       toast.success('Payment draft saved successfully')
       navigate('/invoices')
     } catch (error: any) {
-      toast.error(`Error saving draft: ${error.response?.data?.detail || error.message}`)
+      toast.error(getApiErrorMessage(error, 'Error saving draft'))
     }
   }
 
@@ -248,7 +254,7 @@ export default function ReceivePayment() {
       toast.success('Payment posted successfully')
       navigate('/invoices')
     } catch (error: any) {
-      toast.error(`Error posting payment: ${error.response?.data?.detail || error.message}`)
+      toast.error(getApiErrorMessage(error, 'Error posting payment'))
     }
   }
 
@@ -327,7 +333,18 @@ export default function ReceivePayment() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={labelStyle}>Deposit Account (optional)</Label>
-                  <Input placeholder="e.g., Cash - Operating" disabled style={{ ...inputStyle, opacity: 0.5 }} />
+                  <Select value={depositAccount} onValueChange={setDepositAccount}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                      <SelectValue placeholder="Select account..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bankAccounts.map(acct => (
+                        <SelectItem key={acct.id} value={String(acct.id)}>
+                          {acct.account_number} - {acct.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 

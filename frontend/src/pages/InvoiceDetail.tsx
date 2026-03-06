@@ -9,9 +9,12 @@ import FileUpload from '@/components/common/FileUpload'
 import PrintForm from '@/components/common/PrintForm'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 import api from '@/api/client'
 import EmailModal from '@/components/common/EmailModal'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 
 /* ── Interfaces ────────────────────────────────────────── */
 interface InvoiceLine {
@@ -71,33 +74,7 @@ interface InvoiceDetail {
   updated_at: string
 }
 
-/* ── Status badge helper ─────────────────────────────── */
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    sent:    { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-    partial: { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    paid:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    overdue: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-    void:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-  }
-  const c = configs[status] || configs.draft
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-/* ── Shared button styles ────────────────────────────── */
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
 const dangerBtnStyle: React.CSSProperties = { background: 'var(--so-danger-text)', border: '1px solid var(--so-danger-text)' }
 
@@ -142,7 +119,7 @@ export default function InvoiceDetailPage() {
       toast.success('Invoice voided')
       refetch()
     } catch (e: any) {
-      toast.error(e?.response?.data?.error || 'Failed to void invoice')
+      toast.error(getApiErrorMessage(e, 'Failed to void invoice'))
     }
   }
 
@@ -473,27 +450,8 @@ export default function InvoiceDetailPage() {
         {/* ── Tabbed Content Card ────────────────────── */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           {/* Tab bar */}
-          <div className="flex items-center gap-0 px-6" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="px-4 py-3.5 text-[13px] font-medium transition-colors cursor-pointer"
-                style={{
-                  borderBottom: activeTab === tab.id ? '2px solid var(--so-accent)' : '2px solid transparent',
-                  color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                  marginBottom: '-1px',
-                }}
-                onMouseEnter={e => {
-                  if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--so-text-secondary)'
-                }}
-                onMouseLeave={e => {
-                  if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--so-text-tertiary)'
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="px-6 pt-3">
+            <FolderTabs tabs={tabs} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as TabType)} />
           </div>
 
           {/* ── Lines Tab ────────────────────────────── */}

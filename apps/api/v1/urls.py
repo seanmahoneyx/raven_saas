@@ -55,6 +55,7 @@ from .views.priority_list import (
     DailyKickOverrideViewSet,
 )
 from .views.design import DesignRequestViewSet
+from .views.contacts import ContactViewSet
 from .views.documents import AttachmentViewSet
 from .views.reporting import (
     TrialBalanceView,
@@ -73,6 +74,7 @@ from .views.reporting import (
     VendorScorecardView,
 )
 from .views.dashboard import DashboardView
+from .views.pipeline import PipelineView
 from .views.history import ModelHistoryView
 from .views.websocket import get_websocket_ticket
 from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
@@ -193,6 +195,9 @@ router.register(r'approvals', ApprovalRequestViewSet, basename='approvalrequest'
 # Design
 router.register(r'design-requests', DesignRequestViewSet, basename='designrequest')
 
+# Contacts
+router.register(r'contacts', ContactViewSet, basename='contact')
+
 # Documents & Attachments
 router.register(r'attachments', AttachmentViewSet, basename='attachment')
 
@@ -268,6 +273,9 @@ urlpatterns = [
 
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+
+    # Pipeline
+    path('pipeline/', PipelineView.as_view(), name='pipeline'),
 
     # Settings
     path('settings/', TenantSettingsView.as_view(), name='tenant-settings'),

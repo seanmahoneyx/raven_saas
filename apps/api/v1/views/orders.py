@@ -29,6 +29,7 @@ from apps.api.v1.serializers.orders import (
     RFQDetailSerializer, RFQWriteSerializer,
     RFQLineSerializer,
 )
+from apps.api.v1.serializers.contracts import ContractSerializer
 from apps.api.v1.views.documents import PDFActionMixin
 
 
@@ -223,6 +224,46 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return SalesOrderWriteSerializer
         return SalesOrderSerializer
+
+    def perform_create(self, serializer):
+        sales_order = serializer.save()
+        # If created from an estimate, mark the estimate as converted
+        if sales_order.source_estimate_id:
+            estimate = sales_order.source_estimate
+            estimate.status = 'converted'
+            estimate.save(update_fields=['status'])
+        # Auto-create Direct contract for DIRECT orders
+        if sales_order.order_class == 'DIRECT':
+            from apps.contracts.models import Contract, ContractLine, ContractRelease
+            contract = Contract.objects.create(
+                tenant=sales_order.tenant,
+                customer=sales_order.customer,
+                contract_type='direct',
+                status='complete',
+                issue_date=sales_order.order_date,
+                ship_to=sales_order.ship_to,
+                source_estimate=sales_order.source_estimate,
+                blanket_po=sales_order.customer_po or '',
+                notes=f'Auto-created for Direct Order {sales_order.order_number}',
+            )
+            for so_line in sales_order.lines.select_related('item', 'uom').all():
+                contract_line = ContractLine.objects.create(
+                    tenant=sales_order.tenant,
+                    contract=contract,
+                    line_number=so_line.line_number,
+                    item=so_line.item,
+                    blanket_qty=so_line.quantity_ordered,
+                    uom=so_line.uom,
+                    unit_price=so_line.unit_price,
+                )
+                ContractRelease.objects.create(
+                    tenant=sales_order.tenant,
+                    contract_line=contract_line,
+                    sales_order_line=so_line,
+                    quantity_ordered=so_line.quantity_ordered,
+                    release_date=sales_order.order_date,
+                )
+        return sales_order
 
     @extend_schema(
         tags=['orders'],
@@ -423,6 +464,36 @@ class EstimateViewSet(PDFActionMixin, viewsets.ModelViewSet):
 
         return Response(
             SalesOrderSerializer(sales_order, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        tags=['orders'],
+        summary='Convert estimate to blanket contract',
+        responses={201: ContractSerializer}
+    )
+    @action(detail=True, methods=['post'], url_path='convert-to-contract')
+    def convert_to_contract(self, request, pk=None):
+        """Convert this estimate into a blanket Contract."""
+        estimate = self.get_object()
+
+        from apps.orders.services import convert_estimate_to_contract
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            contract = convert_estimate_to_contract(
+                estimate=estimate,
+                tenant=request.tenant,
+                user=request.user,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                {'error': str(e.message if hasattr(e, 'message') else e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            ContractSerializer(contract, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
 

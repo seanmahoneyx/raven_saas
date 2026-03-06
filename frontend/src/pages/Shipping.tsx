@@ -3,33 +3,12 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useShipmentSync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Truck, FileText } from 'lucide-react'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import { useShipments, useBillsOfLading, type Shipment, type BillOfLading } from '@/api/shipping'
 import { format } from 'date-fns'
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
-
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    pending:    { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    in_transit: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    delivered:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    draft:      { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    printed:    { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    signed:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    complete:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-  }
-  const c = configs[status] || configs.pending
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status.replace('_', ' ')}
-    </span>
-  )
-}
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 type Tab = 'shipments' | 'bols'
 
@@ -70,11 +49,6 @@ export default function Shipping() {
     []
   )
 
-  const tabs = [
-    { id: 'shipments' as Tab, label: 'Shipments', icon: Truck },
-    { id: 'bols' as Tab, label: 'Bills of Lading', icon: FileText },
-  ]
-
   const pendingShipments = shipmentsData?.results.filter((s) => s.status === 'pending').length ?? 0
   const inTransit = shipmentsData?.results.filter((s) => s.status === 'in_transit').length ?? 0
   const delivered = shipmentsData?.results.filter((s) => s.status === 'delivered').length ?? 0
@@ -112,27 +86,21 @@ export default function Shipping() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-0 mb-5 animate-in delay-2" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors relative -mb-px"
-              style={{
-                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                borderBottom: activeTab === tab.id ? '2px solid var(--so-accent)' : '2px solid transparent',
-              }}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-5 animate-in delay-2">
+          <FolderTabs
+            tabs={[
+              { id: 'shipments', label: 'Shipments', icon: <Truck className="h-3.5 w-3.5" /> },
+              { id: 'bols', label: 'Bills of Lading', icon: <FileText className="h-3.5 w-3.5" /> },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as Tab)}
+          />
         </div>
 
         {/* Content */}
         <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">{tabs.find((t) => t.id === activeTab)?.label}</span>
+            <span className="text-sm font-semibold">{{ shipments: 'Shipments', bols: 'Bills of Lading' }[activeTab]}</span>
           </div>
           <div className="px-6 py-5">
             {activeTab === 'shipments' && (

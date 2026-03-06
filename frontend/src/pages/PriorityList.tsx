@@ -5,8 +5,7 @@ import { PriorityListView } from '@/components/priority-list/PriorityListView'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format, addWeeks, startOfWeek } from 'date-fns'
 
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 export default function PriorityList() {
   usePageTitle('Priority List')
@@ -73,7 +72,7 @@ export default function PriorityList() {
           </div>
 
           {/* Main content */}
-          <div className="animate-in delay-1">
+          <div>
             <PriorityListView startDate={startDate} endDate={endDate} />
           </div>
         </div>

@@ -13,11 +13,10 @@ import {
   type ReportSchedule,
 } from '@/api/reports'
 import { format } from 'date-fns'
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 
 type Tab = 'reports' | 'history' | 'schedules'
-
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 const getStatusBadge = (active: boolean) => {
   const c = active
@@ -104,10 +103,10 @@ export default function Reports() {
     []
   )
 
-  const tabs = [
-    { id: 'reports' as Tab, label: 'Available Reports', icon: FileText },
-    { id: 'history' as Tab, label: 'Report History', icon: Clock },
-    { id: 'schedules' as Tab, label: 'Schedules', icon: Calendar },
+  const folderTabs = [
+    { id: 'reports' as Tab, label: 'Available Reports', icon: <FileText className="h-4 w-4" /> },
+    { id: 'history' as Tab, label: 'Report History', icon: <Clock className="h-4 w-4" /> },
+    { id: 'schedules' as Tab, label: 'Schedules', icon: <Calendar className="h-4 w-4" /> },
   ]
 
   // Group reports by category
@@ -133,21 +132,8 @@ export default function Reports() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-0 mb-5 animate-in delay-1" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors relative -mb-px"
-              style={{
-                color: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                borderBottom: activeTab === tab.id ? '2px solid var(--so-accent)' : '2px solid transparent',
-              }}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-5 animate-in delay-1">
+          <FolderTabs tabs={folderTabs} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as Tab)} />
         </div>
 
         {/* Content */}

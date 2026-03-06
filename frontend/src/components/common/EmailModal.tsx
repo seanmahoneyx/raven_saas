@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Mail, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/errors'
 import api from '@/api/client'
 
 interface EmailModalProps {
@@ -70,8 +71,7 @@ export default function EmailModal({
       onOpenChange(false)
     },
     onError: (error: any) => {
-      const msg = error?.response?.data?.message || error?.response?.data?.error || 'Failed to send email'
-      toast.error(msg)
+      toast.error(getApiErrorMessage(error, 'Failed to send email'))
     },
   })
 

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { PriceList, PriceListInput, PaginatedResponse, ApiError } from '@/types/api'
 
 export function usePriceLists(params?: { search?: string; customer?: number; item?: number }) {
@@ -36,7 +37,7 @@ export function useCreatePriceList() {
       toast.success('Price list created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create price list')
+      toast.error(getApiErrorMessage(error, 'Failed to create price list'))
     },
   })
 }
@@ -54,7 +55,7 @@ export function useUpdatePriceList() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -70,7 +71,7 @@ export function useDeletePriceList() {
       toast.success('Price list deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete price list')
+      toast.error(getApiErrorMessage(error, 'Failed to delete price list'))
     },
   })
 }

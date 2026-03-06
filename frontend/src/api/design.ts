@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type {
   DesignRequest,
   DesignRequestInput,
@@ -50,7 +51,7 @@ export function useCreateDesignRequest() {
       toast.success('Design request created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create design request')
+      toast.error(getApiErrorMessage(error, 'Failed to create design request'))
     },
   })
 }
@@ -68,7 +69,7 @@ export function useUpdateDesignRequest() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -84,7 +85,7 @@ export function useDeleteDesignRequest() {
       toast.success('Design request deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete design request')
+      toast.error(getApiErrorMessage(error, 'Failed to delete design request'))
     },
   })
 }
@@ -104,7 +105,7 @@ export function usePromoteDesign() {
       toast.success('Design promoted to item')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to promote design')
+      toast.error(getApiErrorMessage(error, 'Failed to promote design'))
     },
   })
 }
@@ -147,7 +148,7 @@ export function useUploadDesignRequestAttachment() {
       toast.success('File uploaded')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to upload file')
+      toast.error(getApiErrorMessage(error, 'Failed to upload file'))
     },
   })
 }
@@ -163,7 +164,7 @@ export function useDeleteDesignRequestAttachment() {
       toast.success('File deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete file')
+      toast.error(getApiErrorMessage(error, 'Failed to delete file'))
     },
   })
 }
@@ -181,7 +182,7 @@ export function useCreateEstimateFromDesign() {
       toast.success('Estimate created from design')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create estimate')
+      toast.error(getApiErrorMessage(error, 'Failed to create estimate'))
     },
   })
 }

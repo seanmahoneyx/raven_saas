@@ -2,11 +2,17 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Paperclip, Clock, ChevronDown, ChevronRight,
-  Plus, FileText, MoreHorizontal,
+  ArrowLeft, Paperclip, ChevronDown, ChevronRight,
+  Plus, FileText, Printer, MoreHorizontal,
 } from 'lucide-react'
-import FileUpload from '@/components/common/FileUpload'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
 import {
@@ -15,7 +21,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   useContract, useUpdateContract, useActivateContract, useDeactivateContract,
-  useCompleteContract, useCancelContract,
+  useCompleteContract, useCancelContract, useCreateMultiLineRelease,
 } from '@/api/contracts'
 import { useLocations } from '@/api/parties'
 import { ReleaseDialog } from '@/components/contracts/ReleaseDialog'
@@ -23,35 +29,11 @@ import type { ContractStatus, ContractLine } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { EntryToolbar } from '@/components/common/EntryToolbar'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { DetailCard } from '@/components/common/DetailCard'
 
-/* -- Status badge helper ---------------------------------------- */
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    complete:  { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)'    },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-    expired:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)'  },
-  }
-  const c = configs[status] || configs.draft
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-/* -- Shared button styles --------------------------------------- */
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
-const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 /* -- Contract line row with expandable releases ----------------- */
 function ContractLineRow({
@@ -228,6 +210,15 @@ export default function ContractDetail() {
   const completeContract = useCompleteContract()
   const cancelContract = useCancelContract()
 
+  const hasPrev = !!contract?.prev_id
+  const hasNext = !!contract?.next_id
+  const handlePrev = () => {
+    if (contract?.prev_id) navigate(`/contracts/${contract.prev_id}`)
+  }
+  const handleNext = () => {
+    if (contract?.next_id) navigate(`/contracts/${contract.next_id}`)
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const { data: attachments } = useAttachments('contracts', 'contract', contractId)
@@ -237,6 +228,13 @@ export default function ContractDetail() {
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false)
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+
+  const [multiReleaseDialogOpen, setMultiReleaseDialogOpen] = useState(false)
+  const createMultiRelease = useCreateMultiLineRelease()
+  const [releaseLines, setReleaseLines] = useState<{ lineId: number; selected: boolean; quantity: string }[]>([])
+  const [releaseScheduledDate, setReleaseScheduledDate] = useState('')
+  const [releaseCustomerPo, setReleaseCustomerPo] = useState('')
+  const [releaseNotes, setReleaseNotes] = useState('')
 
   const [formData, setFormData] = useState({
     blanket_po: '',
@@ -292,6 +290,42 @@ export default function ContractDetail() {
 
   const handleCancel = () => {
     setIsEditing(false)
+  }
+
+  useEffect(() => {
+    if (multiReleaseDialogOpen && contract?.lines) {
+      setReleaseLines(
+        contract.lines
+          .filter(l => l.remaining_qty > 0)
+          .map(l => ({ lineId: l.id, selected: false, quantity: '' }))
+      )
+      setReleaseScheduledDate('')
+      setReleaseCustomerPo('')
+      setReleaseNotes('')
+    }
+  }, [multiReleaseDialogOpen, contract])
+
+  const handleCreateMultiRelease = async () => {
+    const selectedLines = releaseLines.filter(l => l.selected && Number(l.quantity) > 0)
+    if (selectedLines.length === 0) {
+      toast.error('Select at least one line with a quantity')
+      return
+    }
+    try {
+      const result = await createMultiRelease.mutateAsync({
+        lines: selectedLines.map(l => ({
+          contract_line_id: l.lineId,
+          quantity: Number(l.quantity),
+        })),
+        scheduled_date: releaseScheduledDate || undefined,
+        customer_po: releaseCustomerPo || undefined,
+        notes: releaseNotes || undefined,
+      })
+      setMultiReleaseDialogOpen(false)
+      navigate(`/orders/sales/${(result as any).id}`)
+    } catch {
+      // error toast handled by mutation
+    }
   }
 
   const handleConfirmActivate = async () => {
@@ -517,6 +551,16 @@ export default function ContractDetail() {
           <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>CTR-{contract.contract_number}</span>
         </div>
 
+        {/* -- Entry Toolbar ------------------------------------- */}
+        <div className="mb-4 animate-in delay-1">
+          <EntryToolbar
+            onPrev={handlePrev}
+            onNext={handleNext}
+            hasPrev={hasPrev}
+            hasNext={hasNext}
+          />
+        </div>
+
         {/* -- Title row ----------------------------------------- */}
         <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
           <div className="flex flex-col gap-1.5">
@@ -548,7 +592,7 @@ export default function ContractDetail() {
                 {contract.status === 'draft' && (
                   <button
                     className={primaryBtnClass}
-                    style={{ ...primaryBtnStyle, opacity: contract.num_lines === 0 ? 0.5 : 1 }}
+                    style={{ ...primaryBtnStyle, background: 'var(--so-success-text)', borderColor: 'var(--so-success-text)', opacity: contract.num_lines === 0 ? 0.5 : 1 }}
                     onClick={() => setActivateDialogOpen(true)}
                     disabled={contract.num_lines === 0}
                   >
@@ -558,17 +602,13 @@ export default function ContractDetail() {
                 )}
                 {contract.status === 'active' && (
                   <>
-                    <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setDeactivateDialogOpen(true)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                      Deactivate
+                    <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setMultiReleaseDialogOpen(true)}>
+                      <Plus className="h-3.5 w-3.5" />
+                      New Release
                     </button>
-                    <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setCompleteDialogOpen(true)}>
+                    <button className={outlineBtnClass} style={{ ...outlineBtnStyle, borderColor: 'var(--so-success-text)', color: 'var(--so-success-text)' }} onClick={() => setCompleteDialogOpen(true)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                       Complete
-                    </button>
-                    <button className={dangerBtnClass} style={dangerBtnStyle} onClick={() => setCancelDialogOpen(true)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                      Cancel
                     </button>
                   </>
                 )}
@@ -582,14 +622,33 @@ export default function ContractDetail() {
                   )}
                 </button>
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                  More
+                  <Printer className="h-3.5 w-3.5" />
+                  Print
                 </button>
                 {canEdit && (
                   <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                   </button>
+                )}
+                {contract.status === 'active' && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className={outlineBtnClass} style={outlineBtnStyle}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setDeactivateDialogOpen(true)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                        Deactivate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setCancelDialogOpen(true)} className="text-red-600">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        Cancel Contract
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </>
             )}
@@ -705,15 +764,12 @@ export default function ContractDetail() {
         </div>
 
         {/* -- Line Items Card ----------------------------------- */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          {/* Card header */}
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">Line Items</span>
-            <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-              {lineCount} {lineCount === 1 ? 'item' : 'items'}
-            </span>
-          </div>
-
+        <DetailCard
+          title="Line Items"
+          headerRight={<span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>}
+          className="mb-4"
+          animateDelay="delay-3"
+        >
           {/* Line items table */}
           {contract.lines && contract.lines.length > 0 ? (
             <div className="overflow-x-auto">
@@ -759,54 +815,17 @@ export default function ContractDetail() {
               No line items
             </div>
           )}
-        </div>
+        </DetailCard>
 
-        {/* -- Two-column: Attachments + Activity ---------------- */}
         {!isEditing && (
-          <div className="grid grid-cols-2 gap-4 mt-4 animate-in delay-4">
-            {/* Attachments Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Attachments</span>
-                {attachmentCount > 0 && (
-                  <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{attachmentCount} {attachmentCount === 1 ? 'file' : 'files'}</span>
-                )}
-              </div>
-              <button
-                onClick={() => setAttachmentsOpen(true)}
-                className="w-full text-center py-8 px-6 transition-colors cursor-pointer"
-                style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <Paperclip className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                {attachmentCount > 0 ? `${attachmentCount} attachment${attachmentCount === 1 ? '' : 's'}` : 'No attachments yet'}
-              </button>
-            </div>
-
-            {/* Activity Card */}
-            <div className="rounded-[14px] border overflow-hidden" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                <span className="text-sm font-semibold">Activity</span>
-              </div>
-              <div className="text-center py-8 px-6" style={{ color: 'var(--so-text-tertiary)', fontSize: '13.5px' }}>
-                <Clock className="h-7 w-7 mx-auto mb-2 opacity-25" />
-                No activity recorded
-              </div>
-            </div>
-          </div>
+          <AttachmentsActivityFooter
+            attachmentCount={attachmentCount}
+            onAttachmentsOpen={() => setAttachmentsOpen(true)}
+          />
         )}
       </div>
 
-      {/* -- Attachments Dialog ---------------------------------- */}
-      <Dialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Attachments</DialogTitle>
-          </DialogHeader>
-          <FileUpload appLabel="contracts" modelName="contract" objectId={contractId} />
-        </DialogContent>
-      </Dialog>
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="contracts" modelName="contract" objectId={contractId} />
 
       {/* -- Confirm Dialogs ------------------------------------- */}
       <ConfirmDialog
@@ -852,6 +871,152 @@ export default function ContractDetail() {
         onConfirm={handleConfirmCancel}
         loading={cancelContract.isPending}
       />
+
+      {/* -- Multi-Line Release Dialog --------------------------- */}
+      <Dialog open={multiReleaseDialogOpen} onOpenChange={setMultiReleaseDialogOpen}>
+        <DialogContent style={{ maxWidth: '720px' }}>
+          <DialogHeader>
+            <DialogTitle>Create Release</DialogTitle>
+          </DialogHeader>
+
+          {/* Lines table */}
+          <div className="overflow-x-auto mt-2" style={{ maxHeight: '340px', overflowY: 'auto' }}>
+            {releaseLines.length === 0 ? (
+              <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                No lines with remaining quantity
+              </div>
+            ) : (
+              <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                    <th className="py-2 px-3 text-left w-8" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}></th>
+                    <th className="py-2 px-3 text-left" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>MSPN</th>
+                    <th className="py-2 px-3 text-left" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Item Name</th>
+                    <th className="py-2 px-3 text-right" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Remaining</th>
+                    <th className="py-2 px-3 text-right" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Release Qty</th>
+                    <th className="py-2 px-3 text-right" style={{ color: 'var(--so-text-tertiary)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Unit Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {releaseLines.map((rl) => {
+                    const contractLine = contract?.lines?.find(l => l.id === rl.lineId)
+                    if (!contractLine) return null
+                    return (
+                      <tr key={rl.lineId} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                        <td className="py-2.5 px-3">
+                          <input
+                            type="checkbox"
+                            checked={rl.selected}
+                            onChange={(e) =>
+                              setReleaseLines(prev =>
+                                prev.map(l => l.lineId === rl.lineId ? { ...l, selected: e.target.checked } : l)
+                              )
+                            }
+                            style={{ accentColor: 'var(--so-accent)', width: '15px', height: '15px', cursor: 'pointer' }}
+                          />
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[12.5px] font-medium" style={{ color: 'var(--so-text-primary)' }}>
+                          {contractLine.item_sku}
+                        </td>
+                        <td className="py-2.5 px-3" style={{ color: 'var(--so-text-secondary)' }}>
+                          {contractLine.item_name}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
+                          {contractLine.remaining_qty.toLocaleString()}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <input
+                            type="number"
+                            min={1}
+                            max={contractLine.remaining_qty}
+                            value={rl.quantity}
+                            placeholder="0"
+                            disabled={!rl.selected}
+                            onChange={(e) =>
+                              setReleaseLines(prev =>
+                                prev.map(l => l.lineId === rl.lineId ? { ...l, quantity: e.target.value } : l)
+                              )
+                            }
+                            className="h-8 text-sm font-mono text-right rounded-md px-2"
+                            style={{
+                              width: '90px',
+                              border: '1px solid var(--so-border)',
+                              background: rl.selected ? 'var(--so-surface)' : 'var(--so-bg)',
+                              color: rl.selected ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
+                              outline: 'none',
+                            }}
+                          />
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
+                          {contractLine.unit_price ? `$${parseFloat(contractLine.unit_price).toFixed(2)}` : '\u2014'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Optional fields */}
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div>
+              <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Scheduled Date
+              </label>
+              <input
+                type="date"
+                value={releaseScheduledDate}
+                onChange={(e) => setReleaseScheduledDate(e.target.value)}
+                className="h-9 w-full text-sm rounded-md px-2"
+                style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-primary)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Customer PO
+              </label>
+              <input
+                type="text"
+                value={releaseCustomerPo}
+                onChange={(e) => setReleaseCustomerPo(e.target.value)}
+                placeholder="PO reference"
+                className="h-9 w-full text-sm font-mono rounded-md px-2"
+                style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-primary)', outline: 'none' }}
+              />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Notes
+              </label>
+              <input
+                type="text"
+                value={releaseNotes}
+                onChange={(e) => setReleaseNotes(e.target.value)}
+                placeholder="Optional notes"
+                className="h-9 w-full text-sm rounded-md px-2"
+                style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-primary)', outline: 'none' }}
+              />
+            </div>
+          </div>
+
+          {/* Footer buttons */}
+          <div className="flex justify-end gap-2 mt-5">
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setMultiReleaseDialogOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className={primaryBtnClass}
+              style={primaryBtnStyle}
+              onClick={handleCreateMultiRelease}
+              disabled={createMultiRelease.isPending}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {createMultiRelease.isPending ? 'Creating...' : 'Create Release'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

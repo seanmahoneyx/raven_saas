@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type {
   Item, UnitOfMeasure, PaginatedResponse,
   CorrugatedFeature, DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
@@ -44,7 +45,7 @@ export function useCreateItem() {
       toast.success('Item created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create item')
+      toast.error(getApiErrorMessage(error, 'Failed to create item'))
     },
   })
 }
@@ -61,7 +62,7 @@ export function useUpdateItem() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -77,7 +78,7 @@ export function useDeleteItem() {
       toast.success('Item deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete item')
+      toast.error(getApiErrorMessage(error, 'Failed to delete item'))
     },
   })
 }
@@ -108,7 +109,7 @@ export function useCreateUnitOfMeasure() {
       toast.success('Unit of measure created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create unit of measure')
+      toast.error(getApiErrorMessage(error, 'Failed to create unit of measure'))
     },
   })
 }
@@ -125,7 +126,7 @@ export function useUpdateUnitOfMeasure() {
       toast.success('Unit of measure updated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update unit of measure')
+      toast.error(getApiErrorMessage(error, 'Failed to update unit of measure'))
     },
   })
 }
@@ -172,7 +173,7 @@ export function useCreateBoxItem(boxType: BoxType) {
       toast.success('Item created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create item')
+      toast.error(getApiErrorMessage(error, 'Failed to create item'))
     },
   })
 }
@@ -190,7 +191,7 @@ export function useUpdateBoxItem(boxType: BoxType) {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -301,7 +302,7 @@ export function useDuplicateItem() {
       toast.success('Item duplicated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to duplicate item')
+      toast.error(getApiErrorMessage(error, 'Failed to duplicate item'))
     },
   })
 }
@@ -334,7 +335,7 @@ export function useCreateItemVendor(itemId: number) {
       toast.success('Vendor added')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to add vendor')
+      toast.error(getApiErrorMessage(error, 'Failed to add vendor'))
     },
   })
 }
@@ -355,6 +356,45 @@ export interface ItemHistoryEntry {
   status: string
   status_display: string
 }
+
+// =============================================================================
+// SIMILAR ITEMS
+// =============================================================================
+
+export interface SimilarItemEntry {
+  id: number
+  sku: string
+  name: string
+  item_type: string
+  customer_name: string | null
+  length: string | null
+  width: string | null
+  height: string | null
+  dimension_diff: string
+  test: string
+  flute: string
+  paper: string
+}
+
+export interface SimilarItemsResponse {
+  exact_matches: SimilarItemEntry[]
+  close_matches: SimilarItemEntry[]
+}
+
+export function useSimilarItems(itemId: number | null) {
+  return useQuery({
+    queryKey: ['similar-items', itemId],
+    queryFn: async () => {
+      const { data } = await api.get<SimilarItemsResponse>(`/items/${itemId}/similar/`)
+      return data
+    },
+    enabled: !!itemId,
+  })
+}
+
+// =============================================================================
+// ITEM HISTORY (Item 360)
+// =============================================================================
 
 export function useItemHistory(itemId: number | null) {
   return useQuery({

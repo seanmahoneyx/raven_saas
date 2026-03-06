@@ -26,6 +26,11 @@ import {
   Cog,
   Keyboard,
   Calculator,
+  ScanLine,
+  Warehouse,
+  Tags,
+  ClipboardList,
+  GitBranchPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -113,6 +118,8 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/estimates', icon: FileText, label: 'Estimates' },
       { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
       { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
+      { type: 'separator' },
+      { type: 'item', to: '/pipeline', icon: GitBranchPlus, label: 'Sales Pipeline' },
     ],
   },
   // 3. Vendors
@@ -125,6 +132,8 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Purchase Orders' },
       { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
       { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
+      { type: 'separator' },
+      { type: 'item', to: '/trucks', icon: Truck, label: 'Trucks' },
     ],
   },
   // 4. Items
@@ -134,20 +143,16 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Items',
     items: [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
-      { type: 'separator' },
-      { type: 'item', to: '/contracts', icon: Eye, label: 'View Active Contracts' },
-      { type: 'item', to: '/orders?tab=sales', icon: Eye, label: 'View Active Sales Orders' },
-      { type: 'item', to: '/orders?tab=purchase', icon: Eye, label: 'View Active Purchase Orders' },
+      { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
+      { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
     ],
   },
-  // 5. Design
+  // 5. Design (direct link — single destination)
   {
-    type: 'dropdown',
+    type: 'link',
     icon: Palette,
     label: 'Design',
-    items: [
-      { type: 'item', to: '/design-requests', icon: Palette, label: 'Design Center' },
-    ],
+    to: '/design-requests',
   },
   // 6. Accounting
   {
@@ -157,9 +162,23 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     items: [
       { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
       { type: 'item', to: '/journal-entries', icon: FileSpreadsheet, label: 'Journal Entries' },
+      { type: 'separator' },
+      { type: 'item', to: '/invoices', icon: FileText, label: 'Invoices' },
+      { type: 'item', to: '/receive-payment', icon: DollarSign, label: 'Receive Payments' },
     ],
   },
-  // 7. Reports (with nested submenus)
+  // 7. Warehouse
+  {
+    type: 'dropdown',
+    icon: Warehouse,
+    label: 'Warehouse',
+    items: [
+      { type: 'item', to: '/warehouse/scanner', icon: ScanLine, label: 'Scanner' },
+      { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
+      { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },
+    ],
+  },
+  // 8. Reports (with nested submenus)
   {
     type: 'dropdown',
     icon: BarChart3,
@@ -278,9 +297,8 @@ function NavDropdown({ item }: { item: NavDropdownItem }) {
 // ─── Main TopNavbar ────────────────────────────────────────────────────────────
 
 export default function TopNavbar() {
-  const { logout } = useAuth()
-  // TODO: Connect to real user.isAdmin when available
-  const isAdmin = true
+  const { logout, user } = useAuth()
+  const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -334,13 +352,13 @@ export default function TopNavbar() {
   return (
     <header className="flex h-14 items-center border-b bg-sidebar px-4 shrink-0">
       {/* Logo */}
-      <NavLink to="/" className="flex items-center gap-2 mr-6">
-        <img src="/logo.png" alt="Raven Tech" className="h-8 w-8 object-contain" />
-        <span className="text-lg font-bold text-sidebar-foreground hidden sm:inline">Raven Tech</span>
+      <NavLink to="/" className="flex items-center gap-2 mr-6 shrink-0">
+        <img src="/logo.png" alt="Raven Tech" className="h-8 w-8 object-contain shrink-0" />
+        <span className="text-lg font-bold text-sidebar-foreground hidden md:inline">Raven Tech</span>
       </NavLink>
 
       {/* Navigation */}
-      <nav className="flex-1 flex items-center gap-1">
+      <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0">
         {NAVIGATION_STRUCTURE.map((item) => {
           // Skip admin-only items if not admin
           if (item.type === 'dropdown' && item.requiresAdmin && !isAdmin) {

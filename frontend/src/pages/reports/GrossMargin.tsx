@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useGrossMarginReport } from '@/api/reports'
+import type { GrossMarginCustomer, GrossMarginItem } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
@@ -37,16 +40,51 @@ export default function GrossMargin() {
   const navigate = useNavigate()
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo())
   const [dateTo, setDateTo] = useState(today())
+  const [activeTab, setActiveTab] = useState('by-customer')
 
   const { data, isLoading } = useGrossMarginReport({ date_from: dateFrom, date_to: dateTo })
 
+  const handleExportCsv = () => {
+    if (!data) return
+    const datestamp = new Date().toISOString().split('T')[0]
+    if (activeTab === 'by-customer') {
+      const headers = ['Customer', 'Revenue', 'COGS', 'Margin', 'Margin %']
+      const rows = data.by_customer.map((r: GrossMarginCustomer) => [r.customer_name, r.revenue, r.cogs, r.margin, r.margin_pct])
+      const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `gross-margin-by-customer-${datestamp}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    } else {
+      const headers = ['SKU', 'Item', 'Revenue', 'COGS', 'Margin', 'Margin %']
+      const rows = data.by_item.map((r: GrossMarginItem) => [r.item_sku, r.item_name, r.revenue, r.cogs, r.margin, r.margin_pct])
+      const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `gross-margin-by-item-${datestamp}.csv`; a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Reports
-        </Button>
-        <h1 className="text-2xl font-bold">Gross Margin Analysis</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Reports
+          </Button>
+          <h1 className="text-2xl font-bold">Gross Margin Analysis</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -106,7 +144,7 @@ export default function GrossMargin() {
           </div>
 
           {/* Detail Tabs */}
-          <Tabs defaultValue="by-customer">
+          <Tabs defaultValue="by-customer" onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="by-customer">By Customer</TabsTrigger>
               <TabsTrigger value="by-item">By Item</TabsTrigger>

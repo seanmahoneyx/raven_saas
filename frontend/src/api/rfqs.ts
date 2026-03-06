@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { RFQ, PaginatedResponse, RFQStatus, ApiError } from '@/types/api'
 
 export function useRFQs(params?: { status?: RFQStatus; vendor?: number }) {
@@ -36,7 +37,7 @@ export function useCreateRFQ() {
       toast.success('RFQ created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create RFQ')
+      toast.error(getApiErrorMessage(error, 'Failed to create RFQ'))
     },
   })
 }
@@ -53,7 +54,7 @@ export function useUpdateRFQ() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -69,7 +70,7 @@ export function useDeleteRFQ() {
       toast.success('RFQ deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete RFQ')
+      toast.error(getApiErrorMessage(error, 'Failed to delete RFQ'))
     },
   })
 }
@@ -87,7 +88,7 @@ export function useConvertRFQ() {
       toast.success('RFQ converted to purchase order')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to convert RFQ')
+      toast.error(getApiErrorMessage(error, 'Failed to convert RFQ'))
     },
   })
 }
@@ -104,7 +105,7 @@ export function useSendRFQ() {
       toast.success('RFQ sent')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to send RFQ')
+      toast.error(getApiErrorMessage(error, 'Failed to send RFQ'))
     },
   })
 }

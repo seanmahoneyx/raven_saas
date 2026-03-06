@@ -4,7 +4,10 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useInvoiceSync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, FileText, CreditCard, FileDown } from 'lucide-react'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ExportButton } from '@/components/ui/export-button'
 import { DataTable } from '@/components/ui/data-table'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
@@ -13,37 +16,8 @@ import { format } from 'date-fns'
 
 type Tab = 'invoices' | 'payments'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:  { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    sent:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    partial:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    paid:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    overdue:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    void:      { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    complete:  { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled: { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    expired:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    confirmed: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    applied:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    pending:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Invoices() {
   usePageTitle('Invoices')
@@ -51,6 +25,12 @@ export default function Invoices() {
   const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedParty, setSelectedParty] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices()
   const { data: paymentsData, isLoading: paymentsLoading } = usePayments()
@@ -213,10 +193,33 @@ export default function Invoices() {
     []
   )
 
-  const tabs = [
-    { id: 'invoices' as Tab, label: 'Invoices', icon: FileText },
-    { id: 'payments' as Tab, label: 'Payments', icon: CreditCard },
-  ]
+  const invoices = invoicesData?.results ?? []
+
+  const partyOptions = useMemo(() => {
+    const names = new Set(invoices.map(i => i.party_name).filter(Boolean))
+    return Array.from(names).sort()
+  }, [invoices])
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      if (searchTerm && !inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false
+      }
+      if (selectedParty !== 'all' && inv.party_name !== selectedParty) {
+        return false
+      }
+      if (selectedStatus !== 'all' && inv.status !== selectedStatus) {
+        return false
+      }
+      if (dateFrom && inv.invoice_date < dateFrom) {
+        return false
+      }
+      if (dateTo && inv.invoice_date > dateTo) {
+        return false
+      }
+      return true
+    })
+  }, [invoices, searchTerm, selectedParty, selectedStatus, dateFrom, dateTo])
 
   // Summary stats
   const arInvoices = invoicesData?.results.filter((i) => i.invoice_type === 'AR') ?? []
@@ -252,7 +255,7 @@ export default function Invoices() {
                 { key: 'balance_due', header: 'Balance Due' },
               ] : undefined}
             />
-            <button className={primaryBtnClass} style={primaryBtnStyle}>
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate(activeTab === 'invoices' ? '/invoices/new' : '/receive-payment')}>
               <Plus className="h-3.5 w-3.5" />
               New {activeTab === 'invoices' ? 'Invoice' : 'Payment'}
             </button>
@@ -299,26 +302,89 @@ export default function Invoices() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-5 animate-in delay-1" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium -mb-px border-b-2 transition-colors"
-                style={{
-                  borderColor: active ? 'var(--so-accent)' : 'transparent',
-                  color: active ? 'var(--so-accent)' : 'var(--so-text-tertiary)',
-                  background: 'transparent',
-                }}
-              >
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            )
-          })}
+        <div className="mb-5 animate-in delay-1">
+          <FolderTabs
+            tabs={[
+              { id: 'invoices', label: 'Invoices', icon: <FileText className="h-3.5 w-3.5" /> },
+              { id: 'payments', label: 'Payments', icon: <CreditCard className="h-3.5 w-3.5" /> },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as any)}
+          />
         </div>
+
+        {/* Filters */}
+        {activeTab === 'invoices' && (
+          <div className="mb-5 animate-in delay-2">
+            <div className="py-3">
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search Invoice #</label>
+                  <Input
+                    placeholder="Search invoice number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Party</label>
+                  <Select value={selectedParty} onValueChange={setSelectedParty}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                      <SelectValue placeholder="All parties" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All parties</SelectItem>
+                      {partyOptions.map(party => (
+                        <SelectItem key={party} value={party}>
+                          {party}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Status</label>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      {(['draft', 'sent', 'partial', 'paid', 'overdue', 'void'] as const).map(status => (
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
+                  <Input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
+                  <Input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* DataTable Card */}
         <div className="rounded-[14px] overflow-hidden animate-in delay-2"
@@ -326,7 +392,7 @@ export default function Invoices() {
           <div className="px-6 py-4 flex items-center justify-between"
             style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
             <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-              {tabs.find((t) => t.id === activeTab)?.label}
+              {activeTab === 'invoices' ? 'Invoices' : 'Payments'}
             </span>
           </div>
           <div className="p-4">
@@ -336,9 +402,7 @@ export default function Invoices() {
               ) : (
                 <DataTable
                   columns={invoiceColumns}
-                  data={invoicesData?.results ?? []}
-                  searchColumn="invoice_number"
-                  searchPlaceholder="Search invoices..."
+                  data={filteredInvoices}
                   storageKey="invoices"
                 />
               )

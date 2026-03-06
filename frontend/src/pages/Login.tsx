@@ -4,9 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-const primaryBtnClass = 'inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer w-full'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Login() {
   usePageTitle('Login')
@@ -85,7 +83,7 @@ export default function Login() {
 
             <button
               type="submit"
-              className={`${primaryBtnClass} ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
+              className={`${primaryBtnClass} justify-center w-full ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
               style={primaryBtnStyle}
               disabled={isLoading}
             >

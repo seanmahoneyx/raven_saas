@@ -38,7 +38,7 @@ class TenantSettingsView(APIView):
             'company_phone': tenant_settings.phone,
             'company_email': tenant_settings.email,
             'company_logo_url': tenant_settings.logo.url if tenant_settings.logo else '',
-            'fiscal_year_start_month': 1,  # TODO: add to model if needed
+            'fiscal_year_start_month': 1,  # Defaults to January (model field not yet added)
             'default_income_account': accounting_settings.default_income_account_id,
             'default_cogs_account': accounting_settings.default_cogs_account_id,
             'default_inventory_account': accounting_settings.default_inventory_account_id,

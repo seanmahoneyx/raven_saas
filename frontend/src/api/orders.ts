@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { PurchaseOrder, SalesOrder, PaginatedResponse, OrderStatus, ApiError } from '@/types/api'
 
 // Sales Orders
@@ -38,7 +39,7 @@ export function useCreateSalesOrder() {
       toast.success('Sales order created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create sales order')
+      toast.error(getApiErrorMessage(error, 'Failed to create sales order'))
     },
   })
 }
@@ -56,7 +57,7 @@ export function useUpdateSalesOrder() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -73,7 +74,7 @@ export function useDeleteSalesOrder() {
       toast.success('Sales order deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete sales order')
+      toast.error(getApiErrorMessage(error, 'Failed to delete sales order'))
     },
   })
 }
@@ -90,7 +91,7 @@ export function useDuplicateSalesOrder() {
       toast.success('Sales order duplicated')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to duplicate sales order')
+      toast.error(getApiErrorMessage(error, 'Failed to duplicate sales order'))
     },
   })
 }
@@ -130,7 +131,7 @@ export function useCreatePurchaseOrder() {
       toast.success('Purchase order created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create purchase order')
+      toast.error(getApiErrorMessage(error, 'Failed to create purchase order'))
     },
   })
 }
@@ -148,7 +149,7 @@ export function useUpdatePurchaseOrder() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -165,7 +166,7 @@ export function useDeletePurchaseOrder() {
       toast.success('Purchase order deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete purchase order')
+      toast.error(getApiErrorMessage(error, 'Failed to delete purchase order'))
     },
   })
 }
@@ -186,7 +187,7 @@ export function useConfirmSalesOrder() {
       toast.success('Sales order confirmed')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to confirm sales order')
+      toast.error(getApiErrorMessage(error, 'Failed to confirm sales order'))
     },
   })
 }
@@ -205,7 +206,7 @@ export function useCancelSalesOrder() {
       toast.success('Sales order cancelled')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to cancel sales order')
+      toast.error(getApiErrorMessage(error, 'Failed to cancel sales order'))
     },
   })
 }
@@ -226,7 +227,7 @@ export function useConfirmPurchaseOrder() {
       toast.success('Purchase order confirmed')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to confirm purchase order')
+      toast.error(getApiErrorMessage(error, 'Failed to confirm purchase order'))
     },
   })
 }
@@ -245,7 +246,7 @@ export function useCancelPurchaseOrder() {
       toast.success('Purchase order cancelled')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to cancel purchase order')
+      toast.error(getApiErrorMessage(error, 'Failed to cancel purchase order'))
     },
   })
 }
@@ -264,7 +265,7 @@ export function useReceivePurchaseOrder() {
       toast.success('Purchase order received')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to receive purchase order')
+      toast.error(getApiErrorMessage(error, 'Failed to receive purchase order'))
     },
   })
 }

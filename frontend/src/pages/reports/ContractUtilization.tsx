@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Printer, Download } from 'lucide-react'
+
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
@@ -35,13 +37,40 @@ export default function ContractUtilization() {
     ? [...data.contracts].sort((a: ContractUtilizationRow, b: ContractUtilizationRow) => b.completion_pct - a.completion_pct)
     : []
 
+  const handleExportCsv = () => {
+    if (contracts.length === 0) return
+    const headers = ['Contract #', 'Blanket PO', 'Customer', 'Status', 'Committed', 'Released', 'Remaining', 'Completion %', 'Days Left', 'Burn Rate', 'At Risk']
+    const rows = contracts.map(r => [
+      r.contract_number, r.blanket_po || '', r.customer_name, r.status,
+      String(r.total_committed), String(r.total_released), String(r.total_remaining),
+      r.completion_pct.toFixed(1), r.days_remaining !== null ? String(r.days_remaining) : '',
+      r.burn_rate !== null ? r.burn_rate.toFixed(1) : '', r.at_risk ? 'Yes' : 'No',
+    ])
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => { const s = String(v ?? ''); return s.includes(',') ? `"${s}"` : s }).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `contract-utilization-${new Date().toISOString().split('T')[0]}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Reports
-        </Button>
-        <h1 className="text-2xl font-bold">Contract Utilization</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Reports
+          </Button>
+          <h1 className="text-2xl font-bold">Contract Utilization</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => window.print()}>
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { Estimate, PaginatedResponse, EstimateStatus, ApiError } from '@/types/api'
 
 export function useEstimates(params?: { status?: EstimateStatus; customer?: number }) {
@@ -36,7 +37,7 @@ export function useCreateEstimate() {
       toast.success('Estimate created')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create estimate')
+      toast.error(getApiErrorMessage(error, 'Failed to create estimate'))
     },
   })
 }
@@ -53,7 +54,7 @@ export function useUpdateEstimate() {
       toast.success('Changes saved')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to save changes')
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
     },
   })
 }
@@ -69,7 +70,7 @@ export function useDeleteEstimate() {
       toast.success('Estimate deleted')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete estimate')
+      toast.error(getApiErrorMessage(error, 'Failed to delete estimate'))
     },
   })
 }
@@ -86,7 +87,7 @@ export function useSendEstimate() {
       toast.success('Estimate sent')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to send estimate')
+      toast.error(getApiErrorMessage(error, 'Failed to send estimate'))
     },
   })
 }
@@ -104,7 +105,24 @@ export function useConvertEstimate() {
       toast.success('Estimate converted to sales order')
     },
     onError: (error: ApiError) => {
-      toast.error(error?.response?.data?.detail || 'Failed to convert estimate')
+      toast.error(getApiErrorMessage(error, 'Failed to convert estimate'))
+    },
+  })
+}
+
+export function useConvertEstimateToContract() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post(`/estimates/${id}/convert-to-contract/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['estimates'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to convert estimate to contract'))
     },
   })
 }

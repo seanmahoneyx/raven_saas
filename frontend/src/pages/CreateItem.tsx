@@ -23,13 +23,9 @@ import {
   useUnitsOfMeasure,
   useCreateBoxItem,
 } from '@/api/items'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useParties } from '@/api/parties'
 import type { DivisionType, TestType, FluteType, PaperType, ItemType } from '@/types/api'
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
 
 const DIVISIONS: { value: DivisionType; label: string }[] = [
   { value: 'corrugated', label: 'Corrugated' },

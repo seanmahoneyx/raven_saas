@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 
 export interface User {
   id: number
@@ -54,7 +55,7 @@ export function useCreateUser() {
       toast.success('User created successfully')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.detail || 'Failed to create user')
+      toast.error(getApiErrorMessage(error, 'Failed to create user'))
     },
   })
 }
@@ -71,7 +72,7 @@ export function useUpdateUser() {
       toast.success('User updated successfully')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.detail || 'Failed to update user')
+      toast.error(getApiErrorMessage(error, 'Failed to update user'))
     },
   })
 }
@@ -87,7 +88,7 @@ export function useDeleteUser() {
       toast.success('User deleted')
     },
     onError: (error: any) => {
-      toast.error(error?.response?.data?.detail || 'Failed to delete user')
+      toast.error(getApiErrorMessage(error, 'Failed to delete user'))
     },
   })
 }

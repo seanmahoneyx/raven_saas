@@ -29,6 +29,9 @@ class CustomerSerializer(TenantModelSerializer):
     party_display_name = serializers.CharField(source='party.display_name', read_only=True)
     party_code = serializers.CharField(source='party.code', read_only=True)
     parent_name = serializers.CharField(source='party.parent.display_name', read_only=True, allow_null=True)
+    main_phone = serializers.CharField(source='party.main_phone', read_only=True, default='')
+    main_email = serializers.CharField(source='party.main_email', read_only=True, default='')
+    notes = serializers.CharField(source='party.notes', read_only=True, default='')
     sales_rep_name = serializers.SerializerMethodField()
     csr_name = serializers.SerializerMethodField()
     open_sales_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
@@ -43,7 +46,7 @@ class CustomerSerializer(TenantModelSerializer):
         model = Customer
         fields = [
             'id', 'party', 'party_display_name', 'party_code',
-            'parent_name',
+            'parent_name', 'main_phone', 'main_email', 'notes',
             'payment_terms', 'default_ship_to', 'default_bill_to',
             'sales_rep', 'sales_rep_name', 'csr', 'csr_name',
             'credit_limit', 'customer_type', 'tax_code',
@@ -70,6 +73,9 @@ class VendorSerializer(TenantModelSerializer):
     """Serializer for Vendor model."""
     party_display_name = serializers.CharField(source='party.display_name', read_only=True)
     party_code = serializers.CharField(source='party.code', read_only=True)
+    main_phone = serializers.CharField(source='party.main_phone', read_only=True, default='')
+    main_email = serializers.CharField(source='party.main_email', read_only=True, default='')
+    notes = serializers.CharField(source='party.notes', read_only=True, default='')
     open_po_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
     open_po_count = serializers.IntegerField(read_only=True, default=0)
     next_incoming = serializers.DateField(read_only=True, allow_null=True, default=None)
@@ -83,6 +89,7 @@ class VendorSerializer(TenantModelSerializer):
         model = Vendor
         fields = [
             'id', 'party', 'party_display_name', 'party_code',
+            'main_phone', 'main_email', 'notes',
             'payment_terms', 'default_ship_from', 'buyer', 'buyer_name',
             'vendor_type', 'invoice_delivery_method',
             'tax_code', 'tax_id', 'credit_limit', 'charge_freight',

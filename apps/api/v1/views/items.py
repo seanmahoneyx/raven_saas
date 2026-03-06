@@ -37,6 +37,74 @@ from apps.api.v1.serializers.items import (
 )
 
 
+class SimilarItemEntrySerializer(drf_serializers.Serializer):
+    """Serializer for similar item entries."""
+    id = drf_serializers.IntegerField()
+    sku = drf_serializers.CharField()
+    name = drf_serializers.CharField()
+    item_type = drf_serializers.CharField()
+    customer_name = drf_serializers.CharField(allow_null=True)
+    length = drf_serializers.DecimalField(max_digits=10, decimal_places=4, allow_null=True)
+    width = drf_serializers.DecimalField(max_digits=10, decimal_places=4, allow_null=True)
+    height = drf_serializers.DecimalField(max_digits=10, decimal_places=4, allow_null=True)
+    dimension_diff = drf_serializers.CharField()
+    test = drf_serializers.CharField()
+    flute = drf_serializers.CharField()
+    paper = drf_serializers.CharField()
+
+
+def _get_corrugated_details(item):
+    """Resolve concrete child model and item_type from an Item instance."""
+    try:
+        corr = item.corrugateditem
+    except CorrugatedItem.DoesNotExist:
+        return None, None, None
+
+    # Check box-type subtypes in order
+    for attr, label, model in [
+        ('dcitem', 'DC', DCItem),
+        ('rscitem', 'RSC', RSCItem),
+        ('hscitem', 'HSC', HSCItem),
+        ('folitem', 'FOL', FOLItem),
+        ('teleitem', 'Tele', TeleItem),
+    ]:
+        try:
+            child = getattr(corr, attr)
+            return child, label, model
+        except model.DoesNotExist:
+            continue
+
+    # Generic corrugated item (no box type)
+    return corr, 'Corrugated', CorrugatedItem
+
+
+def _classify_dimension_match(source, candidate, dim_fields):
+    """
+    Classify dimension match between source and candidate.
+    Returns ('exact', '') or ('close', diff_string) or (None, '').
+    """
+    TOLERANCE = 0.5
+    diffs = []
+    all_exact = True
+
+    for field in dim_fields:
+        s_val = float(getattr(source, field))
+        c_val = float(getattr(candidate, field))
+        diff = c_val - s_val
+        if diff != 0:
+            all_exact = False
+        if abs(diff) > TOLERANCE:
+            return None, ''
+        if diff != 0:
+            label = field[0].upper()  # L, W, H
+            sign = '+' if diff > 0 else ''
+            diffs.append(f"{label}{sign}{diff:.2g}")
+
+    if all_exact:
+        return 'exact', 'Exact'
+    return 'close', ', '.join(diffs)
+
+
 class ItemHistoryEntrySerializer(drf_serializers.Serializer):
     """Serializer for Item 360 transaction history entries."""
     type = drf_serializers.CharField()
@@ -282,6 +350,98 @@ class ItemViewSet(viewsets.ModelViewSet):
             ItemSerializer(item, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+    @extend_schema(
+        tags=['items'],
+        summary='Find similar items by board spec and dimensions',
+    )
+    @action(detail=True, methods=['get'])
+    def similar(self, request, pk=None):
+        """Find items with matching board spec and similar dimensions."""
+        item = self.get_object()
+        child, item_type, model = _get_corrugated_details(item)
+
+        if child is None:
+            return Response({'exact_matches': [], 'close_matches': []})
+
+        # Build base filter for same board spec
+        base_filter = {
+            'test': child.test,
+            'flute': child.flute,
+            'paper': child.paper,
+            'is_active': True,
+        }
+
+        # Determine dimension fields and query the same model
+        if model == CorrugatedItem:
+            # Generic corrugated — match on board spec only, no dimensions
+            candidates = CorrugatedItem.objects.filter(
+                **base_filter, tenant=request.tenant,
+            ).exclude(pk=child.pk).select_related('customer')[:50]
+            dim_fields = []
+        elif model == DCItem:
+            candidates = DCItem.objects.filter(
+                **base_filter, tenant=request.tenant,
+            ).exclude(pk=child.pk).select_related('customer')[:50]
+            dim_fields = ['length', 'width']
+        else:
+            # RSC, HSC, FOL, Tele — all have L×W×H
+            candidates = model.objects.filter(
+                **base_filter, tenant=request.tenant,
+            ).exclude(pk=child.pk).select_related('customer')[:50]
+            dim_fields = ['length', 'width', 'height']
+
+        exact_matches = []
+        close_matches = []
+
+        for cand in candidates:
+            if not dim_fields:
+                # Generic corrugated: board-spec-only match is "exact"
+                entry = {
+                    'id': cand.item_ptr_id,
+                    'sku': cand.sku,
+                    'name': cand.name,
+                    'item_type': 'Corrugated',
+                    'customer_name': cand.customer.display_name if cand.customer else None,
+                    'length': None,
+                    'width': None,
+                    'height': None,
+                    'dimension_diff': 'Board spec match',
+                    'test': cand.test,
+                    'flute': cand.flute,
+                    'paper': cand.paper,
+                }
+                exact_matches.append(entry)
+                continue
+
+            match_type, diff_str = _classify_dimension_match(child, cand, dim_fields)
+            if match_type is None:
+                continue
+
+            entry = {
+                'id': cand.item_ptr_id,
+                'sku': cand.sku,
+                'name': cand.name,
+                'item_type': item_type,
+                'customer_name': cand.customer.display_name if cand.customer else None,
+                'length': cand.length,
+                'width': cand.width,
+                'height': getattr(cand, 'height', None),
+                'dimension_diff': diff_str,
+                'test': cand.test,
+                'flute': cand.flute,
+                'paper': cand.paper,
+            }
+
+            if match_type == 'exact':
+                exact_matches.append(entry)
+            else:
+                close_matches.append(entry)
+
+        return Response({
+            'exact_matches': SimilarItemEntrySerializer(exact_matches, many=True).data,
+            'close_matches': SimilarItemEntrySerializer(close_matches, many=True).data,
+        })
 
     @extend_schema(
         tags=['items'],

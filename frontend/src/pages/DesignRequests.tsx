@@ -4,7 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
   Plus, MoreHorizontal, Pencil, Trash2, Rocket,
-  CheckCircle, XCircle, Clock, Loader2, Check, Palette,
+  CheckCircle, XCircle, Clock, Loader2, Check, Palette, Printer, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
@@ -42,45 +42,12 @@ import { DesignRequestDialog } from '@/components/design/DesignRequestDialog'
 import type { DesignRequest, DesignRequestStatus } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { useSettings } from '@/api/settings'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import React from 'react'
 
-const getStatusBadge = (status: string) => {
-  const configs: Record<string, { bg: string; border: string; text: string }> = {
-    draft:       { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    active:      { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    inactive:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    pending:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    in_progress: { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    approved:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    rejected:    { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    completed:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    posted:      { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    confirmed:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    scheduled:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    picking:     { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    shipped:     { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    complete:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    cancelled:   { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-    crossdock:   { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
-    received:    { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    sent:        { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
-    converted:   { bg: 'var(--so-success-bg)',  border: 'transparent',              text: 'var(--so-success-text)' },
-    expired:     { bg: 'var(--so-danger-bg)',   border: 'transparent',              text: 'var(--so-danger-text)' },
-  }
-  const c = configs[status] || { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' }
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text }}>
-      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: c.text }} />
-      {status.replace('_', ' ')}
-    </span>
-  )
-}
-
-const outlineBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const outlineBtnStyle: React.CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
-const primaryBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 const statusIcons: Record<DesignRequestStatus, React.ElementType> = {
   pending: Clock,
@@ -180,9 +147,48 @@ export default function DesignRequests() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('all')
+  const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
   const { data: requestsData, isLoading } = useDesignRequests()
   const deleteRequest = useDeleteDesignRequest()
   const updateRequest = useUpdateDesignRequest()
+  const { data: settingsData } = useSettings()
+  const [printFilterOpen, setPrintFilterOpen] = useState(false)
+  const [exportFilterOpen, setExportFilterOpen] = useState(false)
+  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+
+  const designRequests = requestsData?.results ?? []
+
+  const customerOptions = useMemo(() => {
+    const names = new Set(designRequests.map(dr => dr.customer_name).filter(Boolean))
+    return Array.from(names).sort()
+  }, [designRequests])
+
+  const filteredDesignRequests = useMemo(() => {
+    return designRequests.filter(dr => {
+      if (searchTerm && !(dr.ident || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
+          !(dr.file_number || '').toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false
+      }
+      if (selectedCustomer !== 'all' && dr.customer_name !== selectedCustomer) {
+        return false
+      }
+      if (selectedStatus !== 'all' && dr.status !== selectedStatus) {
+        return false
+      }
+      if (dateFrom && dr.created_at && dr.created_at < dateFrom) {
+        return false
+      }
+      if (dateTo && dr.created_at && dr.created_at > dateTo + 'T23:59:59') {
+        return false
+      }
+      return true
+    })
+  }, [designRequests, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
 
   const handleEditRequest = (dr: DesignRequest) => {
     setEditingRequest(dr)
@@ -360,6 +366,70 @@ export default function DesignRequests() {
     [deleteRequest, updateRequest]
   )
 
+  const reportFilterConfig: ReportFilterConfig = {
+    title: 'Design Requests',
+    columns: [
+      { key: 'file_number', header: 'Request #' },
+      { key: 'customer_name', header: 'Customer' },
+      { key: 'ident', header: 'Title' },
+      { key: 'status', header: 'Status' },
+      { key: 'created_at', header: 'Created' },
+    ],
+    rowFilters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'pending', label: 'Pending' },
+          { value: 'in_progress', label: 'In Progress' },
+          { value: 'completed', label: 'Completed' },
+          { value: 'rejected', label: 'Cancelled' },
+        ],
+      },
+    ],
+  }
+
+  const handleFilteredPrint = (filters: ReportFilterResult) => {
+    setPrintFilters(filters)
+    setTimeout(() => window.print(), 100)
+  }
+
+  const handleFilteredExport = (filters: ReportFilterResult) => {
+    let rows = designRequests
+    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+      rows = rows.filter(r => r.status === filters.rowFilters.status)
+    }
+    if (rows.length === 0) return
+
+    const allCols = reportFilterConfig.columns
+    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
+    const esc = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => {
+      const key = c.key
+      if (key === 'created_at') return esc(r.created_at ? new Date(r.created_at).toLocaleDateString() : '')
+      return esc((r as Record<string, unknown>)[key])
+    }).join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `design-requests-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredData = useMemo(() => {
+    let rows = designRequests
+    if (printFilters) {
+      if (printFilters.rowFilters.status && printFilters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === printFilters.rowFilters.status)
+      }
+    }
+    return rows
+  }, [designRequests, printFilters])
+
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
       <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
@@ -372,10 +442,89 @@ export default function DesignRequests() {
               Track packaging design requests from concept to production item
             </p>
           </div>
-          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-            <Plus className="h-4 w-4" />
-            New Design Request
-          </button>
+          <div className="flex items-center gap-2">
+            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
+              <Plus className="h-4 w-4" />
+              New Design Request
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
+              <Download className="h-4 w-4" />
+            </button>
+            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
+              <Printer className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="mb-5 animate-in delay-2">
+          <div className="py-3">
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search</label>
+                <Input
+                  placeholder="Search by identifier..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer</label>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All customers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All customers</SelectItem>
+                    {customerOptions.map(customer => (
+                      <SelectItem key={customer} value={customer}>
+                        {customer}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Status</label>
+                <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {['pending', 'in_progress', 'approved', 'rejected', 'completed'].map(status => (
+                      <SelectItem key={status} value={status}>
+                        {status === 'in_progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Table Card */}
@@ -385,6 +534,9 @@ export default function DesignRequests() {
               <Palette className="h-4 w-4" style={{ color: 'var(--so-text-muted)' }} />
               <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>All Design Requests</span>
             </div>
+            <span className="text-[12px]" style={{ color: 'var(--so-text-muted)' }}>
+              {filteredDesignRequests.length} of {designRequests.length}
+            </span>
           </div>
           {isLoading ? (
             <div className="text-center py-12 text-sm" style={{ color: 'var(--so-text-muted)' }}>Loading...</div>
@@ -392,9 +544,7 @@ export default function DesignRequests() {
             <DataTable
               storageKey="design-requests"
               columns={columns}
-              data={requestsData?.results ?? []}
-              searchColumn="ident"
-              searchPlaceholder="Search by identifier..."
+              data={filteredDesignRequests}
               onRowClick={(row) => navigate(`/design-requests/${row.id}`)}
             />
           )}
@@ -430,6 +580,60 @@ export default function DesignRequests() {
         onConfirm={handleConfirmDelete}
         loading={deleteRequest.isPending}
       />
+
+      {/* Print-only section */}
+      <div className="print-only" style={{ color: 'black' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', paddingBottom: '16px', borderBottom: '3px solid #333' }}>
+          <div>
+            <div style={{ fontSize: '22pt', fontWeight: 700, letterSpacing: '-0.5px' }}>{settingsData?.company_name || 'Company'}</div>
+            {settingsData?.company_address && <div style={{ fontSize: '9pt', color: '#555', whiteSpace: 'pre-line', marginTop: '4px' }}>{settingsData.company_address}</div>}
+            {(settingsData?.company_phone || settingsData?.company_email) && (
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>{[settingsData?.company_phone, settingsData?.company_email].filter(Boolean).join(' | ')}</div>
+            )}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '18pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px' }}>Design Requests</div>
+            <div style={{ fontSize: '10pt', color: '#555', marginTop: '4px' }}>{printFilters?.dateRangeLabel || ''}</div>
+            <div style={{ fontSize: '9pt', color: '#555', marginTop: '4px', padding: '2px 10px', border: '1px solid #999', display: 'inline-block' }}>{printFilteredData.length} requests</div>
+          </div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt' }}>
+          <thead>
+            <tr>
+              {[
+                { key: 'file_number', label: 'Request #' },
+                { key: 'customer_name', label: 'Customer' },
+                { key: 'ident', label: 'Title' },
+                { key: 'status', label: 'Status' },
+                { key: 'created_at', label: 'Created' },
+              ].filter(h => !printFilters || printFilters.visibleColumns.includes(h.key)).map(h => (
+                <th key={h.key} style={{ padding: '5px 6px', border: '1px solid #ccc', background: '#f5f5f5', fontWeight: 600, textAlign: 'left' }}>{h.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {printFilteredData.map(row => {
+              const showCol = (key: string) => !printFilters || printFilters.visibleColumns.includes(key)
+              return (
+                <tr key={row.id}>
+                  {showCol('file_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace' }}>{row.file_number}</td>}
+                  {showCol('customer_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.customer_name || '\u2014'}</td>}
+                  {showCol('ident') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.ident || '\u2014'}</td>}
+                  {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.status.replace('_', ' ')}</td>}
+                  {showCol('created_at') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.created_at ? new Date(row.created_at).toLocaleDateString() : '\u2014'}</td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: '40px', paddingTop: '12px', borderTop: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', fontSize: '8pt', color: '#999' }}>
+          <span>Printed {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}</span>
+          <span>{settingsData?.company_name || ''}</span>
+        </div>
+      </div>
+
+      <ReportFilterModal open={printFilterOpen} onOpenChange={setPrintFilterOpen} config={reportFilterConfig} mode="print" onConfirm={handleFilteredPrint} />
+      <ReportFilterModal open={exportFilterOpen} onOpenChange={setExportFilterOpen} config={reportFilterConfig} mode="export" onConfirm={handleFilteredExport} />
     </div>
   )
 }

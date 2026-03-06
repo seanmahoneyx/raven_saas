@@ -30,6 +30,11 @@ class Contract(TenantMixin, TimestampMixin):
         ('expired', 'Expired'),
     ]
 
+    CONTRACT_TYPE_CHOICES = [
+        ('blanket', 'Blanket'),
+        ('direct', 'Direct'),
+    ]
+
     customer = models.ForeignKey(
         'parties.Customer',
         on_delete=models.PROTECT,
@@ -72,6 +77,20 @@ class Contract(TenantMixin, TimestampMixin):
         blank=True,
         related_name='contracts_ship_to',
         help_text="Default shipping location for releases"
+    )
+    contract_type = models.CharField(
+        max_length=20,
+        choices=CONTRACT_TYPE_CHOICES,
+        default='blanket',
+        help_text="Contract type: blanket (negotiated, multi-release) or direct (auto-created, single-use)"
+    )
+    source_estimate = models.ForeignKey(
+        'orders.Estimate',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='converted_contracts',
+        help_text="Estimate this contract was converted from (if any)"
     )
     notes = models.TextField(
         blank=True,
