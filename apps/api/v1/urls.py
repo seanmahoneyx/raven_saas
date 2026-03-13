@@ -93,6 +93,7 @@ from .views.canned_reports import (
 )
 from .views.health import health_check
 from .views.settings import TenantSettingsView
+from .views.favorites import FavoriteViewSet, RecentViewAPI, SuggestionsAPI
 from .views.onboarding import (
     OnboardingStatusView,
     OnboardingCompanyView,
@@ -321,6 +322,12 @@ urlpatterns = [
     path('onboarding/uom/', OnboardingUoMView.as_view(), name='onboarding-uom'),
     path('onboarding/invite/', OnboardingInviteView.as_view(), name='onboarding-invite'),
     path('onboarding/complete/', OnboardingCompleteView.as_view(), name='onboarding-complete'),
+
+    # Favorites & Recents
+    path('favorites/', FavoriteViewSet.as_view({'get': 'list', 'post': 'create'}), name='favorites-list'),
+    path('favorites/<int:pk>/', FavoriteViewSet.as_view({'delete': 'destroy'}), name='favorites-detail'),
+    path('recents/', RecentViewAPI.as_view(), name='recents'),
+    path('suggestions/', SuggestionsAPI.as_view(), name='suggestions'),
 
     # Health check (no auth required - used by load balancers)
     path('health/', health_check, name='health-check'),

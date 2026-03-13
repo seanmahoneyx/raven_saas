@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTrackEntityView } from '@/api/favorites'
 import {
   ArrowLeft, Plus, Trash2,
   FileText,
@@ -64,6 +65,13 @@ export default function SalesOrderDetail() {
   const handleNext = () => {
     if (order?.next_id) navigate(`/orders/sales/${order.next_id}`)
   }
+
+  const trackView = useTrackEntityView()
+  useEffect(() => {
+    if (orderId) {
+      trackView.mutate({ entity_type: 'sales_order', object_id: orderId })
+    }
+  }, [orderId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isEditing, setIsEditing] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)

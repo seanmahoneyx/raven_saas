@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Plus, Trash2, X, Save, AlertTriangle } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
 
@@ -258,21 +259,14 @@ export default function CreatePurchaseOrder() {
               <div className="rounded-lg p-4 flex flex-wrap items-end gap-4 mt-4" style={{ background: 'var(--so-bg)' }}>
                 <div className="flex flex-col">
                   <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Vendor *</span>
-                  <Select
-                    value={formData.vendor}
-                    onValueChange={(value) => setFormData({ ...formData, vendor: value })}
-                  >
-                    <SelectTrigger className="h-9 text-sm w-[220px]" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                      <SelectValue placeholder="Select vendor..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {vendors.map((v) => (
-                        <SelectItem key={v.id} value={String(v.id)}>
-                          {v.party_code} - {v.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="vendor"
+                    value={formData.vendor ? Number(formData.vendor) : null}
+                    onChange={(id) => setFormData({ ...formData, vendor: id ? String(id) : '' })}
+                    placeholder="Select vendor..."
+                    allowClear
+                    className="w-[220px]"
+                  />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Ship To Warehouse *</span>

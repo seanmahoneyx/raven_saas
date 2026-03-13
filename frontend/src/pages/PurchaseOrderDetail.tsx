@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTrackEntityView } from '@/api/favorites'
 import {
   ArrowLeft, Plus, Trash2, FileText,
 } from 'lucide-react'
@@ -63,6 +64,13 @@ export default function PurchaseOrderDetail() {
   const handleNext = () => {
     if (order?.next_id) navigate(`/orders/purchase/${order.next_id}`)
   }
+
+  const trackView = useTrackEntityView()
+  useEffect(() => {
+    if (purchaseOrderId) {
+      trackView.mutate({ entity_type: 'purchase_order', object_id: purchaseOrderId })
+    }
+  }, [purchaseOrderId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [isEditing, setIsEditing] = useState(false)
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false)

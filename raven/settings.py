@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'apps.communication',
     'apps.notifications',
     'apps.approvals',
+    'apps.favorites',
     'apps.api',
     # User management
     'users',

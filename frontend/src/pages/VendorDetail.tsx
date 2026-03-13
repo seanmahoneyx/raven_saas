@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTrackEntityView } from '@/api/favorites'
 import {
   DollarSign, Package, MapPin, FileText, History,
   Paperclip, Phone, Plus, AlertCircle, ListOrdered,
@@ -31,6 +32,13 @@ export default function VendorDetail() {
 
   const [timelineFilter, setTimelineFilter] = useState<string | undefined>(undefined)
   const { data: timeline } = useVendorTimeline(vendorId, timelineFilter)
+
+  const trackView = useTrackEntityView()
+  useEffect(() => {
+    if (vendorId) {
+      trackView.mutate({ entity_type: 'vendor', object_id: vendorId })
+    }
+  }, [vendorId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const vendorLocations = locationsData?.results ?? []
   const orders = ordersData?.results ?? []

@@ -12,10 +12,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import { useVendors, useLocations } from '@/api/parties'
+import { useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { useCreateRFQ } from '@/api/rfqs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface LineFormData {
   id: string
@@ -31,7 +32,6 @@ export default function CreateRFQ() {
   const navigate = useNavigate()
   const createRFQ = useCreateRFQ()
 
-  const { data: vendorsData } = useVendors()
   const { data: locationsData } = useLocations()
   const { data: itemsData } = useItems()
   const { data: uomData } = useUnitsOfMeasure()
@@ -145,14 +145,13 @@ export default function CreateRFQ() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor *</Label>
-                  <Select value={formData.vendor} onValueChange={(v) => update('vendor', v)}>
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select vendor..." /></SelectTrigger>
-                    <SelectContent>
-                      {vendorsData?.results?.map((vendor) => (
-                        <SelectItem key={vendor.id} value={String(vendor.id)}>{vendor.party_code} - {vendor.party_display_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="vendor"
+                    value={formData.vendor ? Number(formData.vendor) : null}
+                    onChange={(id) => update('vendor', id ? String(id) : '')}
+                    placeholder="Select vendor..."
+                    allowClear
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>RFQ Number</Label>

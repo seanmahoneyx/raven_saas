@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
 const dangerBtnStyle: React.CSSProperties = { background: '#dc2626', border: '1px solid #dc2626' }
@@ -229,21 +230,13 @@ export default function CreateEstimate() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="customer" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
-                  <Select
-                    value={formData.customer}
-                    onValueChange={(v) => setFormData((prev) => ({ ...prev, customer: v, ship_to: '', bill_to: '' }))}
-                  >
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                      <SelectValue placeholder="Select customer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.party_code} - {c.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={formData.customer ? Number(formData.customer) : null}
+                    onChange={(id) => setFormData((prev) => ({ ...prev, customer: id ? String(id) : '', ship_to: '', bill_to: '' }))}
+                    placeholder="Select customer..."
+                    allowClear
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="customer_po" style={{ color: 'var(--so-text-secondary)' }}>Customer PO</Label>

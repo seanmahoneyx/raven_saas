@@ -1035,3 +1035,50 @@ export interface PipelineData {
   customer_track: PipelineStage[]
   vendor_track: PipelineStage[]
 }
+
+// ── Favorites & Recents ──────────────────────────────────────────────
+
+export type EntityType =
+  | 'customer'
+  | 'vendor'
+  | 'item'
+  | 'contact'
+  | 'contract'
+  | 'sales_order'
+  | 'purchase_order'
+  | 'rfq'
+  | 'estimate'
+  | 'invoice'
+  | 'price_list'
+  | 'design_request'
+  | 'account'
+  | 'journal_entry'
+
+export interface UserFavorite {
+  id: number
+  entity_type: EntityType
+  object_id: number
+  label: string
+  created_at: string
+}
+
+export interface UserRecentView {
+  id: number
+  entity_type: EntityType
+  object_id: number
+  label: string
+  view_count: number
+  last_viewed_at: string
+}
+
+export interface SuggestionItem {
+  id: number
+  label: string
+  is_favorite: boolean
+}
+
+export interface SuggestionsResponse {
+  favorites: SuggestionItem[]
+  recents: SuggestionItem[]
+  results: SuggestionItem[]
+}

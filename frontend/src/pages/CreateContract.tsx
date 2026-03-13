@@ -16,6 +16,7 @@ import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface LineFormData {
   id: string
@@ -150,18 +151,13 @@ export default function CreateContract() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
-                  <Select value={formData.customer} onValueChange={(v) => setFormData((prev) => ({ ...prev, customer: v, ship_to: '' }))}>
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                      <SelectValue placeholder="Select customer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customersData?.results?.map((customer) => (
-                        <SelectItem key={customer.id} value={String(customer.id)}>
-                          {customer.party_code} - {customer.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={formData.customer ? Number(formData.customer) : null}
+                    onChange={(id) => setFormData((prev) => ({ ...prev, customer: id ? String(id) : '', ship_to: '' }))}
+                    placeholder="Select customer..."
+                    allowClear
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer Blanket PO #</Label>

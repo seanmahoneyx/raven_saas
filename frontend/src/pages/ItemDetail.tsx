@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTrackEntityView } from '@/api/favorites'
 import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
@@ -58,6 +59,13 @@ export default function ItemDetail() {
     },
     enabled: !!itemId,
   })
+  const trackView = useTrackEntityView()
+  useEffect(() => {
+    if (itemId) {
+      trackView.mutate({ entity_type: 'item', object_id: itemId })
+    }
+  }, [itemId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [activeTab, setActiveTab] = useState<Tab>('history')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({

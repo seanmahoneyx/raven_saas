@@ -15,6 +15,7 @@ import { useCreateInvoice } from '@/api/invoicing'
 import { useParties } from '@/api/parties'
 import { useItems } from '@/api/items'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -295,24 +296,13 @@ export default function CreateInvoice() {
                   <label className={labelClass} style={labelStyle}>
                     {formData.invoice_type === 'AR' ? 'Customer' : 'Vendor'} *
                   </label>
-                  <Select
-                    value={formData.party}
-                    onValueChange={(v) => setFormData(prev => ({ ...prev, party: v }))}
-                  >
-                    <SelectTrigger
-                      className="h-9 text-sm"
-                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                    >
-                      <SelectValue placeholder={`Select ${formData.invoice_type === 'AR' ? 'customer' : 'vendor'}...`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {parties.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.code} - {p.display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType={formData.invoice_type === 'AR' ? 'customer' : 'vendor'}
+                    value={formData.party ? Number(formData.party) : null}
+                    onChange={(id) => setFormData(prev => ({ ...prev, party: id ? String(id) : '' }))}
+                    placeholder={`Select ${formData.invoice_type === 'AR' ? 'customer' : 'vendor'}...`}
+                    allowClear
+                  />
                 </div>
                 <div>
                   <label className={labelClass} style={labelStyle}>Invoice Date *</label>

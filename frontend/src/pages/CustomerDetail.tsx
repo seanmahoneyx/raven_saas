@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useTrackEntityView } from '@/api/favorites'
 import {
   DollarSign, ShoppingCart, MapPin, FileText, History,
   Paperclip, BarChart3, Users, Phone, Plus,
@@ -43,6 +44,13 @@ export default function CustomerDetail() {
 
   const [timelineFilter, setTimelineFilter] = useState<string | undefined>(undefined)
   const { data: timeline } = useCustomerTimeline(customerId, timelineFilter)
+
+  const trackView = useTrackEntityView()
+  useEffect(() => {
+    if (customerId) {
+      trackView.mutate({ entity_type: 'customer', object_id: customerId })
+    }
+  }, [customerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const customerLocations = locationsData?.results ?? []
   const orders = ordersData?.results ?? []

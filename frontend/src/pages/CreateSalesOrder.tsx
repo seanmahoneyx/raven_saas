@@ -15,6 +15,7 @@ import {
 import { useCreateSalesOrder } from '@/api/orders'
 import { useCustomers, useLocations } from '@/api/parties'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
@@ -472,24 +473,13 @@ export default function CreateSalesOrder() {
               <div className="grid grid-cols-6 gap-4">
                 <div className="col-span-2">
                   <label className={labelClass} style={labelStyle}>Customer *</label>
-                  <Select
-                    value={formData.customer}
-                    onValueChange={handleCustomerChange}
-                  >
-                    <SelectTrigger
-                      className="h-9 text-sm"
-                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                    >
-                      <SelectValue placeholder="Select customer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>
-                          {c.party_code} - {c.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={formData.customer ? Number(formData.customer) : null}
+                    onChange={(id) => handleCustomerChange(id ? String(id) : '')}
+                    placeholder="Select customer..."
+                    allowClear
+                  />
                 </div>
                 <div>
                   <label className={labelClass} style={labelStyle}>Customer PO</label>
