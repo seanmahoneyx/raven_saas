@@ -52,6 +52,7 @@ import CreatePriceList from '@/pages/CreatePriceList'
 import RFQs from '@/pages/RFQs'
 import RFQDetail from '@/pages/RFQDetail'
 import PriceLists from '@/pages/PriceLists'
+import ProductCards from '@/pages/ProductCards'
 import PriceListDetail from '@/pages/PriceListDetail'
 import OpenSalesOrders from '@/pages/OpenSalesOrders'
 import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
@@ -154,6 +155,7 @@ function App() {
                 <Route path="/items" element={<Items />} />
                 <Route path="/items/new" element={<CreateItem />} />
                 <Route path="/items/:id" element={<ItemDetail />} />
+                <Route path="/product-cards" element={<ProductCards />} />
                 <Route path="/estimates" element={<Estimates />} />
                 <Route path="/estimates/new" element={<CreateEstimate />} />
                 <Route path="/estimates/:id" element={<EstimateDetail />} />
@@ -186,6 +188,7 @@ function App() {
                 <Route path="/reports/orders-vs-inventory" element={<OrdersVsInventory />} />
                 <Route path="/reports/:slug" element={<CannedReport />} />
                 <Route path="/scheduler" element={<Scheduler />} />
+                <Route path="/vendors/:vendorId/priority-list" element={<PriorityList />} />
                 <Route path="/priority-list" element={<PriorityList />} />
                 <Route path="/design-requests" element={<DesignRequests />} />
                 <Route path="/design-requests/new" element={<CreateDesignRequest />} />

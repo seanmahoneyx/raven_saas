@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft, Printer, Download } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
@@ -62,7 +63,7 @@ export default function SalesCommission() {
 
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-print-hide>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Reports
@@ -79,8 +80,10 @@ export default function SalesCommission() {
         </div>
       </div>
 
+      <PrintReportHeader title="Sales Commission Report" />
+
       {/* Filters */}
-      <div className="flex items-end gap-4">
+      <div className="flex items-end gap-4" data-print-hide>
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
           <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-44 h-8" />
@@ -179,6 +182,7 @@ export default function SalesCommission() {
               </div>
             </CardContent>
           </Card>
+          <PrintFooter />
         </>
       ) : null}
     </div>

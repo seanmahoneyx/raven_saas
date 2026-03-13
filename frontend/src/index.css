@@ -311,6 +311,15 @@ table tbody tr {
   background: hsl(260 5% 28%);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ═══════════════════════════════════════════════
    SCRATCH-STYLE BLOCK SYSTEM (Scheduler)
    ═══════════════════════════════════════════════ */
@@ -442,11 +451,12 @@ table tbody tr {
     line-height: 1.4;
   }
 
-  /* Hide navbar, toasts, dialogs, and interactive elements */
+  /* Hide ALL app chrome, toasts, dialogs, and interactive elements */
   header.bg-sidebar,
   [data-sonner-toaster],
   [role="dialog"],
-  [data-print-hide] {
+  [data-print-hide],
+  [data-slot="tabs-list"] {
     display: none !important;
   }
 
@@ -454,6 +464,11 @@ table tbody tr {
   main, .flex-1 {
     padding: 0 !important;
     margin: 0 !important;
+  }
+
+  /* Strip overflow clipping so print content isn't cut */
+  .overflow-hidden, .overflow-y-auto {
+    overflow: visible !important;
   }
 
   /* Remove card shadows and simplify borders */
@@ -476,6 +491,32 @@ table tbody tr {
   @page {
     margin: 0.6in 0.75in;
     size: letter;
+  }
+
+  /* Landscape page for reports that need full-width tables */
+  @page landscape-report {
+    margin: 0.5in 0.6in;
+    size: letter landscape;
+  }
+
+  .print-landscape {
+    page: landscape-report;
+  }
+
+  /* Compact print tables within landscape reports */
+  .print-landscape table {
+    width: 100% !important;
+    font-size: 9pt;
+  }
+
+  .print-landscape table th,
+  .print-landscape table td {
+    padding: 4px 6px !important;
+    white-space: nowrap;
+  }
+
+  .print-landscape [data-slot="card"] {
+    margin-bottom: 12px;
   }
 
   /* Links should not show underline */

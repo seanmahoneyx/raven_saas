@@ -540,6 +540,181 @@ class ItemViewSet(viewsets.ModelViewSet):
         serializer = ItemHistoryEntrySerializer(entries, many=True)
         return Response(serializer.data)
 
+    @extend_schema(
+        tags=['items'],
+        summary='Get item product card (pricing/costing/RFQ history)',
+    )
+    @action(detail=True, methods=['get'])
+    def product_card(self, request, pk=None):
+        """
+        Aggregates all pricing, costing, and RFQ history for an item into one response.
+        """
+        item = self.get_object()
+
+        from apps.pricing.models import PriceListHead
+        from apps.costing.models import CostListHead
+        from apps.orders.models import RFQLine, PurchaseOrderLine, SalesOrderLine, EstimateLine
+
+        # --- Price Lists ---
+        price_lists = []
+        for pl in PriceListHead.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('customer__party').prefetch_related('lines').order_by('-begin_date'):
+            price_lists.append({
+                'id': pl.id,
+                'customer_name': pl.customer.party.display_name,
+                'customer_code': pl.customer.party.code,
+                'customer_id': pl.customer_id,
+                'begin_date': pl.begin_date,
+                'end_date': pl.end_date,
+                'is_active': pl.is_active,
+                'notes': pl.notes,
+                'tiers': [
+                    {'min_quantity': line.min_quantity, 'unit_price': line.unit_price}
+                    for line in pl.lines.all()
+                ],
+            })
+
+        # --- Cost Lists ---
+        cost_lists = []
+        for cl in CostListHead.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('vendor__party').prefetch_related('lines').order_by('-begin_date'):
+            cost_lists.append({
+                'id': cl.id,
+                'vendor_name': cl.vendor.party.display_name,
+                'vendor_code': cl.vendor.party.code,
+                'vendor_id': cl.vendor_id,
+                'begin_date': cl.begin_date,
+                'end_date': cl.end_date,
+                'is_active': cl.is_active,
+                'notes': cl.notes,
+                'tiers': [
+                    {'min_quantity': line.min_quantity, 'unit_cost': line.unit_cost}
+                    for line in cl.lines.all()
+                ],
+            })
+
+        # --- RFQ Quotes ---
+        rfq_quotes = []
+        for line in RFQLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('rfq__vendor__party').order_by('-rfq__date'):
+            rfq = line.rfq
+            rfq_quotes.append({
+                'rfq_id': rfq.id,
+                'rfq_number': rfq.rfq_number,
+                'vendor_name': rfq.vendor.party.display_name,
+                'vendor_code': rfq.vendor.party.code,
+                'vendor_id': rfq.vendor_id,
+                'date': rfq.date,
+                'status': rfq.status,
+                'status_display': rfq.get_status_display(),
+                'quantity': line.quantity,
+                'target_price': line.target_price,
+                'quoted_price': line.quoted_price,
+                'notes': line.notes,
+            })
+
+        # --- Customer Estimates ---
+        estimates = []
+        for line in EstimateLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('estimate__customer__party').order_by('-estimate__date'):
+            est = line.estimate
+            estimates.append({
+                'estimate_id': est.id,
+                'estimate_number': est.estimate_number,
+                'customer_name': est.customer.party.display_name,
+                'customer_code': est.customer.party.code,
+                'customer_id': est.customer_id,
+                'date': est.date,
+                'expiration_date': est.expiration_date,
+                'status': est.status,
+                'status_display': est.get_status_display(),
+                'quantity': line.quantity,
+                'unit_price': line.unit_price,
+                'notes': line.notes,
+            })
+
+        # --- Last Buy ---
+        last_buy_line = PurchaseOrderLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('purchase_order__vendor__party').order_by('-purchase_order__order_date').first()
+        if last_buy_line:
+            po = last_buy_line.purchase_order
+            last_buy = {
+                'price': last_buy_line.unit_cost,
+                'date': po.order_date,
+                'vendor_name': po.vendor.party.display_name,
+                'po_number': po.po_number,
+            }
+        else:
+            last_buy = None
+
+        # --- Last Sell ---
+        last_sell_line = SalesOrderLine.objects.filter(
+            item=item, tenant=request.tenant
+        ).select_related('sales_order__customer__party').order_by('-sales_order__order_date').first()
+        if last_sell_line:
+            so = last_sell_line.sales_order
+            last_sell = {
+                'price': last_sell_line.unit_price,
+                'date': so.order_date,
+                'customer_name': so.customer.party.display_name,
+                'so_number': so.order_number,
+            }
+        else:
+            last_sell = None
+
+        # --- Vendors ---
+        vendor_links = ItemVendor.objects.filter(
+            item=item, tenant=request.tenant, is_active=True
+        ).select_related('vendor')
+        vendors = [
+            {
+                'vendor_id': vl.vendor_id,
+                'vendor_name': vl.vendor.display_name,
+                'vendor_code': vl.vendor.code,
+                'mpn': vl.mpn,
+                'lead_time_days': vl.lead_time_days,
+                'min_order_qty': vl.min_order_qty,
+                'is_preferred': vl.is_preferred,
+            }
+            for vl in vendor_links
+        ]
+
+        # --- Item Details ---
+        customer = item.customer
+        item_details = {
+            'sku': item.sku,
+            'name': item.name,
+            'description': item.description,
+            'purch_desc': item.purch_desc,
+            'sell_desc': item.sell_desc,
+            'division': item.division,
+            'is_inventory': item.is_inventory,
+            'is_active': item.is_active,
+            'customer_name': customer.display_name if customer else None,
+            'customer_code': customer.code if customer else None,
+            'reorder_point': item.reorder_point,
+            'min_stock': item.min_stock,
+            'safety_stock': item.safety_stock,
+            'base_uom_code': item.base_uom.code if item.base_uom else None,
+            'product_card_notes': item.product_card_notes,
+        }
+
+        return Response({
+            'price_lists': price_lists,
+            'cost_lists': cost_lists,
+            'rfq_quotes': rfq_quotes,
+            'estimates': estimates,
+            'last_buy': last_buy,
+            'last_sell': last_sell,
+            'vendors': vendors,
+            'item_details': item_details,
+        })
+
 
 # =============================================================================
 # CORRUGATED ITEMS

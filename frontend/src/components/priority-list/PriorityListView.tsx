@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import {
   DndContext,
   DragOverlay,
@@ -21,7 +22,6 @@ import {
   usePriorityList,
   useReorderPriorityLines,
   useMovePriorityLine,
-  useSyncPriorityList,
   useVendorAllotments,
   useDailyOverrides,
 } from '@/api/priorityList'
@@ -31,6 +31,7 @@ import type { PriorityLine } from '@/types/api'
 interface PriorityListViewProps {
   startDate: string
   endDate: string
+  initialVendorId?: number | null
 }
 
 /**
@@ -39,9 +40,10 @@ interface PriorityListViewProps {
 export const PriorityListView = memo(function PriorityListView({
   startDate,
   endDate,
+  initialVendorId,
 }: PriorityListViewProps) {
   // Local filter state (not from store to avoid re-render loops)
-  const [filterVendorId, setFilterVendorId] = useState<number | null>(null)
+  const [filterVendorId, setFilterVendorId] = useState<number | null>(initialVendorId ?? null)
 
   // Store actions only (stable references)
   const hydrate = usePriorityListStore((s) => s.hydrate)
@@ -76,7 +78,6 @@ export const PriorityListView = memo(function PriorityListView({
   // API mutations
   const reorderMutation = useReorderPriorityLines()
   const moveMutation = useMovePriorityLine()
-  const syncMutation = useSyncPriorityList()
 
   // UI state
   const [showAllotmentModal, setShowAllotmentModal] = useState(false)
@@ -224,10 +225,6 @@ export const PriorityListView = memo(function PriorityListView({
     }
   }, [lineToBin, bins, reorderInBin, moveLineToDate, reorderMutation, moveMutation])
 
-  const handleSync = useCallback(() => {
-    syncMutation.mutate()
-  }, [syncMutation])
-
   // Filter displayed vendors
   const displayedVendorIds = useMemo(() => {
     if (filterVendorId) {
@@ -240,61 +237,73 @@ export const PriorityListView = memo(function PriorityListView({
   const isLoading = dataLoading
   const error = dataError?.message ?? null
 
+  // Navbar mode: no initialVendorId provided — require vendor selection before showing data
+  const isNavbarMode = initialVendorId == null
+
   return (
     <div className="space-y-4">
       {/* Header / Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Filter chips */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setFilterVendorId(null)}
-              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                filterVendorId === null
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              All Vendors
-            </button>
+          <select
+            value={filterVendorId ?? ''}
+            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
+            className="h-9 rounded-md border px-3 text-[13px] font-medium min-w-[200px] cursor-pointer transition-colors"
+            style={{
+              borderColor: 'var(--so-border)',
+              background: 'var(--so-surface)',
+              color: 'var(--so-text-primary)',
+            }}
+          >
+            {isNavbarMode ? (
+              <option value="">Select a vendor...</option>
+            ) : (
+              <option value="">All Vendors</option>
+            )}
             {vendorsData?.results?.map((vendor) => (
-              <button
-                key={vendor.id}
-                onClick={() => setFilterVendorId(
-                  filterVendorId === vendor.id ? null : vendor.id
-                )}
-                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                  filterVendorId === vendor.id
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                }`}
-              >
+              <option key={vendor.id} value={vendor.id}>
                 {vendor.party_display_name}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSync}
-            disabled={syncMutation.isPending}
-            className="px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted rounded-md border border-border disabled:opacity-50 transition-colors"
-            title="Sync PO lines from orders"
-          >
-            {syncMutation.isPending ? 'Syncing...' : 'Sync Lines'}
-          </button>
-          <button
             onClick={() => setShowAllotmentModal(true)}
-            className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            className={primaryBtnClass}
+            style={primaryBtnStyle}
           >
             Configure Allotments
           </button>
         </div>
       </div>
 
-      {/* Main content */}
-      {isLoading ? (
+      {/* Navbar mode empty state — prompt user to select a vendor */}
+      {isNavbarMode && !filterVendorId ? (
+        <div className="flex flex-col items-center justify-center h-64 gap-4">
+          <p className="text-[15px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+            Select a vendor to view their priority list
+          </p>
+          <select
+            value={filterVendorId ?? ''}
+            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
+            className="h-10 rounded-md border px-4 text-[14px] font-medium min-w-[260px] cursor-pointer transition-colors"
+            style={{
+              borderColor: 'var(--so-border)',
+              background: 'var(--so-surface)',
+              color: filterVendorId ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
+            }}
+          >
+            <option value="">Select a vendor...</option>
+            {vendorsData?.results?.map((vendor) => (
+              <option key={vendor.id} value={vendor.id}>
+                {vendor.party_display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : isLoading ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-muted-foreground">Loading priority list...</div>
           </div>
@@ -304,10 +313,7 @@ export const PriorityListView = memo(function PriorityListView({
           </div>
         ) : displayedVendorIds.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <p className="mb-2">No priority lines found for this date range.</p>
-            <p className="text-sm">
-              Click "Sync Lines" to import scheduled PO lines.
-            </p>
+            <p>No priority lines found for this date range.</p>
           </div>
         ) : (
           <DndContext

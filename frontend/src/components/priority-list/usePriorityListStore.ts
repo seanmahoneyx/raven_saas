@@ -50,31 +50,10 @@ interface PriorityListState {
   vendorDates: Record<number, Set<string>>            // vendorId -> set of dates
 
   // UI state
-  expandedVendors: Set<number>
-  expandedDates: Set<string>    // Format: `${vendorId}|${date}`
-  expandedBoxTypes: Set<string> // Format: `${vendorId}|${date}|${boxType}`
   selectedLineId: string | null
-  isLoading: boolean
-  error: string | null
-
-  // Date range for current view
-  startDate: string | null
-  endDate: string | null
-  filterVendorId: number | null
 
   // Actions
   hydrate: (data: PriorityListResponse) => void
-  setDateRange: (startDate: string, endDate: string) => void
-  setFilterVendorId: (vendorId: number | null) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-
-  // Expand/collapse actions
-  toggleExpandVendor: (vendorId: number) => void
-  toggleExpandDate: (vendorId: number, date: string) => void
-  toggleExpandBoxType: (vendorId: number, date: string, boxType: BoxType) => void
-  expandAll: () => void
-  collapseAll: () => void
 
   // Reorder actions (optimistic updates)
   reorderInBin: (binId: BinId, fromIndex: number, toIndex: number) => void
@@ -107,15 +86,7 @@ export const usePriorityListStore = create<PriorityListState>()(
     overrides: {},
     lineToBin: {},
     vendorDates: {},
-    expandedVendors: new Set(),
-    expandedDates: new Set(),
-    expandedBoxTypes: new Set(),
     selectedLineId: null,
-    isLoading: false,
-    error: null,
-    startDate: null,
-    endDate: null,
-    filterVendorId: null,
 
     hydrate: (data) => {
       const lines: Record<string, NormalizedPriorityLine> = {}
@@ -165,96 +136,6 @@ export const usePriorityListStore = create<PriorityListState>()(
         vendors,
         lineToBin,
         vendorDates,
-        isLoading: false,
-        error: null,
-      })
-    },
-
-    setDateRange: (startDate, endDate) => {
-      set({ startDate, endDate })
-    },
-
-    setFilterVendorId: (vendorId) => {
-      set({ filterVendorId: vendorId })
-    },
-
-    setLoading: (loading) => {
-      set({ isLoading: loading })
-    },
-
-    setError: (error) => {
-      set({ error, isLoading: false })
-    },
-
-    toggleExpandVendor: (vendorId) => {
-      set((prev) => {
-        const next = new Set(prev.expandedVendors)
-        if (next.has(vendorId)) {
-          next.delete(vendorId)
-        } else {
-          next.add(vendorId)
-        }
-        return { expandedVendors: next }
-      })
-    },
-
-    toggleExpandDate: (vendorId, date) => {
-      const key = `${vendorId}|${date}`
-      set((prev) => {
-        const next = new Set(prev.expandedDates)
-        if (next.has(key)) {
-          next.delete(key)
-        } else {
-          next.add(key)
-        }
-        return { expandedDates: next }
-      })
-    },
-
-    toggleExpandBoxType: (vendorId, date, boxType) => {
-      const key = `${vendorId}|${date}|${boxType}`
-      set((prev) => {
-        const next = new Set(prev.expandedBoxTypes)
-        if (next.has(key)) {
-          next.delete(key)
-        } else {
-          next.add(key)
-        }
-        return { expandedBoxTypes: next }
-      })
-    },
-
-    expandAll: () => {
-      const state = get()
-      const expandedVendors = new Set<number>()
-      const expandedDates = new Set<string>()
-      const expandedBoxTypes = new Set<string>()
-
-      for (const vendorId of Object.keys(state.vendors)) {
-        const vId = parseInt(vendorId, 10)
-        expandedVendors.add(vId)
-        const dates = state.vendorDates[vId]
-        if (dates) {
-          for (const date of dates) {
-            expandedDates.add(`${vId}|${date}`)
-            // Expand all box types for this vendor/date
-            for (const binId of Object.keys(state.bins)) {
-              if (binId.startsWith(`${vId}|${date}|`)) {
-                expandedBoxTypes.add(binId)
-              }
-            }
-          }
-        }
-      }
-
-      set({ expandedVendors, expandedDates, expandedBoxTypes })
-    },
-
-    collapseAll: () => {
-      set({
-        expandedVendors: new Set(),
-        expandedDates: new Set(),
-        expandedBoxTypes: new Set(),
       })
     },
 
@@ -573,46 +454,3 @@ export const usePriorityListStore = create<PriorityListState>()(
   }))
 )
 
-// ─── Selectors ───────────────────────────────────────────────────────────────
-
-export const selectLine = (lineId: string) => (state: PriorityListState) =>
-  state.lines[lineId]
-
-export const selectBin = (binId: BinId) => (state: PriorityListState) =>
-  state.bins[binId]
-
-export const selectVendorIds = (state: PriorityListState) =>
-  Object.keys(state.vendors).map(Number).sort((a, b) => {
-    const nameA = state.vendors[a]?.name ?? ''
-    const nameB = state.vendors[b]?.name ?? ''
-    return nameA.localeCompare(nameB)
-  })
-
-export const selectVendor = (vendorId: number) => (state: PriorityListState) =>
-  state.vendors[vendorId]
-
-export const selectVendorDates = (vendorId: number) => (state: PriorityListState) =>
-  state.vendorDates[vendorId] ? Array.from(state.vendorDates[vendorId]).sort() : []
-
-export const selectBinsForVendorDate = (vendorId: number, date: string) => (state: PriorityListState) => {
-  const binIds: BinId[] = []
-  for (const binId of Object.keys(state.bins)) {
-    if (binId.startsWith(`${vendorId}|${date}|`)) {
-      binIds.push(binId)
-    }
-  }
-  return binIds.sort()
-}
-
-export const selectIsVendorExpanded = (vendorId: number) => (state: PriorityListState) =>
-  state.expandedVendors.has(vendorId)
-
-export const selectIsDateExpanded = (vendorId: number, date: string) => (state: PriorityListState) =>
-  state.expandedDates.has(`${vendorId}|${date}`)
-
-export const selectIsBoxTypeExpanded = (vendorId: number, date: string, boxType: BoxType) => (state: PriorityListState) =>
-  state.expandedBoxTypes.has(`${vendorId}|${date}|${boxType}`)
-
-export const selectIsLoading = (state: PriorityListState) => state.isLoading
-export const selectError = (state: PriorityListState) => state.error
-export const selectSelectedLineId = (state: PriorityListState) => state.selectedLineId

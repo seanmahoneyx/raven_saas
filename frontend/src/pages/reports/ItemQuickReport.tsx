@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useItems } from '@/api/items'
-import { useItemQuickReport } from '@/api/reports'
-import type { QuickReportFinancialRow, QuickReportPORow, QuickReportSORow } from '@/api/reports'
+import type { ItemQuickReport as ItemQuickReportData, QuickReportFinancialRow, QuickReportPORow, QuickReportSORow } from '@/api/reports'
+import { useQueries } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,11 +15,17 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { format, startOfWeek, startOfMonth, startOfYear } from 'date-fns'
 import { FileDown, Printer, Search, X } from 'lucide-react'
 import api from '@/api/client'
+import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
 
 // ─── Column Definitions ─────────────────────────────────────────────────────
 
+const fmtDateCell = (iso: string) => {
+  const [y, m, d] = iso.split('-')
+  return `${m.padStart(2, '0')}/${d.padStart(2, '0')}/${y}`
+}
+
 const financialColumns: ColumnDef<QuickReportFinancialRow>[] = [
-  { accessorKey: 'date', header: 'Date' },
+  { accessorKey: 'date', header: 'Date', cell: ({ row }) => fmtDateCell(row.original.date) },
   {
     accessorKey: 'type',
     header: 'Type',
@@ -47,7 +53,7 @@ const financialColumns: ColumnDef<QuickReportFinancialRow>[] = [
 ]
 
 const poColumns: ColumnDef<QuickReportPORow>[] = [
-  { accessorKey: 'date', header: 'Date' },
+  { accessorKey: 'date', header: 'Date', cell: ({ row }) => fmtDateCell(row.original.date) },
   { accessorKey: 'po_number', header: 'PO #' },
   { accessorKey: 'vendor_name', header: 'Vendor' },
   {
@@ -71,7 +77,7 @@ const poColumns: ColumnDef<QuickReportPORow>[] = [
 ]
 
 const soColumns: ColumnDef<QuickReportSORow>[] = [
-  { accessorKey: 'date', header: 'Date' },
+  { accessorKey: 'date', header: 'Date', cell: ({ row }) => fmtDateCell(row.original.date) },
   { accessorKey: 'order_number', header: 'SO #' },
   { accessorKey: 'customer_name', header: 'Customer' },
   {
@@ -113,18 +119,101 @@ function getDatePresets(): DatePreset[] {
   ]
 }
 
+// ─── Per-Item Report Section ─────────────────────────────────────────────────
+
+function ItemReportSection({ report, sku, name }: { report: ItemQuickReportData; sku: string; name: string }) {
+  return (
+    <div className="space-y-4">
+      {/* Item header banner */}
+      <div className="flex items-center gap-3 border-b-2 border-foreground/20 pb-2 pt-1">
+        <span className="font-mono text-lg font-bold">{sku}</span>
+        <span className="text-lg text-muted-foreground">{name}</span>
+      </div>
+
+      {/* Posting Transactions */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Posting Transactions</span>
+            <div className="flex gap-4 text-sm font-normal">
+              <span>Sales: <strong className="text-green-600">${report.financials.summary.total_sales?.toFixed(2)}</strong></span>
+              <span>Costs: <strong className="text-red-600">${report.financials.summary.total_costs?.toFixed(2)}</strong></span>
+              <span>Margin: <strong className="text-blue-600">${report.financials.summary.gross_margin?.toFixed(2)}</strong></span>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {report.financials.rows.length > 0 ? (
+            <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
+              <DataTable columns={financialColumns} data={report.financials.rows} />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4 text-sm">No posting transactions in this period.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Purchase Orders */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Purchase Orders</span>
+            <div className="flex gap-4 text-sm font-normal">
+              <span><strong>{report.purchase_orders.summary.po_count}</strong> POs</span>
+              <span>Qty: <strong>{report.purchase_orders.summary.total_quantity}</strong></span>
+              <span>Value: <strong className="text-blue-600">${report.purchase_orders.summary.total_value?.toFixed(2)}</strong></span>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {report.purchase_orders.rows.length > 0 ? (
+            <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
+              <DataTable columns={poColumns} data={report.purchase_orders.rows} />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4 text-sm">No purchase orders in this period.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Sales Orders */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>Sales Orders</span>
+            <div className="flex gap-4 text-sm font-normal">
+              <span><strong>{report.sales_orders.summary.so_count}</strong> SOs</span>
+              <span>Qty: <strong>{report.sales_orders.summary.total_quantity}</strong></span>
+              <span>Value: <strong className="text-blue-600">${report.sales_orders.summary.total_value?.toFixed(2)}</strong></span>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {report.sales_orders.rows.length > 0 ? (
+            <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
+              <DataTable columns={soColumns} data={report.sales_orders.rows} />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-4 text-sm">No sales orders in this period.</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ItemQuickReport() {
   usePageTitle('Item QuickReport')
 
   const [searchParams] = useSearchParams()
-  const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([])
   const [itemSearch, setItemSearch] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [runParams, setRunParams] = useState<{ itemId: number; start: string; end: string } | null>(null)
+  const [runParams, setRunParams] = useState<{ itemIds: number[]; start: string; end: string } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Pre-select item from URL param (e.g. ?item=5)
@@ -132,7 +221,7 @@ export default function ItemQuickReport() {
     const itemParam = searchParams.get('item')
     if (itemParam) {
       const id = parseInt(itemParam, 10)
-      if (!isNaN(id)) setSelectedItemId(id)
+      if (!isNaN(id)) setSelectedItemIds((prev) => prev.includes(id) ? prev : [...prev, id])
     }
   }, [searchParams])
 
@@ -150,28 +239,78 @@ export default function ItemQuickReport() {
   const { data: itemsData } = useItems()
   const allItems = itemsData?.results ?? []
 
-  // Client-side filter
+  // Client-side filter — exclude already-selected items from dropdown
   const filteredItems = useMemo(() => {
-    if (!itemSearch) return allItems
+    const base = allItems.filter((i) => !selectedItemIds.includes(i.id))
+    if (!itemSearch) return base
     const q = itemSearch.toLowerCase()
-    return allItems.filter(
+    return base.filter(
       (i) => i.sku.toLowerCase().includes(q) || i.name.toLowerCase().includes(q)
     )
-  }, [allItems, itemSearch])
+  }, [allItems, itemSearch, selectedItemIds])
 
-  const selectedItem = allItems.find((i) => i.id === selectedItemId)
-
-  const { data: report, isLoading, isFetching } = useItemQuickReport(
-    runParams?.itemId ?? null,
-    runParams?.start || null,
-    runParams?.end || null
+  const selectedItems = useMemo(
+    () => allItems.filter((i) => selectedItemIds.includes(i.id)),
+    [allItems, selectedItemIds]
   )
+
+  // Fetch reports for all run items in parallel
+  const reportQueries = useQueries({
+    queries: (runParams?.itemIds ?? []).map((itemId) => ({
+      queryKey: ['item-quick-report', itemId, runParams?.start, runParams?.end],
+      queryFn: async () => {
+        const params: Record<string, string> = {}
+        if (runParams?.start) params.start_date = runParams.start
+        if (runParams?.end) params.end_date = runParams.end
+        const { data } = await api.get<ItemQuickReportData>(
+          `/reports/item-quick-report/${itemId}/`,
+          { params }
+        )
+        return data
+      },
+      enabled: !!itemId,
+    })),
+  })
+
+  const isLoading = reportQueries.some((q) => q.isLoading)
+  const isFetching = reportQueries.some((q) => q.isFetching)
+  const hasResults = reportQueries.some((q) => q.data)
+
+  // Sort results alphabetically descending (Z→A) by item name
+  const sortedResults = useMemo(() => {
+    const results: { itemId: number; sku: string; name: string; report: ItemQuickReportData }[] = []
+    for (const q of reportQueries) {
+      if (!q.data) continue
+      const item = allItems.find((i) => i.id === q.data.item_id)
+      if (item) {
+        results.push({ itemId: item.id, sku: item.sku, name: item.name, report: q.data })
+      }
+    }
+    results.sort((a, b) => a.name.localeCompare(b.name))
+    return results
+  }, [reportQueries, allItems])
 
   const datePresets = useMemo(getDatePresets, [])
 
+  function handleAddItem(id: number) {
+    setSelectedItemIds((prev) => prev.includes(id) ? prev : [...prev, id])
+    setItemSearch('')
+    setDropdownOpen(false)
+  }
+
+  function handleRemoveItem(id: number) {
+    setSelectedItemIds((prev) => prev.filter((x) => x !== id))
+    // Clear the report results for this item; if it was the last one, reset entirely
+    setRunParams((prev) => {
+      if (!prev) return null
+      const remaining = prev.itemIds.filter((x) => x !== id)
+      return remaining.length > 0 ? { ...prev, itemIds: remaining } : null
+    })
+  }
+
   function handleRun() {
-    if (selectedItemId) {
-      setRunParams({ itemId: selectedItemId, start: startDate, end: endDate })
+    if (selectedItemIds.length > 0) {
+      setRunParams({ itemIds: [...selectedItemIds], start: startDate, end: endDate })
     }
   }
 
@@ -181,13 +320,13 @@ export default function ItemQuickReport() {
   }
 
   async function handleDownloadPDF() {
-    if (!runParams) return
+    if (!runParams || runParams.itemIds.length === 0) return
     try {
       const params: Record<string, string> = {}
       if (runParams.start) params.start_date = runParams.start
       if (runParams.end) params.end_date = runParams.end
       const response = await api.get(
-        `/reports/item-quick-report/${runParams.itemId}/pdf/`,
+        `/reports/item-quick-report/${runParams.itemIds[0]}/pdf/`,
         { params, responseType: 'blob' }
       )
       const url = window.URL.createObjectURL(new Blob([response.data]))
@@ -206,68 +345,45 @@ export default function ItemQuickReport() {
   const printTimestamp = format(new Date(), 'MMMM d, yyyy h:mm a')
   const asOfDate = format(new Date(), 'MMMM d, yyyy')
 
+  const subtitleText = selectedItems.length > 0
+    ? selectedItems.map((i) => `${i.sku} — ${i.name}`).join(', ')
+    : undefined
+
   return (
     <>
-      {/* Print-only styles */}
-      <style>{`
-        @media print {
-          header, nav, [data-print-hide] { display: none !important; }
-          main { padding: 0 !important; }
-          .print-only { display: block !important; }
-          @page { margin: 0.75in; }
-        }
-        .print-only { display: none; }
-      `}</style>
+      <div className="p-6 space-y-6 print-landscape">
+        <PrintReportHeader
+          title="Item Quick Report"
+          subtitle={subtitleText}
+        />
 
-      <div className="p-6 space-y-6">
-        {/* ─── Report Header (visible always, centered) ─── */}
-        <div className="text-center">
+        {/* ─── Report Header (visible on screen) ─── */}
+        <div className="text-center" data-print-hide>
           <p className="text-xs text-muted-foreground text-left">{printTimestamp}</p>
           <h1 className="text-2xl font-bold">Item QuickReport</h1>
           <p className="text-muted-foreground">As of {asOfDate}</p>
-          {selectedItem && (
-            <p className="text-sm font-medium mt-1">
-              <span className="font-mono">{selectedItem.sku}</span>
-              <span className="text-muted-foreground ml-2">{selectedItem.name}</span>
-            </p>
-          )}
         </div>
 
         {/* ─── Filters (hidden on print) ─── */}
         <Card data-print-hide>
           <CardContent className="pt-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              {/* Smart Item Selector */}
+              {/* Multi-select Item Selector */}
               <div className="space-y-2" ref={dropdownRef}>
-                <Label>Item</Label>
+                <Label>Items</Label>
                 <div className="relative">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search items..."
-                      className="pl-8 pr-8"
-                      value={selectedItem && !dropdownOpen ? `${selectedItem.sku} - ${selectedItem.name}` : itemSearch}
-                      onFocus={() => {
-                        setDropdownOpen(true)
-                        if (selectedItem) setItemSearch('')
-                      }}
+                      placeholder={selectedItemIds.length > 0 ? 'Add another item...' : 'Search items...'}
+                      className="pl-8"
+                      value={itemSearch}
+                      onFocus={() => setDropdownOpen(true)}
                       onChange={(e) => {
                         setItemSearch(e.target.value)
                         setDropdownOpen(true)
-                        if (selectedItemId) setSelectedItemId(null)
                       }}
                     />
-                    {selectedItemId && (
-                      <button
-                        className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          setSelectedItemId(null)
-                          setItemSearch('')
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
                   </div>
                   {dropdownOpen && (
                     <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-64 overflow-auto">
@@ -275,14 +391,8 @@ export default function ItemQuickReport() {
                         filteredItems.slice(0, 50).map((item) => (
                           <button
                             key={item.id}
-                            className={`w-full text-left px-3 py-2 hover:bg-accent text-sm ${
-                              item.id === selectedItemId ? 'bg-accent' : ''
-                            }`}
-                            onClick={() => {
-                              setSelectedItemId(item.id)
-                              setItemSearch('')
-                              setDropdownOpen(false)
-                            }}
+                            className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                            onClick={() => handleAddItem(item.id)}
                           >
                             <span className="font-mono font-medium">{item.sku}</span>
                             <span className="text-muted-foreground ml-2">{item.name}</span>
@@ -319,10 +429,39 @@ export default function ItemQuickReport() {
               </div>
 
               {/* Run Button */}
-              <Button onClick={handleRun} disabled={!selectedItemId || isFetching}>
-                {isFetching ? 'Loading...' : 'Run Report'}
+              <Button onClick={handleRun} disabled={selectedItemIds.length === 0 || isFetching}>
+                {isFetching ? 'Loading...' : `Run Report${selectedItemIds.length > 1 ? ` (${selectedItemIds.length})` : ''}`}
               </Button>
             </div>
+
+            {/* Selected items chips */}
+            {selectedItems.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground font-medium">Selected:</span>
+                {selectedItems.map((item) => (
+                  <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
+                    <span className="font-mono text-xs">{item.sku}</span>
+                    <span className="text-xs text-muted-foreground">{item.name}</span>
+                    <button
+                      className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                      onClick={() => handleRemoveItem(item.id)}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {selectedItems.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-muted-foreground"
+                    onClick={() => { setSelectedItemIds([]); setRunParams(null) }}
+                  >
+                    Clear all
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Date Presets */}
             <div className="flex items-center gap-2">
@@ -343,7 +482,7 @@ export default function ItemQuickReport() {
         </Card>
 
         {/* ─── Action Buttons (hidden on print) ─── */}
-        {report && (
+        {hasResults && (
           <div className="flex justify-end gap-2" data-print-hide>
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4 mr-2" />
@@ -368,79 +507,25 @@ export default function ItemQuickReport() {
           </div>
         )}
 
-        {/* ─── Report Sections ─── */}
-        {report && (
-          <div className="space-y-6">
-            {/* Posting Transactions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Posting Transactions</span>
-                  <div className="flex gap-4 text-sm font-normal">
-                    <span>Sales: <strong className="text-green-600">${report.financials.summary.total_sales?.toFixed(2)}</strong></span>
-                    <span>Costs: <strong className="text-red-600">${report.financials.summary.total_costs?.toFixed(2)}</strong></span>
-                    <span>Margin: <strong className="text-blue-600">${report.financials.summary.gross_margin?.toFixed(2)}</strong></span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {report.financials.rows.length > 0 ? (
-                  <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
-                    <DataTable columns={financialColumns} data={report.financials.rows} />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No posting transactions in this period.</p>
+        {/* ─── Report Sections — one group per item, separated by dividers ─── */}
+        {sortedResults.length > 0 && (
+          <div className="space-y-10">
+            {sortedResults.map((result, idx) => (
+              <div key={result.itemId}>
+                {idx > 0 && (
+                  <div className="border-t-4 border-foreground/10 mb-8" />
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Purchase Orders */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Purchase Orders</span>
-                  <div className="flex gap-4 text-sm font-normal">
-                    <span><strong>{report.purchase_orders.summary.po_count}</strong> POs</span>
-                    <span>Qty: <strong>{report.purchase_orders.summary.total_quantity}</strong></span>
-                    <span>Value: <strong className="text-blue-600">${report.purchase_orders.summary.total_value?.toFixed(2)}</strong></span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {report.purchase_orders.rows.length > 0 ? (
-                  <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
-                    <DataTable columns={poColumns} data={report.purchase_orders.rows} />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No purchase orders in this period.</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Sales Orders */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Sales Orders</span>
-                  <div className="flex gap-4 text-sm font-normal">
-                    <span><strong>{report.sales_orders.summary.so_count}</strong> SOs</span>
-                    <span>Qty: <strong>{report.sales_orders.summary.total_quantity}</strong></span>
-                    <span>Value: <strong className="text-blue-600">${report.sales_orders.summary.total_value?.toFixed(2)}</strong></span>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {report.sales_orders.rows.length > 0 ? (
-                  <div className="[&_tbody_tr:nth-child(odd)]:bg-muted/40">
-                    <DataTable columns={soColumns} data={report.sales_orders.rows} />
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-center py-8">No sales orders in this period.</p>
-                )}
-              </CardContent>
-            </Card>
+                <ItemReportSection
+                  report={result.report}
+                  sku={result.sku}
+                  name={result.name}
+                />
+              </div>
+            ))}
           </div>
         )}
+
+        <PrintFooter />
       </div>
     </>
   )

@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ArrowLeft, Printer, Download } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
 
 function formatCurrency(value: string | number): string {
   const num = typeof value === 'string' ? parseFloat(value) : value
@@ -143,7 +144,7 @@ export default function FinancialStatements() {
 
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-print-hide>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Reports
@@ -160,6 +161,11 @@ export default function FinancialStatements() {
         </div>
       </div>
 
+      <PrintReportHeader
+        title="Financial Statements"
+        subtitle={activeTab === 'trial-balance' ? 'Trial Balance' : activeTab === 'income-statement' ? 'Income Statement' : 'Balance Sheet'}
+      />
+
       <Tabs defaultValue="trial-balance" onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
@@ -170,7 +176,7 @@ export default function FinancialStatements() {
         {/* Trial Balance */}
         <TabsContent value="trial-balance">
           <div className="space-y-4">
-            <div className="flex items-end gap-4">
+            <div className="flex items-end gap-4" data-print-hide>
               <div className="space-y-1">
                 <Label className="text-xs">As of Date</Label>
                 <Input type="date" value={tbDate} onChange={(e) => setTbDate(e.target.value)} className="w-44 h-8" />
@@ -223,7 +229,7 @@ export default function FinancialStatements() {
         {/* Income Statement */}
         <TabsContent value="income-statement">
           <div className="space-y-4">
-            <div className="flex items-end gap-4">
+            <div className="flex items-end gap-4" data-print-hide>
               <div className="space-y-1">
                 <Label className="text-xs">Start Date</Label>
                 <Input type="date" value={isStartDate} onChange={(e) => setIsStartDate(e.target.value)} className="w-44 h-8" />
@@ -267,7 +273,7 @@ export default function FinancialStatements() {
         {/* Balance Sheet */}
         <TabsContent value="balance-sheet">
           <div className="space-y-4">
-            <div className="flex items-end gap-4">
+            <div className="flex items-end gap-4" data-print-hide>
               <div className="space-y-1">
                 <Label className="text-xs">As of Date</Label>
                 <Input type="date" value={bsDate} onChange={(e) => setBsDate(e.target.value)} className="w-44 h-8" />
@@ -322,6 +328,7 @@ export default function FinancialStatements() {
             ) : null}
           </div>
         </TabsContent>
+        <PrintFooter />
       </Tabs>
     </div>
   )

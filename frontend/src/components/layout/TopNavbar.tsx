@@ -143,6 +143,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     label: 'Items',
     items: [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
+      { type: 'item', to: '/product-cards', icon: DollarSign, label: 'Product Cards' },
       { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
       { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
     ],
@@ -341,6 +342,20 @@ export default function TopNavbar() {
       },
     },
     {
+      key: 'ArrowLeft',
+      alt: true,
+      description: 'Go back',
+      category: 'Navigation',
+      action: () => navigate(-1),
+    },
+    {
+      key: 'ArrowRight',
+      alt: true,
+      description: 'Go forward',
+      category: 'Navigation',
+      action: () => navigate(1),
+    },
+    {
       key: '/',
       shift: true,
       description: 'Show keyboard shortcuts',
@@ -358,7 +373,7 @@ export default function TopNavbar() {
       </NavLink>
 
       {/* Navigation */}
-      <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0">
+      <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 scrollbar-hide">
         {NAVIGATION_STRUCTURE.map((item) => {
           // Skip admin-only items if not admin
           if (item.type === 'dropdown' && item.requiresAdmin && !isAdmin) {

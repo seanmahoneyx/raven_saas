@@ -2,7 +2,7 @@ import { useState, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, DollarSign, MapPin, Plus, Eye, History,
-  Paperclip, Trash2, Upload, Pencil, Printer, Phone, StickyNote, ChevronDown,
+  Paperclip, Trash2, Upload, Pencil, Printer, Phone, StickyNote,
 } from 'lucide-react'
 import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Location, TimelineEvent, Contact, CustomerAttachment } from '@/types/api'
@@ -25,10 +25,6 @@ export interface KpiItem {
   onClick: () => void
 }
 
-export interface TxnMenuItem {
-  label: string
-  onClick: () => void
-}
 
 export interface TabDef {
   id: string
@@ -61,9 +57,6 @@ export interface PartyDetailLayoutProps {
 
   /* KPIs */
   kpiItems: KpiItem[]
-
-  /* transaction dropdown */
-  txnMenuItems: TxnMenuItem[]
 
   /* title row: extra actions rendered before Print button */
   titleActions?: ReactNode
@@ -121,7 +114,6 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
     subtitle,
     notes,
     kpiItems,
-    txnMenuItems,
     titleActions,
     primaryAction,
     tabs,
@@ -145,7 +137,6 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [activeTab, setActiveTab] = useState<string>('timeline')
-  const [txnMenuOpen, setTxnMenuOpen] = useState(false)
 
   /* location dialog state */
   const [locationDialogOpen, setLocationDialogOpen] = useState(false)
@@ -284,41 +275,6 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                 </p>
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* Create Transaction Dropdown */}
-        <div className="flex flex-wrap gap-2 mb-6 animate-in delay-2" data-print-hide>
-          <div className="relative">
-            <button
-              className={primaryBtnClass}
-              style={primaryBtnStyle}
-              onClick={() => setTxnMenuOpen(!txnMenuOpen)}
-              onBlur={() => setTimeout(() => setTxnMenuOpen(false), 150)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Create Transaction
-              <ChevronDown className="h-3.5 w-3.5 ml-1" />
-            </button>
-            {txnMenuOpen && (
-              <div
-                className="absolute left-0 top-full mt-1 py-1 rounded-lg shadow-lg z-50 min-w-[180px]"
-                style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}
-              >
-                {txnMenuItems.map((item) => (
-                  <button
-                    key={item.label}
-                    className="w-full text-left px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer"
-                    style={{ color: 'var(--so-text-secondary)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    onClick={item.onClick}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
@@ -682,8 +638,16 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
         {/* ============ Price Lists Tab ============ */}
         {activeTab === 'price-lists' && (
           <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Price Lists</span>
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={() => navigate('/price-lists/new')}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Price List
+              </button>
             </div>
             <div className="p-6 text-center py-10">
               <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-30" style={{ color: 'var(--so-text-tertiary)' }} />

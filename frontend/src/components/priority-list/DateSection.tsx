@@ -3,17 +3,9 @@ import { useDroppable } from '@dnd-kit/core'
 import { BoxTypeBin } from './BoxTypeBin'
 import { OverridePopover } from './OverridePopover'
 import { usePriorityListStore, parseBinId } from './usePriorityListStore'
+import { BOX_TYPE_ORDER } from './constants'
+import { parseLocalDate } from '@/lib/dates'
 import type { BoxType } from '@/types/api'
-
-// Box type sort order: RSC first, then DC, then others alphabetically
-const BOX_TYPE_ORDER: Record<string, number> = {
-  RSC: 1,
-  DC: 2,
-  HSC: 3,
-  FOL: 4,
-  TELE: 5,
-  OTHER: 6,
-}
 
 interface DateSectionProps {
   vendorId: number
@@ -58,8 +50,7 @@ export const DateSection = memo(function DateSection({
 
   // Format date for display
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + 'T00:00:00')
-    return d.toLocaleDateString('en-US', {
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',

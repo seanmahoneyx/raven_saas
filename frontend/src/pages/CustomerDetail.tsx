@@ -91,11 +91,6 @@ export default function CustomerDetail() {
         { label: 'Next Delivery', value: customer?.next_expected_delivery ? format(new Date(customer.next_expected_delivery + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(customerLocations.length), onClick: () => {} },
       ]}
-      txnMenuItems={[
-        { label: 'New Sales Order', onClick: () => navigate('/orders/sales/new') },
-        { label: 'New Estimate', onClick: () => navigate('/estimates/new') },
-        { label: 'New Contract', onClick: () => navigate('/contracts/new') },
-      ]}
       titleActions={
         <button
           className={outlineBtnClass}
@@ -138,8 +133,26 @@ export default function CustomerDetail() {
       ]}
       ordersTabContent={
         <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Sales Orders</span>
+            <div className="flex gap-2">
+              <button
+                className={outlineBtnClass}
+                style={outlineBtnStyle}
+                onClick={() => navigate('/estimates/new')}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Estimate
+              </button>
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={() => navigate('/orders/sales/new')}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Sales Order
+              </button>
+            </div>
           </div>
           <div className="px-6 py-5">
             {orders.length > 0 ? (
@@ -187,8 +200,16 @@ export default function CustomerDetail() {
           {/* Contracts Tab */}
           {activeTab === 'contracts' && (
             <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                 <span className="text-sm font-semibold">Contracts</span>
+                <button
+                  className={primaryBtnClass}
+                  style={primaryBtnStyle}
+                  onClick={() => navigate('/contracts/new')}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New Contract
+                </button>
               </div>
               <div className="px-6 py-5">
                 {contracts && contracts.length > 0 ? (

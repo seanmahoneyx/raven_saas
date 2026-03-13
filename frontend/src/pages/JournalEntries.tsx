@@ -180,7 +180,7 @@ export default function JournalEntries() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
         <div className="flex items-start justify-between mb-8 animate-in">

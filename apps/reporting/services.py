@@ -1860,7 +1860,7 @@ class ItemReportService:
             )
             .exclude(invoice__status__in=('draft', 'void'))
             .select_related('invoice__customer__party')
-            .order_by('-invoice__invoice_date')
+            .order_by('invoice__invoice_date')
         )
 
         sale_rows = [
@@ -1888,7 +1888,7 @@ class ItemReportService:
             )
             .exclude(bill__status__in=('draft', 'void'))
             .select_related('bill__vendor__party')
-            .order_by('-bill__bill_date')
+            .order_by('bill__bill_date')
         )
 
         cost_rows = [
@@ -1904,11 +1904,10 @@ class ItemReportService:
             for line in bill_lines
         ]
 
-        # Combine and sort by date descending
+        # Combine and sort by date ascending (oldest first)
         financial_rows = sorted(
             sale_rows + cost_rows,
             key=lambda x: x['date'],
-            reverse=True
         )
 
         total_sales = sum(row['total'] for row in sale_rows)
@@ -1933,7 +1932,7 @@ class ItemReportService:
             )
             .exclude(purchase_order__status='cancelled')
             .select_related('purchase_order__vendor__party')
-            .order_by('-purchase_order__order_date')
+            .order_by('purchase_order__order_date')
         )
 
         po_rows = [
@@ -1972,7 +1971,7 @@ class ItemReportService:
             )
             .exclude(sales_order__status='cancelled')
             .select_related('sales_order__customer__party')
-            .order_by('-sales_order__order_date')
+            .order_by('sales_order__order_date')
         )
 
         so_rows = [

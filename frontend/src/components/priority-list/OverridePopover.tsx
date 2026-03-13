@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import { usePriorityListStore } from './usePriorityListStore'
 import { useSetDailyOverride, useClearDailyOverride } from '@/api/priorityList'
+import { parseLocalDate } from '@/lib/dates'
 import type { BoxType } from '@/types/api'
 
 interface OverridePopoverProps {
@@ -39,8 +40,7 @@ export const OverridePopover = memo(function OverridePopover({
 
   // Format date for display
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + 'T00:00:00')
-    return d.toLocaleDateString('en-US', {
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   DollarSign, Package, MapPin, FileText, History,
-  Paperclip, Phone, Plus, AlertCircle,
+  Paperclip, Phone, Plus, AlertCircle, ListOrdered,
 } from 'lucide-react'
 import { useVendor, useLocations, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment } from '@/api/parties'
 import { usePurchaseOrders } from '@/api/orders'
@@ -76,19 +76,25 @@ export default function VendorDetail() {
         { label: 'Next Incoming', value: vendor?.next_incoming ? format(new Date(vendor.next_incoming + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(vendorLocations.length), onClick: () => {} },
       ]}
-      txnMenuItems={[
-        { label: 'New Purchase Order', onClick: () => navigate('/orders/purchase/new') },
-        { label: 'New RFQ', onClick: () => navigate('/rfqs/new') },
-      ]}
       primaryAction={
-        <button
-          className={primaryBtnClass}
-          style={primaryBtnStyle}
-          onClick={() => navigate('/orders/purchase/new')}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          New PO
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            className={outlineBtnClass}
+            style={outlineBtnStyle}
+            onClick={() => navigate(`/vendors/${vendorId}/priority-list`)}
+          >
+            <ListOrdered className="h-3.5 w-3.5" />
+            Priority List
+          </button>
+          <button
+            className={primaryBtnClass}
+            style={primaryBtnStyle}
+            onClick={() => navigate('/orders/purchase/new')}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New PO
+          </button>
+        </div>
       }
       tabs={[
         { id: 'timeline', label: 'Timeline', icon: History },
@@ -114,8 +120,16 @@ export default function VendorDetail() {
           className="rounded-[14px] animate-in delay-3"
           style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
         >
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <h2 className="text-[14px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>Purchase Orders</h2>
+            <button
+              className={primaryBtnClass}
+              style={primaryBtnStyle}
+              onClick={() => navigate('/orders/purchase/new')}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Purchase Order
+            </button>
           </div>
           {orders.length > 0 ? (
             <table className="w-full">
@@ -174,8 +188,16 @@ export default function VendorDetail() {
               className="rounded-[14px] animate-in delay-3"
               style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
             >
-              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                 <h2 className="text-[14px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>RFQs</h2>
+                <button
+                  className={primaryBtnClass}
+                  style={primaryBtnStyle}
+                  onClick={() => navigate('/rfqs/new')}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New RFQ
+                </button>
               </div>
               <div className="p-6 text-center py-10">
                 <p className="text-[13px] mb-4" style={{ color: 'var(--so-text-tertiary)' }}>

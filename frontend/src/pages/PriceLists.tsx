@@ -165,7 +165,7 @@ export default function PriceLists() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-7 animate-in">

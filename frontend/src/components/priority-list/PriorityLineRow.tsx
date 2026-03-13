@@ -1,6 +1,8 @@
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { GripVertical } from 'lucide-react'
+import { parseLocalDate } from '@/lib/dates'
 import type { PriorityLine } from '@/types/api'
 
 interface PriorityLineRowProps {
@@ -19,15 +21,13 @@ export const PriorityLineRow = memo(function PriorityLineRow({
   isSelected,
   onSelect,
 }: PriorityLineRowProps) {
-  const getDaysDiff = () => {
+  const daysDiff = useMemo(() => {
     if (!line.customer_request_date) return null
-    const scheduled = new Date(scheduledDate + 'T00:00:00')
-    const requested = new Date(line.customer_request_date + 'T00:00:00')
+    const scheduled = parseLocalDate(scheduledDate)
+    const requested = parseLocalDate(line.customer_request_date)
     const diffTime = scheduled.getTime() - requested.getTime()
-    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }
-  const daysDiff = getDaysDiff()
+    return Math.round(diffTime / (1000 * 60 * 60 * 24))
+  }, [scheduledDate, line.customer_request_date])
   const isLate = daysDiff !== null && daysDiff > 0
 
   const {
@@ -65,9 +65,7 @@ export const PriorityLineRow = memo(function PriorityLineRow({
         {...listeners}
         className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground transition-colors"
       >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm8-12a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
-        </svg>
+        <GripVertical className="w-4 h-4" />
       </div>
 
       {/* Sequence */}
@@ -95,7 +93,7 @@ export const PriorityLineRow = memo(function PriorityLineRow({
         {line.customer_request_date ? (
           <>
             <span className="text-muted-foreground tabular-nums">
-              {new Date(line.customer_request_date + 'T00:00:00').toLocaleDateString('en-US', {
+              {parseLocalDate(line.customer_request_date).toLocaleDateString('en-US', {
                 month: '2-digit',
                 day: '2-digit',
               })}

@@ -5,6 +5,7 @@ import {
   ArrowLeft, Plus, Trash2,
   FileText,
 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
@@ -46,6 +47,9 @@ export default function SalesOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const orderId = parseInt(id || '0', 10)
+
+  const { user } = useAuth()
+  const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
 
   const { data: order, isLoading } = useSalesOrder(orderId)
   const updateOrder = useUpdateSalesOrder()
@@ -426,7 +430,6 @@ export default function SalesOrderDetail() {
               onNext={handleNext}
               hasPrev={hasPrev}
               hasNext={hasNext}
-              onDelete={order?.is_editable ? handleDelete : undefined}
               onDuplicate={handleSaveAsCopy}
               onPrint={() => window.print()}
               onAttachments={() => setAttachmentsOpen(true)}
@@ -512,12 +515,24 @@ export default function SalesOrderDetail() {
                 Cancel
               </button>
             ) : (
-              order.is_editable && (
-                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  Edit Order
-                </button>
-              )
+              <>
+                {order.is_editable && (
+                  <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Edit Order
+                  </button>
+                )}
+                {isAdmin && order.is_editable && (
+                  <button
+                    className={outlineBtnClass}
+                    style={{ ...outlineBtnStyle, color: 'var(--so-danger-text)' }}
+                    onClick={handleDelete}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -35,7 +35,7 @@ export const VendorSection = memo(function VendorSection({
 }: VendorSectionProps) {
   const vendor = usePriorityListStore((s) => s.vendors[vendorId])
   const bins = usePriorityListStore((s) => s.bins)
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
 
   const allWeekdays = useMemo(
     () => getWeekdaysInRange(startDate, endDate),

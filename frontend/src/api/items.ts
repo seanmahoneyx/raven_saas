@@ -406,3 +406,126 @@ export function useItemHistory(itemId: number | null) {
     enabled: !!itemId,
   })
 }
+
+// =============================================================================
+// PRODUCT CARD
+// =============================================================================
+
+export interface ProductCardTier {
+  min_quantity: number
+  unit_price?: string
+  unit_cost?: string
+}
+
+export interface ProductCardPriceList {
+  id: number
+  customer_name: string
+  customer_code: string
+  customer_id: number
+  begin_date: string
+  end_date: string | null
+  is_active: boolean
+  notes: string
+  tiers: ProductCardTier[]
+}
+
+export interface ProductCardCostList {
+  id: number
+  vendor_name: string
+  vendor_code: string
+  vendor_id: number
+  begin_date: string
+  end_date: string | null
+  is_active: boolean
+  notes: string
+  tiers: ProductCardTier[]
+}
+
+export interface ProductCardRFQQuote {
+  rfq_id: number
+  rfq_number: string
+  vendor_name: string
+  vendor_code: string
+  vendor_id: number
+  date: string
+  status: string
+  status_display: string
+  quantity: number
+  target_price: string | null
+  quoted_price: string | null
+  notes: string
+}
+
+export interface ProductCardEstimate {
+  estimate_id: number
+  estimate_number: string
+  customer_name: string
+  customer_code: string
+  customer_id: number
+  date: string
+  expiration_date: string | null
+  status: string
+  status_display: string
+  quantity: number
+  unit_price: string
+  notes: string
+}
+
+export interface ProductCardLastTransaction {
+  price: string
+  date: string
+  vendor_name?: string
+  customer_name?: string
+  po_number?: string
+  so_number?: string
+}
+
+export interface ProductCardVendorInfo {
+  vendor_id: number
+  vendor_name: string
+  vendor_code: string
+  mpn: string
+  lead_time_days: number | null
+  min_order_qty: number | null
+  is_preferred: boolean
+}
+
+export interface ProductCardItemDetails {
+  sku: string
+  name: string
+  description: string
+  purch_desc: string
+  sell_desc: string
+  division: string
+  is_inventory: boolean
+  is_active: boolean
+  customer_name: string | null
+  customer_code: string | null
+  reorder_point: number | null
+  min_stock: number | null
+  safety_stock: number | null
+  base_uom_code: string
+  product_card_notes: string
+}
+
+export interface ProductCardResponse {
+  item_details: ProductCardItemDetails
+  last_buy: ProductCardLastTransaction | null
+  last_sell: ProductCardLastTransaction | null
+  vendors: ProductCardVendorInfo[]
+  price_lists: ProductCardPriceList[]
+  cost_lists: ProductCardCostList[]
+  rfq_quotes: ProductCardRFQQuote[]
+  estimates: ProductCardEstimate[]
+}
+
+export function useItemProductCard(itemId: number | null) {
+  return useQuery({
+    queryKey: ['item-product-card', itemId],
+    queryFn: async () => {
+      const { data } = await api.get<ProductCardResponse>(`/items/${itemId}/product_card/`)
+      return data
+    },
+    enabled: !!itemId,
+  })
+}

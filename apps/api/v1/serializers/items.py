@@ -193,6 +193,7 @@ class ItemSerializer(TenantModelSerializer):
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
             'is_inventory', 'is_active', 'attachment',
+            'product_card_notes',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -220,6 +221,7 @@ class ItemDetailSerializer(TenantModelSerializer):
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
             'is_inventory', 'is_active', 'attachment',
+            'product_card_notes',
             'uom_conversions', 'vendors',
             'item_type',
             'created_at', 'updated_at',

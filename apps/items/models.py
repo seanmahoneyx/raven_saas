@@ -250,6 +250,12 @@ class Item(TenantMixin, TimestampMixin):
         help_text="Safety stock buffer above min_stock"
     )
 
+    # Product card notes (user-editable notes visible on the product card report)
+    product_card_notes = models.TextField(
+        blank=True,
+        help_text="Free-form notes displayed on the product card"
+    )
+
     # Attachments
     attachment = models.FileField(
         upload_to='items/attachments/',

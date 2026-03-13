@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Paperclip, Copy, Plus, Trash2, Package,
-  MoreHorizontal, FileText, Printer, Mail,
+  ArrowLeft, Plus, Trash2, FileText,
 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
@@ -16,8 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { usePurchaseOrder, useUpdatePurchaseOrder, useReceivePurchaseOrder } from '@/api/orders'
+import { usePurchaseOrder, useUpdatePurchaseOrder, useReceivePurchaseOrder, useDeletePurchaseOrder } from '@/api/orders'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { useCostLookup } from '@/api/costLists'
 import type { OrderStatus } from '@/types/api'
@@ -48,9 +47,13 @@ export default function PurchaseOrderDetail() {
   const navigate = useNavigate()
   const purchaseOrderId = parseInt(id || '0', 10)
 
+  const { user } = useAuth()
+  const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
+
   const { data: order, isLoading } = usePurchaseOrder(purchaseOrderId)
   const updatePurchaseOrder = useUpdatePurchaseOrder()
   const receivePO = useReceivePurchaseOrder()
+  const deletePO = useDeletePurchaseOrder()
 
   const hasPrev = !!order?.prev_id
   const hasNext = !!order?.next_id
@@ -64,8 +67,7 @@ export default function PurchaseOrderDetail() {
   const [isEditing, setIsEditing] = useState(false)
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
-  const moreMenuRef = useRef<HTMLDivElement>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [activityData, setActivityData] = useState<{ timestamp: string; user: string; action: string }[]>([])
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const { data: attachments } = useAttachments('orders', 'purchaseorder', purchaseOrderId)
@@ -134,16 +136,6 @@ export default function PurchaseOrderDetail() {
     }
     setCostLookupLine(null)
   }, [costData, costLookupLine, linesFormData, isCostFetching])
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
-        setMoreMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   useEffect(() => {
     if (!purchaseOrderId) return
@@ -398,16 +390,34 @@ export default function PurchaseOrderDetail() {
 
         {/* -- Entry Toolbar --------------------------------------- */}
         <div className="mb-4 animate-in delay-1">
-          <EntryToolbar
-            onPrev={handlePrev}
-            onNext={handleNext}
-            hasPrev={hasPrev}
-            hasNext={hasNext}
-          />
+          {isEditing ? (
+            <EntryToolbar
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onSave={handleSave}
+              isSaving={updatePurchaseOrder.isPending}
+            />
+          ) : (
+            <EntryToolbar
+              onPrev={handlePrev}
+              onNext={handleNext}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+              onDuplicate={handleSaveAsCopy}
+              onPrint={() => window.print()}
+              onEmail={() => setEmailModalOpen(true)}
+              onAttachments={() => setAttachmentsOpen(true)}
+              attachmentCount={attachmentCount}
+              onReceive={(order.status === 'confirmed' || order.status === 'scheduled') ? () => setReceiveDialogOpen(true) : undefined}
+              isReceiving={receivePO.isPending}
+            />
+          )}
         </div>
 
         {/* -- Title row ------------------------------------------- */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-2">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{order.po_number}</h1>
@@ -441,70 +451,23 @@ export default function PurchaseOrderDetail() {
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
             {isEditing ? (
-              <>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
-                  Cancel
-                </button>
-                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSave} disabled={updatePurchaseOrder.isPending}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  {updatePurchaseOrder.isPending ? 'Saving...' : 'Save Changes'}
-                </button>
-              </>
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
+                Cancel
+              </button>
             ) : (
               <>
-                {(order.status === 'confirmed' || order.status === 'scheduled') && (
+                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit Order
+                </button>
+                {isAdmin && (
                   <button
-                    className={primaryBtnClass}
-                    style={{ ...primaryBtnStyle, background: 'var(--so-success-text)', borderColor: 'var(--so-success-text)' }}
-                    onClick={() => setReceiveDialogOpen(true)}
-                    disabled={receivePO.isPending}
+                    className={outlineBtnClass}
+                    style={{ ...outlineBtnStyle, color: 'var(--so-danger-text)' }}
+                    onClick={() => setShowDeleteConfirm(true)}
                   >
-                    <Package className="h-3.5 w-3.5" />
-                    {receivePO.isPending ? 'Receiving...' : 'Receive'}
-                  </button>
-                )}
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setAttachmentsOpen(true)}>
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Attach
-                  {attachmentCount > 0 && (
-                    <span className="ml-0.5 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[10px] font-bold text-white" style={{ background: 'var(--so-accent)' }}>
-                      {attachmentCount}
-                    </span>
-                  )}
-                </button>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleSaveAsCopy}>
-                  <Copy className="h-3.5 w-3.5" />
-                  Duplicate
-                </button>
-                <div ref={moreMenuRef} className="relative">
-                  <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setMoreMenuOpen(prev => !prev)}>
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                    More
-                  </button>
-                  {moreMenuOpen && (
-                    <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border shadow-lg overflow-hidden"
-                      style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-                      <button
-                        className="w-full px-4 py-2.5 text-left text-[13px] transition-colors hover:opacity-80 flex items-center gap-2"
-                        style={{ color: 'var(--so-text-secondary)' }}
-                        onClick={() => { window.print(); setMoreMenuOpen(false) }}
-                      >
-                        <Printer className="h-3.5 w-3.5" /> Print
-                      </button>
-                      <button
-                        className="w-full px-4 py-2.5 text-left text-[13px] transition-colors hover:opacity-80 flex items-center gap-2"
-                        style={{ color: 'var(--so-text-secondary)' }}
-                        onClick={() => { setEmailModalOpen(true); setMoreMenuOpen(false) }}
-                      >
-                        <Mail className="h-3.5 w-3.5" /> Email
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {order.is_editable && (
-                  <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setIsEditing(true)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                    Edit Order
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </button>
                 )}
               </>
@@ -818,6 +781,21 @@ export default function PurchaseOrderDetail() {
           />
         )}
       </div>
+
+      {/* -- Delete Confirm Dialog --------------------------------- */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Purchase Order?"
+        description={`Are you sure you want to delete ${order.po_number}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={async () => {
+          await deletePO.mutateAsync(purchaseOrderId)
+          navigate('/vendors/open-orders')
+        }}
+        loading={deletePO.isPending}
+      />
 
       {/* -- Receive Confirm Dialog -------------------------------- */}
       <ConfirmDialog

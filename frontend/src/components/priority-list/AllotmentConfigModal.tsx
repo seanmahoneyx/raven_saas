@@ -1,9 +1,8 @@
 import { memo, useState, useEffect } from 'react'
 import { useVendorAllotments, useSetVendorAllotment } from '@/api/priorityList'
 import { useVendors } from '@/api/parties'
+import { BOX_TYPES } from './constants'
 import type { BoxType } from '@/types/api'
-
-const BOX_TYPES: BoxType[] = ['RSC', 'DC', 'HSC', 'FOL', 'TELE', 'OTHER']
 
 interface AllotmentConfigModalProps {
   isOpen: boolean

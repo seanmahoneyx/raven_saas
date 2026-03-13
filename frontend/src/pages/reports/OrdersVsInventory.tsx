@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft, Printer, Download } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
 
 function statusColor(status: string): string {
   switch (status) {
@@ -61,7 +62,7 @@ export default function OrdersVsInventory() {
 
   return (
     <div className="p-8 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between" data-print-hide>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Reports
@@ -80,6 +81,8 @@ export default function OrdersVsInventory() {
           </button>
         </div>
       </div>
+
+      <PrintReportHeader title="Orders vs Inventory" />
 
       {isLoading ? (
         <div className="space-y-3">
@@ -148,6 +151,7 @@ export default function OrdersVsInventory() {
           </CardContent>
         </Card>
       )}
+      <PrintFooter />
     </div>
   )
 }

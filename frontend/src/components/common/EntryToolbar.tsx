@@ -11,6 +11,7 @@ import {
   FileText,
   ShoppingCart,
   Ban,
+  Package,
 } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
@@ -38,6 +39,9 @@ interface EntryToolbarProps {
   // Create from SO
   onCreateInvoice?: () => void
   onCreatePO?: () => void
+  // Receive PO
+  onReceive?: () => void
+  isReceiving?: boolean
 }
 
 
@@ -67,6 +71,8 @@ export function EntryToolbar({
   attachmentCount,
   onCreateInvoice,
   onCreatePO,
+  onReceive,
+  isReceiving,
 }: EntryToolbarProps) {
   const hasNav = onPrev !== undefined || onNext !== undefined
   const hasSaveOrVoid = onSave !== undefined || onVoid !== undefined || onDelete !== undefined
@@ -76,7 +82,8 @@ export function EntryToolbar({
     onEmail !== undefined ||
     onAttachments !== undefined ||
     onCreateInvoice !== undefined ||
-    onCreatePO !== undefined
+    onCreatePO !== undefined ||
+    onReceive !== undefined
 
   return (
     <div
@@ -234,6 +241,18 @@ export function EntryToolbar({
             >
               <ShoppingCart size={14} />
               Create PO
+            </button>
+          )}
+          {onReceive !== undefined && (
+            <button
+              className={`${primaryBtnClass} ${isReceiving ? disabledClass : ''}`}
+              style={{ ...primaryBtnStyle, background: 'var(--so-success-text)', borderColor: 'var(--so-success-text)' }}
+              onClick={onReceive}
+              disabled={isReceiving}
+              title="Receive purchase order"
+            >
+              <Package size={14} />
+              {isReceiving ? 'Receiving…' : 'Receive'}
             </button>
           )}
         </div>

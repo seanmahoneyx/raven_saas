@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Customers() {
   usePageTitle('Customer Center')
@@ -120,9 +120,9 @@ export default function Customers() {
         accessorKey: 'party_display_name',
         header: 'Customer',
         cell: ({ row }) => (
-          <div>
-            <span className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{row.original.party_display_name}</span>
-            <span className="ml-2 text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</span>
+          <div className="py-0.5">
+            <div className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{row.original.party_display_name}</div>
+            <div className="text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</div>
           </div>
         ),
       },
@@ -296,7 +296,7 @@ export default function Customers() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
         <div className="flex items-center justify-between mb-7 animate-in">
@@ -334,21 +334,23 @@ export default function Customers() {
               {customerCount} total
             </span>
           </div>
-          <div className="p-0">
+          <div className="overflow-x-auto">
             {customersLoading ? (
               <div className="p-6"><TableSkeleton columns={11} rows={8} /></div>
             ) : (
-              <DataTable
-                storageKey="customers"
-                columns={customerColumns}
-                data={customersData?.results ?? []}
-                searchColumn="party_display_name"
-                searchPlaceholder="Search customers..."
-                showSearchDropdown
-                searchDropdownLabel={(row) => (row as Customer).party_display_name}
-                searchDropdownSublabel={(row) => (row as Customer).party_code}
-                onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
-              />
+              <div style={{ minWidth: '1200px' }}>
+                <DataTable
+                  storageKey="customers"
+                  columns={customerColumns}
+                  data={customersData?.results ?? []}
+                  searchColumn="party_display_name"
+                  searchPlaceholder="Search customers..."
+                  showSearchDropdown
+                  searchDropdownLabel={(row) => (row as Customer).party_display_name}
+                  searchDropdownSublabel={(row) => (row as Customer).party_code}
+                  onRowClick={(customer) => navigate(`/customers/${customer.id}`)}
+                />
+              </div>
             )}
           </div>
         </div>

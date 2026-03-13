@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,13 +18,14 @@ import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarIte
 import type { SimilarItemEntry } from '@/api/items'
 import api from '@/api/client'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
+import { ProductCardTab } from '@/components/items/ProductCardTab'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 
-type Tab = 'history' | 'similar' | 'vendors' | 'audit' | 'attachments' | 'children'
+type Tab = 'history' | 'product-card' | 'similar' | 'vendors' | 'audit' | 'attachments' | 'children'
 
 const getInventoryBadge = () => (
   <span
@@ -162,6 +163,7 @@ export default function ItemDetail() {
 
   const tabs = [
     { id: 'history' as Tab, label: 'Transaction History', icon: History },
+    { id: 'product-card' as Tab, label: 'Product Card', icon: DollarSign },
     { id: 'similar' as Tab, label: 'Similar Items', icon: Search },
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
     { id: 'attachments' as Tab, label: 'Attachments', icon: Paperclip },
@@ -586,6 +588,7 @@ export default function ItemDetail() {
 
           <div className="px-6 py-5">
             {activeTab === 'history' && <ItemHistoryTab itemId={itemId} />}
+            {activeTab === 'product-card' && <ProductCardTab itemId={itemId} />}
 
             {activeTab === 'similar' && (
               <div>

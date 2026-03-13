@@ -96,12 +96,6 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
     def add_line(self, request, pk=None):
         """Add a line to this purchase order."""
         po = self.get_object()
-        if not po.is_editable:
-            return Response(
-                {'error': 'Cannot modify lines on this order - order is not editable'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = PurchaseOrderLineSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
