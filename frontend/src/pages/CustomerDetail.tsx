@@ -316,6 +316,8 @@ export default function CustomerDetail() {
       isDeleteAttachmentPending={deleteAttachment.isPending}
       locationPartyId={customer?.party ?? 0}
       entityLabel="customer"
+      entityType="customer"
+      entityId={customerId}
     />
   )
 }

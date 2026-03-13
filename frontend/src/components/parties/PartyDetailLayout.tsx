@@ -2,10 +2,11 @@ import { useState, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, DollarSign, MapPin, Plus, Eye, History,
-  Paperclip, Trash2, Upload, Pencil, Printer, Phone, StickyNote,
+  Paperclip, Trash2, Upload, Pencil, Printer, Phone, StickyNote, Star,
 } from 'lucide-react'
 import { LocationDialog } from '@/components/parties/LocationDialog'
-import type { Location, TimelineEvent, Contact, CustomerAttachment } from '@/types/api'
+import type { Location, TimelineEvent, Contact, CustomerAttachment, EntityType } from '@/types/api'
+import { useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
@@ -96,6 +97,10 @@ export interface PartyDetailLayoutProps {
 
   /* empty-state entity label ("customer" | "vendor") */
   entityLabel: string
+
+  /* favorite star */
+  entityType?: EntityType
+  entityId?: number
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,10 +136,28 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
     isDeleteAttachmentPending,
     locationPartyId,
     entityLabel,
+    entityType,
+    entityId,
   } = props
 
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /* favorites */
+  const { data: favorites } = useFavorites(entityType)
+  const addFavorite = useAddFavorite()
+  const removeFavorite = useRemoveFavorite()
+  const favRecord = entityId != null ? favorites?.find(f => f.object_id === entityId) : undefined
+  const isFavorited = !!favRecord
+
+  const handleToggleFavorite = () => {
+    if (!entityType || entityId == null) return
+    if (isFavorited && favRecord) {
+      removeFavorite.mutate(favRecord.id)
+    } else {
+      addFavorite.mutate({ entity_type: entityType, object_id: entityId })
+    }
+  }
 
   const [activeTab, setActiveTab] = useState<string>('timeline')
 
@@ -226,6 +249,26 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
               >
                 {partyCode}
               </span>
+              {entityType && entityId != null && (
+                <button
+                  onClick={handleToggleFavorite}
+                  title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                  className="inline-flex items-center justify-center transition-colors cursor-pointer"
+                  style={{ background: 'none', border: 'none', padding: '2px' }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                >
+                  <Star
+                    style={{
+                      width: 18,
+                      height: 18,
+                      fill: isFavorited ? '#f59e0b' : 'none',
+                      color: isFavorited ? '#f59e0b' : 'var(--so-text-tertiary)',
+                      transition: 'fill 0.15s, color 0.15s',
+                    }}
+                  />
+                </button>
+              )}
             </div>
             <p className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>{subtitle}</p>
           </div>

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useCustomers, useDeleteCustomer } from '@/api/parties'
+import { useFavorites } from '@/api/favorites'
 import { CustomerDialog } from '@/components/parties/CustomerDialog'
 import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
@@ -33,6 +34,22 @@ export default function Customers() {
   const { data: customersData, isLoading: customersLoading } = useCustomers()
   const deleteCustomer = useDeleteCustomer()
   const { data: settings } = useSettings()
+  const { data: customerFavorites } = useFavorites('customer')
+
+  const favoritedCustomerIds = useMemo(
+    () => new Set((customerFavorites ?? []).map(f => f.object_id)),
+    [customerFavorites]
+  )
+
+  const sortedCustomers = useMemo(() => {
+    const rows = customersData?.results ?? []
+    if (favoritedCustomerIds.size === 0) return rows
+    return [...rows].sort((a, b) => {
+      const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
+      const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
+      return aFav - bFav
+    })
+  }, [customersData, favoritedCustomerIds])
 
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
@@ -119,12 +136,18 @@ export default function Customers() {
       {
         accessorKey: 'party_display_name',
         header: 'Customer',
-        cell: ({ row }) => (
-          <div className="py-0.5">
-            <div className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{row.original.party_display_name}</div>
-            <div className="text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</div>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const isFavorite = favoritedCustomerIds.has(row.original.id)
+          return (
+            <div className="py-0.5" style={isFavorite ? { background: 'rgba(245, 158, 11, 0.04)' } : undefined}>
+              <div className="flex items-center gap-1.5 font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {isFavorite && <Star style={{ width: 14, height: 14, color: '#f59e0b', fill: '#f59e0b', flexShrink: 0 }} />}
+                {row.original.party_display_name}
+              </div>
+              <div className="text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</div>
+            </div>
+          )
+        },
       },
       {
         accessorKey: 'open_sales_total',
@@ -279,7 +302,7 @@ export default function Customers() {
         },
       },
     ],
-    [deleteCustomer]
+    [deleteCustomer, favoritedCustomerIds]
   )
 
   const customerCount = (customersData?.results ?? []).length
@@ -342,7 +365,7 @@ export default function Customers() {
                 <DataTable
                   storageKey="customers"
                   columns={customerColumns}
-                  data={customersData?.results ?? []}
+                  data={sortedCustomers}
                   searchColumn="party_display_name"
                   searchPlaceholder="Search customers..."
                   showSearchDropdown

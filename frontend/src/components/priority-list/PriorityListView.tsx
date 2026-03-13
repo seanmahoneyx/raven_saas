@@ -25,8 +25,8 @@ import {
   useVendorAllotments,
   useDailyOverrides,
 } from '@/api/priorityList'
-import { useVendors } from '@/api/parties'
 import type { PriorityLine } from '@/types/api'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface PriorityListViewProps {
   startDate: string
@@ -73,8 +73,6 @@ export const PriorityListView = memo(function PriorityListView({
   const { data: priorityData, isLoading: dataLoading, error: dataError } = usePriorityList(startDate, endDate, filterVendorId)
   const { data: allotmentsData } = useVendorAllotments(filterVendorId)
   const { data: overridesData } = useDailyOverrides(filterVendorId, startDate, endDate)
-  const { data: vendorsData } = useVendors()
-
   // API mutations
   const reorderMutation = useReorderPriorityLines()
   const moveMutation = useMovePriorityLine()
@@ -245,27 +243,14 @@ export const PriorityListView = memo(function PriorityListView({
       {/* Header / Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <select
-            value={filterVendorId ?? ''}
-            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
-            className="h-9 rounded-md border px-3 text-[13px] font-medium min-w-[200px] cursor-pointer transition-colors"
-            style={{
-              borderColor: 'var(--so-border)',
-              background: 'var(--so-surface)',
-              color: 'var(--so-text-primary)',
-            }}
-          >
-            {isNavbarMode ? (
-              <option value="">Select a vendor...</option>
-            ) : (
-              <option value="">All Vendors</option>
-            )}
-            {vendorsData?.results?.map((vendor) => (
-              <option key={vendor.id} value={vendor.id}>
-                {vendor.party_display_name}
-              </option>
-            ))}
-          </select>
+          <SearchableCombobox
+            entityType="vendor"
+            value={filterVendorId}
+            onChange={(id) => setFilterVendorId(id)}
+            placeholder={initialVendorId != null ? "All Vendors" : "Select a vendor..."}
+            allowClear={initialVendorId != null}
+            className="min-w-[240px]"
+          />
         </div>
 
         <div className="flex items-center gap-2">
@@ -285,23 +270,13 @@ export const PriorityListView = memo(function PriorityListView({
           <p className="text-[15px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
             Select a vendor to view their priority list
           </p>
-          <select
-            value={filterVendorId ?? ''}
-            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
-            className="h-10 rounded-md border px-4 text-[14px] font-medium min-w-[260px] cursor-pointer transition-colors"
-            style={{
-              borderColor: 'var(--so-border)',
-              background: 'var(--so-surface)',
-              color: filterVendorId ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
-            }}
-          >
-            <option value="">Select a vendor...</option>
-            {vendorsData?.results?.map((vendor) => (
-              <option key={vendor.id} value={vendor.id}>
-                {vendor.party_display_name}
-              </option>
-            ))}
-          </select>
+          <SearchableCombobox
+            entityType="vendor"
+            value={filterVendorId}
+            onChange={(id) => setFilterVendorId(id)}
+            placeholder="Select a vendor..."
+            className="min-w-[260px]"
+          />
         </div>
       ) : isLoading ? (
           <div className="flex items-center justify-center h-64">

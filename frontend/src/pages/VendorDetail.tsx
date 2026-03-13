@@ -232,6 +232,8 @@ export default function VendorDetail() {
       isDeleteAttachmentPending={deleteAttachment.isPending}
       locationPartyId={vendor?.party ?? 0}
       entityLabel="vendor"
+      entityType="vendor"
+      entityId={vendorId}
     />
   )
 }

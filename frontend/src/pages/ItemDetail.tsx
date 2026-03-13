@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useTrackEntityView } from '@/api/favorites'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign } from 'lucide-react'
+import { useTrackEntityView, useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign, Star } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -65,6 +65,20 @@ export default function ItemDetail() {
       trackView.mutate({ entity_type: 'item', object_id: itemId })
     }
   }, [itemId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { data: favorites } = useFavorites('item')
+  const addFavorite = useAddFavorite()
+  const removeFavorite = useRemoveFavorite()
+  const favRecord = favorites?.find(f => f.object_id === itemId)
+  const isFavorited = !!favRecord
+
+  const handleToggleFavorite = () => {
+    if (isFavorited && favRecord) {
+      removeFavorite.mutate(favRecord.id)
+    } else {
+      addFavorite.mutate({ entity_type: 'item', object_id: itemId })
+    }
+  }
 
   const [activeTab, setActiveTab] = useState<Tab>('history')
   const [isEditing, setIsEditing] = useState(false)
@@ -282,6 +296,24 @@ export default function ItemDetail() {
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold font-mono" style={{ letterSpacing: '-0.03em' }}>{item.sku}</h1>
+              <button
+                onClick={handleToggleFavorite}
+                title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                className="inline-flex items-center justify-center transition-colors cursor-pointer"
+                style={{ background: 'none', border: 'none', padding: '2px' }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+              >
+                <Star
+                  style={{
+                    width: 18,
+                    height: 18,
+                    fill: isFavorited ? '#f59e0b' : 'none',
+                    color: isFavorited ? '#f59e0b' : 'var(--so-text-tertiary)',
+                    transition: 'fill 0.15s, color 0.15s',
+                  }}
+                />
+              </button>
               {isEditing ? (
                 <Select
                   value={formData.is_active}

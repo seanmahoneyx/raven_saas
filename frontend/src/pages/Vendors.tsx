@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer } from 'lucide-react'
+import { Plus, Users, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useVendors, useDeleteVendor } from '@/api/parties'
+import { useFavorites } from '@/api/favorites'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import { VendorDialog } from '@/components/parties/VendorDialog'
@@ -40,6 +41,22 @@ export default function Vendors() {
 
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors()
   const deleteVendor = useDeleteVendor()
+  const { data: vendorFavorites } = useFavorites('vendor')
+
+  const favoritedVendorIds = useMemo(
+    () => new Set((vendorFavorites ?? []).map(f => f.object_id)),
+    [vendorFavorites]
+  )
+
+  const sortedVendors = useMemo(() => {
+    const rows = vendorsData?.results ?? []
+    if (favoritedVendorIds.size === 0) return rows
+    return [...rows].sort((a, b) => {
+      const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
+      const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
+      return aFav - bFav
+    })
+  }, [vendorsData, favoritedVendorIds])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
@@ -115,12 +132,18 @@ export default function Vendors() {
       {
         accessorKey: 'party_display_name',
         header: 'Vendor',
-        cell: ({ row }) => (
-          <div className="py-0.5">
-            <div className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{row.original.party_display_name}</div>
-            <div className="text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</div>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const isFavorite = favoritedVendorIds.has(row.original.id)
+          return (
+            <div className="py-0.5" style={isFavorite ? { background: 'rgba(245, 158, 11, 0.04)' } : undefined}>
+              <div className="flex items-center gap-1.5 font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {isFavorite && <Star style={{ width: 14, height: 14, color: '#f59e0b', fill: '#f59e0b', flexShrink: 0 }} />}
+                {row.original.party_display_name}
+              </div>
+              <div className="text-xs font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{row.original.party_code}</div>
+            </div>
+          )
+        },
       },
       {
         accessorKey: 'open_po_total',
@@ -266,7 +289,7 @@ export default function Vendors() {
         },
       },
     ],
-    [deleteVendor]
+    [deleteVendor, favoritedVendorIds]
   )
 
   return (
@@ -317,7 +340,7 @@ export default function Vendors() {
                 <DataTable
                   storageKey="vendors"
                   columns={vendorColumns}
-                  data={vendorsData?.results ?? []}
+                  data={sortedVendors}
                   searchColumn="party_display_name"
                   searchPlaceholder="Search vendors..."
                   showSearchDropdown
