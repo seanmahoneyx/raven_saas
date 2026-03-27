@@ -148,15 +148,32 @@ export default function Contracts() {
   const columns: ColumnDef<Contract>[] = useMemo(
     () => [
       {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
+      },
+      {
+        accessorKey: 'issue_date',
+        header: 'Issue Date',
+        cell: ({ row }) => {
+          const date = row.getValue('issue_date') as string
+          return (
+            <span className="whitespace-nowrap" style={{ color: 'var(--so-text-secondary)' }}>
+              {date ? new Date(date).toLocaleDateString() : '-'}
+            </span>
+          )
+        },
+      },
+      {
         accessorKey: 'contract_number',
         header: 'Contract #',
         cell: ({ row }) => (
           <button
-            className="font-medium hover:underline"
+            className="font-medium hover:underline whitespace-nowrap"
             style={{ color: 'var(--so-accent)' }}
             onClick={() => handleViewContract(row.original)}
           >
-            CTR-{row.getValue('contract_number')}
+            {String(row.getValue('contract_number')).startsWith('CTR-') ? row.getValue('contract_number') : `CTR-${row.getValue('contract_number')}`}
           </button>
         ),
       },
@@ -172,38 +189,6 @@ export default function Contracts() {
         header: 'Blanket PO',
         cell: ({ row }) => (
           <span style={{ color: 'var(--so-text-tertiary)' }}>{row.getValue('blanket_po') || '-'}</span>
-        ),
-      },
-      ...(activeTab === 'all' ? [{
-        accessorKey: 'contract_type' as const,
-        header: 'Type',
-        cell: ({ row }: { row: { getValue: (key: string) => unknown } }) => {
-          const type = row.getValue('contract_type') as string
-          return (
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{
-                background: type === 'blanket' ? 'var(--so-accent-subtle)' : 'var(--so-surface-raised)',
-                color: type === 'blanket' ? 'var(--so-accent)' : 'var(--so-text-secondary)',
-                border: '1px solid',
-                borderColor: type === 'blanket' ? 'var(--so-accent-border, var(--so-accent))' : 'var(--so-border)',
-              }}
-            >
-              {type === 'blanket' ? 'Blanket' : 'Direct'}
-            </span>
-          )
-        },
-      }] : []),
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
-      },
-      {
-        accessorKey: 'num_lines',
-        header: 'Lines',
-        cell: ({ row }) => (
-          <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines') || 0}</span>
         ),
       },
       {
@@ -239,18 +224,6 @@ export default function Contracts() {
               </div>
               <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{pct}%</span>
             </div>
-          )
-        },
-      },
-      {
-        accessorKey: 'issue_date',
-        header: 'Issue Date',
-        cell: ({ row }) => {
-          const date = row.getValue('issue_date') as string
-          return (
-            <span style={{ color: 'var(--so-text-secondary)' }}>
-              {date ? new Date(date).toLocaleDateString() : '-'}
-            </span>
           )
         },
       },
@@ -330,7 +303,7 @@ export default function Contracts() {
         },
       },
     ],
-    [deleteContract, activateContract, cancelContract, completeContract, navigate, activeTab]
+    [deleteContract, activateContract, cancelContract, completeContract, navigate]
   )
 
   const reportFilterConfig: ReportFilterConfig = {

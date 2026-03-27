@@ -18,6 +18,10 @@ import { Checkbox } from './checkbox'
 import { Input } from './input'
 import { cn } from '@/lib/utils'
 
+/** Map column accessorKey/id → minimum breakpoint width (px) to show that column.
+ *  Columns not listed are always visible. */
+type ResponsiveColumns = Record<string, number>
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -35,6 +39,9 @@ interface DataTableProps<TData, TValue> {
   storageKey?: string
   /** Override initial column visibility (keys = column accessorKey/id, values = boolean). Only used on first load when no localStorage entry exists. */
   defaultColumnVisibility?: Record<string, boolean>
+  /** Map column id → minimum viewport width (px) at which the column is shown by default.
+   *  Columns hidden by responsive rules can still be toggled on via the column picker. */
+  responsiveColumns?: ResponsiveColumns
 }
 
 export function DataTable<TData, TValue>({
@@ -52,19 +59,56 @@ export function DataTable<TData, TValue>({
   bulkActions,
   storageKey,
   defaultColumnVisibility,
+  responsiveColumns,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+
+  // Track which columns the user has explicitly toggled (overrides responsive defaults)
+  const [userToggledColumns, setUserToggledColumns] = useState<Record<string, boolean>>(() => {
     if (storageKey) {
       try {
         const stored = localStorage.getItem(`raven-table-${storageKey}`)
         if (stored) return JSON.parse(stored)
       } catch { /* ignore */ }
     }
-    return defaultColumnVisibility ?? {}
+    return {}
   })
+
+  // Compute responsive visibility based on viewport width
+  const getResponsiveVisibility = useCallback((width: number): VisibilityState => {
+    if (!responsiveColumns) return {}
+    const vis: VisibilityState = {}
+    for (const [colId, minWidth] of Object.entries(responsiveColumns)) {
+      vis[colId] = width >= minWidth
+    }
+    return vis
+  }, [responsiveColumns])
+
+  // Merge: responsive defaults + user overrides
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+
+  useEffect(() => {
+    if (!responsiveColumns) return
+    const handleResize = () => setViewportWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [responsiveColumns])
+
+  const columnVisibility = useMemo<VisibilityState>(() => {
+    const responsive = getResponsiveVisibility(viewportWidth)
+    const base = { ...(defaultColumnVisibility ?? {}), ...responsive }
+    // User toggles override everything
+    return { ...base, ...userToggledColumns }
+  }, [viewportWidth, getResponsiveVisibility, defaultColumnVisibility, userToggledColumns])
+
+  const setColumnVisibility = useCallback((updaterOrValue: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
+    setUserToggledColumns(prev => {
+      const next = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
+      return next
+    })
+  }, [])
   const [columnPickerOpen, setColumnPickerOpen] = useState(false)
   const columnPickerRef = useRef<HTMLDivElement>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -85,9 +129,9 @@ export function DataTable<TData, TValue>({
 
   useEffect(() => {
     if (storageKey) {
-      localStorage.setItem(`raven-table-${storageKey}`, JSON.stringify(columnVisibility))
+      localStorage.setItem(`raven-table-${storageKey}`, JSON.stringify(userToggledColumns))
     }
-  }, [columnVisibility, storageKey])
+  }, [userToggledColumns, storageKey])
 
   useEffect(() => {
     const handlePickerClickOutside = (e: MouseEvent) => {
@@ -160,7 +204,7 @@ export function DataTable<TData, TValue>({
   return (
     <div className="space-y-4">
       {(searchColumn || storageKey) && (
-        <div className="flex items-center justify-between gap-4 pl-6 pr-6">
+        <div className="flex items-center justify-between gap-4 px-6 pt-4">
           {/* Search */}
           {searchColumn ? (
             <div ref={containerRef} className="relative max-w-sm flex-1">
@@ -277,6 +321,7 @@ export function DataTable<TData, TValue>({
                       .filter(col => col.getCanHide() && col.id !== 'select' && col.id !== 'actions')
                       .map(col => {
                         const header = typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
+                        const isResponsiveHidden = responsiveColumns?.[col.id] !== undefined && viewportWidth < (responsiveColumns[col.id] ?? 0)
                         return (
                           <label
                             key={col.id}
@@ -285,9 +330,19 @@ export function DataTable<TData, TValue>({
                           >
                             <Checkbox
                               checked={col.getIsVisible()}
-                              onCheckedChange={(value) => col.toggleVisibility(!!value)}
+                              onCheckedChange={(value) => {
+                                setUserToggledColumns(prev => ({ ...prev, [col.id]: !!value }))
+                              }}
                             />
-                            {header}
+                            <span className="flex items-center gap-1.5">
+                              {header}
+                              {isResponsiveHidden && !col.getIsVisible() && (
+                                <span className="text-[10px] px-1 py-0.5 rounded"
+                                  style={{ background: 'var(--so-surface-raised)', color: 'var(--so-text-tertiary)' }}>
+                                  hidden on this screen
+                                </span>
+                              )}
+                            </span>
                           </label>
                         )
                       })
@@ -298,9 +353,10 @@ export function DataTable<TData, TValue>({
                       className="text-[12px] font-medium cursor-pointer"
                       style={{ color: 'var(--so-accent)', background: 'none', border: 'none' }}
                       onClick={() => {
-                        table.getAllColumns().forEach(col => {
-                          if (col.getCanHide()) col.toggleVisibility(true)
-                        })
+                        setUserToggledColumns({})
+                        if (storageKey) {
+                          localStorage.removeItem(`raven-table-${storageKey}`)
+                        }
                       }}
                     >
                       Reset to Default
@@ -313,7 +369,7 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="rounded-md border border-border">
+      <div className="rounded-md border border-border overflow-x-auto">
         <table className="w-full">
           <thead className="bg-muted/50 dark:bg-muted/20">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -321,7 +377,7 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-4 py-3 text-left text-sm font-medium text-foreground"
+                    className="px-3 py-3 text-left text-sm font-medium text-foreground whitespace-nowrap"
                   >
                     {header.isPlaceholder ? null : (
                       <div
@@ -363,7 +419,10 @@ export function DataTable<TData, TValue>({
                   onDoubleClick={() => onRowDoubleClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-sm text-foreground">
+                    <td
+                      key={cell.id}
+                      className="px-3 py-3 text-sm text-foreground"
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

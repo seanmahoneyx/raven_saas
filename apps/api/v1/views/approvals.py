@@ -46,6 +46,28 @@ class ApprovalRequestViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         tags=['approvals'],
+        summary='Get all approvals for current user (all statuses)',
+        responses={200: ApprovalRequestSerializer(many=True)},
+    )
+    @action(detail=False, methods=['get'], url_path='my-all')
+    def my_all(self, request):
+        """GET /approvals/my-all/ - All approvals relevant to current user."""
+        from django.db.models import Q
+        approvals = ApprovalRequest.objects.filter(
+            Q(approver=request.user) | Q(requestor=request.user) | Q(approver__isnull=True),
+            tenant=request.tenant,
+        ).select_related('requestor', 'approver', 'content_type').order_by('-created_at')
+
+        # Optional status filter
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            approvals = approvals.filter(status=status_filter)
+
+        serializer = ApprovalRequestSerializer(approvals, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=['approvals'],
         summary='Approve an approval request',
         request=ApprovalDecisionSerializer,
         responses={200: ApprovalRequestSerializer},

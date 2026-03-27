@@ -274,7 +274,7 @@ export default function ProductCards() {
               type="button"
               className="inline-flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
               style={{ color: 'var(--so-accent)' }}
-              onClick={() => navigate(`/product-cards/${selectedItemId}`)}
+              onClick={() => navigate(`/items/${selectedItemId}`)}
             >
               <ExternalLink size={12} />
               Open in detail view

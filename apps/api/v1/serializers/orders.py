@@ -30,6 +30,7 @@ class PurchaseOrderLineSerializer(TenantModelSerializer):
             'item', 'item_sku', 'item_name',
             'quantity_ordered', 'uom', 'uom_code',
             'unit_cost', 'line_total', 'quantity_in_base_uom',
+            'fulfillment_method',
             'notes', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -74,6 +75,8 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
     """Detailed serializer for PurchaseOrder with nested lines."""
     vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
     ship_to_name = serializers.CharField(source='ship_to.name', read_only=True)
+    ship_to_address = serializers.CharField(source='ship_to.full_address', read_only=True)
+    vendor_address = serializers.SerializerMethodField()
     lines = PurchaseOrderLineSerializer(many=True, read_only=True)
     num_lines = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -86,12 +89,23 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
         fields = [
             'id', 'po_number', 'status', 'vendor', 'vendor_name',
             'order_date', 'expected_date', 'scheduled_date',
-            'scheduled_truck', 'ship_to', 'ship_to_name',
+            'scheduled_truck', 'ship_to', 'ship_to_name', 'ship_to_address',
+            'vendor_address',
             'notes', 'priority', 'lines', 'num_lines', 'subtotal', 'is_editable',
             'prev_id', 'next_id',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_vendor_address(self, obj):
+        """Get the vendor's default location address."""
+        if obj.vendor and obj.vendor.party:
+            loc = obj.vendor.party.locations.filter(is_default=True, is_active=True).first()
+            if not loc:
+                loc = obj.vendor.party.locations.filter(is_active=True).first()
+            if loc:
+                return loc.full_address
+        return None
 
     def get_prev_id(self, obj):
         return PurchaseOrder.objects.filter(
@@ -214,6 +228,7 @@ class SalesOrderLineSerializer(TenantModelSerializer):
             'item', 'item_sku', 'item_name',
             'quantity_ordered', 'uom', 'uom_code',
             'unit_price', 'line_total', 'quantity_in_base_uom',
+            'fulfillment_method',
             'notes', 'contract_number', 'contract_id',
             'created_at', 'updated_at',
         ]
@@ -260,7 +275,9 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
     """Detailed serializer for SalesOrder with nested lines."""
     customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
     ship_to_name = serializers.CharField(source='ship_to.name', read_only=True)
+    ship_to_address = serializers.CharField(source='ship_to.full_address', read_only=True)
     bill_to_name = serializers.CharField(source='bill_to.name', read_only=True, allow_null=True)
+    bill_to_address = serializers.CharField(source='bill_to.full_address', read_only=True, allow_null=True)
     lines = SalesOrderLineSerializer(many=True, read_only=True)
     num_lines = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
@@ -274,7 +291,8 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
         fields = [
             'id', 'order_number', 'status', 'customer', 'customer_name',
             'order_date', 'scheduled_date', 'scheduled_truck',
-            'ship_to', 'ship_to_name', 'bill_to', 'bill_to_name',
+            'ship_to', 'ship_to_name', 'ship_to_address',
+            'bill_to', 'bill_to_name', 'bill_to_address',
             'customer_po', 'order_class', 'notes', 'priority', 'lines', 'num_lines', 'subtotal', 'is_editable',
             'contract_reference', 'prev_id', 'next_id',
             'created_at', 'updated_at',
@@ -629,6 +647,7 @@ class RFQDetailSerializer(TenantModelSerializer):
     is_convertible = serializers.BooleanField(read_only=True)
     has_all_quotes = serializers.BooleanField(read_only=True)
     converted_po_number = serializers.SerializerMethodField()
+    converted_price_list_count = serializers.SerializerMethodField()
 
     class Meta:
         model = RFQ
@@ -637,7 +656,7 @@ class RFQDetailSerializer(TenantModelSerializer):
             'date', 'expected_date', 'ship_to', 'ship_to_name',
             'notes', 'lines',
             'is_editable', 'is_convertible', 'has_all_quotes',
-            'converted_po_number',
+            'converted_po_number', 'converted_price_list_count',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -645,6 +664,14 @@ class RFQDetailSerializer(TenantModelSerializer):
     def get_converted_po_number(self, obj):
         po = obj.converted_purchase_orders.first()
         return po.po_number if po else None
+
+    def get_converted_price_list_count(self, obj):
+        """Count price lists created from this RFQ's items by checking notes."""
+        from apps.pricing.models import PriceListHead
+        return PriceListHead.objects.filter(
+            tenant=obj.tenant,
+            notes__contains=f"Created from RFQ {obj.rfq_number}",
+        ).count()
 
 
 class RFQWriteSerializer(TenantModelSerializer):

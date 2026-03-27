@@ -93,6 +93,24 @@ export function useConvertRFQ() {
   })
 }
 
+export function useConvertRFQToPriceList() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, customer }: { id: number; customer: number }) => {
+      const { data } = await api.post(`/rfqs/${id}/convert-to-price-list/`, { customer })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rfqs'] })
+      queryClient.invalidateQueries({ queryKey: ['price-lists'] })
+      toast.success('Price lists created from RFQ')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to create price lists'))
+    },
+  })
+}
+
 export function useSendRFQ() {
   const queryClient = useQueryClient()
   return useMutation({

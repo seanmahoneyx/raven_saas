@@ -33,6 +33,37 @@ DIVISION_TYPES = [
     ('misc', 'Miscellaneous'),
 ]
 
+ITEM_TYPE_CHOICES = [
+    ('inventory', 'Inventory'),
+    ('non_stockable', 'Non-Stockable'),
+    ('crossdock', 'Crossdock'),
+    ('other_charge', 'Other Charge'),
+]
+
+LIFECYCLE_STATUS_CHOICES = [
+    ('draft', 'Draft'),
+    ('pending_design', 'Design Requested'),
+    ('in_design', 'In Design'),
+    ('design_complete', 'Design Complete'),
+    ('pending_approval', 'Pending Approval'),
+    ('active', 'Active'),
+]
+
+# Fields that trigger a revision bump when changed on an active item
+SPEC_SIGNIFICANT_FIELDS = [
+    'test', 'flute', 'paper',
+    'is_printed', 'panels_printed', 'colors_printed', 'ink_list',
+    'length', 'width', 'height',
+    'blank_length', 'blank_width', 'out_per_rotary',
+    # Packaging fields
+    'sub_type', 'material_type', 'thickness', 'thickness_unit',
+    'diameter', 'roll_length', 'roll_width',
+    'bubble_size', 'lip_style', 'density',
+    'cells_x', 'cells_y', 'adhesive_type', 'tape_type',
+    'break_strength_lbs', 'stretch_pct', 'inner_diameter',
+    'label_type',
+]
+
 TEST_TYPES = [
     ('ect29', 'ECT 29'),
     ('ect32', 'ECT 32'),
@@ -59,6 +90,69 @@ FLUTE_TYPES = [
 PAPER_TYPES = [
     ('k', 'Kraft'),
     ('mw', 'Mottled White'),
+]
+
+PACKAGING_SUB_TYPES = [
+    ('bags', 'Bags'),
+    ('bubble', 'Bubble'),
+    ('chipboard', 'Chipboard'),
+    ('circles', 'Circles'),
+    ('collars', 'Collars'),
+    ('corners', 'Corners'),
+    ('film', 'Film'),
+    ('foam', 'Foam'),
+    ('labels', 'Labels'),
+    ('partitions', 'Partitions'),
+    ('plastic_containers', 'Plastic Containers/Lids'),
+    ('specialty_paper', 'Specialty Paper'),
+    ('strapping', 'Strapping'),
+    ('stretch', 'Stretch'),
+    ('tape', 'Tape'),
+    ('tube', 'Tube'),
+    ('pkg_misc', 'Misc'),
+]
+
+THICKNESS_UNIT_CHOICES = [
+    ('mil', 'Mil'),
+    ('gauge', 'Gauge'),
+    ('mm', 'mm'),
+    ('inches', 'Inches'),
+]
+
+BUBBLE_SIZE_CHOICES = [
+    ('3/16', '3/16" (Small)'),
+    ('5/16', '5/16" (Medium)'),
+    ('1/2', '1/2" (Large)'),
+]
+
+LIP_STYLE_CHOICES = [
+    ('open', 'Open'),
+    ('resealable', 'Resealable'),
+    ('ziplock', 'Zip-Lock'),
+    ('flap', 'Flap'),
+]
+
+ADHESIVE_TYPE_CHOICES = [
+    ('acrylic', 'Acrylic'),
+    ('rubber', 'Rubber'),
+    ('hot_melt', 'Hot Melt'),
+    ('silicone', 'Silicone'),
+]
+
+TAPE_TYPE_CHOICES = [
+    ('flatback', 'Flatback'),
+    ('filament', 'Filament'),
+    ('masking', 'Masking'),
+    ('packing', 'Packing'),
+    ('duct', 'Duct'),
+    ('double_sided', 'Double-Sided'),
+]
+
+LABEL_TYPE_CHOICES = [
+    ('thermal', 'Thermal Transfer'),
+    ('direct_thermal', 'Direct Thermal'),
+    ('laser', 'Laser'),
+    ('inkjet', 'Inkjet'),
 ]
 
 
@@ -127,7 +221,8 @@ class Item(TenantMixin, TimestampMixin):
     # Core identification
     sku = models.CharField(
         max_length=100,
-        help_text="Stock Keeping Unit (unique per tenant)"
+        blank=True,
+        help_text="Stock Keeping Unit (unique per tenant) — auto-generated if blank"
     )
     name = models.CharField(
         max_length=255,
@@ -224,13 +319,42 @@ class Item(TenantMixin, TimestampMixin):
     )
 
     # Flags
-    is_inventory = models.BooleanField(
-        default=True,
-        help_text="Is this a stocked/inventoried item?"
+    item_type = models.CharField(
+        max_length=20,
+        choices=ITEM_TYPE_CHOICES,
+        default='inventory',
+        help_text="Inventory=warehouse stocked, Non-Stockable=direct/crossdock only, Crossdock=crossdock only, Other Charge=freight/misc charges"
     )
     is_active = models.BooleanField(
         default=True,
         help_text="Inactive items are hidden from selections"
+    )
+
+    # Lifecycle
+    lifecycle_status = models.CharField(
+        max_length=20,
+        choices=LIFECYCLE_STATUS_CHOICES,
+        default='active',
+        help_text="Item lifecycle stage: draft → design → approval → active"
+    )
+
+    # Revision tracking
+    revision_reason = models.TextField(
+        blank=True,
+        help_text="What changed in the current revision"
+    )
+    revision_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the current revision was created"
+    )
+    revision_changed_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_revisions',
+        help_text="Who created the current revision"
     )
 
     # Inventory reorder thresholds
@@ -301,10 +425,49 @@ class Item(TenantMixin, TimestampMixin):
             models.Index(fields=['tenant', 'division']),
             models.Index(fields=['tenant', 'is_active']),
             models.Index(fields=['tenant', 'customer']),
+            models.Index(fields=['tenant', 'item_type']),
+            models.Index(fields=['tenant', 'lifecycle_status']),
         ]
+        permissions = [
+            ('can_design_item', 'Can claim and complete design work on items'),
+            ('can_approve_item', 'Can approve items to active status'),
+            ('can_bump_revision', 'Can bump revision on active items'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            self.sku = self._generate_mspn()
+        super().save(*args, **kwargs)
+
+    def bump_revision(self, reason='', user=None):
+        """Increment revision number and record the change."""
+        from django.utils import timezone
+        self.revision = (self.revision or 0) + 1
+        self.revision_reason = reason
+        self.revision_date = timezone.now()
+        self.revision_changed_by = user
+        self.save()
+
+    def _generate_mspn(self):
+        """Generate the next MSPN number for this tenant."""
+        import re
+        existing = Item.objects.filter(tenant=self.tenant).values_list('sku', flat=True)
+        max_num = 0
+        for sku in existing:
+            match = re.search(r'MSPN-(\d+)', sku or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+        return f"MSPN-{str(max_num + 1).zfill(6)}"
 
     def __str__(self):
         return f"{self.sku} - {self.name}"
+
+    @property
+    def is_inventory(self):
+        """Returns True for inventory and crossdock items."""
+        return self.item_type in ('inventory', 'crossdock')
 
     def get_uom_multiplier(self, uom):
         """
@@ -741,3 +904,247 @@ class TeleItem(CorrugatedItem):
     class Meta:
         verbose_name = "Telescoping Item"
         verbose_name_plural = "Telescoping Items"
+
+
+# =============================================================================
+# PACKAGING ITEM (EXTENDS ITEM)
+# =============================================================================
+
+class PackagingItem(Item):
+    """
+    Packaging-specific item attributes.
+
+    Extends Item with packaging product specifications. Uses a single table
+    with a sub_type discriminator and nullable fields shown/hidden per sub-type
+    in the frontend form.
+
+    Sub-types: Bags, Bubble, Chipboard, Circles, Collars, Corners, Film,
+    Foam, Labels, Partitions, Plastic Containers/Lids, Specialty Paper,
+    Strapping, Stretch, Tape, Tube, Misc
+    """
+    # Discriminator
+    sub_type = models.CharField(
+        max_length=30,
+        choices=PACKAGING_SUB_TYPES,
+        help_text="Packaging product sub-type"
+    )
+
+    # --- Shared fields (used by many sub-types) ---
+    material_type = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Material (e.g., Poly, Kraft, LDPE, EPS)"
+    )
+    color = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Color (e.g., Clear, Natural, White, Brown)"
+    )
+    thickness = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Thickness value"
+    )
+    thickness_unit = models.CharField(
+        max_length=10,
+        choices=THICKNESS_UNIT_CHOICES,
+        blank=True,
+        default='mil',
+        help_text="Thickness unit"
+    )
+    length = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Length (inches)"
+    )
+    width = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Width (inches)"
+    )
+    height = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Height (inches)"
+    )
+    diameter = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Diameter (inches)"
+    )
+    pieces_per_case = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Pieces per case/bundle"
+    )
+    weight_capacity_lbs = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Weight capacity (lbs)"
+    )
+
+    # --- Roll-form fields ---
+    roll_length = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Roll length (feet)"
+    )
+    roll_width = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Roll width (inches)"
+    )
+    rolls_per_case = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Rolls per case"
+    )
+    core_diameter = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Core diameter (inches, e.g., 1, 2, 3)"
+    )
+
+    # --- Sheet/pad fields ---
+    sheets_per_bundle = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Sheets per bundle/pack"
+    )
+
+    # --- Sub-type specific fields (nullable) ---
+    # Bubble
+    bubble_size = models.CharField(
+        max_length=10,
+        choices=BUBBLE_SIZE_CHOICES,
+        blank=True,
+        help_text="Bubble size"
+    )
+    perforated = models.BooleanField(
+        default=False,
+        help_text="Pre-perforated at intervals"
+    )
+    perforation_interval = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Perforation interval (e.g., 'every 12 inches')"
+    )
+
+    # Bags
+    lip_style = models.CharField(
+        max_length=20,
+        choices=LIP_STYLE_CHOICES,
+        blank=True,
+        help_text="Bag lip/closure style"
+    )
+
+    # Foam
+    density = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Foam density (lb/ft3)"
+    )
+
+    # Partitions
+    cells_x = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of cells across (columns)"
+    )
+    cells_y = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of cells down (rows)"
+    )
+
+    # Tape & Labels
+    adhesive_type = models.CharField(
+        max_length=20,
+        choices=ADHESIVE_TYPE_CHOICES,
+        blank=True,
+        help_text="Adhesive type"
+    )
+
+    # Tape
+    tape_type = models.CharField(
+        max_length=20,
+        choices=TAPE_TYPE_CHOICES,
+        blank=True,
+        help_text="Tape type"
+    )
+
+    # Strapping
+    break_strength_lbs = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Tensile break strength (lbs)"
+    )
+
+    # Stretch
+    stretch_pct = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Pre-stretch percentage"
+    )
+
+    # Tube
+    inner_diameter = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Inner diameter (inches)"
+    )
+
+    # Plastic Containers
+    lid_included = models.BooleanField(
+        default=False,
+        help_text="Lid sold with container"
+    )
+
+    # Labels
+    label_type = models.CharField(
+        max_length=20,
+        choices=LABEL_TYPE_CHOICES,
+        blank=True,
+        help_text="Label type"
+    )
+    labels_per_roll = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Labels per roll"
+    )
+
+    # Audit trail
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Packaging Item"
+        verbose_name_plural = "Packaging Items"
+
+    def save(self, *args, **kwargs):
+        """Ensure division is set to packaging."""
+        self.division = 'packaging'
+        super().save(*args, **kwargs)

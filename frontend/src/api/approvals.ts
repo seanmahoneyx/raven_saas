@@ -57,3 +57,11 @@ export function useRejectRequest() {
     onError: () => toast.error('Failed to reject'),
   })
 }
+
+export function useAllApprovals(params?: { status?: string }) {
+  return useQuery<ApprovalRequest[]>({
+    queryKey: ['approvals', 'my-all', params],
+    queryFn: () => apiClient.get('/approvals/my-all/', { params }).then(r => r.data),
+    refetchInterval: 60 * 1000,
+  })
+}

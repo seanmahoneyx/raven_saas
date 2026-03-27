@@ -25,13 +25,28 @@ class ApprovalService:
     3. Credit Limit: SO would push customer over credit limit
     """
 
-    # Configurable thresholds (could be moved to DB settings later)
-    PO_AMOUNT_THRESHOLD = Decimal('5000.00')
-    SO_MARGIN_THRESHOLD = Decimal('0.15')  # 15%
-
     def __init__(self, tenant, user):
         self.tenant = tenant
         self.user = user
+
+    def _get_thresholds(self):
+        """Read approval thresholds from tenant settings."""
+        try:
+            settings = self.tenant.settings
+            return {
+                'po_amount': settings.approval_po_amount_threshold,
+                'so_margin': settings.approval_so_margin_threshold,
+                'price_list_enabled': settings.approval_price_list_enabled,
+                'po_send_enabled': settings.approval_po_send_enabled,
+            }
+        except Exception:
+            # Fallback defaults
+            return {
+                'po_amount': Decimal('5000.00'),
+                'so_margin': Decimal('0.15'),
+                'price_list_enabled': False,
+                'po_send_enabled': False,
+            }
 
     def check_order_needs_approval(self, order):
         """
@@ -53,12 +68,13 @@ class ApprovalService:
     def _check_po_rules(self, po):
         """Check purchase order rules."""
         rules = []
+        thresholds = self._get_thresholds()
         subtotal = po.subtotal  # This is a @property that sums line_total
 
-        if subtotal > self.PO_AMOUNT_THRESHOLD:
+        if thresholds['po_amount'] is not None and subtotal > thresholds['po_amount']:
             rules.append({
                 'rule_code': 'po_amount_threshold',
-                'description': f'PO {po.po_number} subtotal ${subtotal:,.2f} exceeds ${self.PO_AMOUNT_THRESHOLD:,.2f} threshold',
+                'description': f'PO {po.po_number} subtotal ${subtotal:,.2f} exceeds ${thresholds["po_amount"]:,.2f} threshold',
                 'amount': subtotal,
             })
 
@@ -67,6 +83,7 @@ class ApprovalService:
     def _check_so_rules(self, so):
         """Check sales order rules."""
         rules = []
+        thresholds = self._get_thresholds()
         subtotal = so.subtotal  # @property summing line.line_total (price-based)
 
         # Rule: Low margin check
@@ -77,13 +94,13 @@ class ApprovalService:
             item_cost = self._get_item_cost(line.item)
             total_cost += item_cost * line.quantity_ordered
 
-        if subtotal > 0:
+        if subtotal > 0 and thresholds['so_margin'] is not None:
             margin = (subtotal - total_cost) / subtotal
-            if margin < self.SO_MARGIN_THRESHOLD:
+            if margin < thresholds['so_margin']:
                 margin_pct = margin * 100
                 rules.append({
                     'rule_code': 'so_low_margin',
-                    'description': f'SO {so.order_number} margin {margin_pct:.1f}% is below {self.SO_MARGIN_THRESHOLD * 100:.0f}% threshold',
+                    'description': f'SO {so.order_number} margin {margin_pct:.1f}% is below {thresholds["so_margin"] * 100:.0f}% threshold',
                     'amount': subtotal,
                 })
 
@@ -298,6 +315,59 @@ class ApprovalService:
                 order.save(update_fields=['status'])
                 logger.info('All approvals cleared - order %s confirmed', order)
 
+    def check_po_send_needs_approval(self, po):
+        """Check if sending a PO to vendor requires approval."""
+        thresholds = self._get_thresholds()
+        if not thresholds['po_send_enabled']:
+            return False, []
+
+        rules = [{
+            'rule_code': 'po_send_approval',
+            'description': f'PO {po.po_number} requires approval before sending to vendor',
+            'amount': po.subtotal,
+        }]
+
+        approvals = []
+        for rule in rules:
+            approval = self.create_approval_request(po, rule)
+            approvals.append(approval)
+        return True, approvals
+
+    def check_price_list_needs_approval(self, price_list):
+        """Check if a price list change requires approval."""
+        thresholds = self._get_thresholds()
+        if not thresholds['price_list_enabled']:
+            return False, []
+
+        rules = [{
+            'rule_code': 'price_list_approval',
+            'description': f'Price list for {price_list.customer.party.display_name} / {price_list.item.name} requires approval',
+            'amount': None,
+        }]
+
+        approvals = []
+        for rule in rules:
+            from django.contrib.contenttypes.models import ContentType
+            ct = ContentType.objects.get_for_model(price_list)
+            existing = ApprovalRequest.objects.filter(
+                content_type=ct, object_id=price_list.pk,
+                rule_code=rule['rule_code'], status='pending',
+            ).first()
+            if existing:
+                approvals.append(existing)
+            else:
+                approval = ApprovalRequest.objects.create(
+                    tenant=self.tenant,
+                    content_type=ct,
+                    object_id=price_list.pk,
+                    rule_code=rule['rule_code'],
+                    rule_description=rule['description'],
+                    requestor=self.user,
+                    amount=rule.get('amount'),
+                )
+                approvals.append(approval)
+        return True, approvals
+
     def _get_order_link(self, approval):
         """Generate frontend link for the order."""
         from apps.orders.models import PurchaseOrder, SalesOrder
@@ -306,6 +376,10 @@ class ApprovalService:
             return f'/purchase-orders/{order.pk}'
         elif isinstance(order, SalesOrder):
             return f'/orders/{order.pk}'
+        # Try price list
+        from apps.pricing.models import PriceListHead
+        if isinstance(order, PriceListHead):
+            return f'/price-lists/{order.pk}'
         return ''
 
     @classmethod

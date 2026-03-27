@@ -7,6 +7,7 @@ interface ExportButtonProps {
   columns?: { key: string; header: string }[]
   variant?: 'outline' | 'ghost' | 'default'
   size?: 'sm' | 'default'
+  iconOnly?: boolean
 }
 
 function escapeCSVValue(value: unknown): string {
@@ -23,6 +24,7 @@ export function ExportButton({
   columns,
   variant = 'outline',
   size = 'sm',
+  iconOnly = false,
 }: ExportButtonProps) {
   const handleExport = () => {
     if (data.length === 0) return
@@ -48,9 +50,9 @@ export function ExportButton({
   }
 
   return (
-    <Button variant={variant} size={size} onClick={handleExport}>
-      <Download className="h-4 w-4 mr-2" />
-      Export CSV
+    <Button variant={variant} size={iconOnly ? 'icon' : size} onClick={handleExport} title="Export CSV">
+      <Download className="h-4 w-4" />
+      {!iconOnly && <span className="ml-2">Export CSV</span>}
     </Button>
   )
 }

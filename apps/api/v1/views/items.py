@@ -16,11 +16,16 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db.models import Sum, Subquery, OuterRef, IntegerField, CharField, Count
+from django.db.models.functions import Coalesce
+from django.contrib.contenttypes.models import ContentType
+from apps.documents.models import Attachment
 
 from apps.items.models import (
     UnitOfMeasure, Item, ItemUOM, ItemVendor,
     CorrugatedFeature, CorrugatedItem,
-    DCItem, RSCItem, HSCItem, FOLItem, TeleItem
+    DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
+    PackagingItem,
 )
 from apps.api.v1.serializers.items import (
     UnitOfMeasureSerializer,
@@ -34,6 +39,7 @@ from apps.api.v1.serializers.items import (
     HSCItemSerializer, HSCItemDetailSerializer,
     FOLItemSerializer, FOLItemDetailSerializer,
     TeleItemSerializer, TeleItemDetailSerializer,
+    PackagingItemSerializer, PackagingItemDetailSerializer,
 )
 
 
@@ -231,13 +237,64 @@ class ItemViewSet(viewsets.ModelViewSet):
     For corrugated-specific items, use the corrugated item endpoints.
     """
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'is_inventory', 'division', 'base_uom', 'customer', 'parent']
+    filterset_fields = ['is_active', 'item_type', 'division', 'base_uom', 'customer', 'parent', 'lifecycle_status']
     search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
     ordering_fields = ['sku', 'name', 'division', 'created_at']
     ordering = ['sku']
 
     def get_queryset(self):
-        return Item.objects.select_related('base_uom', 'customer').all()
+        from apps.inventory.models import InventoryBalance
+        from apps.orders.models import PurchaseOrderLine, SalesOrderLine
+        from apps.items.models import ItemVendor
+
+        # Open order statuses (not shipped/complete/cancelled)
+        open_statuses = ['draft', 'pending_approval', 'confirmed', 'scheduled', 'picking', 'crossdock', 'partially_received']
+
+        # Subquery: total on_hand across all warehouses
+        qty_on_hand_sub = InventoryBalance.objects.filter(
+            item=OuterRef('pk'),
+            tenant=OuterRef('tenant'),
+        ).values('item').annotate(total=Sum('on_hand')).values('total')
+
+        # Subquery: total qty on open purchase orders
+        qty_on_open_po_sub = PurchaseOrderLine.objects.filter(
+            item=OuterRef('pk'),
+            tenant=OuterRef('tenant'),
+            purchase_order__status__in=open_statuses,
+        ).values('item').annotate(total=Sum('quantity_ordered')).values('total')
+
+        # Subquery: total qty on open sales orders
+        qty_on_open_so_sub = SalesOrderLine.objects.filter(
+            item=OuterRef('pk'),
+            tenant=OuterRef('tenant'),
+            sales_order__status__in=open_statuses,
+        ).values('item').annotate(total=Sum('quantity_ordered')).values('total')
+
+        # Subquery: preferred vendor display_name
+        preferred_vendor_sub = ItemVendor.objects.filter(
+            item=OuterRef('pk'),
+            tenant=OuterRef('tenant'),
+            is_preferred=True,
+            is_active=True,
+        ).values('vendor__display_name')[:1]
+
+        return Item.objects.select_related(
+            'base_uom', 'customer',
+            'income_account', 'expense_account', 'asset_account',
+        ).annotate(
+            qty_on_hand=Coalesce(Subquery(qty_on_hand_sub, output_field=IntegerField()), 0),
+            qty_on_open_po=Coalesce(Subquery(qty_on_open_po_sub, output_field=IntegerField()), 0),
+            qty_on_open_so=Coalesce(Subquery(qty_on_open_so_sub, output_field=IntegerField()), 0),
+            preferred_vendor_name=Subquery(preferred_vendor_sub, output_field=CharField()),
+            attachment_count=Coalesce(Subquery(
+                Attachment.objects.filter(
+                    content_type=ContentType.objects.get_for_model(Item),
+                    object_id=OuterRef('pk'),
+                    tenant=OuterRef('tenant'),
+                ).values('object_id').annotate(cnt=Count('id')).values('cnt'),
+                output_field=IntegerField(),
+            ), 0),
+        ).all()
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -305,6 +362,21 @@ class ItemViewSet(viewsets.ModelViewSet):
             ItemVendorSerializer(instance, context={'request': request}).data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(tags=['items'], summary='Get the next auto-generated MSPN')
+    @action(detail=False, methods=['get'])
+    def next_mspn(self, request):
+        """Return the next auto-generated MSPN number."""
+        import re
+        existing = Item.objects.filter(tenant=request.tenant).values_list('sku', flat=True)
+        max_num = 0
+        for sku in existing:
+            match = re.search(r'MSPN-(\d+)', sku or '')
+            if match:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+        return Response({'next_mspn': f"MSPN-{str(max_num + 1).zfill(6)}"})
 
     @extend_schema(tags=['items'], summary='Generate item spec sheet PDF')
     @action(detail=True, methods=['get'])
@@ -693,7 +765,7 @@ class ItemViewSet(viewsets.ModelViewSet):
             'purch_desc': item.purch_desc,
             'sell_desc': item.sell_desc,
             'division': item.division,
-            'is_inventory': item.is_inventory,
+            'item_type': item.item_type,
             'is_active': item.is_active,
             'customer_name': customer.display_name if customer else None,
             'customer_code': customer.code if customer else None,
@@ -714,6 +786,143 @@ class ItemViewSet(viewsets.ModelViewSet):
             'vendors': vendors,
             'item_details': item_details,
         })
+
+    @extend_schema(tags=['items'], summary='Transition item lifecycle status')
+    @action(detail=True, methods=['post'])
+    def transition(self, request, pk=None):
+        """
+        Transition item lifecycle status.
+
+        Valid transitions:
+        - draft → pending_design, pending_approval
+        - pending_design → in_design
+        - in_design → design_complete
+        - design_complete → pending_approval
+        - pending_approval → active, draft (rejection)
+
+        Permissions:
+        - All users can create drafts and submit for design/approval
+        - can_design_item: claim design, mark design complete
+        - can_approve_item: approve to active, reject back to draft
+        """
+        item = self.get_object()
+        new_status = request.data.get('lifecycle_status')
+        if not new_status:
+            return Response(
+                {'error': 'lifecycle_status is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        VALID_TRANSITIONS = {
+            'draft': ['pending_design', 'pending_approval'],
+            'pending_design': ['in_design', 'draft'],
+            'in_design': ['design_complete', 'draft'],
+            'design_complete': ['pending_approval', 'draft'],
+            'pending_approval': ['active', 'draft'],
+        }
+        allowed = VALID_TRANSITIONS.get(item.lifecycle_status, [])
+        if new_status not in allowed:
+            return Response(
+                {'error': f'Cannot transition from {item.lifecycle_status} to {new_status}. Allowed: {allowed}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Permission checks for specific transitions
+        DESIGN_TRANSITIONS = {'in_design', 'design_complete'}
+        APPROVAL_TRANSITIONS = {'active'}
+        REJECTION_TRANSITIONS_FROM_APPROVAL = {('pending_approval', 'draft')}
+
+        if new_status in DESIGN_TRANSITIONS:
+            if not request.user.has_perm('items.can_design_item') and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to perform design actions'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        if new_status in APPROVAL_TRANSITIONS or (item.lifecycle_status, new_status) in REJECTION_TRANSITIONS_FROM_APPROVAL:
+            if not request.user.has_perm('items.can_approve_item') and not request.user.is_staff:
+                return Response(
+                    {'error': 'You do not have permission to approve or reject items'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        item.lifecycle_status = new_status
+        # If transitioning to active for the first time, set revision 1
+        if new_status == 'active' and not item.revision:
+            item.revision = 1
+            item.revision_reason = 'Initial release'
+            from django.utils import timezone
+            item.revision_date = timezone.now()
+            item.revision_changed_by = request.user
+        item.save()
+
+        # If transitioning to pending_design, auto-create a DesignRequest linked to this item
+        if new_status == 'pending_design':
+            from apps.design.models import DesignRequest
+            # Only create if no existing design request is linked
+            if not DesignRequest.objects.filter(generated_item=item, tenant=request.tenant).exists():
+                # Pull corrugated specs from the item if available
+                dr_kwargs = {
+                    'tenant': request.tenant,
+                    'customer': item.customer,
+                    'requested_by': request.user,
+                    'ident': item.name,
+                    'generated_item': item,
+                    'notes': request.data.get('design_notes', ''),
+                }
+                # Copy corrugated specs if this is a corrugated item
+                try:
+                    corr = item.corrugateditem
+                    dr_kwargs.update({
+                        'test': corr.test or '',
+                        'flute': corr.flute or '',
+                        'paper': corr.paper or '',
+                    })
+                    # Determine style from box type
+                    for attr, style_label in [('dcitem', 'DC'), ('rscitem', 'RSC'), ('hscitem', 'HSC'), ('folitem', 'FOL'), ('teleitem', 'Tele')]:
+                        if hasattr(corr, attr):
+                            dr_kwargs['style'] = style_label
+                            child = getattr(corr, attr)
+                            dr_kwargs['length'] = child.length
+                            dr_kwargs['width'] = child.width
+                            if hasattr(child, 'height'):
+                                dr_kwargs['depth'] = child.height
+                            break
+                except CorrugatedItem.DoesNotExist:
+                    pass
+
+                DesignRequest.objects.create(**dr_kwargs)
+
+        return Response(ItemSerializer(item, context={'request': request}).data)
+
+    @extend_schema(tags=['items'], summary='Bump item revision')
+    @action(detail=True, methods=['post'], url_path='bump-revision')
+    def bump_revision(self, request, pk=None):
+        """
+        Bump the revision number on an active item.
+        Requires a reason for the revision change.
+        """
+        item = self.get_object()
+        if item.lifecycle_status != 'active':
+            return Response(
+                {'error': 'Can only bump revision on active items'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not request.user.has_perm('items.can_bump_revision') and not request.user.is_staff:
+            return Response(
+                {'error': 'You do not have permission to bump revisions'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        reason = request.data.get('reason', '')
+        if not reason:
+            return Response(
+                {'error': 'Revision reason is required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        item.bump_revision(reason=reason, user=request.user)
+        return Response(ItemSerializer(item, context={'request': request}).data)
 
 
 # =============================================================================
@@ -740,7 +949,7 @@ class CorrugatedItemViewSet(viewsets.ModelViewSet):
     - /tele-items/ for Telescoping
     """
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'is_inventory', 'test', 'flute', 'paper', 'is_printed', 'customer']
+    filterset_fields = ['is_active', 'item_type', 'test', 'flute', 'paper', 'is_printed', 'customer']
     search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
     ordering_fields = ['sku', 'name', 'test', 'flute', 'created_at']
     ordering = ['sku']
@@ -763,7 +972,7 @@ class CorrugatedItemViewSet(viewsets.ModelViewSet):
 class BaseBoxViewSet(viewsets.ModelViewSet):
     """Base ViewSet for box type items with common configuration."""
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active', 'is_inventory', 'test', 'flute', 'paper', 'is_printed', 'customer']
+    filterset_fields = ['is_active', 'item_type', 'test', 'flute', 'paper', 'is_printed', 'customer']
     search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
     ordering_fields = ['sku', 'name', 'length', 'width', 'created_at']
     ordering = ['sku']
@@ -871,3 +1080,39 @@ class TeleItemViewSet(BaseBoxViewSet):
         if self.action == 'retrieve':
             return TeleItemDetailSerializer
         return TeleItemSerializer
+
+
+# =============================================================================
+# PACKAGING ITEM
+# =============================================================================
+
+@extend_schema_view(
+    list=extend_schema(tags=['packaging'], summary='List all Packaging items'),
+    retrieve=extend_schema(tags=['packaging'], summary='Get Packaging item details'),
+    create=extend_schema(tags=['packaging'], summary='Create a new Packaging item'),
+    update=extend_schema(tags=['packaging'], summary='Update a Packaging item'),
+    partial_update=extend_schema(tags=['packaging'], summary='Partially update a Packaging item'),
+    destroy=extend_schema(tags=['packaging'], summary='Delete a Packaging item'),
+)
+class PackagingItemViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for PackagingItem model.
+
+    Provides CRUD operations for packaging items (bags, bubble, tape, stretch, etc.).
+    """
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = [
+        'is_active', 'item_type', 'sub_type', 'customer',
+        'material_type', 'color',
+    ]
+    search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc', 'material_type']
+    ordering_fields = ['sku', 'name', 'sub_type', 'material_type', 'created_at']
+    ordering = ['sku']
+
+    def get_queryset(self):
+        return PackagingItem.objects.select_related('base_uom', 'customer').all()
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return PackagingItemDetailSerializer
+        return PackagingItemSerializer

@@ -5,6 +5,7 @@ import { getApiErrorMessage } from '@/lib/errors'
 import type {
   Item, UnitOfMeasure, PaginatedResponse,
   CorrugatedFeature, DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
+  PackagingItem, PackagingSubType,
   ItemVendor, ApiError
 } from '@/types/api'
 
@@ -12,7 +13,7 @@ import type {
 // ITEMS (BASE)
 // =============================================================================
 
-export function useItems(params?: { search?: string; is_active?: boolean; division?: string }) {
+export function useItems(params?: { search?: string; is_active?: boolean; division?: string; lifecycle_status?: string }) {
   return useQuery({
     queryKey: ['items', params],
     queryFn: async () => {
@@ -30,6 +31,16 @@ export function useItem(id: number | null) {
       return data
     },
     enabled: !!id,
+  })
+}
+
+export function useNextMspn() {
+  return useQuery({
+    queryKey: ['items', 'next_mspn'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_mspn: string }>('/items/next_mspn/')
+      return data.next_mspn
+    },
   })
 }
 
@@ -287,6 +298,105 @@ export function useBoxItem(boxType: BoxType | null, id: number | null) {
 }
 
 // =============================================================================
+// PACKAGING ITEMS
+// =============================================================================
+
+export function usePackagingItems(params?: { search?: string; is_active?: boolean; sub_type?: string }) {
+  return useQuery({
+    queryKey: ['packaging-items', params],
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<PackagingItem>>('/packaging-items/', { params })
+      return data
+    },
+  })
+}
+
+export function usePackagingItem(id: number | null) {
+  return useQuery({
+    queryKey: ['packaging-items', id],
+    queryFn: async () => {
+      const { data } = await api.get<PackagingItem>(`/packaging-items/${id}/`)
+      return data
+    },
+    enabled: !!id,
+  })
+}
+
+export function useCreatePackagingItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (item: Partial<PackagingItem>) => {
+      const { data } = await api.post<PackagingItem>('/packaging-items/', item)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      queryClient.invalidateQueries({ queryKey: ['packaging-items'] })
+      toast.success('Packaging item created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to create packaging item'))
+    },
+  })
+}
+
+export function useUpdatePackagingItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...item }: Partial<PackagingItem> & { id: number }) => {
+      const { data } = await api.patch<PackagingItem>(`/packaging-items/${id}/`, item)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      queryClient.invalidateQueries({ queryKey: ['packaging-items'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
+    },
+  })
+}
+
+// =============================================================================
+// LIFECYCLE TRANSITIONS
+// =============================================================================
+
+export function useTransitionItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, lifecycle_status }: { id: number; lifecycle_status: string }) => {
+      const { data } = await api.post<Item>(`/items/${id}/transition/`, { lifecycle_status })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Item status updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to update status'))
+    },
+  })
+}
+
+export function useBumpRevision() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
+      const { data } = await api.post<Item>(`/items/${id}/bump-revision/`, { reason })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Revision bumped')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to bump revision'))
+    },
+  })
+}
+
+// =============================================================================
 // ITEM DUPLICATE
 // =============================================================================
 
@@ -497,7 +607,7 @@ export interface ProductCardItemDetails {
   purch_desc: string
   sell_desc: string
   division: string
-  is_inventory: boolean
+  item_type: string
   is_active: boolean
   customer_name: string | null
   customer_code: string | null

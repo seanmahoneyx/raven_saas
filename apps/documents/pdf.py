@@ -11,15 +11,29 @@ from django.template.loader import render_to_string
 
 logger = logging.getLogger(__name__)
 
-def _get_weasyprint_html():
-    """Lazy import of WeasyPrint to avoid startup crash when GTK libs are missing."""
+def _render_pdf_bytes(html_string):
+    """Render an HTML string to PDF bytes using the best available backend."""
+    # Prefer xhtml2pdf (pure Python, no native deps)
+    try:
+        from xhtml2pdf import pisa
+        pdf_buffer = BytesIO()
+        result = pisa.CreatePDF(html_string, dest=pdf_buffer)
+        if result.err:
+            raise RuntimeError(f"xhtml2pdf conversion failed with {result.err} errors")
+        return pdf_buffer.getvalue()
+    except ImportError:
+        pass
+
+    # Fallback to WeasyPrint (requires GTK3 on Windows)
     try:
         from weasyprint import HTML
-        return HTML
+        pdf_buffer = BytesIO()
+        HTML(string=html_string).write_pdf(target=pdf_buffer)
+        return pdf_buffer.getvalue()
     except (ImportError, OSError) as e:
         raise RuntimeError(
-            "WeasyPrint is not available. On Windows, install GTK3 runtime "
-            "(https://doc.courtbouillon.org/weasyprint/stable/first_steps.html). "
+            "No PDF backend available. Install xhtml2pdf (pip install xhtml2pdf) "
+            "or WeasyPrint with GTK3 runtime. "
             f"Original error: {e}"
         )
 
@@ -45,12 +59,8 @@ class PDFService:
         Returns:
             bytes: PDF file content
         """
-        HTML = _get_weasyprint_html()
         html_string = render_to_string(template_name, context)
-        html = HTML(string=html_string)
-        pdf_buffer = BytesIO()
-        html.write_pdf(target=pdf_buffer)
-        return pdf_buffer.getvalue()
+        return _render_pdf_bytes(html_string)
 
     @classmethod
     def render_invoice(cls, invoice):
@@ -590,7 +600,7 @@ class PDFService:
                 'name': item.name,
                 'division_display': item.get_division_display(),
                 'is_active': item.is_active,
-                'is_inventory': item.is_inventory,
+                'item_type': item.item_type,
                 'base_uom': item.base_uom.code if item.base_uom else '-',
                 'description': item.description,
                 'purch_desc': item.purch_desc,

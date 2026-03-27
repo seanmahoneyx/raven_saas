@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useInventorySync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Package, Layers, BarChart3, History } from 'lucide-react'
+import { Package, Layers, BarChart3, History, Search, X } from 'lucide-react'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -15,6 +15,7 @@ import {
   type InventoryPallet,
   type InventoryTransaction,
 } from '@/api/inventory'
+import { useItems } from '@/api/items'
 import { format } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 
@@ -32,11 +33,46 @@ export default function Inventory() {
   useInventorySync()
 
   const [activeTab, setActiveTab] = useState<Tab>('balances')
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
+  const [itemSearch, setItemSearch] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const { data: balancesData } = useInventoryBalances()
-  const { data: lotsData } = useInventoryLots()
+  const { data: itemsData } = useItems()
+
+  // Click-outside handler
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const allItems = itemsData?.results ?? []
+
+  const filteredItems = useMemo(() => {
+    if (!itemSearch.trim()) return allItems.slice(0, 50)
+    const q = itemSearch.toLowerCase()
+    return allItems
+      .filter(item => item.sku.toLowerCase().includes(q) || item.name.toLowerCase().includes(q))
+      .slice(0, 50)
+  }, [allItems, itemSearch])
+
+  const selectedItem = useMemo(
+    () => (selectedItemId ? allItems.find(i => i.id === selectedItemId) : null),
+    [selectedItemId, allItems]
+  )
+
+  const itemParams = selectedItemId ? { item: selectedItemId } : undefined
+
+  const { data: balancesData } = useInventoryBalances(itemParams)
+  const { data: lotsData } = useInventoryLots(itemParams)
   const { data: palletsData } = useInventoryPallets()
-  const { data: transactionsData } = useInventoryTransactions()
+  const { data: transactionsData } = useInventoryTransactions(itemParams)
 
   const balanceColumns: ColumnDef<InventoryBalance>[] = useMemo(() => [
     { accessorKey: 'item_sku', header: 'MSPN', cell: ({ row }) => <span className="font-mono font-medium">{row.getValue('item_sku')}</span> },
@@ -134,7 +170,97 @@ export default function Inventory() {
             <span className="text-sm font-semibold">{{ balances: 'Balances', lots: 'Lots', pallets: 'Pallets', transactions: 'Transactions' }[activeTab]}</span>
           </div>
           <div className="px-6 py-5">
-            {activeTab === 'balances' && <DataTable columns={balanceColumns} data={balancesData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search items..." storageKey="inventory-balances" />}
+            {activeTab === 'balances' && (
+              <>
+                {/* Item filter dropdown — prepopulated from items API */}
+                <div ref={dropdownRef} className="relative mb-4" style={{ maxWidth: 320 }}>
+                  <div
+                    className="flex items-center gap-2 px-3 rounded-[10px] border"
+                    style={{
+                      background: 'var(--so-surface)',
+                      borderColor: dropdownOpen ? 'var(--so-accent)' : 'var(--so-border)',
+                      height: 36,
+                      transition: 'border-color 0.15s',
+                    }}
+                  >
+                    <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--so-text-tertiary)' }} />
+                    {selectedItem ? (
+                      <div className="flex items-center justify-between flex-1 min-w-0">
+                        <span className="text-[13px] truncate">
+                          <span className="font-mono font-medium" style={{ color: 'var(--so-text-primary)' }}>{selectedItem.sku}</span>
+                          <span className="ml-1.5" style={{ color: 'var(--so-text-secondary)' }}>{selectedItem.name}</span>
+                        </span>
+                        <button
+                          className="ml-1 shrink-0 rounded hover:opacity-70"
+                          style={{ color: 'var(--so-text-tertiary)' }}
+                          onClick={() => {
+                            setSelectedItemId(null)
+                            setItemSearch('')
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <input
+                        ref={inputRef}
+                        className="flex-1 bg-transparent outline-none text-[13px]"
+                        style={{ color: 'var(--so-text-primary)' }}
+                        placeholder="Filter by item..."
+                        value={itemSearch}
+                        onChange={(e) => {
+                          setItemSearch(e.target.value)
+                          setDropdownOpen(true)
+                        }}
+                        onFocus={() => setDropdownOpen(true)}
+                      />
+                    )}
+                  </div>
+
+                  {dropdownOpen && !selectedItem && (
+                    <div
+                      className="absolute left-0 right-0 top-full mt-1 rounded-lg border z-50 overflow-auto"
+                      style={{
+                        background: 'var(--so-surface)',
+                        borderColor: 'var(--so-border)',
+                        maxHeight: 256,
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
+                      }}
+                    >
+                      {filteredItems.length === 0 ? (
+                        <div className="px-3 py-3 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                          No items found
+                        </div>
+                      ) : (
+                        filteredItems.map((item) => (
+                          <button
+                            key={item.id}
+                            className="w-full text-left px-3 py-2 flex items-baseline gap-2 text-[13px]"
+                            style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--so-border-light)')}
+                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              setSelectedItemId(item.id)
+                              setItemSearch('')
+                              setDropdownOpen(false)
+                            }}
+                          >
+                            <span className="font-mono font-medium shrink-0" style={{ color: 'var(--so-text-primary)' }}>
+                              {item.sku}
+                            </span>
+                            <span className="truncate" style={{ color: 'var(--so-text-secondary)' }}>
+                              {item.name}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                <DataTable columns={balanceColumns} data={balancesData?.results ?? []} storageKey="inventory-balances" />
+              </>
+            )}
             {activeTab === 'lots' && <DataTable columns={lotColumns} data={lotsData?.results ?? []} searchColumn="lot_number" searchPlaceholder="Search lots..." storageKey="inventory-lots" />}
             {activeTab === 'pallets' && <DataTable columns={palletColumns} data={palletsData?.results ?? []} searchColumn="pallet_id" searchPlaceholder="Search pallets..." storageKey="inventory-pallets" />}
             {activeTab === 'transactions' && <DataTable columns={transactionColumns} data={transactionsData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search transactions..." storageKey="inventory-transactions" />}

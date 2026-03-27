@@ -16,6 +16,13 @@ from simple_history.models import HistoricalRecords
 from shared.models import TenantMixin, TimestampMixin
 
 
+FULFILLMENT_METHOD_CHOICES = [
+    ('stock', 'To Stock'),
+    ('direct', 'Direct Ship'),
+    ('crossdock', 'Crossdock'),
+]
+
+
 class BaseOrder(TenantMixin, TimestampMixin):
     """
     Abstract base model for all order types.
@@ -202,6 +209,13 @@ class PurchaseOrderLine(TenantMixin, TimestampMixin):
         default=0,
         help_text="Quantity received so far (updated on each receive)"
     )
+    fulfillment_method = models.CharField(
+        max_length=20,
+        choices=FULFILLMENT_METHOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text="How this line is fulfilled: stock=warehouse, direct=vendor to customer, crossdock=brief warehouse stay"
+    )
     notes = models.TextField(
         blank=True,
         help_text="Line-specific notes"
@@ -366,6 +380,13 @@ class SalesOrderLine(TenantMixin, TimestampMixin):
         max_digits=10,
         decimal_places=2,
         help_text="Price per unit"
+    )
+    fulfillment_method = models.CharField(
+        max_length=20,
+        choices=FULFILLMENT_METHOD_CHOICES,
+        null=True,
+        blank=True,
+        help_text="How this line is fulfilled: stock=warehouse, direct=vendor to customer, crossdock=brief warehouse stay"
     )
     notes = models.TextField(
         blank=True,

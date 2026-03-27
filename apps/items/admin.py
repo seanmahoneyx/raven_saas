@@ -6,7 +6,8 @@ from django.contrib import admin
 from .models import (
     UnitOfMeasure, Item, ItemUOM, ItemVendor,
     CorrugatedFeature, CorrugatedItem, ItemFeature,
-    DCItem, RSCItem, HSCItem, FOLItem, TeleItem
+    DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
+    PackagingItem,
 )
 
 
@@ -70,8 +71,8 @@ class ItemVendorInline(admin.TabularInline):
 @admin.register(Item)
 class ItemAdmin(admin.ModelAdmin):
     """Admin interface for base Item with UOM conversions and vendors inline."""
-    list_display = ['sku', 'name', 'division', 'base_uom', 'customer', 'is_inventory', 'is_active']
-    list_filter = ['division', 'is_inventory', 'is_active', 'base_uom', 'created_at']
+    list_display = ['sku', 'name', 'division', 'base_uom', 'customer', 'item_type', 'is_active']
+    list_filter = ['division', 'item_type', 'is_active', 'base_uom', 'created_at']
     search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
     readonly_fields = ['created_at', 'updated_at']
     raw_id_fields = ['base_uom', 'customer']
@@ -85,7 +86,7 @@ class ItemAdmin(admin.ModelAdmin):
             'classes': ['collapse']
         }),
         ('Configuration', {
-            'fields': ['base_uom', 'customer', 'is_inventory']
+            'fields': ['base_uom', 'customer', 'item_type']
         }),
         ('Unitizing / Pallet', {
             'fields': [
@@ -232,7 +233,7 @@ class CorrugatedItemAdmin(admin.ModelAdmin):
             'classes': ['collapse']
         }),
         ('Configuration', {
-            'fields': ['base_uom', 'customer', 'is_inventory']
+            'fields': ['base_uom', 'customer', 'item_type']
         }),
         ('Unitizing / Pallet', {
             'fields': [
@@ -300,7 +301,7 @@ class DCItemAdmin(CorrugatedItemAdmin):
             'classes': ['collapse']
         }),
         ('Configuration', {
-            'fields': ['base_uom', 'customer', 'is_inventory']
+            'fields': ['base_uom', 'customer', 'item_type']
         }),
         ('Unitizing / Pallet', {
             'fields': [
@@ -346,7 +347,7 @@ class LWHBoxAdmin(CorrugatedItemAdmin):
             'classes': ['collapse']
         }),
         ('Configuration', {
-            'fields': ['base_uom', 'customer', 'is_inventory']
+            'fields': ['base_uom', 'customer', 'item_type']
         }),
         ('Unitizing / Pallet', {
             'fields': [
@@ -405,3 +406,57 @@ class ItemFeatureAdmin(admin.ModelAdmin):
         if not obj.tenant_id and hasattr(request, 'tenant'):
             obj.tenant = request.tenant
         super().save_model(request, obj, form, change)
+
+
+# =============================================================================
+# PACKAGING ITEM
+# =============================================================================
+
+@admin.register(PackagingItem)
+class PackagingItemAdmin(admin.ModelAdmin):
+    """Admin for Packaging items."""
+    list_display = ['sku', 'name', 'sub_type', 'material_type', 'is_active', 'created_at']
+    list_filter = ['sub_type', 'is_active', 'material_type']
+    search_fields = ['sku', 'name', 'description', 'material_type']
+    readonly_fields = ['created_at', 'updated_at']
+    raw_id_fields = ['base_uom', 'customer', 'parent']
+
+    fieldsets = [
+        (None, {
+            'fields': ['sku', 'name', 'sub_type', 'division']
+        }),
+        ('Material', {
+            'fields': ['material_type', 'color', 'thickness', 'thickness_unit']
+        }),
+        ('Dimensions', {
+            'fields': ['length', 'width', 'height', 'diameter', 'inner_diameter']
+        }),
+        ('Roll Specs', {
+            'fields': ['roll_length', 'roll_width', 'rolls_per_case', 'core_diameter'],
+            'classes': ['collapse'],
+        }),
+        ('Sheet/Pad Specs', {
+            'fields': ['sheets_per_bundle', 'pieces_per_case'],
+            'classes': ['collapse'],
+        }),
+        ('Sub-Type Specific', {
+            'fields': [
+                'bubble_size', 'perforated', 'perforation_interval',
+                'lip_style', 'density', 'cells_x', 'cells_y',
+                'adhesive_type', 'tape_type', 'break_strength_lbs',
+                'stretch_pct', 'lid_included', 'label_type', 'labels_per_roll',
+                'weight_capacity_lbs',
+            ],
+            'classes': ['collapse'],
+        }),
+        ('UOM & Relationships', {
+            'fields': ['base_uom', 'customer', 'parent']
+        }),
+        ('Status', {
+            'fields': ['item_type', 'is_active']
+        }),
+        ('Timestamps', {
+            'fields': ['created_at', 'updated_at'],
+            'classes': ['collapse'],
+        }),
+    ]

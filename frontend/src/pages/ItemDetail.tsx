@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems } from '@/api/items'
+import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems, useTransitionItem, useBumpRevision } from '@/api/items'
 import type { SimilarItemEntry } from '@/api/items'
 import api from '@/api/client'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
@@ -28,14 +28,24 @@ import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 type Tab = 'history' | 'product-card' | 'similar' | 'vendors' | 'audit' | 'attachments' | 'children'
 
-const getInventoryBadge = () => (
-  <span
-    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-    style={{ background: 'var(--so-info-bg)', border: '1px solid transparent', color: 'var(--so-info-text)' }}
-  >
-    Inventory
-  </span>
-)
+const ITEM_TYPE_BADGE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  inventory: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)', label: 'Inventory' },
+  crossdock: { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6', label: 'Crossdock' },
+  non_stockable: { bg: 'rgba(168,85,247,0.1)', color: '#a855f7', label: 'Non-Stockable' },
+  other_charge: { bg: 'var(--so-bg)', color: 'var(--so-text-tertiary)', label: 'Other Charge' },
+}
+
+const getItemTypeBadge = (itemType: string) => {
+  const s = ITEM_TYPE_BADGE_STYLES[itemType] || ITEM_TYPE_BADGE_STYLES.inventory
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: s.bg, border: '1px solid transparent', color: s.color }}
+    >
+      {s.label}
+    </span>
+  )
+}
 
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
@@ -51,6 +61,10 @@ export default function ItemDetail() {
   const { data: similarItems } = useSimilarItems(itemId)
   const duplicateItem = useDuplicateItem()
   const updateItem = useUpdateItem()
+  const transitionItem = useTransitionItem()
+  const bumpRevision = useBumpRevision()
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false)
+  const [revisionReason, setRevisionReason] = useState('')
   const { data: childItems } = useQuery({
     queryKey: ['items', itemId, 'children'],
     queryFn: async () => {
@@ -89,7 +103,7 @@ export default function ItemDetail() {
     division: 'corrugated',
     purch_desc: '',
     sell_desc: '',
-    is_inventory: 'true',
+    item_type: 'inventory',
     reorder_point: '',
     min_stock: '',
     safety_stock: '',
@@ -105,7 +119,7 @@ export default function ItemDetail() {
         division: item.division || 'corrugated',
         purch_desc: item.purch_desc || '',
         sell_desc: item.sell_desc || '',
-        is_inventory: String(item.is_inventory),
+        item_type: item.item_type,
         reorder_point: item.reorder_point !== null ? String(item.reorder_point) : '',
         min_stock: item.min_stock !== null ? String(item.min_stock) : '',
         safety_stock: item.safety_stock !== null ? String(item.safety_stock) : '',
@@ -134,7 +148,7 @@ export default function ItemDetail() {
         division: formData.division as any,
         purch_desc: formData.purch_desc,
         sell_desc: formData.sell_desc,
-        is_inventory: formData.is_inventory === 'true',
+        item_type: formData.item_type as any,
         reorder_point: formData.reorder_point ? parseInt(formData.reorder_point, 10) : null,
         min_stock: formData.min_stock ? parseInt(formData.min_stock, 10) : null,
         safety_stock: formData.safety_stock ? parseInt(formData.safety_stock, 10) : null,
@@ -155,7 +169,7 @@ export default function ItemDetail() {
       division: 'corrugated',
       purch_desc: '',
       sell_desc: '',
-      is_inventory: 'true',
+      item_type: 'inventory',
       reorder_point: '',
       min_stock: '',
       safety_stock: '',
@@ -238,10 +252,10 @@ export default function ItemDetail() {
             style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
           />
         )},
-        { label: 'Is Inventory', value: formData.is_inventory, empty: false, editable: true, editNode: (
+        { label: 'Item Type', value: formData.item_type, empty: false, editable: true, editNode: (
           <Select
-            value={formData.is_inventory}
-            onValueChange={(v) => setFormData({ ...formData, is_inventory: v })}
+            value={formData.item_type}
+            onValueChange={(v) => setFormData({ ...formData, item_type: v })}
           >
             <SelectTrigger
               className="h-9 text-sm border rounded-md"
@@ -250,8 +264,10 @@ export default function ItemDetail() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="true">Yes</SelectItem>
-              <SelectItem value="false">No</SelectItem>
+              <SelectItem value="inventory">Inventory</SelectItem>
+              <SelectItem value="crossdock">Crossdock</SelectItem>
+              <SelectItem value="non_stockable">Non-Stockable</SelectItem>
+              <SelectItem value="other_charge">Other Charge</SelectItem>
             </SelectContent>
           </Select>
         )},
@@ -260,7 +276,7 @@ export default function ItemDetail() {
         { label: 'Name', value: item.name || '-', empty: !item.name },
         { label: 'Division', value: item.division || '-', empty: !item.division },
         { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
-        { label: 'Is Inventory', value: item.is_inventory ? 'Yes' : 'No', empty: false },
+        { label: 'Item Type', value: { inventory: 'Inventory', crossdock: 'Crossdock', non_stockable: 'Non-Stockable', other_charge: 'Other Charge' }[item.item_type] || item.item_type, empty: false },
       ]
 
   /* -- Summary stat cards --------------------------------------- */
@@ -333,7 +349,7 @@ export default function ItemDetail() {
               ) : (
                 getStatusBadge(statusKey)
               )}
-              {item.is_inventory && !isEditing && getInventoryBadge()}
+              {!isEditing && getItemTypeBadge(item.item_type)}
             </div>
             <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>{item.name}</div>
           </div>
@@ -386,6 +402,135 @@ export default function ItemDetail() {
             )}
           </div>
         </div>
+
+        {/* -- Lifecycle Banner ---------------------------------- */}
+        {item.lifecycle_status && item.lifecycle_status !== 'active' && (
+          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-6 py-4 flex items-center justify-between"
+            style={{
+              background: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.06)' : 'rgba(59,130,246,0.06)',
+              borderColor: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
+            }}>
+            <div>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider mr-3"
+                style={{
+                  background: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.15)' : 'rgba(59,130,246,0.15)',
+                  color: item.lifecycle_status === 'draft' ? '#a855f7' : '#3b82f6',
+                }}>
+                {{ draft: 'Draft', pending_design: 'Design Requested', in_design: 'In Design', design_complete: 'Design Complete', pending_approval: 'Pending Approval' }[item.lifecycle_status] || item.lifecycle_status}
+              </span>
+              <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                This item is not yet active and cannot be used in orders.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {item.lifecycle_status === 'draft' && (
+                <>
+                  {item.division === 'corrugated' && (
+                    <button className={outlineBtnClass} style={outlineBtnStyle}
+                      onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_design' })}>
+                      Request Design
+                    </button>
+                  )}
+                  <button className={primaryBtnClass} style={primaryBtnStyle}
+                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_approval' })}>
+                    Submit for Approval
+                  </button>
+                </>
+              )}
+              {item.lifecycle_status === 'pending_design' && (
+                <button className={primaryBtnClass} style={primaryBtnStyle}
+                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'in_design' })}>
+                  Claim Design
+                </button>
+              )}
+              {item.lifecycle_status === 'in_design' && (
+                <button className={primaryBtnClass} style={primaryBtnStyle}
+                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'design_complete' })}>
+                  Mark Design Complete
+                </button>
+              )}
+              {item.lifecycle_status === 'design_complete' && (
+                <button className={primaryBtnClass} style={primaryBtnStyle}
+                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_approval' })}>
+                  Submit for Approval
+                </button>
+              )}
+              {item.lifecycle_status === 'pending_approval' && (
+                <>
+                  <button className={outlineBtnClass} style={outlineBtnStyle}
+                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'draft' })}>
+                    Reject
+                  </button>
+                  <button className={primaryBtnClass} style={primaryBtnStyle}
+                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'active' })}>
+                    Approve
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* -- Revision Info (active items) ---------------------- */}
+        {item.lifecycle_status === 'active' && item.revision && item.revision > 0 && (
+          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-6 py-3 flex items-center justify-between"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider font-mono"
+                style={{ background: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)' }}>
+                Rev {item.revision}
+              </span>
+              {item.revision_reason && (
+                <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                  {item.revision_reason}
+                </span>
+              )}
+              {item.revision_date && (
+                <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                  {new Date(item.revision_date).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <button className={outlineBtnClass} style={outlineBtnStyle}
+              onClick={() => { setRevisionReason(''); setRevisionDialogOpen(true) }}>
+              Bump Revision
+            </button>
+          </div>
+        )}
+
+        {/* Revision bump dialog */}
+        {revisionDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
+            <div className="rounded-[14px] border p-6 w-[440px] space-y-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <h3 className="text-lg font-bold">Bump Revision</h3>
+              <p className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                This will increment the revision to <span className="font-mono font-bold">Rev {(item.revision || 0) + 1}</span>.
+                Vendors will see the change note on future POs.
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-[13px] font-medium">What changed? *</Label>
+                <Textarea
+                  value={revisionReason}
+                  onChange={e => setRevisionReason(e.target.value)}
+                  placeholder="e.g., Height increased 6&quot; to 7&quot; per customer request"
+                  rows={3}
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setRevisionDialogOpen(false)}>Cancel</button>
+                <button className={primaryBtnClass} style={primaryBtnStyle}
+                  disabled={!revisionReason.trim() || bumpRevision.isPending}
+                  onClick={async () => {
+                    await bumpRevision.mutateAsync({ id: item.id, reason: revisionReason.trim() })
+                    setRevisionDialogOpen(false)
+                  }}>
+                  {bumpRevision.isPending ? 'Saving...' : `Save as Rev ${(item.revision || 0) + 1}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* -- Item Details Card --------------------------------- */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
@@ -536,7 +681,7 @@ export default function ItemDetail() {
         </div>
 
         {/* -- Reorder Settings Card ----------------------------- */}
-        {item.is_inventory && (
+        {(item.item_type === 'inventory' || item.item_type === 'crossdock') && (
           <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             {/* Card header */}
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
@@ -835,6 +980,9 @@ export default function ItemDetail() {
         </div>
 
       </div>
+
+      {/* Print-only product card — rendered outside data-print-hide wrapper */}
+      {activeTab === 'product-card' && <ProductCardTab itemId={itemId} printOnly />}
     </div>
   )
 }

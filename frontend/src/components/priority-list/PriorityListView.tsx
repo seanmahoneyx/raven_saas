@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import {
   DndContext,
   DragOverlay,
@@ -13,7 +13,6 @@ import {
 import { arrayMove } from '@dnd-kit/sortable'
 import { VendorSection } from './VendorSection'
 import { PriorityLineRow } from './PriorityLineRow'
-import { AllotmentConfigModal } from './AllotmentConfigModal'
 import {
   usePriorityListStore,
   parseBinId,
@@ -78,7 +77,6 @@ export const PriorityListView = memo(function PriorityListView({
   const moveMutation = useMovePriorityLine()
 
   // UI state
-  const [showAllotmentModal, setShowAllotmentModal] = useState(false)
   const [activeDragLine, setActiveDragLine] = useState<PriorityLine | null>(null)
   const [dragWidth, setDragWidth] = useState<number>(0)
 
@@ -253,30 +251,15 @@ export const PriorityListView = memo(function PriorityListView({
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAllotmentModal(true)}
-            className={primaryBtnClass}
-            style={primaryBtnStyle}
-          >
-            Configure Allotments
-          </button>
-        </div>
+        <div className="flex items-center gap-2" />
       </div>
 
       {/* Navbar mode empty state — prompt user to select a vendor */}
       {isNavbarMode && !filterVendorId ? (
         <div className="flex flex-col items-center justify-center h-64 gap-4">
           <p className="text-[15px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
-            Select a vendor to view their priority list
+            Select a vendor above to view their priority list
           </p>
-          <SearchableCombobox
-            entityType="vendor"
-            value={filterVendorId}
-            onChange={(id) => setFilterVendorId(id)}
-            placeholder="Select a vendor..."
-            className="min-w-[260px]"
-          />
         </div>
       ) : isLoading ? (
           <div className="flex items-center justify-center h-64">
@@ -324,11 +307,6 @@ export const PriorityListView = memo(function PriorityListView({
           </DndContext>
         )}
 
-      {/* Allotment config modal */}
-      <AllotmentConfigModal
-        isOpen={showAllotmentModal}
-        onClose={() => setShowAllotmentModal(false)}
-      />
     </div>
   )
 })

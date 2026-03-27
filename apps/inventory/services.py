@@ -1038,7 +1038,7 @@ class ReorderService:
         items_with_reorder = Item.objects.filter(
             tenant=self.tenant,
             is_active=True,
-            is_inventory=True,
+            item_type='inventory',
             reorder_point__isnull=False,
         ).select_related('base_uom')
 

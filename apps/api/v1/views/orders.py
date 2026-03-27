@@ -2,11 +2,11 @@
 """
 ViewSets for Order models: PurchaseOrder, SalesOrder, and their lines.
 """
-from rest_framework import viewsets, filters, status
+from rest_framework import serializers as drf_serializers, viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
@@ -30,6 +30,7 @@ from apps.api.v1.serializers.orders import (
     RFQLineSerializer,
 )
 from apps.api.v1.serializers.contracts import ContractSerializer
+from apps.api.v1.serializers.pricing import PriceListHeadSerializer
 from apps.api.v1.views.documents import PDFActionMixin
 
 
@@ -679,6 +680,57 @@ class RFQViewSet(PDFActionMixin, viewsets.ModelViewSet):
 
         return Response(
             PurchaseOrderSerializer(purchase_order, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @extend_schema(
+        tags=['procurement'],
+        summary='Convert RFQ to price lists',
+        request=inline_serializer(
+            name='RFQConvertToPriceListRequest',
+            fields={'customer': drf_serializers.IntegerField(help_text='Customer ID')},
+        ),
+        responses={201: PriceListHeadSerializer(many=True)}
+    )
+    @action(detail=True, methods=['post'], url_path='convert-to-price-list')
+    def convert_to_price_list(self, request, pk=None):
+        """Convert RFQ quoted prices into price lists for a customer."""
+        rfq = self.get_object()
+
+        customer_id = request.data.get('customer')
+        if not customer_id:
+            return Response(
+                {'error': 'Customer ID is required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.customers.models import Customer
+        try:
+            customer = Customer.objects.get(pk=customer_id, tenant=request.tenant)
+        except Customer.DoesNotExist:
+            return Response(
+                {'error': 'Customer not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        from apps.orders.services import convert_rfq_to_price_lists
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        try:
+            price_lists = convert_rfq_to_price_lists(
+                rfq=rfq,
+                customer=customer,
+                tenant=request.tenant,
+                user=request.user,
+            )
+        except DjangoValidationError as e:
+            return Response(
+                {'error': str(e.message if hasattr(e, 'message') else e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            PriceListHeadSerializer(price_lists, many=True, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
         )
 

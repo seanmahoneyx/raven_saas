@@ -2,6 +2,7 @@ import { memo, useState, useMemo } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { BoxTypeBin } from './BoxTypeBin'
 import { OverridePopover } from './OverridePopover'
+import { KicksIndicator } from './KicksIndicator'
 import { usePriorityListStore, parseBinId } from './usePriorityListStore'
 import { BOX_TYPE_ORDER } from './constants'
 import { parseLocalDate } from '@/lib/dates'
@@ -10,17 +11,19 @@ import type { BoxType } from '@/types/api'
 interface DateSectionProps {
   vendorId: number
   date: string
+  boxTypeFilter?: BoxType | null
   selectedLineId: string | null
   onSelectLine: (lineId: string) => void
 }
 
 /**
- * A date section showing box type bins (always expanded).
- * Shows empty drop zone if no orders for this day.
+ * A date section showing priority lines directly under a date header.
+ * When filtered to a single box type, renders a flat integrated layout.
  */
 export const DateSection = memo(function DateSection({
   vendorId,
   date,
+  boxTypeFilter,
   selectedLineId,
   onSelectLine,
 }: DateSectionProps) {
@@ -32,12 +35,15 @@ export const DateSection = memo(function DateSection({
     date: string
   } | null>(null)
 
-  // Get bins for this vendor/date, sorted by box type (RSC first, then DC, etc.)
+  // Get bins for this vendor/date, sorted by box type
+  // Optionally filtered to a single box type
   const binIds = useMemo(() => {
     return Object.keys(bins)
       .filter((binId) => {
         const parsed = parseBinId(binId)
-        return parsed && parsed.vendorId === vendorId && parsed.date === date
+        if (!parsed || parsed.vendorId !== vendorId || parsed.date !== date) return false
+        if (boxTypeFilter && parsed.boxType !== boxTypeFilter) return false
+        return true
       })
       .sort((a, b) => {
         const parsedA = parseBinId(a)
@@ -46,7 +52,7 @@ export const DateSection = memo(function DateSection({
         const orderB = parsedB ? (BOX_TYPE_ORDER[parsedB.boxType] ?? 99) : 99
         return orderA - orderB
       })
-  }, [bins, vendorId, date])
+  }, [bins, vendorId, date, boxTypeFilter])
 
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -57,7 +63,7 @@ export const DateSection = memo(function DateSection({
     })
   }
 
-  // Calculate totals for this date
+  // Calculate totals for this date (only for filtered bins)
   const totals = binIds.reduce(
     (acc, binId) => {
       const bin = bins[binId]
@@ -82,28 +88,56 @@ export const DateSection = memo(function DateSection({
     data: { vendorId, date, isEmpty: true },
   })
 
+  // Hide date row entirely if filtering and no lines for this date
+  if (boxTypeFilter && totals.lines === 0 && binIds.length === 0) {
+    return null
+  }
+
+  // Whether we're in single-type filtered mode (flat layout)
+  const isFlatMode = !!boxTypeFilter
+
   return (
     <div className={`${isPast ? 'bg-muted/50' : ''}`}>
-      {/* Date header - compact inline */}
-      <div className={`flex items-center gap-4 px-4 py-2 ${isToday ? 'bg-yellow-50' : ''}`}>
-        <span className={`font-medium min-w-[100px] ${isToday ? 'text-yellow-700' : 'text-foreground'}`}>
-          {formatDate(date)}
-          {isToday && <span className="ml-2 text-xs bg-yellow-200 px-1.5 py-0.5 rounded">Today</span>}
-        </span>
-
-        {totals.lines > 0 ? (
-          <span className="text-sm text-muted-foreground">
-            {totals.lines} lines • {totals.scheduled.toLocaleString()} kicks
+      {/* Date header with kicks indicator inline */}
+      <div className={`flex items-center justify-between px-4 py-2.5 border-b border-border ${isToday ? 'bg-yellow-50' : 'bg-muted/60'}`}>
+        <div className="flex items-center gap-4">
+          <span className={`font-medium min-w-[100px] ${isToday ? 'text-yellow-700' : 'text-foreground'}`}>
+            {formatDate(date)}
+            {isToday && <span className="ml-2 text-xs bg-yellow-200 px-1.5 py-0.5 rounded">Today</span>}
           </span>
-        ) : (
-          <span className="text-sm text-muted-foreground italic">No orders scheduled</span>
-        )}
+
+          {totals.lines > 0 ? (
+            <span className="text-sm text-muted-foreground">
+              {totals.lines} {totals.lines === 1 ? 'line' : 'lines'}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground italic">No orders scheduled</span>
+          )}
+        </div>
+
+        {/* Kicks indicator inline in date header when in flat mode */}
+        {isFlatMode && totals.lines > 0 && binIds.length === 1 && (() => {
+          const bin = bins[binIds[0]]
+          const parsed = parseBinId(binIds[0])
+          if (!bin || !parsed) return null
+          return (
+            <KicksIndicator
+              scheduled={bin.scheduled_qty}
+              allotment={bin.allotment}
+              isOverride={bin.is_override}
+              onEditOverride={(e) => {
+                e?.stopPropagation?.()
+                setOverridePopover({ vendorId, boxType: parsed.boxType, date })
+              }}
+            />
+          )
+        })()}
       </div>
 
-      {/* Box type bins or empty drop zone */}
-      <div className="px-4 pb-2">
-        {binIds.length === 0 ? (
-          // Empty drop zone for days with no orders
+      {/* Lines area */}
+      {binIds.length === 0 ? (
+        // Empty drop zone for days with no orders
+        <div className="px-4 pb-2">
           <div
             ref={setNodeRef}
             className={`
@@ -113,36 +147,55 @@ export const DateSection = memo(function DateSection({
           >
             {isOver ? 'Drop here to schedule' : 'Drag orders here'}
           </div>
-        ) : (
-          <div className="space-y-1">
-            {binIds.map((binId) => {
-              const bin = bins[binId]
-              if (!bin) return null
+        </div>
+      ) : isFlatMode ? (
+        // Flat mode: lines render directly under date header, no wrapper card
+        binIds.map((binId) => {
+          const bin = bins[binId]
+          if (!bin) return null
+          const parsed = parseBinId(binId)
+          if (!parsed) return null
 
-              const parsed = parseBinId(binId)
-              if (!parsed) return null
+          return (
+            <BoxTypeBin
+              key={binId}
+              vendorId={vendorId}
+              date={date}
+              bin={bin}
+              flat
+              onEditOverride={() =>
+                setOverridePopover({ vendorId, boxType: parsed.boxType, date })
+              }
+              selectedLineId={selectedLineId}
+              onSelectLine={onSelectLine}
+            />
+          )
+        })
+      ) : (
+        // Multi-type mode: each bin gets its own card
+        <div className="px-4 pb-2 space-y-1">
+          {binIds.map((binId) => {
+            const bin = bins[binId]
+            if (!bin) return null
+            const parsed = parseBinId(binId)
+            if (!parsed) return null
 
-              return (
-                <BoxTypeBin
-                  key={binId}
-                  vendorId={vendorId}
-                  date={date}
-                  bin={bin}
-                  onEditOverride={() =>
-                    setOverridePopover({
-                      vendorId,
-                      boxType: parsed.boxType,
-                      date,
-                    })
-                  }
-                  selectedLineId={selectedLineId}
-                  onSelectLine={onSelectLine}
-                />
-              )
-            })}
-          </div>
-        )}
-      </div>
+            return (
+              <BoxTypeBin
+                key={binId}
+                vendorId={vendorId}
+                date={date}
+                bin={bin}
+                onEditOverride={() =>
+                  setOverridePopover({ vendorId, boxType: parsed.boxType, date })
+                }
+                selectedLineId={selectedLineId}
+                onSelectLine={onSelectLine}
+              />
+            )
+          })}
+        </div>
+      )}
 
       {/* Override popover */}
       {overridePopover && (

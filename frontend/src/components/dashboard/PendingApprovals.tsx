@@ -103,8 +103,14 @@ export default function PendingApprovals() {
             <ShieldCheck className="h-5 w-5" />
             Pending Approvals
             {pending.length > 0 && (
-              <Badge variant="destructive" className="ml-auto">{pending.length}</Badge>
+              <Badge variant="destructive" className="ml-1">{pending.length}</Badge>
             )}
+            <button
+              onClick={() => navigate('/approvals')}
+              className="ml-auto text-xs font-normal text-primary hover:underline cursor-pointer"
+            >
+              View All
+            </button>
           </CardTitle>
         </CardHeader>
         <CardContent>

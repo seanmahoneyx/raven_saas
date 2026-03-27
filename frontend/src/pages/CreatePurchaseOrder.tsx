@@ -19,6 +19,26 @@ import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
 
+const DEFAULT_FULFILLMENT: Record<string, string> = {
+  inventory: 'stock',
+  non_stockable: 'direct',
+  crossdock: 'crossdock',
+}
+
+const FULFILLMENT_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  inventory: [
+    { value: 'stock', label: 'Stock' },
+    { value: 'direct', label: 'Direct Ship' },
+    { value: 'crossdock', label: 'Crossdock' },
+  ],
+  non_stockable: [
+    { value: 'direct', label: 'Direct Ship' },
+    { value: 'crossdock', label: 'Crossdock' },
+  ],
+  crossdock: [],
+  other_charge: [],
+}
+
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
   { value: 'confirmed', label: 'Confirmed' },
@@ -54,8 +74,8 @@ export default function CreatePurchaseOrder() {
     notes: copyData?.notes || '',
   })
   const [linesFormData, setLinesFormData] = useState<
-    { item: string; quantity_ordered: string; uom: string; unit_cost: string; notes: string }[]
-  >(copyData?.lines?.map((l: any) => ({ ...l, notes: l.notes || '' })) || [])
+    { item: string; quantity_ordered: string; uom: string; unit_cost: string; notes: string; fulfillment_method: string }[]
+  >(copyData?.lines?.map((l: any) => ({ ...l, notes: l.notes || '', fulfillment_method: l.fulfillment_method || '' })) || [])
 
   const vendors = vendorsData?.results ?? []
   const locations = locationsData?.results ?? []
@@ -93,7 +113,7 @@ export default function CreatePurchaseOrder() {
   const isPending = createOrder.isPending
 
   const handleAddLine = () => {
-    setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00', notes: '' }])
+    setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00', notes: '', fulfillment_method: '' }])
   }
 
   const handleRemoveLine = (index: number) => {
@@ -110,11 +130,13 @@ export default function CreatePurchaseOrder() {
     const selectedItem = items.find(i => String(i.id) === value)
     setLinesFormData(prev => prev.map((line, i) => {
       if (i !== index) return line
+      const defaultFulfillment = selectedItem ? (DEFAULT_FULFILLMENT[selectedItem.item_type] || '') : line.fulfillment_method
       return {
         ...line,
         item: value,
         uom: selectedItem ? String(selectedItem.base_uom) : line.uom,
         unit_cost: '0.00',
+        fulfillment_method: defaultFulfillment,
       }
     }))
     if (value && formData.vendor) {
@@ -170,13 +192,13 @@ export default function CreatePurchaseOrder() {
         scheduled_date: formData.scheduled_date || null,
         ship_to: Number(formData.ship_to),
         notes: formData.notes || '',
-        priority: 5,
         lines: linesFormData.map((line, idx) => ({
           line_number: idx + 1,
           item: Number(line.item),
           quantity_ordered: Number(line.quantity_ordered),
           uom: Number(line.uom),
           unit_cost: line.unit_cost,
+          fulfillment_method: line.fulfillment_method || null,
         })),
       } as any)
       navigate('/orders?tab=purchase')
@@ -335,6 +357,7 @@ export default function CreatePurchaseOrder() {
                     <tr style={{ borderTop: '1px solid var(--so-border-light)', borderBottom: '1px solid var(--so-border-light)' }}>
                       <th className="text-left py-2 px-3 pl-6 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Item</th>
                       <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Description</th>
+                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Fulfill</th>
                       <th className="text-right py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Qty</th>
                       <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>UOM</th>
                       <th className="text-right py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Rate</th>
@@ -346,7 +369,7 @@ export default function CreatePurchaseOrder() {
                   <tbody>
                     {linesFormData.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                        <td colSpan={9} className="text-center py-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                           No lines. Click &quot;Add Line&quot; to add items.
                         </td>
                       </tr>
@@ -363,7 +386,7 @@ export default function CreatePurchaseOrder() {
                                 value={line.item}
                                 onValueChange={(v) => handleLineItemChange(index, v)}
                               >
-                                <SelectTrigger className="h-9 text-sm border-0 bg-transparent shadow-none">
+                                <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
                                   <SelectValue placeholder="Select item..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -379,12 +402,33 @@ export default function CreatePurchaseOrder() {
                               {selectedItem?.name || ''}
                             </td>
                             <td className="py-1.5 px-1">
+                              {(() => {
+                                const itemType = selectedItem?.item_type
+                                if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
+                                if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
+                                const opts = FULFILLMENT_OPTIONS[itemType] || []
+                                return (
+                                  <Select
+                                    value={line.fulfillment_method || opts[0]?.value || ''}
+                                    onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
+                                  >
+                                    <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                )
+                              })()}
+                            </td>
+                            <td className="py-1.5 px-1">
                               <Input
                                 type="text"
                                 inputMode="numeric"
                                 value={line.quantity_ordered}
                                 onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                                className="h-9 text-sm text-right border-0 bg-transparent shadow-none font-mono"
+                                className="h-9 text-sm text-right border shadow-none font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-1">
@@ -392,7 +436,7 @@ export default function CreatePurchaseOrder() {
                                 value={line.uom}
                                 onValueChange={(v) => handleLineChange(index, 'uom', v)}
                               >
-                                <SelectTrigger className="h-9 text-sm border-0 bg-transparent shadow-none">
+                                <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
                                   <SelectValue placeholder="UOM" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -410,7 +454,7 @@ export default function CreatePurchaseOrder() {
                                 inputMode="decimal"
                                 value={line.unit_cost}
                                 onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
-                                className="h-9 text-sm text-right border-0 bg-transparent shadow-none font-mono"
+                                className="h-9 text-sm text-right border shadow-none font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-3 text-right font-mono text-sm" style={{ color: 'var(--so-text-primary)' }}>
@@ -420,7 +464,7 @@ export default function CreatePurchaseOrder() {
                               <Input
                                 value={line.notes}
                                 onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                                className="h-9 text-sm border-0 bg-transparent shadow-none"
+                                className="h-9 text-sm border shadow-none bg-transparent"
                                 placeholder="Notes..."
                               />
                             </td>
@@ -437,7 +481,7 @@ export default function CreatePurchaseOrder() {
                           </tr>
                           {warning && (
                             <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                              <td colSpan={8} className="px-6 py-2">
+                              <td colSpan={9} className="px-6 py-2">
                                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
                                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                                   <span className="font-medium">
@@ -464,14 +508,14 @@ export default function CreatePurchaseOrder() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={8} className="py-2 px-2 pl-6">
+                      <td colSpan={9} className="py-2 px-2 pl-6">
                         <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
                           <Plus className="h-3.5 w-3.5" /> Add Line
                         </button>
                       </td>
                     </tr>
                     <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                      <td colSpan={5} className="py-2 px-3 text-right text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>TOTAL</td>
+                      <td colSpan={6} className="py-2 px-3 text-right text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>TOTAL</td>
                       <td className="py-2 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
                         {formatCurrency(editTotal.toFixed(2))}
                       </td>

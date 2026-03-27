@@ -20,6 +20,7 @@ from .views.items import (
     UnitOfMeasureViewSet, ItemViewSet, ItemVendorViewSet,
     CorrugatedFeatureViewSet, CorrugatedItemViewSet,
     DCItemViewSet, RSCItemViewSet, HSCItemViewSet, FOLItemViewSet, TeleItemViewSet,
+    PackagingItemViewSet,
 )
 from .views.orders import PurchaseOrderViewSet, SalesOrderViewSet, EstimateViewSet, RFQViewSet
 from .views.pricing import PriceListViewSet
@@ -126,6 +127,9 @@ router.register(r'rsc-items', RSCItemViewSet, basename='rscitem')
 router.register(r'hsc-items', HSCItemViewSet, basename='hscitem')
 router.register(r'fol-items', FOLItemViewSet, basename='folitem')
 router.register(r'tele-items', TeleItemViewSet, basename='teleitem')
+
+# Packaging Items
+router.register(r'packaging-items', PackagingItemViewSet, basename='packagingitem')
 
 # Orders
 router.register(r'purchase-orders', PurchaseOrderViewSet, basename='purchaseorder')

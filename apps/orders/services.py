@@ -12,6 +12,55 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 
 
+# Mapping from item_type to default fulfillment_method
+_ITEM_TYPE_DEFAULT_FULFILLMENT = {
+    'inventory': 'stock',
+    'non_stockable': 'direct',
+    'crossdock': 'crossdock',
+    'other_charge': None,
+}
+
+# Allowed fulfillment methods per item_type
+_ITEM_TYPE_ALLOWED_FULFILLMENT = {
+    'inventory': {'stock', 'direct', 'crossdock'},
+    'non_stockable': {'direct', 'crossdock'},
+    'crossdock': {'crossdock'},
+    'other_charge': {None},
+}
+
+
+def resolve_fulfillment_method(item, fulfillment_method=None):
+    """
+    Resolve and validate fulfillment_method for an order line.
+
+    If fulfillment_method is not provided, returns the default for the item's
+    item_type. If provided, validates it is allowed for the item_type.
+
+    Args:
+        item: Item instance
+        fulfillment_method: str or None — the requested fulfillment method
+
+    Returns:
+        str or None: The resolved fulfillment_method value
+
+    Raises:
+        ValidationError: If fulfillment_method is not allowed for the item_type
+    """
+    item_type = getattr(item, 'item_type', 'inventory')
+    default = _ITEM_TYPE_DEFAULT_FULFILLMENT.get(item_type)
+    allowed = _ITEM_TYPE_ALLOWED_FULFILLMENT.get(item_type, set())
+
+    if fulfillment_method is None:
+        return default
+
+    if fulfillment_method not in allowed:
+        raise ValidationError(
+            f"Fulfillment method '{fulfillment_method}' is not allowed for "
+            f"item type '{item_type}'. Allowed: {sorted(m for m in allowed if m)}."
+        )
+    return fulfillment_method
+
+
 def convert_estimate_to_order(estimate, tenant, user=None):
     """
     Convert an Estimate into a SalesOrder.
@@ -81,6 +130,7 @@ def convert_estimate_to_order(estimate, tenant, user=None):
                 quantity_ordered=est_line.quantity,
                 uom=est_line.uom,
                 unit_price=est_line.unit_price,
+                fulfillment_method=resolve_fulfillment_method(est_line.item),
                 notes=est_line.notes,
             )
 
@@ -236,6 +286,7 @@ def convert_rfq_to_po(rfq, tenant, user=None):
                 quantity_ordered=rfq_line.quantity,
                 uom=rfq_line.uom,
                 unit_cost=rfq_line.quoted_price,
+                fulfillment_method=resolve_fulfillment_method(rfq_line.item),
                 notes=rfq_line.notes,
             )
 
@@ -243,6 +294,68 @@ def convert_rfq_to_po(rfq, tenant, user=None):
         RFQ.objects.filter(pk=rfq.pk).update(status='converted')
 
         return purchase_order
+
+
+def convert_rfq_to_price_lists(rfq, customer, tenant, user=None):
+    """
+    Convert RFQ quoted prices into PriceListHead records for a customer.
+
+    Creates one PriceListHead per unique item that has a quoted_price,
+    with a single PriceListLine using the RFQ line's quantity as min_quantity
+    and quoted_price as unit_price.
+
+    Unlike PO conversion, this does NOT mark the RFQ as converted,
+    since an RFQ may be converted to both PO and price lists.
+
+    Args:
+        rfq: RFQ instance
+        customer: Customer instance to create price lists for
+        tenant: Tenant instance
+        user: Optional user performing the conversion
+
+    Returns:
+        list[PriceListHead]: The newly created price list records
+
+    Raises:
+        ValidationError: If RFQ has no quoted lines
+    """
+    from apps.pricing.models import PriceListHead, PriceListLine
+    from django.utils import timezone
+
+    if rfq.status not in ('sent', 'received'):
+        raise ValidationError(
+            f"Cannot create price lists from RFQ with status '{rfq.status}'. "
+            "RFQ must be 'sent' or 'received'."
+        )
+
+    quoted_lines = rfq.lines.filter(quoted_price__isnull=False).select_related('item', 'uom')
+    if not quoted_lines.exists():
+        raise ValidationError(
+            "Cannot create price lists: no lines have a quoted price from the vendor."
+        )
+
+    created = []
+    today = timezone.now().date()
+
+    with transaction.atomic():
+        for rfq_line in quoted_lines:
+            price_list = PriceListHead.objects.create(
+                tenant=tenant,
+                customer=customer,
+                item=rfq_line.item,
+                begin_date=today,
+                is_active=True,
+                notes=f"Created from RFQ {rfq.rfq_number} (Vendor: {rfq.vendor.party.display_name})",
+            )
+            PriceListLine.objects.create(
+                tenant=tenant,
+                price_list=price_list,
+                min_quantity=rfq_line.quantity,
+                unit_price=rfq_line.quoted_price,
+            )
+            created.append(price_list)
+
+    return created
 
 
 def _generate_po_number(tenant):

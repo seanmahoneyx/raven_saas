@@ -77,7 +77,7 @@ const mockItem: Item = {
   unit_height: null,
   pallet_height: null,
   pallet_footprint: '',
-  is_inventory: true,
+  item_type: 'inventory',
   is_active: true,
   attachment: null,
   created_at: '2025-01-01T00:00:00Z',

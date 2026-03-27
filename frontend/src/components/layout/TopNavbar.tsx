@@ -31,6 +31,7 @@ import {
   Tags,
   ClipboardList,
   GitBranchPlus,
+  Ruler,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -70,6 +71,7 @@ interface NavMenuItem {
   to: string
   icon: React.ElementType
   label: string
+  requiresAdmin?: boolean
 }
 
 interface NavMenuSeparator {
@@ -146,6 +148,8 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/product-cards', icon: DollarSign, label: 'Product Cards' },
       { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
       { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
+      { type: 'separator' },
+      { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
     ],
   },
   // 5. Design (direct link — single destination)
@@ -232,7 +236,12 @@ function ThemeToggle() {
 
 // ─── Nav Dropdown Component ────────────────────────────────────────────────────
 
-function NavDropdown({ item }: { item: NavDropdownItem }) {
+function NavDropdown({ item, isAdmin }: { item: NavDropdownItem; isAdmin: boolean }) {
+  const visibleItems = item.items.filter((subItem) => {
+    if (subItem.type === 'item' && subItem.requiresAdmin && !isAdmin) return false
+    return true
+  })
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -250,7 +259,7 @@ function NavDropdown({ item }: { item: NavDropdownItem }) {
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {item.items.map((subItem, idx) => {
+        {visibleItems.map((subItem, idx) => {
           if (subItem.type === 'separator') {
             return <DropdownMenuSeparator key={idx} />
           }
@@ -381,7 +390,7 @@ export default function TopNavbar() {
           }
 
           if (item.type === 'dropdown') {
-            return <NavDropdown key={item.label} item={item} />
+            return <NavDropdown key={item.label} item={item} isAdmin={isAdmin} />
           }
 
           return (

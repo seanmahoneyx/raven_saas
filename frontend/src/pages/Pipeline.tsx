@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePipelineData } from '@/api/pipeline'
-import type { PipelineStage, PipelineCard as PipelineCardType } from '@/types/api'
-import { ArrowRight, Filter, X, Clock, Layers } from 'lucide-react'
+import { useItems } from '@/api/items'
+import type { PipelineStage, PipelineCard as PipelineCardType, Item } from '@/types/api'
+import { ArrowRight, Filter, X, Clock, Layers, Package } from 'lucide-react'
 
-type Track = 'customer' | 'vendor' | 'both'
+type Track = 'customer' | 'vendor' | 'both' | 'items'
 
 const STAGE_ROUTES: Record<string, string> = {
   design_request: '/design-requests',
@@ -94,10 +95,17 @@ export default function Pipeline() {
 
   const hasFilters = filters.customer || filters.vendor || filters.date_from || filters.date_to
 
+  // Fetch items for each lifecycle stage (only when items tab active)
+  const { data: draftItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'draft' } : undefined)
+  const { data: pendingDesignItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'pending_design' } : undefined)
+  const { data: inDesignItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'in_design' } : undefined)
+  const { data: pendingApprovalItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'pending_approval' } : undefined)
+
   const tabs: { key: Track; label: string }[] = [
     { key: 'customer', label: 'Customer' },
     { key: 'vendor', label: 'Vendor' },
     { key: 'both', label: 'Both' },
+    { key: 'items', label: 'Items' },
   ]
 
   return (
@@ -181,7 +189,7 @@ export default function Pipeline() {
       </div>
 
       {/* Loading State */}
-      {isLoading && (
+      {activeTrack !== 'items' && isLoading && (
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex-shrink-0 w-[280px] rounded-xl p-4 animate-pulse"
@@ -196,7 +204,7 @@ export default function Pipeline() {
       )}
 
       {/* Empty State */}
-      {!isLoading && stages.length === 0 && (
+      {activeTrack !== 'items' && !isLoading && stages.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 rounded-xl"
           style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
           <Layers size={40} style={{ color: 'var(--so-text-muted)' }} />
@@ -205,8 +213,8 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* Kanban Board */}
-      {!isLoading && stages.length > 0 && (
+      {/* Kanban Board (Order Pipeline) */}
+      {activeTrack !== 'items' && !isLoading && stages.length > 0 && (
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {stages.map(stage => (
             <KanbanColumn
@@ -215,6 +223,82 @@ export default function Pipeline() {
               onCardClick={(card) => navigate(getCardRoute(card.entity_type, card.id))}
               onViewAll={() => navigate(STAGE_ROUTES[stage.stage] || '/')}
             />
+          ))}
+        </div>
+      )}
+
+      {/* Item Lifecycle Kanban */}
+      {activeTrack === 'items' && (
+        <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
+          {[
+            { key: 'draft', label: 'Drafts', color: '#a855f7', items: draftItems?.results ?? [] },
+            { key: 'pending_design', label: 'Design Requested', color: '#f59e0b', items: pendingDesignItems?.results ?? [] },
+            { key: 'in_design', label: 'In Design', color: '#3b82f6', items: inDesignItems?.results ?? [] },
+            { key: 'pending_approval', label: 'Pending Approval', color: '#f97316', items: pendingApprovalItems?.results ?? [] },
+          ].map(col => (
+            <div key={col.key} className="flex-shrink-0 w-[280px] flex flex-col rounded-xl overflow-hidden"
+              style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)', maxHeight: 'calc(100vh - 280px)' }}>
+              <div style={{ height: 3, background: col.color }} />
+              <div className="px-3.5 py-3" style={{ borderBottom: '1px solid var(--so-border)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold" style={{ color: 'var(--so-text)' }}>{col.label}</span>
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold"
+                    style={{ background: col.color, color: 'white' }}>
+                    {col.items.length}
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-2" style={{ scrollbarWidth: 'thin' }}>
+                {col.items.length === 0 && (
+                  <div className="flex items-center justify-center py-8">
+                    <span className="text-[11px]" style={{ color: 'var(--so-text-muted)' }}>No items</span>
+                  </div>
+                )}
+                {col.items.map((item: Item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => navigate(`/items/${item.id}`)}
+                    className="rounded-lg p-3 cursor-pointer transition-all hover:shadow-md"
+                    style={{
+                      background: 'var(--so-bg)',
+                      border: '1px solid var(--so-border-light)',
+                      borderLeft: `3px solid ${col.color}`,
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-mono font-semibold" style={{ color: col.color }}>
+                        {item.sku}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded"
+                        style={{ background: 'var(--so-surface-raised)', color: 'var(--so-text-tertiary)' }}>
+                        {item.division}
+                      </span>
+                    </div>
+                    <div className="text-[12px] font-medium truncate" style={{ color: 'var(--so-text)' }}>
+                      {item.name}
+                    </div>
+                    {item.customer_name && (
+                      <div className="text-[11px] mt-1 truncate" style={{ color: 'var(--so-text-secondary)' }}>
+                        {item.customer_name}
+                      </div>
+                    )}
+                    <div className="text-[10px] mt-1.5" style={{ color: 'var(--so-text-muted)' }}>
+                      <Clock size={10} className="inline mr-0.5" style={{ verticalAlign: '-1px' }} />
+                      {new Date(item.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 py-2" style={{ borderTop: '1px solid var(--so-border)' }}>
+                <button
+                  onClick={() => navigate(`/items?lifecycle=${col.key}`)}
+                  className="text-[11px] font-medium flex items-center gap-1 w-full justify-center py-1 rounded-md transition-colors hover:opacity-80"
+                  style={{ color: col.color }}
+                >
+                  View all <ArrowRight size={12} />
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}

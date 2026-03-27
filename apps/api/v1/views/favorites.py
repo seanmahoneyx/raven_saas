@@ -167,7 +167,7 @@ class SuggestionsAPI(APIView):
       {
         "favorites": [...],   # up to 10
         "recents":   [...],   # up to 5, excluding favorites
-        "results":   [...],   # up to 20, only when ?search= provided
+        "results":   [...],   # up to 20, always returned (filtered by search when provided)
       }
     """
     permission_classes = [IsAuthenticated]
@@ -204,11 +204,9 @@ class SuggestionsAPI(APIView):
         ]
         recent_ids = {r['id'] for r in recents}
 
-        # 3. Search results (max 20, only when search term provided)
-        results = []
-        if search:
-            exclude_ids = fav_ids | recent_ids
-            results = self._search_entities(request, entity_type, search, exclude_ids)
+        # 3. Search results (max 20) — always return results, filtered by search if provided
+        exclude_ids = fav_ids | recent_ids
+        results = self._search_entities(request, entity_type, search, exclude_ids)
 
         return Response({
             'favorites': favorites,
@@ -225,11 +223,13 @@ class SuggestionsAPI(APIView):
         model_class, search_fields, label_func = config
         from django.db.models import Q
 
-        q = Q()
-        for field in search_fields:
-            q |= Q(**{f'{field}__icontains': search})
-
-        qs = model_class.objects.filter(q).exclude(id__in=exclude_ids)[:20]
+        qs = model_class.objects.exclude(id__in=exclude_ids)
+        if search:
+            q = Q()
+            for field in search_fields:
+                q |= Q(**{f'{field}__icontains': search})
+            qs = qs.filter(q)
+        qs = qs[:20]
 
         # Determine which results are already favorited
         existing_fav_ids = set(

@@ -56,7 +56,7 @@ class DesignService:
             'description': design_request.notes or '',
             'base_uom': base_uom,
             'customer': design_request.customer,
-            'is_inventory': True,
+            'item_type': 'inventory',
             'is_active': True,
         }
         common.update(overrides)

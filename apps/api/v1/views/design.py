@@ -46,6 +46,32 @@ class DesignRequestViewSet(viewsets.ModelViewSet):
             return DesignRequestWriteSerializer
         return DesignRequestSerializer
 
+    def perform_update(self, serializer):
+        """Sync DesignRequest status changes to linked item's lifecycle_status."""
+        old_status = serializer.instance.status
+        instance = serializer.save()
+        new_status = instance.status
+
+        # If status changed and there's a linked item, sync lifecycle
+        if old_status != new_status and instance.generated_item:
+            item = instance.generated_item
+            STATUS_TO_LIFECYCLE = {
+                'in_progress': 'in_design',
+                'approved': 'design_complete',
+                'rejected': 'draft',
+            }
+            new_lifecycle = STATUS_TO_LIFECYCLE.get(new_status)
+            if new_lifecycle and item.lifecycle_status != new_lifecycle:
+                item.lifecycle_status = new_lifecycle
+                item.save(update_fields=['lifecycle_status'])
+
+        # If assigned_to changed and item is pending_design, move to in_design
+        if instance.assigned_to and instance.generated_item:
+            item = instance.generated_item
+            if item.lifecycle_status == 'pending_design':
+                item.lifecycle_status = 'in_design'
+                item.save(update_fields=['lifecycle_status'])
+
     @extend_schema(
         tags=['design'],
         summary='Promote design request to item',

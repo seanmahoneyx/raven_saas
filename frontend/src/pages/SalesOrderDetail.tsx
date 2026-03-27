@@ -368,38 +368,40 @@ export default function SalesOrderDetail() {
         title="Sales Order"
         documentNumber={order.order_number}
         status={order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+        addresses={[
+          { label: 'Bill To', name: order.bill_to_name || order.customer_name, address: order.bill_to_address },
+          { label: 'Ship To', name: order.ship_to_name, address: order.ship_to_address },
+        ]}
         fields={[
-          { label: 'Customer', value: order.customer_name },
           { label: 'Order Date', value: format(new Date(order.order_date + 'T00:00:00'), 'MMM d, yyyy') },
-          { label: 'Customer PO', value: order.customer_po || null },
           { label: 'Scheduled Date', value: order.scheduled_date ? format(new Date(order.scheduled_date + 'T00:00:00'), 'MMM d, yyyy') : null },
-          { label: 'Ship To', value: order.ship_to_name },
-          { label: 'Priority', value: order.priority },
-          { label: 'Bill To', value: order.bill_to_name || null },
-          { label: 'Lines', value: order.num_lines },
+          { label: 'Customer PO', value: order.customer_po || null },
+          { label: 'Terms', value: 'Net 30' },
         ]}
         notes={order.notes}
         columns={[
-          { header: '#' },
-          { header: 'Item' },
-          { header: 'Qty', align: 'right' },
-          { header: 'UOM' },
-          { header: 'Unit Price', align: 'right' },
-          { header: 'Line Total', align: 'right' },
-          { header: 'Notes' },
+          { header: '#', width: '5%' },
+          { header: 'Item', width: '35%' },
+          { header: 'Description' },
+          { header: 'Qty', align: 'right', width: '8%' },
+          { header: 'UOM', width: '8%' },
+          { header: 'Unit Price', align: 'right', width: '12%' },
+          { header: 'Amount', align: 'right', width: '12%' },
         ]}
         rows={order.lines?.map(line => [
           line.line_number,
-          `${line.item_sku} - ${line.item_name}`,
+          line.item_sku,
+          line.item_name,
           line.quantity_ordered.toLocaleString(),
           line.uom_code,
           `$${fmtCurrency(line.unit_price)}`,
           `$${fmtCurrency(line.line_total)}`,
-          line.notes || '\u2014',
         ]) || []}
         totals={[
           { label: 'Subtotal:', value: `$${fmtCurrency(order.subtotal)}` },
+          { label: 'Total:', value: `$${fmtCurrency(order.subtotal)}` },
         ]}
+        footerMessage="Thank you for your business!"
       />
 
       {/* ── Main content ──────────────────────────── */}
@@ -691,7 +693,7 @@ export default function SalesOrderDetail() {
                           {/* Item */}
                           <td className="py-1 px-1 pl-6">
                             <Select value={line.item} onValueChange={(v) => handleLineItemChange(index, v)}>
-                              <SelectTrigger className="h-auto min-h-9 text-[13px] border-0 bg-transparent shadow-none whitespace-normal text-left">
+                              <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
                                 <SelectValue placeholder="Select item..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -710,7 +712,7 @@ export default function SalesOrderDetail() {
                           <td className="py-1 px-1">
                             {itemContracts && itemContracts.length > 0 ? (
                               <Select value={line.contract || 'none'} onValueChange={(v) => handleContractChange(index, v === 'none' ? '' : v)}>
-                                <SelectTrigger className="h-auto min-h-9 text-[13px] border-0 bg-transparent shadow-none whitespace-normal text-left" style={{ color: 'var(--so-accent)' }}>
+                                <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left" style={{ color: 'var(--so-accent)' }}>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -733,13 +735,13 @@ export default function SalesOrderDetail() {
                               inputMode="numeric"
                               value={line.quantity_ordered}
                               onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                              className="h-9 text-right text-[13px] border-0 bg-transparent shadow-none font-mono"
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
                             />
                           </td>
                           {/* UOM */}
                           <td className="py-1 px-1">
                             <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
-                              <SelectTrigger className="h-9 text-[13px] border-0 bg-transparent shadow-none">
+                              <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
                                 <SelectValue placeholder="UOM" />
                               </SelectTrigger>
                               <SelectContent>
@@ -758,7 +760,7 @@ export default function SalesOrderDetail() {
                               inputMode="decimal"
                               value={line.unit_price}
                               onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                              className="h-9 text-right text-[13px] border-0 bg-transparent shadow-none font-mono"
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
                             />
                             {priceLookupLine === index && isPriceFetching && (
                               <span className="text-[11px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>Looking up...</span>
@@ -773,7 +775,7 @@ export default function SalesOrderDetail() {
                             <Input
                               value={line.notes}
                               onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                              className="h-9 text-[13px] border-0 bg-transparent shadow-none"
+                              className="h-9 text-[13px] border shadow-none"
                               placeholder="Notes..."
                             />
                           </td>
@@ -817,8 +819,9 @@ export default function SalesOrderDetail() {
                   <thead>
                     <tr>
                       {[
-                        { label: 'Item', align: 'text-left', width: 'w-[38%]' },
+                        { label: 'Item', align: 'text-left', width: 'w-[35%]' },
                         { label: 'Contract', align: 'text-left', width: '' },
+                        { label: 'Fulfillment', align: 'text-left', width: 'w-[8%]' },
                         { label: 'Qty', align: 'text-center', width: '' },
                         { label: 'UOM', align: 'text-left', width: '' },
                         { label: 'Rate', align: 'text-right', width: '' },
@@ -849,6 +852,10 @@ export default function SalesOrderDetail() {
                           ) : (
                             <span className="italic" style={{ color: 'var(--so-text-tertiary)' }}>None</span>
                           )}
+                        </td>
+                        {/* Fulfillment */}
+                        <td className="py-3.5 px-4 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                          {{ stock: 'Stock', direct: 'Direct', crossdock: 'Cross' }[line.fulfillment_method ?? ''] ?? '-'}
                         </td>
                         {/* Qty */}
                         <td className="py-3.5 px-4 text-center font-mono font-semibold">

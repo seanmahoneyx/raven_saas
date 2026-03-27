@@ -7,6 +7,7 @@ Models:
 - TenantSettings: Configuration and preferences for each tenant
 - TenantSequence: Auto-generate sequential numbers (orders, invoices, etc.)
 """
+from decimal import Decimal
 from django.db import models, transaction
 
 
@@ -141,6 +142,26 @@ class TenantSettings(models.Model):
     # Contact
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
+
+    # Approval thresholds (null = disabled)
+    approval_po_amount_threshold = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        default=Decimal('5000.00'),
+        help_text="PO subtotal above this amount requires approval (null to disable)"
+    )
+    approval_so_margin_threshold = models.DecimalField(
+        max_digits=5, decimal_places=4, null=True, blank=True,
+        default=Decimal('0.1500'),
+        help_text="SO margin below this percentage requires approval (null to disable)"
+    )
+    approval_price_list_enabled = models.BooleanField(
+        default=False,
+        help_text="Require approval for new/updated customer price lists"
+    )
+    approval_po_send_enabled = models.BooleanField(
+        default=False,
+        help_text="Require approval before sending PO to vendor"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

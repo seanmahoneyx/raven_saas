@@ -9,11 +9,44 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ItemDialog } from './ItemDialog'
 import type { Item, UnitOfMeasure, Party } from '@/types/api'
 
+// Mock Radix-based UI components to avoid "Maximum update depth" OOM in test env
+vi.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ children, open }: any) => open ? <div role="dialog">{children}</div> : null,
+  DialogContent: ({ children }: any) => <div>{children}</div>,
+  DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
+  DialogFooter: ({ children }: any) => <div>{children}</div>,
+}))
+
+vi.mock('@/components/ui/select', () => ({
+  Select: ({ children, value, onValueChange }: any) => <div data-value={value}>{typeof children === 'function' ? null : children}</div>,
+  SelectTrigger: ({ children }: any) => <button role="combobox">{children}</button>,
+  SelectValue: ({ placeholder }: any) => <span>{placeholder || ''}</span>,
+  SelectContent: ({ children }: any) => <div role="listbox">{children}</div>,
+  SelectItem: ({ children, value }: any) => <option role="option" value={value}>{children}</option>,
+}))
+
+vi.mock('@/components/ui/collapsible', () => ({
+  Collapsible: ({ children }: any) => <div>{children}</div>,
+  CollapsibleTrigger: ({ children, asChild }: any) => <div>{children}</div>,
+  CollapsibleContent: ({ children }: any) => <div>{children}</div>,
+}))
+
+vi.mock('@/components/ui/switch', () => ({
+  Switch: ({ id, checked, onCheckedChange }: any) => (
+    <button role="switch" id={id} aria-checked={checked} onClick={() => onCheckedChange?.(!checked)}>
+      {checked ? 'On' : 'Off'}
+    </button>
+  ),
+}))
+
 // Mock API hooks
 const mockCreateItem = vi.fn()
 const mockUpdateItem = vi.fn()
 const mockCreateBoxItem = vi.fn()
 const mockUpdateBoxItem = vi.fn()
+const mockCreatePkgItem = vi.fn()
+const mockUpdatePkgItem = vi.fn()
 
 vi.mock('@/api/items', () => ({
   useCreateItem: () => ({
@@ -46,6 +79,18 @@ vi.mock('@/api/items', () => ({
   }),
   useCorrugatedFeatures: () => ({
     data: { results: [] },
+  }),
+  useCreatePackagingItem: () => ({
+    mutateAsync: mockCreatePkgItem,
+    isPending: false,
+  }),
+  useUpdatePackagingItem: () => ({
+    mutateAsync: mockUpdatePkgItem,
+    isPending: false,
+  }),
+  usePackagingItem: () => ({
+    data: null,
+    isLoading: false,
   }),
 }))
 
@@ -101,7 +146,7 @@ function createMockItem(overrides: Partial<Item> = {}): Item {
     unit_height: null,
     pallet_height: null,
     pallet_footprint: '',
-    is_inventory: true,
+    item_type: 'inventory',
     is_active: true,
     attachment: null,
     created_at: '',
@@ -167,9 +212,9 @@ describe('ItemDialog', () => {
       expect(screen.getByText('Customer')).toBeInTheDocument()
     })
 
-    it('shows Track Inventory switch', () => {
+    it('shows Item Type selector', () => {
       renderDialog()
-      expect(screen.getByText('Track Inventory')).toBeInTheDocument()
+      expect(screen.getByText('Item Type')).toBeInTheDocument()
     })
 
     it('shows Active switch', () => {
@@ -270,18 +315,10 @@ describe('ItemDialog', () => {
   })
 
   describe('Switch Toggles', () => {
-    it('has Track Inventory switch checked by default', () => {
-      renderDialog()
-      const switches = screen.getAllByRole('switch')
-      // First switch is Track Inventory
-      expect(switches[0]).toBeChecked()
-    })
-
     it('has Active switch checked by default', () => {
       renderDialog()
-      const switches = screen.getAllByRole('switch')
-      // Second switch is Active
-      expect(switches[1]).toBeChecked()
+      const activeSwitch = screen.getByRole('switch', { name: /Active/i })
+      expect(activeSwitch).toBeChecked()
     })
   })
 })
@@ -296,11 +333,55 @@ describe('ItemDialog Corrugated Mode', () => {
       division: 'corrugated',
       item_type: 'rsc',
     })
-    // Note: This tests that the component handles the data correctly,
-    // even though the useEffect needs to parse the item_type
     renderDialog({ item: corrugatedItem })
-
-    // Dialog should open with corrugated fields visible
     expect(screen.getByText('Edit Item')).toBeInTheDocument()
+  })
+})
+
+describe('ItemDialog Packaging Mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('renders packaging item with sub_type when editing a packaging item', () => {
+    const pkgItem = createMockItem({
+      division: 'packaging',
+      box_type: 'packaging',
+    })
+    renderDialog({ item: pkgItem })
+    expect(screen.getByText('Edit Item')).toBeInTheDocument()
+  })
+
+  it('shows Type selector label in the dialog form', () => {
+    // The form always renders Type * label when division=packaging
+    // With mocked Select, we verify the label exists in DOM
+    const pkgItem = createMockItem({
+      division: 'packaging',
+      box_type: 'packaging',
+    })
+    renderDialog({ item: pkgItem })
+    // Type selector should be visible for packaging items
+    expect(screen.getByText('Type *')).toBeInTheDocument()
+  })
+
+  it('shows packaging material fields when editing packaging item', () => {
+    const pkgItem = createMockItem({
+      division: 'packaging',
+      box_type: 'packaging',
+    })
+    renderDialog({ item: pkgItem })
+    expect(screen.getByPlaceholderText('e.g., Poly, Kraft')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Clear')).toBeInTheDocument()
+  })
+
+  it('does not show corrugated fields for packaging items', () => {
+    const pkgItem = createMockItem({
+      division: 'packaging',
+      box_type: 'packaging',
+    })
+    renderDialog({ item: pkgItem })
+    expect(screen.queryByText('Test (ECT)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Flute')).not.toBeInTheDocument()
+    expect(screen.queryByText('Box Type *')).not.toBeInTheDocument()
   })
 })

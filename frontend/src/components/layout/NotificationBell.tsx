@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Check, ExternalLink } from 'lucide-react'
+import { Mail, Check, ExternalLink, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNotifications, useMarkNotificationsRead, type Notification } from '@/api/notifications'
+import { useMyPendingApprovals } from '@/api/approvals'
 import { useNotificationSync } from '@/hooks/useRealtimeSync'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -19,10 +20,13 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { data } = useNotifications()
+  const { data: pendingApprovals } = useMyPendingApprovals()
   const markRead = useMarkNotificationsRead()
-  useNotificationSync() // Real-time WebSocket updates for notification bell
+  useNotificationSync()
 
   const unreadCount = data?.unread_count || 0
+  const approvalCount = pendingApprovals?.length || 0
+  const totalBadge = unreadCount + approvalCount
   const notifications = data?.notifications || []
 
   // Close on outside click
@@ -57,18 +61,38 @@ export default function NotificationBell() {
         size="sm"
         className="relative gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         onClick={() => setOpen(!open)}
-        title="Notifications"
+        title="Notifications & Approvals"
       >
-        <Bell className="h-4 w-4" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+        <Mail className="h-4 w-4" />
+        {totalBadge > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white animate-in zoom-in">
+            {totalBadge > 9 ? '9+' : totalBadge}
           </span>
         )}
       </Button>
 
       {open && (
         <div className="absolute right-0 top-full mt-2 z-50 w-80 rounded-lg border border-border bg-popover shadow-xl">
+          {/* Approval banner */}
+          {approvalCount > 0 && (
+            <button
+              onClick={() => { navigate('/approvals'); setOpen(false) }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 border-b border-border"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                <ShieldCheck className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {approvalCount} pending approval{approvalCount !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-muted-foreground">Review and approve in your inbox</p>
+              </div>
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
+
+          {/* Notifications header */}
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
             <span className="text-sm font-semibold text-foreground">Notifications</span>
             {unreadCount > 0 && (

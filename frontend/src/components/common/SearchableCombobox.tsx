@@ -273,10 +273,10 @@ export function SearchableCombobox({
     const hasResults = suggestions.results.length > 0
     const hasSearch = debouncedSearch.trim().length > 0
 
-    if (!hasFavorites && !hasRecents && !hasSearch) {
+    if (!hasFavorites && !hasRecents && !hasResults && !hasSearch) {
       return (
         <div style={{ padding: '20px 10px', textAlign: 'center', fontSize: '13px', color: 'var(--so-text-tertiary)' }}>
-          Start typing to search…
+          No items available
         </div>
       )
     }

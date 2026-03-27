@@ -421,8 +421,8 @@ export default function CreateInvoice() {
                             onValueChange={(v) => handleLineItemChange(index, v)}
                           >
                             <SelectTrigger
-                              className="h-9 text-sm border-0 bg-transparent shadow-none"
-                              style={{ borderColor: 'transparent', background: 'transparent' }}
+                              className="h-9 text-sm border shadow-none"
+                              style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
                             >
                               <SelectValue placeholder="Select item..." />
                             </SelectTrigger>
@@ -440,7 +440,7 @@ export default function CreateInvoice() {
                           <Input
                             value={line.description}
                             onChange={(e) => handleLineChange(index, 'description', e.target.value)}
-                            className="h-9 text-sm border-0 bg-transparent shadow-none"
+                            className="h-9 text-sm border shadow-none"
                             placeholder="Description..."
                             tabIndex={0}
                           />
@@ -452,7 +452,7 @@ export default function CreateInvoice() {
                             inputMode="numeric"
                             value={line.quantity}
                             onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
-                            className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0"
                             tabIndex={0}
                           />
@@ -464,7 +464,7 @@ export default function CreateInvoice() {
                             inputMode="decimal"
                             value={line.unit_price}
                             onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                            className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0.00"
                             tabIndex={0}
                           />
@@ -478,7 +478,7 @@ export default function CreateInvoice() {
                           <Input
                             value={line.notes}
                             onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                            className="h-9 text-sm border-0 bg-transparent shadow-none"
+                            className="h-9 text-sm border shadow-none"
                             placeholder="Notes..."
                             tabIndex={0}
                           />

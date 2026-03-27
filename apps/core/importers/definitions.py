@@ -169,7 +169,7 @@ class ItemImporter(BaseCsvImporter):
                 'purch_desc': row.get('PurchDesc', ''),
                 'sell_desc': row.get('SellDesc', ''),
                 'is_active': True,
-                'is_inventory': True,
+                'item_type': 'inventory',
             },
         )
         return 'created' if created else 'updated'

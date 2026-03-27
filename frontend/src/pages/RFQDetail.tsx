@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
-  ArrowLeft, Paperclip, Clock, FileText, Send, ArrowRightLeft,
+  ArrowLeft, Paperclip, Clock, FileText, Send, ArrowRightLeft, ChevronDown, Plus, Trash2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useRFQ, useUpdateRFQ, useConvertRFQ, useSendRFQ } from '@/api/rfqs'
+import { useRFQ, useUpdateRFQ, useConvertRFQ, useSendRFQ, useConvertRFQToPriceList } from '@/api/rfqs'
+import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useAttachments } from '@/api/attachments'
 import FileUpload from '@/components/common/FileUpload'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -44,9 +46,13 @@ export default function RFQDetail() {
   const updateRFQ = useUpdateRFQ()
   const convertRFQ = useConvertRFQ()
   const sendRFQ = useSendRFQ()
+  const convertToPriceList = useConvertRFQToPriceList()
 
   const [isEditing, setIsEditing] = useState(false)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
+  const [convertMenuOpen, setConvertMenuOpen] = useState(false)
+  const [priceListDialogOpen, setPriceListDialogOpen] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const { data: attachments } = useAttachments('purchasing', 'rfq', rfqId)
   const attachmentCount = attachments?.length ?? 0
@@ -56,6 +62,14 @@ export default function RFQDetail() {
     expected_date: '',
     notes: '',
   })
+  const [linesFormData, setLinesFormData] = useState<
+    { item: string; item_name: string; item_sku: string; quantity: string; uom: string; uom_code: string; target_price: string; quoted_price: string; notes: string }[]
+  >([])
+
+  const { data: itemsData } = useItems()
+  const { data: uomData } = useUnitsOfMeasure()
+  const items = itemsData?.results ?? []
+  const uoms = uomData?.results ?? []
 
   usePageTitle(rfq ? `RFQ ${rfq.rfq_number}` : 'RFQ')
 
@@ -66,16 +80,68 @@ export default function RFQDetail() {
         expected_date: rfq.expected_date || '',
         notes: rfq.notes,
       })
+      setLinesFormData(
+        rfq.lines?.map(line => ({
+          item: String(line.item),
+          item_name: line.item_name,
+          item_sku: line.item_sku,
+          quantity: String(line.quantity),
+          uom: String(line.uom),
+          uom_code: line.uom_code,
+          target_price: line.target_price || '',
+          quoted_price: line.quoted_price || '',
+          notes: line.notes || '',
+        })) || []
+      )
     }
   }, [isEditing, rfq])
 
+  const handleAddLine = () => {
+    setLinesFormData(prev => [...prev, { item: '', item_name: '', item_sku: '', quantity: '1', uom: '', uom_code: '', target_price: '', quoted_price: '', notes: '' }])
+  }
+
+  const handleRemoveLine = (index: number) => {
+    setLinesFormData(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleLineChange = (index: number, field: string, value: string) => {
+    setLinesFormData(prev => prev.map((line, i) =>
+      i === index ? { ...line, [field]: value } : line
+    ))
+  }
+
+  const handleLineItemChange = (index: number, value: string) => {
+    const selectedItem = items.find(i => String(i.id) === value)
+    const selectedUom = selectedItem ? uoms.find(u => u.id === selectedItem.base_uom) : null
+    setLinesFormData(prev => prev.map((line, i) => {
+      if (i !== index) return line
+      return {
+        ...line,
+        item: value,
+        item_name: selectedItem?.name || '',
+        item_sku: selectedItem?.sku || '',
+        uom: selectedItem ? String(selectedItem.base_uom) : line.uom,
+        uom_code: selectedUom?.code || line.uom_code,
+      }
+    }))
+  }
+
   const handleSave = async () => {
     if (!rfq) return
-    const payload = {
+    const payload: Record<string, unknown> = {
       id: rfq.id,
       status: formData.status,
       expected_date: formData.expected_date || null,
       notes: formData.notes,
+      lines: linesFormData.map((line, idx) => ({
+        line_number: (idx + 1) * 10,
+        item: Number(line.item),
+        quantity: Number(line.quantity),
+        uom: Number(line.uom),
+        target_price: line.target_price || null,
+        quoted_price: line.quoted_price || null,
+        notes: line.notes,
+      })),
     }
     try {
       await updateRFQ.mutateAsync(payload as Parameters<typeof updateRFQ.mutateAsync>[0])
@@ -113,6 +179,18 @@ export default function RFQDetail() {
     }
   }
 
+  const handleConvertToPriceList = async () => {
+    if (!rfq || !selectedCustomer) return
+    try {
+      await convertToPriceList.mutateAsync({ id: rfq.id, customer: selectedCustomer })
+      setPriceListDialogOpen(false)
+      setSelectedCustomer(null)
+      toast.success('Price lists created successfully')
+    } catch {
+      // error toast handled by hook
+    }
+  }
+
   const handleCancel = () => {
     setIsEditing(false)
     setFormData({
@@ -120,6 +198,7 @@ export default function RFQDetail() {
       expected_date: '',
       notes: '',
     })
+    setLinesFormData([])
   }
 
   /* ── Loading / Not Found ───────────────────────── */
@@ -201,7 +280,7 @@ export default function RFQDetail() {
         {/* ── Breadcrumb ─────────────────────────── */}
         <div className="flex items-center gap-2 mb-5 animate-in">
           <button
-            onClick={() => navigate('/purchasing/rfqs')}
+            onClick={() => navigate('/rfqs')}
             className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
             style={{ color: 'var(--so-text-tertiary)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
@@ -276,15 +355,47 @@ export default function RFQDetail() {
                   </button>
                 )}
                 {(rfq.status === 'sent' || rfq.status === 'received') && rfq.is_convertible && (
-                  <button
-                    className={outlineBtnClass}
-                    style={outlineBtnStyle}
-                    onClick={() => setConvertDialogOpen(true)}
-                    disabled={convertRFQ.isPending}
-                  >
-                    <ArrowRightLeft className="h-3.5 w-3.5" />
-                    Convert to PO
-                  </button>
+                  <div className="relative">
+                    <button
+                      className={outlineBtnClass}
+                      style={outlineBtnStyle}
+                      onClick={() => setConvertMenuOpen(!convertMenuOpen)}
+                      onBlur={() => setTimeout(() => setConvertMenuOpen(false), 150)}
+                    >
+                      <ArrowRightLeft className="h-3.5 w-3.5" />
+                      Convert
+                      <ChevronDown className="h-3 w-3 ml-0.5" />
+                    </button>
+                    {convertMenuOpen && (
+                      <div
+                        className="absolute right-0 top-full mt-1 w-56 rounded-lg border shadow-lg z-50 py-1"
+                        style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+                      >
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer flex items-center gap-2"
+                          style={{ color: 'var(--so-text-primary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          onMouseDown={() => setConvertDialogOpen(true)}
+                        >
+                          <ArrowRightLeft className="h-3.5 w-3.5" style={{ color: 'var(--so-text-tertiary)' }} />
+                          Purchase Order
+                          <span className="ml-auto text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>From quotes</span>
+                        </button>
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer flex items-center gap-2"
+                          style={{ color: 'var(--so-text-primary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          onMouseDown={() => setPriceListDialogOpen(true)}
+                        >
+                          <FileText className="h-3.5 w-3.5" style={{ color: 'var(--so-text-tertiary)' }} />
+                          Price List
+                          <span className="ml-auto text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Customer pricing</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setAttachmentsOpen(true)}>
                   <Paperclip className="h-3.5 w-3.5" />
@@ -399,6 +510,20 @@ export default function RFQDetail() {
               <p className="text-[13.5px] leading-relaxed" style={{ color: 'var(--so-text-secondary)' }}>{rfq.notes}</p>
             </div>
           ) : null}
+          {/* Converted reference */}
+          {!isEditing && rfq.converted_po_number && (
+            <div
+              className="flex items-center gap-2 px-5 py-3"
+              style={{ borderTop: '1px solid var(--so-border-light)', background: 'var(--so-accent-light)' }}
+            >
+              <span
+                className="font-mono text-xs px-2 py-0.5 rounded"
+                style={{ border: '1px solid var(--so-border)', color: 'var(--so-accent)' }}
+              >
+                Converted to PO: {rfq.converted_po_number}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ── Line Items Card ────────────────────── */}
@@ -407,71 +532,230 @@ export default function RFQDetail() {
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Line Items</span>
             <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-              {lineCount} {lineCount === 1 ? 'item' : 'items'}
+              {(isEditing ? linesFormData.length : lineCount)} {(isEditing ? linesFormData.length : lineCount) === 1 ? 'item' : 'items'}
             </span>
           </div>
 
-          {/* Read-only table */}
-          {rfq.lines && rfq.lines.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {[
-                      { label: 'Item',         cls: 'text-left pl-6 w-[35%]' },
-                      { label: 'Qty',          cls: 'text-center' },
-                      { label: 'UOM',          cls: 'text-left' },
-                      { label: 'Target Price', cls: 'text-right' },
-                      { label: 'Quoted Price', cls: 'text-right' },
-                      { label: 'Notes',        cls: 'text-left pr-6' },
-                    ].map((col) => (
-                      <th
-                        key={col.label}
-                        className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.cls}`}
-                        style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rfq.lines.map((line) => (
-                    <tr key={line.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                      {/* Item */}
-                      <td className="py-3.5 px-4 pl-6">
-                        <div className="font-medium" style={{ color: 'var(--so-text-primary)' }}>{line.item_name}</div>
-                        <div className="font-mono text-[12.5px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
-                      </td>
-                      {/* Qty */}
-                      <td className="py-3.5 px-4 text-center font-mono font-semibold">
-                        {typeof line.quantity === 'number' ? line.quantity.toLocaleString() : line.quantity}
-                      </td>
-                      {/* UOM */}
-                      <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
-                        {line.uom_code}
-                      </td>
-                      {/* Target Price */}
-                      <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                        {line.target_price ? `$${fmtPrice(line.target_price)}` : '-'}
-                      </td>
-                      {/* Quoted Price */}
-                      <td className="py-3.5 px-4 text-right font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                        {line.quoted_price ? `$${fmtPrice(line.quoted_price)}` : '-'}
-                      </td>
-                      {/* Notes */}
-                      <td className="py-3.5 px-4 pr-6 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                        {line.notes || '-'}
+          {/* ── EDIT MODE TABLE ──────────────────── */}
+          {isEditing ? (
+            linesFormData.length === 0 ? (
+              <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                No lines. Click "Add Line" below to add items.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {[
+                        { label: 'Item', align: 'text-left', cls: 'pl-6 w-[30%]' },
+                        { label: 'Qty', align: 'text-right', cls: 'w-20' },
+                        { label: 'UOM', align: 'text-left', cls: 'w-20' },
+                        { label: 'Target Price', align: 'text-right', cls: 'w-28' },
+                        { label: 'Quoted Price', align: 'text-right', cls: 'w-28' },
+                        { label: 'Notes', align: 'text-left', cls: '' },
+                        { label: '', align: 'text-left', cls: 'pr-6 w-10' },
+                      ].map((col, i) => (
+                        <th
+                          key={col.label || `blank-${i}`}
+                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.align} ${col.cls}`}
+                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linesFormData.map((line, index) => {
+                      return (
+                        <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                          {/* Item */}
+                          <td className="py-1 px-1 pl-6">
+                            {(() => {
+                              const currentInList = items.some(i => String(i.id) === line.item)
+                              return (
+                                <Select value={line.item} onValueChange={(v) => handleLineItemChange(index, v)}>
+                                  <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
+                                    <SelectValue placeholder="Select item..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {!currentInList && line.item && line.item_name && (
+                                      <SelectItem key={line.item} value={line.item}>
+                                        {line.item_sku} - {line.item_name}
+                                      </SelectItem>
+                                    )}
+                                    {items.map((item) => (
+                                      <SelectItem key={item.id} value={String(item.id)}>
+                                        {item.sku} - {item.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )
+                            })()}
+                          </td>
+                          {/* Qty */}
+                          <td className="py-1 px-1">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={line.quantity}
+                              onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
+                            />
+                          </td>
+                          {/* UOM */}
+                          <td className="py-1 px-1">
+                            {(() => {
+                              const currentUomInList = uoms.some(u => String(u.id) === line.uom)
+                              return (
+                                <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
+                                  <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
+                                    <SelectValue placeholder="UOM" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {!currentUomInList && line.uom && line.uom_code && (
+                                      <SelectItem key={line.uom} value={line.uom}>
+                                        {line.uom_code}
+                                      </SelectItem>
+                                    )}
+                                    {uoms.map((uom) => (
+                                      <SelectItem key={uom.id} value={String(uom.id)}>
+                                        {uom.code}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )
+                            })()}
+                          </td>
+                          {/* Target Price */}
+                          <td className="py-1 px-1">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={line.target_price}
+                              onChange={(e) => handleLineChange(index, 'target_price', e.target.value)}
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          {/* Quoted Price */}
+                          <td className="py-1 px-1">
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={line.quoted_price}
+                              onChange={(e) => handleLineChange(index, 'quoted_price', e.target.value)}
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
+                              placeholder="0.00"
+                            />
+                          </td>
+                          {/* Notes */}
+                          <td className="py-1 px-1">
+                            <Input
+                              value={line.notes}
+                              onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
+                              className="h-9 text-[13px] border shadow-none"
+                              placeholder="Notes..."
+                            />
+                          </td>
+                          {/* Delete */}
+                          <td className="py-1.5 px-1 pr-6">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLine(index)}
+                              className="h-7 w-7 inline-flex items-center justify-center rounded transition-colors cursor-pointer"
+                              style={{ color: 'var(--so-danger-text)' }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={7} className="py-2 px-2 pl-6">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors cursor-pointer"
+                          style={{ color: 'var(--so-accent)' }}
+                          onClick={handleAddLine}
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Add Line
+                        </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </tfoot>
+                </table>
+              </div>
+            )
           ) : (
-            <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-              No line items
-            </div>
+            /* ── READ-ONLY TABLE ─────────────────── */
+            rfq.lines && rfq.lines.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      {[
+                        { label: 'Item',         cls: 'text-left pl-6 w-[35%]' },
+                        { label: 'Qty',          cls: 'text-center' },
+                        { label: 'UOM',          cls: 'text-left' },
+                        { label: 'Target Price', cls: 'text-right' },
+                        { label: 'Quoted Price', cls: 'text-right' },
+                        { label: 'Notes',        cls: 'text-left pr-6' },
+                      ].map((col) => (
+                        <th
+                          key={col.label}
+                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.cls}`}
+                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rfq.lines.map((line) => (
+                      <tr key={line.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                        {/* Item */}
+                        <td className="py-3.5 px-4 pl-6">
+                          <div className="font-medium" style={{ color: 'var(--so-text-primary)' }}>{line.item_name}</div>
+                          <div className="font-mono text-[12.5px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
+                        </td>
+                        {/* Qty */}
+                        <td className="py-3.5 px-4 text-center font-mono font-semibold">
+                          {typeof line.quantity === 'number' ? line.quantity.toLocaleString() : line.quantity}
+                        </td>
+                        {/* UOM */}
+                        <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                          {line.uom_code}
+                        </td>
+                        {/* Target Price */}
+                        <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
+                          {line.target_price ? `$${fmtPrice(line.target_price)}` : '-'}
+                        </td>
+                        {/* Quoted Price */}
+                        <td className="py-3.5 px-4 text-right font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                          {line.quoted_price ? `$${fmtPrice(line.quoted_price)}` : '-'}
+                        </td>
+                        {/* Notes */}
+                        <td className="py-3.5 px-4 pr-6 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                          {line.notes || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                No line items
+              </div>
+            )
           )}
         </div>
 
@@ -533,6 +817,48 @@ export default function RFQDetail() {
         onConfirm={handleConfirmConvert}
         loading={convertRFQ.isPending}
       />
+
+      {/* ── Price List Customer Selection Dialog ── */}
+      <Dialog open={priceListDialogOpen} onOpenChange={(open) => { setPriceListDialogOpen(open); if (!open) setSelectedCustomer(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Price Lists from RFQ</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+              This will create customer price lists from the {rfq?.lines?.filter(l => l.quoted_price).length || 0} quoted line items on this RFQ.
+            </p>
+            <div>
+              <label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>
+                Customer
+              </label>
+              <SearchableCombobox
+                entityType="customer"
+                value={selectedCustomer}
+                onChange={(id) => setSelectedCustomer(id)}
+                placeholder="Select customer..."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className={outlineBtnClass}
+                style={outlineBtnStyle}
+                onClick={() => { setPriceListDialogOpen(false); setSelectedCustomer(null); }}
+              >
+                Cancel
+              </button>
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={handleConvertToPriceList}
+                disabled={!selectedCustomer || convertToPriceList.isPending}
+              >
+                {convertToPriceList.isPending ? 'Creating...' : 'Create Price Lists'}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

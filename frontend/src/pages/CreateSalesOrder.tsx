@@ -42,7 +42,27 @@ const ORDER_CLASSES: { value: SalesOrderClass; label: string }[] = [
   { value: 'DIRECT', label: 'Direct' },
 ]
 
-const EMPTY_LINE = { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '' }
+const EMPTY_LINE = { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '', fulfillment_method: '' }
+
+const DEFAULT_FULFILLMENT: Record<string, string> = {
+  inventory: 'stock',
+  non_stockable: 'direct',
+  crossdock: 'crossdock',
+}
+
+const FULFILLMENT_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  inventory: [
+    { value: 'stock', label: 'Stock' },
+    { value: 'direct', label: 'Direct Ship' },
+    { value: 'crossdock', label: 'Crossdock' },
+  ],
+  non_stockable: [
+    { value: 'direct', label: 'Direct Ship' },
+    { value: 'crossdock', label: 'Crossdock' },
+  ],
+  crossdock: [],
+  other_charge: [],
+}
 
 /** Number of pre-rendered blank rows */
 const INITIAL_EMPTY_ROWS = 5
@@ -100,7 +120,7 @@ export default function CreateSalesOrder() {
   }
 
   const [linesFormData, setLinesFormData] = useState<
-    { item: string; quantity_ordered: string; uom: string; unit_price: string; notes: string; contract: string }[]
+    { item: string; quantity_ordered: string; uom: string; unit_price: string; notes: string; contract: string; fulfillment_method: string }[]
   >(buildInitialLines)
 
   const customers = customersData?.results ?? []
@@ -243,12 +263,14 @@ export default function CreateSalesOrder() {
 
     setLinesFormData(prev => prev.map((line, i) => {
       if (i !== index) return line
+      const defaultFulfillment = selectedItem ? (DEFAULT_FULFILLMENT[selectedItem.item_type] || '') : line.fulfillment_method
       return {
         ...line,
         item: value,
         uom: selectedItem ? String(selectedItem.base_uom) : line.uom,
         unit_price: bestContract?.unitPrice || '0.00',
         contract: bestContract?.contractNumber || '',
+        fulfillment_method: defaultFulfillment,
       }
     }))
     if (value && formData.customer && !bestContract) {
@@ -342,6 +364,7 @@ export default function CreateSalesOrder() {
         quantity_ordered: Number(line.quantity_ordered),
         uom: Number(line.uom),
         unit_price: line.unit_price,
+        fulfillment_method: line.fulfillment_method || null,
       })),
     }
 
@@ -656,14 +679,15 @@ export default function CreateSalesOrder() {
                 <thead>
                   <tr>
                     {[
-                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[22%]' },
+                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[20%]' },
                       { label: 'Description', align: 'text-left', cls: 'flex-1' },
-                      { label: 'Contract', align: 'text-left', cls: 'w-[12%]' },
+                      { label: 'Contract', align: 'text-left', cls: 'w-[10%]' },
+                      { label: 'Fulfill', align: 'text-left', cls: 'w-[8%]' },
                       { label: 'Qty', align: 'text-right', cls: 'w-[7%]' },
                       { label: 'UOM', align: 'text-left', cls: 'w-[7%]' },
                       { label: 'Rate', align: 'text-right', cls: 'w-[9%]' },
                       { label: 'Amount', align: 'text-right', cls: 'w-[9%]' },
-                      { label: 'Notes', align: 'text-left', cls: 'w-[12%]' },
+                      { label: 'Notes', align: 'text-left', cls: 'w-[10%]' },
                       { label: '', align: '', cls: 'pr-6 w-10' },
                     ].map((col, i) => (
                       <th
@@ -718,8 +742,8 @@ export default function CreateSalesOrder() {
                               onValueChange={(v) => handleLineItemChange(index, v)}
                             >
                               <SelectTrigger
-                                className="h-9 text-sm border-0 bg-transparent shadow-none"
-                                style={{ borderColor: 'transparent', background: 'transparent' }}
+                                className="h-9 text-sm border shadow-none"
+                                style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
                               >
                                 <SelectValue placeholder="Select item..." />
                               </SelectTrigger>
@@ -745,8 +769,8 @@ export default function CreateSalesOrder() {
                               onValueChange={(v) => handleContractChange(index, v === 'none' ? '' : v)}
                             >
                               <SelectTrigger
-                                className="h-9 text-sm border-0 bg-transparent shadow-none"
-                                style={{ borderColor: 'transparent', background: 'transparent', color: 'var(--so-accent)' }}
+                                className="h-9 text-sm border shadow-none"
+                                style={{ borderColor: 'var(--so-border)', background: 'transparent', color: 'var(--so-accent)' }}
                               >
                                 <SelectValue />
                               </SelectTrigger>
@@ -763,6 +787,28 @@ export default function CreateSalesOrder() {
                             <span className="text-[13px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>{'\u2014'}</span>
                           )}
                         </td>
+                        {/* Fulfillment */}
+                        <td className="py-1.5 px-1">
+                          {(() => {
+                            const itemType = selectedItem?.item_type
+                            if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
+                            if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
+                            const opts = FULFILLMENT_OPTIONS[itemType] || []
+                            return (
+                              <Select
+                                value={line.fulfillment_method || opts[0]?.value || ''}
+                                onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
+                              >
+                                <SelectTrigger className="h-9 text-sm border shadow-none" style={{ borderColor: 'var(--so-border)', background: 'transparent' }}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            )
+                          })()}
+                        </td>
                         {/* Qty (col 1) */}
                         <td className="py-1.5 px-1">
                           <Input
@@ -772,7 +818,7 @@ export default function CreateSalesOrder() {
                             value={line.quantity_ordered}
                             onChange={(e) => handleLineQtyChange(index, e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, index, 1)}
-                            className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0"
                             tabIndex={0}
                           />
@@ -785,8 +831,8 @@ export default function CreateSalesOrder() {
                               onValueChange={(v) => handleLineChange(index, 'uom', v)}
                             >
                               <SelectTrigger
-                                className="h-9 text-sm border-0 bg-transparent shadow-none"
-                                style={{ borderColor: 'transparent', background: 'transparent' }}
+                                className="h-9 text-sm border shadow-none"
+                                style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
                               >
                                 <SelectValue placeholder="UOM" />
                               </SelectTrigger>
@@ -809,7 +855,7 @@ export default function CreateSalesOrder() {
                             value={line.unit_price}
                             onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, index, 3)}
-                            className="h-9 text-right text-sm border-0 bg-transparent shadow-none font-mono"
+                            className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0.00"
                             tabIndex={0}
                           />
@@ -828,7 +874,7 @@ export default function CreateSalesOrder() {
                             value={line.notes}
                             onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
                             onKeyDown={(e) => handleKeyDown(e, index, 4)}
-                            className="h-9 text-sm border-0 bg-transparent shadow-none"
+                            className="h-9 text-sm border shadow-none"
                             placeholder="Notes..."
                             tabIndex={0}
                           />
@@ -854,7 +900,7 @@ export default function CreateSalesOrder() {
                       </tr>
                       {warning && (
                         <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          <td colSpan={9} className="px-6 py-2">
+                          <td colSpan={10} className="px-6 py-2">
                             <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
                               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                               <span className="font-medium">
@@ -880,7 +926,7 @@ export default function CreateSalesOrder() {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                    <td colSpan={6} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
+                    <td colSpan={7} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
                     <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(editTotal)}</td>
                     <td colSpan={2}></td>
                   </tr>

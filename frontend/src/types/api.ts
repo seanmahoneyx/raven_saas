@@ -182,7 +182,21 @@ export type DivisionType = 'corrugated' | 'packaging' | 'tooling' | 'janitorial'
 export type TestType = 'ect29' | 'ect32' | 'ect40' | 'ect44' | 'ect48' | 'ect51' | 'ect55' | 'ect112' | '200t'
 export type FluteType = 'a' | 'b' | 'c' | 'e' | 'f' | 'bc' | 'eb' | 'tw'
 export type PaperType = 'k' | 'mw'
-export type ItemType = 'base' | 'corrugated' | 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele'
+export type ItemType = 'base' | 'corrugated' | 'dc' | 'rsc' | 'hsc' | 'fol' | 'tele' | 'packaging'
+export type PackagingSubType =
+  | 'bags' | 'bubble' | 'chipboard' | 'circles' | 'collars' | 'corners'
+  | 'film' | 'foam' | 'labels' | 'partitions' | 'plastic_containers'
+  | 'specialty_paper' | 'strapping' | 'stretch' | 'tape' | 'tube' | 'pkg_misc'
+export type ThicknessUnit = 'mil' | 'gauge' | 'mm' | 'inches'
+export type BubbleSize = '3/16' | '5/16' | '1/2'
+export type LipStyle = 'open' | 'resealable' | 'ziplock' | 'flap'
+export type AdhesiveType = 'acrylic' | 'rubber' | 'hot_melt' | 'silicone'
+export type TapeType = 'flatback' | 'filament' | 'masking' | 'packing' | 'duct' | 'double_sided'
+export type LabelType = 'thermal' | 'direct_thermal' | 'laser' | 'inkjet'
+export type StockingType = 'inventory' | 'non_stockable' | 'crossdock' | 'other_charge'
+export type LifecycleStatus = 'draft' | 'pending_design' | 'in_design' | 'design_complete' | 'pending_approval' | 'active'
+
+export type FulfillmentMethod = 'stock' | 'direct' | 'crossdock'
 
 export interface Item {
   id: number
@@ -209,15 +223,30 @@ export interface Item {
   pallet_height: string | null
   pallet_footprint: string
   // Flags
-  is_inventory: boolean
+  item_type: StockingType
   is_active: boolean
   attachment: string | null
+  // Lifecycle
+  lifecycle_status: LifecycleStatus
+  revision_reason?: string
+  revision_date?: string | null
+  revision_changed_by?: number | null
+  revision_changed_by_name?: string | null
   // Reorder thresholds
   reorder_point: number | null
   min_stock: number | null
   safety_stock: number | null
-  // Type indicator
-  item_type?: ItemType
+  // Box type indicator
+  box_type?: ItemType
+  // List view annotations
+  qty_on_hand?: number
+  qty_on_open_po?: number
+  qty_on_open_so?: number
+  preferred_vendor_name?: string | null
+  income_account_name?: string | null
+  expense_account_name?: string | null
+  asset_account_name?: string | null
+  attachment_count?: number
   // Nested (detail view)
   uom_conversions?: ItemUOM[]
   vendors?: ItemVendor[]
@@ -316,6 +345,45 @@ export interface TeleItem extends CorrugatedItem {
   height: string
 }
 
+// Packaging Item types
+export interface PackagingItem extends Item {
+  sub_type: PackagingSubType
+  // Shared fields
+  material_type: string
+  color: string
+  thickness: string | null
+  thickness_unit: ThicknessUnit | ''
+  length: string | null
+  width: string | null
+  height: string | null
+  diameter: string | null
+  pieces_per_case: number | null
+  weight_capacity_lbs: string | null
+  // Roll fields
+  roll_length: string | null
+  roll_width: string | null
+  rolls_per_case: number | null
+  core_diameter: string | null
+  // Sheet fields
+  sheets_per_bundle: number | null
+  // Sub-type specific
+  bubble_size: BubbleSize | ''
+  perforated: boolean
+  perforation_interval: string
+  lip_style: LipStyle | ''
+  density: string | null
+  cells_x: number | null
+  cells_y: number | null
+  adhesive_type: AdhesiveType | ''
+  tape_type: TapeType | ''
+  break_strength_lbs: string | null
+  stretch_pct: number | null
+  inner_diameter: string | null
+  lid_included: boolean
+  label_type: LabelType | ''
+  labels_per_roll: number | null
+}
+
 // Estimate types
 export type EstimateStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'converted'
 
@@ -384,6 +452,7 @@ export interface PurchaseOrderLine {
   line_total: string
   quantity_in_base_uom: number
   notes: string
+  fulfillment_method: FulfillmentMethod | null
   created_at: string
   updated_at: string
 }
@@ -400,6 +469,8 @@ export interface PurchaseOrder {
   scheduled_truck: number | null
   ship_to: number
   ship_to_name: string
+  ship_to_address: string | null
+  vendor_address: string | null
   notes: string
   priority: number
   num_lines: number
@@ -426,6 +497,7 @@ export interface SalesOrderLine {
   line_total: string
   quantity_in_base_uom: number
   notes: string
+  fulfillment_method: FulfillmentMethod | null
   // Contract reference (for lines released from contracts)
   contract_id?: number | null
   contract_number?: string | null
@@ -453,8 +525,10 @@ export interface SalesOrder {
   scheduled_truck: number | null
   ship_to: number
   ship_to_name: string
+  ship_to_address: string | null
   bill_to: number | null
   bill_to_name: string | null
+  bill_to_address: string | null
   customer_po: string
   order_class: SalesOrderClass
   notes: string
@@ -997,6 +1071,8 @@ export interface RFQ {
   is_editable: boolean
   is_convertible: boolean
   has_all_quotes: boolean
+  converted_po_number: string | null
+  converted_price_list_count: number
   num_lines: number
   lines?: RFQLine[]
   created_at: string

@@ -706,7 +706,7 @@ export default function EstimateDetail() {
                           {/* Item */}
                           <td className="py-1 px-1 pl-6">
                             <Select value={line.item} onValueChange={(v) => handleLineChange(index, 'item', v)}>
-                              <SelectTrigger className="h-auto min-h-9 text-[13px] border-0 bg-transparent shadow-none whitespace-normal text-left">
+                              <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
                                 <SelectValue placeholder="Select item..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -723,7 +723,7 @@ export default function EstimateDetail() {
                             <Input
                               value={line.description}
                               onChange={(e) => handleLineChange(index, 'description', e.target.value)}
-                              className="h-9 text-[13px] border-0 bg-transparent shadow-none"
+                              className="h-9 text-[13px] border shadow-none"
                               placeholder="Description..."
                             />
                           </td>
@@ -734,13 +734,13 @@ export default function EstimateDetail() {
                               inputMode="numeric"
                               value={line.quantity}
                               onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
-                              className="h-9 text-right text-[13px] border-0 bg-transparent shadow-none font-mono"
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
                             />
                           </td>
                           {/* UOM */}
                           <td className="py-1 px-1">
                             <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
-                              <SelectTrigger className="h-9 text-[13px] border-0 bg-transparent shadow-none">
+                              <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
                                 <SelectValue placeholder="UOM" />
                               </SelectTrigger>
                               <SelectContent>
@@ -759,7 +759,7 @@ export default function EstimateDetail() {
                               inputMode="decimal"
                               value={line.unit_price}
                               onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                              className="h-9 text-right text-[13px] border-0 bg-transparent shadow-none font-mono"
+                              className="h-9 text-right text-[13px] border shadow-none font-mono"
                             />
                           </td>
                           {/* Amount */}

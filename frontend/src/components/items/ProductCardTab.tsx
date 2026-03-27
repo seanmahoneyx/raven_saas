@@ -104,17 +104,17 @@ function ItemHeaderBar({
             </span>
           )}
 
-          {/* Inventory / Non-Inventory */}
+          {/* Item Type */}
           <span
             className="text-[11px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1"
             style={{
-              background: details.is_inventory ? 'rgba(74,144,92,0.1)' : 'var(--so-bg)',
-              color: details.is_inventory ? 'var(--so-success, #4a905c)' : 'var(--so-text-tertiary)',
+              background: details.item_type === 'inventory' ? 'rgba(74,144,92,0.1)' : details.item_type === 'crossdock' ? 'rgba(59,130,246,0.1)' : details.item_type === 'non_stockable' ? 'rgba(168,85,247,0.1)' : 'var(--so-bg)',
+              color: details.item_type === 'inventory' ? 'var(--so-success, #4a905c)' : details.item_type === 'crossdock' ? '#3b82f6' : details.item_type === 'non_stockable' ? '#a855f7' : 'var(--so-text-tertiary)',
               border: '1px solid var(--so-border-light)',
             }}
           >
             <Boxes className="h-3 w-3" />
-            {details.is_inventory ? 'Inventory' : 'Non-Inventory'}
+            {{ inventory: 'Inventory', crossdock: 'Crossdock', non_stockable: 'Non-Stockable', other_charge: 'Other Charge' }[details.item_type] || details.item_type}
           </span>
 
           {/* Active / Inactive */}
@@ -999,7 +999,7 @@ function InventorySection({
 }: {
   details: NonNullable<ReturnType<typeof useItemProductCard>['data']>['item_details']
 }) {
-  if (!details.is_inventory) return null
+  if (details.item_type !== 'inventory' && details.item_type !== 'crossdock') return null
 
   const hasAny =
     details.reorder_point != null ||
@@ -1053,12 +1053,13 @@ function InventorySection({
 // Main export
 // ---------------------------------------------------------------------------
 
-export function ProductCardTab({ itemId }: { itemId: number }) {
+export function ProductCardTab({ itemId, printOnly }: { itemId: number; printOnly?: boolean }) {
   const { data, isLoading } = useItemProductCard(itemId)
   const navigate = useNavigate()
   const { data: settings } = useSettings()
 
   if (isLoading) {
+    if (printOnly) return null
     return (
       <div className="space-y-3 py-4">
         {[...Array(4)].map((_, i) => (
@@ -1217,7 +1218,9 @@ export function ProductCardTab({ itemId }: { itemId: number }) {
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc' }}>{cl.end_date ? new Date(cl.end_date).toLocaleDateString() : 'Open'}</td>
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc' }}>{cl.is_active ? 'Active' : 'Inactive'}</td>
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {cl.tiers.map(t => `${t.min_quantity}+ @ $${parseFloat(t.unit_cost || '0').toFixed(4)}`).join(', ')}
+                      {cl.tiers.map((t, i) => (
+                        <div key={i}>{Number(t.min_quantity).toLocaleString()}+ @ ${parseFloat(t.unit_cost || '0').toFixed(4)}</div>
+                      ))}
                     </td>
                   </tr>
                 ))}
@@ -1250,7 +1253,9 @@ export function ProductCardTab({ itemId }: { itemId: number }) {
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc' }}>{pl.end_date ? new Date(pl.end_date).toLocaleDateString() : 'Open'}</td>
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc' }}>{pl.is_active ? 'Active' : 'Inactive'}</td>
                     <td style={{ padding: '4px 8px', border: '1px solid #ccc', textAlign: 'right', fontFamily: 'monospace' }}>
-                      {pl.tiers.map(t => `${t.min_quantity}+ @ $${parseFloat(t.unit_price || '0').toFixed(4)}`).join(', ')}
+                      {pl.tiers.map((t, i) => (
+                        <div key={i}>{Number(t.min_quantity).toLocaleString()}+ @ ${parseFloat(t.unit_price || '0').toFixed(4)}</div>
+                      ))}
                     </td>
                   </tr>
                 ))}
@@ -1346,7 +1351,7 @@ export function ProductCardTab({ itemId }: { itemId: number }) {
         </div>
       </div>
 
-      <div className="py-4 space-y-4" data-print-hide>
+      {printOnly ? null : <div className="py-4 space-y-4" data-print-hide>
         {/* Toolbar */}
         <div
           className="flex items-center gap-1 px-3 py-2 rounded-[14px] border"
@@ -1417,7 +1422,7 @@ export function ProductCardTab({ itemId }: { itemId: number }) {
 
         {/* Section 6: Inventory & Reorder */}
         {item_details && <InventorySection details={item_details} />}
-      </div>
+      </div>}
     </>
   )
 }

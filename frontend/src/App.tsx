@@ -77,6 +77,8 @@ import AccountingSettings from '@/pages/AccountingSettings'
 import Preferences from '@/pages/settings/Preferences'
 import UsersPage from '@/pages/Users'
 import Onboarding from '@/pages/Onboarding'
+import Approvals from '@/pages/Approvals'
+import UnitOfMeasure from '@/pages/UnitOfMeasure'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -208,6 +210,8 @@ function App() {
                 <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
                 <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
                 <Route path="/pipeline" element={<Pipeline />} />
+                <Route path="/approvals" element={<Approvals />} />
+                <Route path="/uom" element={<UnitOfMeasure />} />
                 <Route path="*" element={
                   <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
                     <h1 className="text-4xl font-bold">404</h1>
