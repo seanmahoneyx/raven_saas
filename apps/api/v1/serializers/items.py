@@ -67,16 +67,25 @@ class ItemVendorSerializer(TenantModelSerializer):
     """Serializer for ItemVendor relationships."""
     vendor_code = serializers.CharField(source='vendor.code', read_only=True)
     vendor_name = serializers.CharField(source='vendor.display_name', read_only=True)
+    vendor_record_id = serializers.SerializerMethodField()
 
     class Meta:
         model = ItemVendor
         fields = [
             'id', 'item', 'vendor', 'vendor_code', 'vendor_name',
+            'vendor_record_id',
             'mpn', 'lead_time_days', 'min_order_qty',
             'is_preferred', 'is_active',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_vendor_record_id(self, obj):
+        """Return the Vendor model ID (for cost list lookups)."""
+        try:
+            return obj.vendor.vendor.id
+        except Exception:
+            return None
 
 
 class ItemVendorCreateSerializer(TenantModelSerializer):
@@ -167,6 +176,7 @@ class ItemListSerializer(TenantModelSerializer):
             'lifecycle_status', 'revision',
             'box_type',
             'qty_on_hand', 'qty_on_open_po', 'qty_on_open_so',
+            'units_per_pallet',
             'preferred_vendor_name',
             'income_account_name', 'expense_account_name', 'asset_account_name',
             'attachment_count',
@@ -239,6 +249,12 @@ class ItemDetailSerializer(TenantModelSerializer):
     revision_changed_by_name = serializers.CharField(
         source='revision_changed_by.get_full_name', read_only=True, allow_null=True
     )
+    corrugated_details = serializers.SerializerMethodField()
+    dimensions = serializers.SerializerMethodField()
+    packaging_details = serializers.SerializerMethodField()
+    reorder_point = serializers.IntegerField(allow_null=True, required=False)
+    min_stock = serializers.IntegerField(allow_null=True, required=False)
+    safety_stock = serializers.IntegerField(allow_null=True, required=False)
 
     class Meta:
         model = Item
@@ -256,6 +272,8 @@ class ItemDetailSerializer(TenantModelSerializer):
             'product_card_notes',
             'uom_conversions', 'vendors',
             'box_type',
+            'corrugated_details', 'dimensions', 'packaging_details',
+            'reorder_point', 'min_stock', 'safety_stock',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -278,6 +296,87 @@ class ItemDetailSerializer(TenantModelSerializer):
         if hasattr(obj, 'packagingitem'):
             return 'packaging'
         return 'base'
+
+    def get_corrugated_details(self, obj):
+        """Return corrugated-specific fields if this is a corrugated item."""
+        try:
+            corr = obj.corrugateditem
+        except Exception:
+            return None
+        return {
+            'test': corr.test,
+            'flute': corr.flute,
+            'paper': corr.paper,
+            'is_printed': corr.is_printed,
+            'panels_printed': corr.panels_printed,
+            'colors_printed': corr.colors_printed,
+            'ink_list': corr.ink_list,
+        }
+
+    def get_dimensions(self, obj):
+        """Return dimension fields from the specific box type model."""
+        try:
+            corr = obj.corrugateditem
+        except Exception:
+            return None
+        # Check box subtypes
+        for attr in ['dcitem', 'rscitem', 'hscitem', 'folitem', 'teleitem']:
+            try:
+                child = getattr(corr, attr)
+                result = {
+                    'length': str(child.length) if child.length else None,
+                    'width': str(child.width) if child.width else None,
+                }
+                if hasattr(child, 'height'):
+                    result['height'] = str(child.height) if child.height else None
+                if hasattr(child, 'blank_length'):
+                    result['blank_length'] = str(child.blank_length) if child.blank_length else None
+                    result['blank_width'] = str(child.blank_width) if child.blank_width else None
+                    result['out_per_rotary'] = child.out_per_rotary
+                return result
+            except Exception:
+                continue
+        return None
+
+    def get_packaging_details(self, obj):
+        """Return packaging-specific fields if this is a packaging item."""
+        try:
+            pkg = obj.packagingitem
+        except Exception:
+            return None
+        return {
+            'sub_type': pkg.sub_type,
+            'material_type': pkg.material_type,
+            'color': pkg.color,
+            'thickness': str(pkg.thickness) if pkg.thickness else None,
+            'thickness_unit': pkg.thickness_unit,
+            'length': str(pkg.length) if pkg.length else None,
+            'width': str(pkg.width) if pkg.width else None,
+            'height': str(pkg.height) if pkg.height else None,
+            'diameter': str(pkg.diameter) if pkg.diameter else None,
+            'pieces_per_case': pkg.pieces_per_case,
+            'weight_capacity_lbs': str(pkg.weight_capacity_lbs) if pkg.weight_capacity_lbs else None,
+            'roll_length': str(pkg.roll_length) if pkg.roll_length else None,
+            'roll_width': str(pkg.roll_width) if pkg.roll_width else None,
+            'rolls_per_case': pkg.rolls_per_case,
+            'core_diameter': str(pkg.core_diameter) if pkg.core_diameter else None,
+            'sheets_per_bundle': pkg.sheets_per_bundle,
+            'bubble_size': pkg.bubble_size,
+            'perforated': pkg.perforated,
+            'perforation_interval': pkg.perforation_interval,
+            'lip_style': pkg.lip_style,
+            'density': str(pkg.density) if pkg.density else None,
+            'cells_x': pkg.cells_x,
+            'cells_y': pkg.cells_y,
+            'adhesive_type': pkg.adhesive_type,
+            'tape_type': pkg.tape_type,
+            'break_strength_lbs': str(pkg.break_strength_lbs) if pkg.break_strength_lbs else None,
+            'stretch_pct': pkg.stretch_pct,
+            'inner_diameter': str(pkg.inner_diameter) if pkg.inner_diameter else None,
+            'lid_included': pkg.lid_included,
+            'label_type': pkg.label_type,
+            'labels_per_roll': pkg.labels_per_roll,
+        }
 
 
 # =============================================================================
@@ -379,7 +478,7 @@ class DCItemSerializer(TenantModelSerializer):
             'is_printed', 'panels_printed', 'colors_printed', 'ink_list',
             'item_features',
             # DC-specific dimensions
-            'length', 'width', 'blank_length', 'blank_width', 'out_per_rotary',
+            'length', 'width', 'height', 'blank_length', 'blank_width', 'out_per_rotary',
             # Unitizing
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',

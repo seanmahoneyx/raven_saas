@@ -36,12 +36,19 @@ from apps.invoicing.models import (
     VendorBill,
     VendorBillLine,
 )
+from apps.contacts.models import Contact
 from apps.items.models import (
+    CorrugatedFeature,
     DCItem,
+    FOLItem,
+    HSCItem,
     Item,
+    ItemFeature,
     ItemUOM,
     ItemVendor,
+    PackagingItem,
     RSCItem,
+    TeleItem,
     UnitOfMeasure,
 )
 from apps.orders.models import (
@@ -107,6 +114,20 @@ TRUCKS = [
     ('Truck 4 Flatbed', 'FLT-4004', 30),
 ]
 
+CONTACTS = [
+    # (party_code, first, last, title, email, phone, is_primary)
+    ('METRO', 'John', 'Mitchell', 'Purchasing Manager', 'j.mitchell@metromarkets.com', '212-555-0101', True),
+    ('METRO', 'Sarah', 'Chen', 'Warehouse Supervisor', 's.chen@metromarkets.com', '212-555-0102', False),
+    ('SUNNY', 'Michael', 'Davis', 'Buyer', 'm.davis@sunnysg.com', '404-555-0201', True),
+    ('HARVEST', 'Linda', 'Rodriguez', 'VP Operations', 'l.rodriguez@harvest.com', '214-555-0301', True),
+    ('GREEN', 'Robert', 'Kim', 'Supply Chain Director', 'r.kim@greenleaf.com', '206-555-0401', True),
+    ('ACME', 'James', 'Wilson', 'Sales Rep', 'j.wilson@acmecorr.com', '312-555-0501', True),
+    ('ACME', 'Patricia', 'Brown', 'Account Manager', 'p.brown@acmecorr.com', '312-555-0502', False),
+    ('FRESH', 'David', 'Taylor', 'Sales', 'd.taylor@freshboard.com', '904-555-0601', True),
+    ('GLOBAL', 'Maria', 'Garcia', 'Sales Director', 'm.garcia@globalpkg.com', '213-555-0701', True),
+    ('PRIME', 'Thomas', 'Anderson', 'Regional Rep', 't.anderson@primepaper.com', '303-555-0801', True),
+]
+
 # RSC items: (sku, name, L, W, H, test, flute, paper, is_printed)
 RSC_ITEMS = [
     ('DEMO-RSC-1210', '12x10x8 Kraft RSC', Decimal('12'), Decimal('10'), Decimal('8'),
@@ -135,13 +156,60 @@ DC_ITEMS = [
      'ect32', 'b', 'mw', True),
 ]
 
-# Packaging items: (sku, name, description)
+HSC_ITEMS = [
+    ('DEMO-HSC-1612', '16x12x10 HSC Tray', Decimal('16'), Decimal('12'), Decimal('10'),
+     'ect32', 'c', 'k', False),
+    ('DEMO-HSC-2016', '20x16x6 HSC Display', Decimal('20'), Decimal('16'), Decimal('6'),
+     'ect44', 'b', 'mw', True),
+]
+
+FOL_ITEMS = [
+    ('DEMO-FOL-1510', '15x10x8 FOL Shipping', Decimal('15'), Decimal('10'), Decimal('8'),
+     'ect48', 'bc', 'k', False),
+    ('DEMO-FOL-2418', '24x18x14 FOL Heavy', Decimal('24'), Decimal('18'), Decimal('14'),
+     'ect55', 'c', 'k', True),
+]
+
+TELE_ITEMS = [
+    ('DEMO-TEL-1210', '12x10x6 Tele Gift', Decimal('12'), Decimal('10'), Decimal('6'),
+     'ect32', 'e', 'mw', True),
+    ('DEMO-TEL-1816', '18x16x10 Tele Storage', Decimal('18'), Decimal('16'), Decimal('10'),
+     'ect40', 'c', 'k', False),
+]
+
+# Packaging items: (sku, name, sub_type, material_type, color, extra_kwargs)
 PKG_ITEMS = [
-    ('DEMO-PKG-WRAP', 'Stretch Wrap', '18" x 1500\' 80ga stretch wrap'),
-    ('DEMO-PKG-TAPE', 'Packing Tape', '2" x 110yd carton sealing tape'),
-    ('DEMO-PKG-EDGE', 'Edge Protectors', '2" x 2" x 48" edge protectors'),
-    ('DEMO-PKG-SLIP', 'Slip Sheets', '40" x 48" corrugated slip sheets'),
-    ('DEMO-PKG-PLTW', 'Pallet Wrap', '20" x 5000\' machine stretch film'),
+    ('DEMO-PKG-WRAP', 'Stretch Wrap 18"', 'stretch', 'LLDPE', 'Clear',
+     {'roll_width': Decimal('18'), 'roll_length': Decimal('1500'), 'thickness': Decimal('80'),
+      'thickness_unit': 'gauge', 'rolls_per_case': 4, 'core_diameter': Decimal('3'),
+      'stretch_pct': 200}),
+    ('DEMO-PKG-TAPE', 'Packing Tape 2"', 'tape', 'Polypropylene', 'Clear',
+     {'roll_width': Decimal('2'), 'roll_length': Decimal('110'), 'rolls_per_case': 36,
+      'tape_type': 'packing', 'adhesive_type': 'acrylic'}),
+    ('DEMO-PKG-BUBL', 'Bubble Wrap 12"', 'bubble', 'LDPE', 'Clear',
+     {'roll_width': Decimal('12'), 'roll_length': Decimal('250'), 'bubble_size': '3/16',
+      'rolls_per_case': 1, 'perforated': True, 'perforation_interval': 'every 12 inches'}),
+    ('DEMO-PKG-FOAM', 'Foam Sheets 24x24', 'foam', 'Polyethylene', 'White',
+     {'length': Decimal('24'), 'width': Decimal('24'), 'thickness': Decimal('0.125'),
+      'thickness_unit': 'inches', 'sheets_per_bundle': 50, 'density': Decimal('1.7')}),
+    ('DEMO-PKG-BAGS', 'Poly Bags 12x18', 'bags', 'Poly', 'Clear',
+     {'length': Decimal('12'), 'width': Decimal('18'), 'thickness': Decimal('2'),
+      'thickness_unit': 'mil', 'pieces_per_case': 1000, 'lip_style': 'open'}),
+    ('DEMO-PKG-LABL', 'Shipping Labels 4x6', 'labels', '', 'White',
+     {'length': Decimal('4'), 'width': Decimal('6'), 'label_type': 'direct_thermal',
+      'labels_per_roll': 500, 'rolls_per_case': 12, 'core_diameter': Decimal('1')}),
+    ('DEMO-PKG-STRP', 'Poly Strapping 1/2"', 'strapping', 'Polypropylene', 'Black',
+     {'roll_width': Decimal('0.5'), 'roll_length': Decimal('7200'),
+      'break_strength_lbs': Decimal('300'), 'core_diameter': Decimal('8')}),
+]
+
+CORR_FEATURES = [
+    ('handhole', 'Handhole'),
+    ('perf', 'Perforation'),
+    ('extra_score', 'Extra Score'),
+    ('wra', 'Water Resistant Adhesive'),
+    ('wax_dip', 'Wax Dip'),
+    ('vent', 'Ventilation Holes'),
 ]
 
 BINS = [
@@ -179,6 +247,9 @@ class Command(BaseCommand):
             ))
             return
 
+        tenant.onboarding_completed = True
+        tenant.save(update_fields=['onboarding_completed'])
+
         set_current_tenant(tenant)
         self.tenant = tenant
         self.today = timezone.now().date()
@@ -200,7 +271,7 @@ class Command(BaseCommand):
         warehouse = self._phase_03_warehouse(wh_location)
 
         # Phase 4: Items
-        items, rsc_items, dc_items, pkg_items = self._phase_04_items(vendors)
+        items, rsc_items, dc_items, pkg_items = self._phase_04_items(vendors, customers)
 
         # Phase 5: Price Lists + Cost Lists
         self._phase_05_pricing(customers, vendors, items, rsc_items, dc_items)
@@ -327,8 +398,19 @@ class Command(BaseCommand):
             self.stdout.write(f'  Deleted {model.__name__} cascade: {d}')
 
         # 9. Item relationships
+        ItemFeature.objects.filter(
+            tenant=t, corrugated_item__sku__startswith='DEMO-'
+        ).delete()
         ItemVendor.objects.filter(tenant=t, item__sku__startswith='DEMO-').delete()
         ItemUOM.objects.filter(tenant=t, item__sku__startswith='DEMO-').delete()
+
+        # 9b. Contacts (linked to parties with DEMO codes)
+        for code in [c[0] for c in CUSTOMERS] + [v[0] for v in VENDORS]:
+            Contact.objects.filter(tenant=t, party__code=code).delete()
+        self.stdout.write('  Deleted contacts')
+
+        # 9c. Corrugated features
+        CorrugatedFeature.objects.filter(tenant=t).delete()
 
         # 10. Design requests
         DesignRequest.objects.filter(
@@ -522,6 +604,24 @@ class Command(BaseCommand):
             self.stdout.write(f'  Truck {status}: {name}')
             trucks.append(truck)
 
+        # Contacts
+        contact_count = 0
+        for party_code, first, last, title, email, phone, is_primary in CONTACTS:
+            party = Party.objects.filter(tenant=t, code=party_code).first()
+            if party:
+                _, created = Contact.objects.get_or_create(
+                    tenant=t, party=party, email=email,
+                    defaults={
+                        'first_name': first, 'last_name': last,
+                        'title': title, 'phone': phone,
+                        'is_primary': is_primary, 'is_active': True,
+                    }
+                )
+                if created:
+                    contact_count += 1
+        self.stdout.write(f'  Created {contact_count} contacts')
+        self.counts['contacts'] = contact_count
+
         self.counts['customers'] = len(customers)
         self.counts['vendors'] = len(vendors)
         self.counts['trucks'] = len(trucks)
@@ -566,8 +666,8 @@ class Command(BaseCommand):
     # PHASE 4: Items
     # ------------------------------------------------------------------
 
-    def _phase_04_items(self, vendors):
-        self.stdout.write('\n[Phase 4] Items (RSC, DC, Packaging)')
+    def _phase_04_items(self, vendors, customers):
+        self.stdout.write('\n[Phase 4] Items (RSC, DC, HSC, FOL, Tele, Packaging, Tooling, Janitorial)')
         t = self.tenant
 
         uom_ea = UnitOfMeasure.objects.get(tenant=t, code='ea')
@@ -588,12 +688,13 @@ class Command(BaseCommand):
                     'description': f'{name} - {test.upper()} {flute.upper()}-flute {paper.upper()}',
                     'division': 'corrugated',
                     'base_uom': uom_ea,
-                    'is_inventory': True, 'is_active': True,
+                    'item_type': 'inventory', 'is_active': True,
                     'length': l, 'width': w, 'height': h,
                     'test': test, 'flute': flute, 'paper': paper,
                     'is_printed': is_printed,
                     'panels_printed': 2 if is_printed else None,
                     'colors_printed': 1 if is_printed else None,
+                    'ink_list': 'PMS 286 Blue' if is_printed else '',
                     'units_per_layer': 8, 'layers_per_pallet': 6,
                     'units_per_pallet': 48,
                 }
@@ -611,12 +712,13 @@ class Command(BaseCommand):
                     'description': f'{name} - {test.upper()} {flute.upper()}-flute',
                     'division': 'corrugated',
                     'base_uom': uom_ea,
-                    'is_inventory': True, 'is_active': True,
+                    'item_type': 'inventory', 'is_active': True,
                     'length': l, 'width': w,
                     'test': test, 'flute': flute, 'paper': paper,
                     'is_printed': is_printed,
                     'panels_printed': 1 if is_printed else None,
                     'colors_printed': 2 if is_printed else None,
+                    'ink_list': 'PMS 185 Red, Black' if is_printed else '',
                     'units_per_layer': 12, 'layers_per_pallet': 8,
                     'units_per_pallet': 96,
                 }
@@ -625,20 +727,133 @@ class Command(BaseCommand):
             dc_items.append(item)
             all_items.append(item)
 
-        # Packaging Items
-        for sku, name, desc in PKG_ITEMS:
-            item, created = Item.objects.get_or_create(
+        # HSC Items
+        hsc_items = []
+        for sku, name, l, w, h, test, flute, paper, is_printed in HSC_ITEMS:
+            item, created = HSCItem.objects.get_or_create(
                 tenant=t, sku=sku,
                 defaults={
                     'name': name,
-                    'description': desc,
-                    'division': 'packaging',
+                    'description': f'{name} - {test.upper()} {flute.upper()}-flute {paper.upper()}',
+                    'division': 'corrugated',
                     'base_uom': uom_ea,
-                    'is_inventory': True, 'is_active': True,
+                    'item_type': 'crossdock', 'is_active': True,
+                    'length': l, 'width': w, 'height': h,
+                    'test': test, 'flute': flute, 'paper': paper,
+                    'is_printed': is_printed,
+                    'panels_printed': 1 if is_printed else None,
+                    'colors_printed': 2 if is_printed else None,
+                    'ink_list': 'PMS 286 Blue, PMS 185 Red' if is_printed else '',
+                    'units_per_layer': 10, 'units_per_pallet': 60,
                 }
             )
             self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
+            hsc_items.append(item)
+            all_items.append(item)
+
+        # FOL Items
+        fol_items = []
+        for sku, name, l, w, h, test, flute, paper, is_printed in FOL_ITEMS:
+            item, created = FOLItem.objects.get_or_create(
+                tenant=t, sku=sku,
+                defaults={
+                    'name': name,
+                    'description': f'{name} - {test.upper()} {flute.upper()}-flute',
+                    'division': 'corrugated',
+                    'base_uom': uom_ea,
+                    'item_type': 'inventory', 'is_active': True,
+                    'length': l, 'width': w, 'height': h,
+                    'test': test, 'flute': flute, 'paper': paper,
+                    'is_printed': is_printed,
+                    'panels_printed': 4 if is_printed else None,
+                    'colors_printed': 3 if is_printed else None,
+                    'ink_list': 'PMS 286 Blue, PMS 185 Red, Black' if is_printed else '',
+                    'units_per_layer': 6, 'units_per_pallet': 36,
+                    'pallet_footprint': '48x40',
+                }
+            )
+            self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
+            fol_items.append(item)
+            all_items.append(item)
+
+        # Tele Items
+        tele_items = []
+        for sku, name, l, w, h, test, flute, paper, is_printed in TELE_ITEMS:
+            item, created = TeleItem.objects.get_or_create(
+                tenant=t, sku=sku,
+                defaults={
+                    'name': name,
+                    'description': f'{name} - {test.upper()} {flute.upper()}-flute',
+                    'division': 'corrugated',
+                    'base_uom': uom_ea,
+                    'item_type': 'inventory', 'is_active': True,
+                    'length': l, 'width': w, 'height': h,
+                    'test': test, 'flute': flute, 'paper': paper,
+                    'is_printed': is_printed,
+                    'panels_printed': 2 if is_printed else None,
+                    'colors_printed': 2 if is_printed else None,
+                    'ink_list': 'PMS 032 Red, PMS 288 Blue' if is_printed else '',
+                    'units_per_layer': 8, 'units_per_pallet': 48,
+                }
+            )
+            self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
+            tele_items.append(item)
+            all_items.append(item)
+
+        # Packaging Items (using PackagingItem model)
+        for sku, name, sub_type, material, color, extra in PKG_ITEMS:
+            defaults = {
+                'name': name,
+                'description': f'{name} - {material} {color}',
+                'division': 'packaging',
+                'base_uom': uom_ea,
+                'item_type': 'inventory', 'is_active': True,
+                'sub_type': sub_type,
+                'material_type': material,
+                'color': color,
+            }
+            defaults.update(extra)
+            item, created = PackagingItem.objects.get_or_create(
+                tenant=t, sku=sku,
+                defaults=defaults,
+            )
+            self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
             pkg_items.append(item)
+            all_items.append(item)
+
+        # Tooling Items
+        tooling_items_data = [
+            ('DEMO-TOOL-PLT1', 'Print Plate - RSC 18x14', 'Print plate for DEMO-RSC-1814'),
+            ('DEMO-TOOL-STL1', 'Steel Die - DC 10x8', 'Steel die for DEMO-DC-1008'),
+            ('DEMO-TOOL-PLT2', 'Print Plate - FOL 24x18', 'Print plate for DEMO-FOL-2418'),
+        ]
+        for sku, name, desc in tooling_items_data:
+            item, created = Item.objects.get_or_create(
+                tenant=t, sku=sku,
+                defaults={
+                    'name': name, 'description': desc,
+                    'division': 'tooling', 'base_uom': uom_ea,
+                    'item_type': 'non_stockable', 'is_active': True,
+                }
+            )
+            self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
+            all_items.append(item)
+
+        # Janitorial Items
+        jan_items_data = [
+            ('DEMO-JAN-GLVS', 'Work Gloves (Box)', 'Box of 100 nitrile gloves'),
+            ('DEMO-JAN-BROOM', 'Push Broom 24"', '24-inch push broom'),
+        ]
+        for sku, name, desc in jan_items_data:
+            item, created = Item.objects.get_or_create(
+                tenant=t, sku=sku,
+                defaults={
+                    'name': name, 'description': desc,
+                    'division': 'janitorial', 'base_uom': uom_ea,
+                    'item_type': 'inventory', 'is_active': True,
+                }
+            )
+            self.stdout.write(f'  {"Created" if created else "Exists"}: {sku}')
             all_items.append(item)
 
         # ItemUOM conversions for the first 5 RSC items
@@ -652,14 +867,35 @@ class Command(BaseCommand):
                 defaults={'multiplier_to_base': 576}
             )
 
-        # ItemVendor links: each vendor supplies 3-4 items
+        # Assign customers to some items
+        if rsc_items[1].customer is None:
+            rsc_items[1].customer = customers[0].party  # RSC-1814 -> Metro
+            rsc_items[1].save(update_fields=['customer'])
+        if rsc_items[4].customer is None:
+            rsc_items[4].customer = customers[2].party  # RSC-3624 -> Harvest
+            rsc_items[4].save(update_fields=['customer'])
+        if dc_items[0].customer is None:
+            dc_items[0].customer = customers[1].party   # DC-1008 -> Sunny Side
+            dc_items[0].save(update_fields=['customer'])
+
+        # Set lifecycle statuses for variety
+        if len(tele_items) >= 2:
+            tele_items[1].lifecycle_status = 'draft'
+            tele_items[1].save(update_fields=['lifecycle_status'])
+        if len(hsc_items) >= 2:
+            hsc_items[1].lifecycle_status = 'pending_approval'
+            hsc_items[1].save(update_fields=['lifecycle_status'])
+
+        # ItemVendor links: each vendor supplies several items
+        # all_items order: RSC(0-4), DC(5-9), HSC(10-11), FOL(12-13),
+        #   Tele(14-15), PKG(16-22), Tooling(23-25), Jan(26-27)
         vendor_item_map = [
-            (0, [0, 1, 5, 10]),     # ACME -> RSC-1210, RSC-1814, DC-1008, PKG-WRAP
-            (1, [2, 6, 11]),         # FRESH -> RSC-2418, DC-1414, PKG-TAPE
-            (2, [3, 7, 8, 12]),      # GLOBAL -> RSC-0804, DC-2015, DC-1212, PKG-EDGE
-            (3, [4, 9, 13]),         # PRIME -> RSC-3624, DC-0604, PKG-SLIP
-            (4, [0, 2, 5, 14]),      # VALLEY -> RSC-1210, RSC-2418, DC-1008, PKG-PLTW
-            (5, [1, 3, 6, 7]),       # SOUTHEAST -> RSC-1814, RSC-0804, DC-1414, DC-2015
+            (0, [0, 1, 5, 10, 16]),     # ACME -> RSC-1210, RSC-1814, DC-1008, HSC-1612, PKG-WRAP
+            (1, [2, 6, 12, 17]),         # FRESH -> RSC-2418, DC-1414, FOL-1510, PKG-TAPE
+            (2, [3, 7, 8, 14, 18]),      # GLOBAL -> RSC-0804, DC-2015, DC-1212, TEL-1210, PKG-BUBL
+            (3, [4, 9, 13, 19]),         # PRIME -> RSC-3624, DC-0604, FOL-2418, PKG-FOAM
+            (4, [0, 2, 5, 11, 20]),      # VALLEY -> RSC-1210, RSC-2418, DC-1008, HSC-2016, PKG-BAGS
+            (5, [1, 3, 6, 15, 21]),      # SOUTHEAST -> RSC-1814, RSC-0804, DC-1414, TEL-1816, PKG-LABL
         ]
         iv_count = 0
         for v_idx, item_indices in vendor_item_map:
@@ -680,6 +916,38 @@ class Command(BaseCommand):
                     iv_count += 1
 
         self.stdout.write(f'  Created {iv_count} ItemVendor links')
+
+        # Corrugated Features
+        cf_count = 0
+        for code, name in CORR_FEATURES:
+            _, created = CorrugatedFeature.objects.get_or_create(
+                tenant=t, code=code,
+                defaults={'name': name, 'requires_details': code != 'wra', 'is_active': True}
+            )
+            if created:
+                cf_count += 1
+        self.stdout.write(f'  Created {cf_count} corrugated features')
+
+        # Assign features to some items
+        hh_feature = CorrugatedFeature.objects.filter(tenant=t, code='handhole').first()
+        perf_feature = CorrugatedFeature.objects.filter(tenant=t, code='perf').first()
+        wra_feature = CorrugatedFeature.objects.filter(tenant=t, code='wra').first()
+        if hh_feature and len(rsc_items) > 2:
+            ItemFeature.objects.get_or_create(
+                tenant=t, corrugated_item=rsc_items[2].corrugateditem, feature=hh_feature,
+                defaults={'details': '2x Full Cut Out, centered on 24" side'}
+            )
+        if perf_feature and len(rsc_items) > 4:
+            ItemFeature.objects.get_or_create(
+                tenant=t, corrugated_item=rsc_items[4].corrugateditem, feature=perf_feature,
+                defaults={'details': 'Horizontal perf at 6" from bottom'}
+            )
+        if wra_feature and dc_items:
+            ItemFeature.objects.get_or_create(
+                tenant=t, corrugated_item=dc_items[0].corrugateditem, feature=wra_feature,
+                defaults={'details': ''}
+            )
+
         self.counts['items'] = len(all_items)
         self.counts['item_vendors'] = iv_count
         return all_items, rsc_items, dc_items, pkg_items
@@ -812,7 +1080,7 @@ class Command(BaseCommand):
             ('DEMO-EST-002', 1, 'draft', 3, [
                 (rsc_items[2], 100, Decimal('2.50')),
                 (rsc_items[3], 1000, Decimal('0.55')),
-                (items[10], 50, Decimal('12.50')),
+                (items[16], 50, Decimal('12.50')),
             ]),
             ('DEMO-EST-003', 2, 'sent', 10, [
                 (rsc_items[0], 2000, Decimal('0.95')),
@@ -821,7 +1089,7 @@ class Command(BaseCommand):
             ('DEMO-EST-004', 3, 'accepted', 15, [
                 (rsc_items[1], 750, Decimal('1.65')),
                 (rsc_items[2], 400, Decimal('2.30')),
-                (items[11], 100, Decimal('3.50')),
+                (items[17], 100, Decimal('3.50')),
             ]),
             ('DEMO-EST-005', 4, 'rejected', 20, [
                 (rsc_items[3], 500, Decimal('0.60')),
@@ -831,7 +1099,7 @@ class Command(BaseCommand):
                 (rsc_items[0], 1000, Decimal('1.00')),
                 (rsc_items[1], 500, Decimal('1.55')),
                 (rsc_items[3], 2000, Decimal('0.48')),
-                (items[12], 200, Decimal('2.25')),
+                (items[18], 200, Decimal('2.25')),
             ]),
         ]
 
@@ -1025,7 +1293,7 @@ class Command(BaseCommand):
             ('DEMO-PO-004', 2, 'confirmed', -5, 3, None, [
                 (rsc_items[0], 2000, Decimal('0.5000')),
                 (rsc_items[3], 1500, Decimal('0.2800')),
-                (items[12], 200, Decimal('1.5000')),
+                (items[18], 200, Decimal('1.5000')),
             ]),
             ('DEMO-PO-005', 3, 'confirmed', -3, 2, None, [
                 (rsc_items[4], 800, Decimal('1.4500')),
@@ -1124,7 +1392,7 @@ class Command(BaseCommand):
             ('DEMO-SO-003', 2, 'confirmed', -5, 3, None, [
                 (rsc_items[0], 1000, Decimal('1.00')),
                 (rsc_items[3], 2000, Decimal('0.55')),
-                (items[10], 100, Decimal('12.00')),
+                (items[16], 100, Decimal('12.00')),
             ], None),
             ('DEMO-SO-004', 3, 'confirmed', -4, 2, None, [
                 (rsc_items[2], 300, Decimal('2.40')),
@@ -1906,6 +2174,7 @@ class Command(BaseCommand):
         summary_items = [
             ('Customers', 'customers'),
             ('Vendors', 'vendors'),
+            ('Contacts', 'contacts'),
             ('Trucks', 'trucks'),
             ('Bins', 'bins'),
             ('Items', 'items'),

@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, FileDown, Mail, Send, Ban, FileText,
 } from 'lucide-react'
@@ -85,6 +88,7 @@ export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const invoiceId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const [activeTab, setActiveTab] = useState<TabType>('lines')
   const [emailModalOpen, setEmailModalOpen] = useState(false)
@@ -628,6 +632,8 @@ export default function InvoiceDetailPage() {
         defaultSubject={`Invoice ${invoice.invoice_number}`}
         defaultBody={`Dear ${invoice.customer_name},\n\nPlease find attached Invoice ${invoice.invoice_number} for $${fmtCurrency(invoice.total_amount)}.\n\nPayment is due by ${format(new Date(invoice.due_date + 'T00:00:00'), 'MMMM d, yyyy')}.\n\nThank you for your business.`}
       />
+      <PanelToggleButton contentType="invoice" objectId={invoiceId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="invoice" objectId={invoiceId} open={panelOpen} onClose={closePanel} label={invoice ? `Invoice ${invoice.invoice_number}` : 'Invoice'} />
     </div>
   )
 }

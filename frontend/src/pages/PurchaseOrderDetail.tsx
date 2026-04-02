@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Plus, Trash2, FileText,
 } from 'lucide-react'
@@ -47,6 +50,7 @@ export default function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const purchaseOrderId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const { user } = useAuth()
   const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
@@ -828,6 +832,8 @@ export default function PurchaseOrderDetail() {
       />
 
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="purchaseorder" objectId={purchaseOrderId} />
+      <PanelToggleButton contentType="purchaseorder" objectId={purchaseOrderId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="purchaseorder" objectId={purchaseOrderId} open={panelOpen} onClose={closePanel} label={order ? `PO ${order.po_number}` : 'Purchase Order'} />
     </div>
   )
 }

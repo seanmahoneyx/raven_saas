@@ -61,6 +61,7 @@ import PurchaseOrderDetail from '@/pages/PurchaseOrderDetail'
 import AdminHub from '@/pages/admin/AdminHub'
 import DataImport from '@/pages/admin/DataImport'
 import TaxZones from '@/pages/admin/TaxZones'
+import UserAuditReport from '@/pages/admin/UserAuditReport'
 import ChartOfAccounts from '@/pages/ChartOfAccounts'
 import JournalEntries from '@/pages/JournalEntries'
 import CreateJournalEntry from '@/pages/CreateJournalEntry'
@@ -78,6 +79,7 @@ import Preferences from '@/pages/settings/Preferences'
 import UsersPage from '@/pages/Users'
 import Onboarding from '@/pages/Onboarding'
 import Approvals from '@/pages/Approvals'
+import NotificationHub from '@/pages/NotificationHub'
 import UnitOfMeasure from '@/pages/UnitOfMeasure'
 
 // Create a client
@@ -205,12 +207,14 @@ function App() {
                 <Route path="/admin" element={<AdminHub />} />
                 <Route path="/admin/import" element={<DataImport />} />
                 <Route path="/admin/tax-zones" element={<TaxZones />} />
+                <Route path="/admin/user-audit" element={<UserAuditReport />} />
                 <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="/journal-entries" element={<JournalEntries />} />
                 <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
                 <Route path="/journal-entries/:id" element={<JournalEntryDetail />} />
                 <Route path="/pipeline" element={<Pipeline />} />
                 <Route path="/approvals" element={<Approvals />} />
+                <Route path="/notifications" element={<NotificationHub />} />
                 <Route path="/uom" element={<UnitOfMeasure />} />
                 <Route path="*" element={
                   <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">

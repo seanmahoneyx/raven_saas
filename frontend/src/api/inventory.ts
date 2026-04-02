@@ -21,13 +21,16 @@ export interface InventoryLot {
 
 export interface InventoryPallet {
   id: number
-  pallet_id: string
-  warehouse: number
-  warehouse_name: string
+  lot: number
+  pallet_number: number
+  license_plate: string
+  item_sku: string
+  warehouse_code: string
   bin: number | null
   bin_code: string | null
-  status: 'available' | 'reserved' | 'damaged' | 'quarantine'
-  notes: string
+  quantity_received: number
+  quantity_on_hand: number
+  status: string
   created_at: string
   updated_at: string
 }
@@ -79,7 +82,7 @@ export function useInventoryLots(params?: { item?: number; warehouse?: number })
   return useQuery({
     queryKey: ['inventory-lots', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<InventoryLot>>('/inventory-lots/', { params })
+      const { data } = await api.get<PaginatedResponse<InventoryLot>>('/inventory/lots/', { params })
       return data
     },
   })
@@ -90,7 +93,7 @@ export function useInventoryPallets(params?: { warehouse?: number; status?: stri
   return useQuery({
     queryKey: ['inventory-pallets', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<InventoryPallet>>('/inventory-pallets/', { params })
+      const { data } = await api.get<PaginatedResponse<InventoryPallet>>('/inventory/pallets/', { params })
       return data
     },
   })
@@ -101,7 +104,7 @@ export function useInventoryBalances(params?: { item?: number; warehouse?: numbe
   return useQuery({
     queryKey: ['inventory-balances', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<InventoryBalance>>('/inventory-balances/', { params })
+      const { data } = await api.get<PaginatedResponse<InventoryBalance>>('/inventory/balances/', { params })
       return data
     },
   })
@@ -112,7 +115,23 @@ export function useInventoryTransactions(params?: { item?: number; transaction_t
   return useQuery({
     queryKey: ['inventory-transactions', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<InventoryTransaction>>('/inventory-transactions/', { params })
+      const { data } = await api.get<PaginatedResponse<InventoryTransaction>>('/inventory/transactions/', { params })
+      return data
+    },
+  })
+}
+
+// Warehouse Pallet Summary
+export interface WarehousePalletSummary {
+  pallets_in_inventory: number
+  total_capacity: number
+}
+
+export function useWarehousePalletSummary() {
+  return useQuery({
+    queryKey: ['warehouse-pallet-summary'],
+    queryFn: async () => {
+      const { data } = await api.get<WarehousePalletSummary>('/inventory/warehouse-pallet-summary/')
       return data
     },
   })

@@ -7,15 +7,47 @@ from apps.notifications.models import Notification
 
 
 class NotificationListView(APIView):
-    """GET /api/v1/notifications/ - List user's notifications."""
+    """GET /api/v1/notifications/ - List user's notifications.
+
+    Query params:
+        type: Filter by notification_type (e.g., MENTION, TASK, COMMENT)
+        content_type: Filter by related model name (e.g., salesorder)
+        object_id: Filter by related object ID (requires content_type)
+        limit: Max results (default 20, max 100)
+        offset: Pagination offset (default 0)
+    """
     permission_classes = [IsAuthenticated]
 
     @extend_schema(tags=['notifications'], summary='List my notifications')
     def get(self, request):
-        notifications = Notification.objects.filter(
+        qs = Notification.objects.filter(
             tenant=request.tenant,
             recipient=request.user,
-        ).order_by('-created_at')[:20]
+        ).order_by('-created_at')
+
+        # Filter by notification type
+        notif_type = request.query_params.get('type')
+        if notif_type:
+            qs = qs.filter(notification_type=notif_type.upper())
+
+        # Filter by related content type/object
+        ct_model = request.query_params.get('content_type')
+        if ct_model:
+            from django.contrib.contenttypes.models import ContentType
+            try:
+                ct = ContentType.objects.get(model=ct_model.lower())
+                qs = qs.filter(content_type=ct)
+                object_id = request.query_params.get('object_id')
+                if object_id:
+                    qs = qs.filter(object_id=object_id)
+            except ContentType.DoesNotExist:
+                pass
+
+        # Pagination
+        limit = min(int(request.query_params.get('limit', 20)), 100)
+        offset = int(request.query_params.get('offset', 0))
+
+        notifications = qs[offset:offset + limit]
 
         data = [{
             'id': n.id,
@@ -24,6 +56,8 @@ class NotificationListView(APIView):
             'link': n.link,
             'type': n.notification_type,
             'read': n.read,
+            'content_type': n.content_type.model if n.content_type else None,
+            'object_id': n.object_id,
             'created_at': n.created_at.isoformat(),
         } for n in notifications]
 
@@ -36,6 +70,7 @@ class NotificationListView(APIView):
         return Response({
             'notifications': data,
             'unread_count': unread_count,
+            'count': qs.count(),
         })
 
 

@@ -1,5 +1,24 @@
 import React from 'react'
 
+export const ITEM_TYPE_BADGE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
+  inventory: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)', label: 'Inventory' },
+  crossdock: { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6', label: 'Crossdock' },
+  non_stockable: { bg: 'rgba(168,85,247,0.1)', color: '#a855f7', label: 'Non-Stockable' },
+  other_charge: { bg: 'var(--so-bg)', color: 'var(--so-text-tertiary)', label: 'Other Charge' },
+}
+
+export function getItemTypeBadge(itemType: string) {
+  const s = ITEM_TYPE_BADGE_STYLES[itemType] || ITEM_TYPE_BADGE_STYLES.inventory
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+      style={{ background: s.bg, border: '1px solid transparent', color: s.color }}
+    >
+      {s.label}
+    </span>
+  )
+}
+
 const statusConfigs: Record<string, { bg: string; border: string; text: string }> = {
   draft:       { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
   confirmed:   { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },

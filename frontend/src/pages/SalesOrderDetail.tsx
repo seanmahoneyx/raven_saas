@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Plus, Trash2,
   FileText,
@@ -48,6 +51,7 @@ export default function SalesOrderDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const orderId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const { user } = useAuth()
   const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
@@ -925,6 +929,8 @@ export default function SalesOrderDetail() {
       />
 
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="salesorder" objectId={orderId} />
+      <PanelToggleButton contentType="salesorder" objectId={orderId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="salesorder" objectId={orderId} open={panelOpen} onClose={closePanel} label={order ? `SO ${order.order_number}` : 'Sales Order'} />
     </div>
   )
 }

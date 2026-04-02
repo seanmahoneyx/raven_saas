@@ -450,6 +450,25 @@ export function useCreateItemVendor(itemId: number) {
   })
 }
 
+export function useSetPreferredVendor() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ itemId, vendorLinkId }: { itemId: number; vendorLinkId: number }) => {
+      const { data } = await api.post(`/item-vendors/${vendorLinkId}/set-preferred/`)
+      return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['item-vendors', variables.itemId] })
+      queryClient.invalidateQueries({ queryKey: ['items', variables.itemId] })
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      toast.success('Preferred vendor updated')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to update preferred vendor'))
+    },
+  })
+}
+
 // =============================================================================
 // ITEM HISTORY (Item 360)
 // =============================================================================

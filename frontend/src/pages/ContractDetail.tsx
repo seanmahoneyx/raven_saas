@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Paperclip, ChevronDown, ChevronRight,
   Plus, FileText, Printer, MoreHorizontal,
@@ -202,6 +205,7 @@ export default function ContractDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const contractId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const { data: contract, isLoading } = useContract(contractId)
   const updateContract = useUpdateContract()
@@ -1017,6 +1021,8 @@ export default function ContractDetail() {
           </div>
         </DialogContent>
       </Dialog>
+      <PanelToggleButton contentType="contract" objectId={contractId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="contract" objectId={contractId} open={panelOpen} onClose={closePanel} label={contract ? `Contract ${contract.contract_number}` : 'Contract'} />
     </div>
   )
 }

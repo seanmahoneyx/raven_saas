@@ -32,6 +32,7 @@ import {
   ClipboardList,
   GitBranchPlus,
   Ruler,
+  Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -52,7 +53,10 @@ import {
 import SearchDialog from '@/components/search/SearchDialog'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal'
-import NotificationBell from './NotificationBell'
+import { useNotifications } from '@/api/notifications'
+import { useMyPendingApprovals } from '@/api/approvals'
+import { useUnreadMessageCount } from '@/api/collaboration'
+import { useNotificationSync } from '@/hooks/useRealtimeSync'
 
 // ─── Navigation Structure ──────────────────────────────────────────────────────
 
@@ -106,6 +110,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
       { type: 'item', to: '/accounting-settings', icon: Calculator, label: 'Accounting Settings' },
       { type: 'separator' },
+      { type: 'item', to: '/admin/user-audit', icon: FileText, label: 'User Audit Report', requiresAdmin: true },
       { type: 'item', to: '/admin', icon: Cog, label: 'Settings' },
     ],
   },
@@ -203,12 +208,19 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       },
     ],
   },
-  // 6. Schedulizer (direct link)
+  // 9. Schedulizer (direct link)
   {
     type: 'link',
     icon: Calendar,
     label: 'Schedulizer',
     to: '/scheduler',
+  },
+  // 10. Notifications / Messages (direct link)
+  {
+    type: 'link',
+    icon: Mail,
+    label: 'Inbox',
+    to: '/notifications',
   },
 ]
 
@@ -315,6 +327,13 @@ export default function TopNavbar() {
   const navigate = useNavigate()
   const location = useLocation()
 
+  // Inbox badge: notifications + approvals + DMs
+  const { data: notifData } = useNotifications()
+  const { data: pendingApprovals } = useMyPendingApprovals()
+  const { data: dmUnread } = useUnreadMessageCount()
+  useNotificationSync()
+  const inboxBadge = (notifData?.unread_count ?? 0) + (pendingApprovals?.length ?? 0) + (dmUnread?.unread_count ?? 0)
+
   useKeyboardShortcuts([
     {
       key: 'k',
@@ -393,13 +412,14 @@ export default function TopNavbar() {
             return <NavDropdown key={item.label} item={item} isAdmin={isAdmin} />
           }
 
+          const isInbox = item.to === '/notifications'
           return (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+                  'relative flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -408,15 +428,18 @@ export default function TopNavbar() {
             >
               <item.icon className="h-4 w-4" />
               <span className="hidden lg:inline">{item.label}</span>
+              {isInbox && inboxBadge > 0 && (
+                <span className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#f97316' }}>
+                  {inboxBadge > 99 ? '99+' : inboxBadge}
+                </span>
+              )}
             </NavLink>
           )
         })}
       </nav>
 
-      {/* Right side - Notifications, Search, Theme Toggle, and Logout */}
+      {/* Right side - Search, Theme Toggle, and Logout */}
       <div className="flex items-center gap-1">
-        <NotificationBell />
-
         <Button
           variant="ghost"
           size="sm"

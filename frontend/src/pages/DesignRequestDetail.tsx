@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Pencil, Save, X, Printer, Rocket,
   CheckCircle, XCircle, Clock, Loader2, Check,
@@ -124,6 +127,7 @@ export default function DesignRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const designRequestId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: designRequest, isLoading } = useDesignRequest(designRequestId)
@@ -778,6 +782,8 @@ export default function DesignRequestDetail() {
           onConfirm={handleConfirmDeleteAttachment}
           loading={deleteAttachment.isPending}
         />
+        <PanelToggleButton contentType="designrequest" objectId={designRequestId} onClick={togglePanel} isOpen={panelOpen} />
+        <TransactionPanel contentType="designrequest" objectId={designRequestId} open={panelOpen} onClose={closePanel} label={designRequest ? `Design ${designRequest.file_number}` : 'Design Request'} />
       </div>
     </div>
   )

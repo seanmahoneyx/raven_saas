@@ -377,7 +377,10 @@ export function DataTable<TData, TValue>({
                 {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
-                    className="px-3 py-3 text-left text-sm font-medium text-foreground whitespace-nowrap"
+                    className={cn(
+                      "px-3 py-3 text-left text-sm font-medium text-foreground whitespace-nowrap",
+                      (header.column.columnDef.meta as any)?.className
+                    )}
                   >
                     {header.isPlaceholder ? null : (
                       <div
@@ -421,7 +424,10 @@ export function DataTable<TData, TValue>({
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
-                      className="px-3 py-3 text-sm text-foreground"
+                      className={cn(
+                        "px-3 py-3 text-sm text-foreground",
+                        (cell.column.columnDef.meta as any)?.className
+                      )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>

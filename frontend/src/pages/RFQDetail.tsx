@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Paperclip, Clock, FileText, Send, ArrowRightLeft, ChevronDown, Plus, Trash2,
 } from 'lucide-react'
@@ -41,6 +44,7 @@ export default function RFQDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const rfqId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const { data: rfq, isLoading } = useRFQ(rfqId)
   const updateRFQ = useUpdateRFQ()
@@ -859,6 +863,8 @@ export default function RFQDetail() {
           </div>
         </DialogContent>
       </Dialog>
+      <PanelToggleButton contentType="rfq" objectId={rfqId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="rfq" objectId={rfqId} open={panelOpen} onClose={closePanel} label={rfq ? `RFQ ${rfq.rfq_number}` : 'RFQ'} />
     </div>
   )
 }

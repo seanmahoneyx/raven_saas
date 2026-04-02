@@ -32,7 +32,7 @@ export default function Items() {
   const [editingItem, setEditingItem] = useState<Item | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
-  const [lifecycleFilter, setLifecycleFilter] = useState<string>('active')
+  const [lifecycleFilter, setLifecycleFilter] = useState<string>('all')
 
   const { data: itemsData, isLoading: itemsLoading } = useItems(
     lifecycleFilter === 'all' ? undefined : { lifecycle_status: lifecycleFilter }
@@ -346,12 +346,12 @@ export default function Items() {
         <div className="flex items-center gap-1 mb-4 rounded-lg p-1 animate-in delay-1"
           style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border-light)', width: 'fit-content' }}>
           {[
+            { value: 'all', label: 'All' },
             { value: 'active', label: 'Active' },
             { value: 'draft', label: 'Drafts' },
             { value: 'pending_design', label: 'Design Requested' },
             { value: 'in_design', label: 'In Design' },
             { value: 'pending_approval', label: 'Pending Approval' },
-            { value: 'all', label: 'All' },
           ].map(tab => (
             <button
               key={tab.value}

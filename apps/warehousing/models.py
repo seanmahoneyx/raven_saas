@@ -49,6 +49,11 @@ class Warehouse(TenantMixin, TimestampMixin):
         default=False,
         help_text="Default warehouse for receiving and shipping"
     )
+    pallet_capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum number of pallet slots in this warehouse"
+    )
     notes = models.TextField(
         blank=True,
         help_text="Notes about this warehouse"

@@ -773,6 +773,13 @@ class DCItem(CorrugatedItem):
         decimal_places=4,
         help_text="Width dimension (inches)"
     )
+    height = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Height dimension (inches)"
+    )
     blank_length = models.DecimalField(
         max_digits=10,
         decimal_places=4,

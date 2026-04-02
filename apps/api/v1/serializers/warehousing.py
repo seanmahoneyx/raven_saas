@@ -30,7 +30,7 @@ class WarehouseListSerializer(TenantModelSerializer):
     class Meta:
         model = Warehouse
         fields = [
-            'id', 'code', 'name', 'is_active', 'is_default', 'bin_count',
+            'id', 'code', 'name', 'is_active', 'is_default', 'pallet_capacity', 'bin_count',
         ]
 
     def get_bin_count(self, obj):

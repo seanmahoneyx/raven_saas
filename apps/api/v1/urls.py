@@ -40,6 +40,7 @@ from .views.importers import DataImportView
 from .views.inventory import (
     InventoryLotViewSet, InventoryPalletViewSet,
     InventoryBalanceViewSet, InventoryTransactionViewSet,
+    WarehousePalletSummaryView,
 )
 from .views.shipping import ShipmentViewSet, BillOfLadingViewSet, DeliveryRunCreateShipmentView
 from .views.invoicing import InvoiceViewSet, PaymentViewSet, TaxZoneViewSet, TaxRuleViewSet
@@ -77,6 +78,7 @@ from .views.reporting import (
 from .views.dashboard import DashboardView
 from .views.pipeline import PipelineView
 from .views.history import ModelHistoryView
+from .views.user_audit import UserAuditReportView
 from .views.websocket import get_websocket_ticket
 from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, CookieLogoutView
 from .views.search import GlobalSearchView
@@ -85,6 +87,12 @@ from .views.accounting import AccountViewSet, JournalEntryViewSet
 from .views.email import SendInvoiceEmailView, SendPurchaseOrderEmailView
 from .views.notifications import NotificationListView, NotificationMarkReadView
 from .views.approvals import ApprovalRequestViewSet, TokenApproveView, TokenRejectView
+from .views.collaboration import (
+    CommentListCreateView, CommentDetailView,
+    TaskListCreateView, TaskDetailView, MyTasksView,
+    MentionableUsersView,
+    ConversationListView, DirectMessageListView, UnreadMessageCountView,
+)
 from .views.labels import ItemLabelsView, BinLabelsView, LPNLabelsView
 from .views.canned_reports import (
     SalesByCustomerView, SalesByItemView, BackorderReportView, OpenOrderDetailView,
@@ -273,8 +281,14 @@ urlpatterns = [
     # Inventory reorder alerts
     path('inventory/reorder-alerts/', ReorderAlertsView.as_view(), name='reorder-alerts'),
 
+    # Inventory warehouse pallet summary
+    path('inventory/warehouse-pallet-summary/', WarehousePalletSummaryView.as_view(), name='warehouse-pallet-summary'),
+
     # Field-Level History
     path('history/<str:model_type>/<int:object_id>/', ModelHistoryView.as_view(), name='model-history'),
+
+    # User Audit Report (admin-only)
+    path('reports/user-audit/', UserAuditReportView.as_view(), name='user-audit-report'),
 
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
@@ -326,6 +340,19 @@ urlpatterns = [
     path('onboarding/uom/', OnboardingUoMView.as_view(), name='onboarding-uom'),
     path('onboarding/invite/', OnboardingInviteView.as_view(), name='onboarding-invite'),
     path('onboarding/complete/', OnboardingCompleteView.as_view(), name='onboarding-complete'),
+
+    # Collaboration (comments, tasks, mentions)
+    path('collaboration/comments/', CommentListCreateView.as_view(), name='collaboration-comments'),
+    path('collaboration/comments/<int:pk>/', CommentDetailView.as_view(), name='collaboration-comment-detail'),
+    path('collaboration/tasks/', TaskListCreateView.as_view(), name='collaboration-tasks'),
+    path('collaboration/tasks/my/', MyTasksView.as_view(), name='collaboration-my-tasks'),
+    path('collaboration/tasks/<int:pk>/', TaskDetailView.as_view(), name='collaboration-task-detail'),
+    path('users/mentionable/', MentionableUsersView.as_view(), name='users-mentionable'),
+
+    # Direct Messages
+    path('collaboration/messages/', ConversationListView.as_view(), name='collaboration-conversations'),
+    path('collaboration/messages/unread-count/', UnreadMessageCountView.as_view(), name='collaboration-unread-count'),
+    path('collaboration/messages/<int:user_id>/', DirectMessageListView.as_view(), name='collaboration-messages'),
 
     # Favorites & Recents
     path('favorites/', FavoriteViewSet.as_view({'get': 'list', 'post': 'create'}), name='favorites-list'),

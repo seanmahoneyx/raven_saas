@@ -6,20 +6,31 @@ export interface Notification {
   title: string
   message: string
   link: string
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'MENTION' | 'TASK' | 'COMMENT'
   read: boolean
+  content_type: string | null
+  object_id: number | null
   created_at: string
 }
 
 interface NotificationsResponse {
   notifications: Notification[]
   unread_count: number
+  count?: number
 }
 
-export function useNotifications() {
+export interface NotificationFilters {
+  type?: string
+  content_type?: string
+  object_id?: number
+  limit?: number
+  offset?: number
+}
+
+export function useNotifications(filters?: NotificationFilters) {
   return useQuery<NotificationsResponse>({
-    queryKey: ['notifications'],
-    queryFn: () => apiClient.get('/notifications/').then(r => r.data),
+    queryKey: ['notifications', filters],
+    queryFn: () => apiClient.get('/notifications/', { params: filters }).then(r => r.data),
     refetchInterval: 30000, // Poll every 30 seconds
   })
 }

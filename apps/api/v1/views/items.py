@@ -216,6 +216,21 @@ class ItemVendorViewSet(viewsets.ModelViewSet):
     ordering_fields = ['item__sku', 'vendor__display_name', 'created_at']
     ordering = ['item__sku']
 
+    @action(detail=True, methods=['post'], url_path='set-preferred')
+    def set_preferred(self, request, pk=None):
+        """Set this vendor as the preferred vendor for the item, unsetting any others."""
+        vendor_link = self.get_object()
+        # Unset all other preferred vendors for this item
+        ItemVendor.objects.filter(
+            tenant=vendor_link.tenant,
+            item=vendor_link.item,
+            is_preferred=True,
+        ).exclude(pk=vendor_link.pk).update(is_preferred=False)
+        # Set this one as preferred
+        vendor_link.is_preferred = True
+        vendor_link.save(update_fields=['is_preferred'])
+        return Response(self.get_serializer(vendor_link).data)
+
 
 # =============================================================================
 # BASE ITEM

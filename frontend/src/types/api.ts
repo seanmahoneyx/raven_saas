@@ -248,6 +248,24 @@ export interface Item {
   asset_account_name?: string | null
   attachment_count?: number
   // Nested (detail view)
+  corrugated_details?: {
+    test: string
+    flute: string
+    paper: string
+    is_printed: boolean
+    panels_printed: number | null
+    colors_printed: number | null
+    ink_list: string
+  } | null
+  dimensions?: {
+    length: string | null
+    width: string | null
+    height?: string | null
+    blank_length?: string | null
+    blank_width?: string | null
+    out_per_rotary?: number | null
+  } | null
+  packaging_details?: Record<string, any> | null
   uom_conversions?: ItemUOM[]
   vendors?: ItemVendor[]
   created_at: string
@@ -271,6 +289,7 @@ export interface ItemVendor {
   vendor: number
   vendor_code: string
   vendor_name: string
+  vendor_record_id: number | null
   mpn: string
   lead_time_days: number | null
   min_order_qty: number | null
@@ -278,6 +297,30 @@ export interface ItemVendor {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export interface CostListHead {
+  id: number
+  vendor: number
+  vendor_code: string
+  vendor_name: string
+  item: number
+  item_sku: string
+  item_name: string
+  begin_date: string
+  end_date: string | null
+  is_active: boolean
+  notes?: string
+  lines?: CostListLine[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CostListLine {
+  id: number
+  cost_list: number
+  min_quantity: number
+  unit_cost: string
 }
 
 // Corrugated Feature types

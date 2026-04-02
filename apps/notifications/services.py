@@ -1,7 +1,8 @@
 from .models import Notification
 
 
-def notify_user(tenant, recipient, title, message='', link='', notification_type='INFO'):
+def notify_user(tenant, recipient, title, message='', link='', notification_type='INFO',
+                content_type=None, object_id=None):
     """Create a notification for a user and broadcast via WebSocket."""
     notification = Notification.objects.create(
         tenant=tenant,
@@ -10,6 +11,8 @@ def notify_user(tenant, recipient, title, message='', link='', notification_type
         message=message,
         link=link,
         notification_type=notification_type,
+        content_type=content_type,
+        object_id=object_id,
     )
 
     # Also push via WebSocket for real-time delivery
@@ -32,7 +35,8 @@ def notify_user(tenant, recipient, title, message='', link='', notification_type
     return notification
 
 
-def notify_group(tenant, group_name, title, message='', link='', notification_type='INFO'):
+def notify_group(tenant, group_name, title, message='', link='', notification_type='INFO',
+                 content_type=None, object_id=None):
     """Create notifications for all users in a group/role and broadcast via WebSocket."""
     from django.contrib.auth import get_user_model
     User = get_user_model()
@@ -46,6 +50,8 @@ def notify_group(tenant, group_name, title, message='', link='', notification_ty
             message=message,
             link=link,
             notification_type=notification_type,
+            content_type=content_type,
+            object_id=object_id,
         ))
     created = Notification.objects.bulk_create(notifications)
 

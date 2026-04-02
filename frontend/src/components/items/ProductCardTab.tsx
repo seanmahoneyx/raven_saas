@@ -358,8 +358,7 @@ function BuySideColumn({
               {items.map((cl) => (
                 <div
                   key={cl.id}
-                  className="px-5 py-3 cursor-pointer hover:bg-[var(--so-bg)] transition-colors"
-                  onClick={() => navigate(`/cost-lists/${cl.id}`)}
+                  className="px-5 py-3"
                 >
                   {/* Date range + status */}
                   <div className="flex items-center gap-2 mb-2">
@@ -1090,7 +1089,7 @@ export function ProductCardTab({ itemId, printOnly }: { itemId: number; printOnl
   }
 
   function handlePrint() {
-    window.print()
+    window.open(`/items/${itemId}?tab=product-card`, '_blank')
   }
 
   function handleExport() {

@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useInventorySync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Package, Layers, BarChart3, History, Search, X } from 'lucide-react'
+import { Package, Layers, BarChart3, History, ArrowLeft } from 'lucide-react'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -10,18 +11,21 @@ import {
   useInventoryLots,
   useInventoryPallets,
   useInventoryTransactions,
+  useWarehousePalletSummary,
   type InventoryBalance,
   type InventoryLot,
   type InventoryPallet,
   type InventoryTransaction,
 } from '@/api/inventory'
 import { useItems } from '@/api/items'
+import type { Item } from '@/types/api'
 import { format } from 'date-fns'
-import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
+import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 type Tab = 'balances' | 'lots' | 'pallets' | 'transactions'
 
-const getTypeBadge = (type: string) => (
+const getTransactionTypeBadge = (type: string) => (
   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
     style={{ background: 'var(--so-border-light)', color: 'var(--so-text-secondary)' }}>
     {type}
@@ -31,49 +35,85 @@ const getTypeBadge = (type: string) => (
 export default function Inventory() {
   usePageTitle('Inventory')
   useInventorySync()
+  const navigate = useNavigate()
 
   const [activeTab, setActiveTab] = useState<Tab>('balances')
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
-  const [itemSearch, setItemSearch] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const { data: itemsData } = useItems()
-
-  // Click-outside handler
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   const allItems = itemsData?.results ?? []
 
-  const filteredItems = useMemo(() => {
-    if (!itemSearch.trim()) return allItems.slice(0, 50)
-    const q = itemSearch.toLowerCase()
-    return allItems
-      .filter(item => item.sku.toLowerCase().includes(q) || item.name.toLowerCase().includes(q))
-      .slice(0, 50)
-  }, [allItems, itemSearch])
+  // Detail-level data when an item is selected
+  const detailParams = selectedItemId ? { item: selectedItemId } : {}
+  const { data: balancesData } = useInventoryBalances(detailParams)
+  const { data: lotsData } = useInventoryLots(detailParams)
+  const { data: palletsData } = useInventoryPallets()
+  const { data: transactionsData } = useInventoryTransactions(detailParams)
+  const { data: palletSummary } = useWarehousePalletSummary()
 
   const selectedItem = useMemo(
     () => (selectedItemId ? allItems.find(i => i.id === selectedItemId) : null),
     [selectedItemId, allItems]
   )
 
-  const itemParams = selectedItemId ? { item: selectedItemId } : undefined
+  // -- Item-level columns (default view) --
+  const itemColumns: ColumnDef<Item>[] = useMemo(() => [
+    {
+      accessorKey: 'item_type',
+      header: 'Type',
+      cell: ({ row }) => getItemTypeBadge(row.getValue('item_type') as string),
+    },
+    {
+      accessorKey: 'sku',
+      header: 'MSPN',
+      cell: ({ row }) => (
+        <button
+          className="font-mono font-medium text-sm cursor-pointer"
+          style={{ color: 'var(--so-accent)' }}
+          onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+          onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+          onClick={() => setSelectedItemId(row.original.id)}
+        >
+          {row.getValue('sku')}
+        </button>
+      ),
+    },
+    { accessorKey: 'name', header: 'Name' },
+    { accessorKey: 'division', header: 'Division', cell: ({ row }) => <span className="capitalize">{row.getValue('division')}</span> },
+    {
+      accessorKey: 'qty_on_hand',
+      header: 'On Hand',
+      cell: ({ row }) => <span className="font-medium">{row.original.qty_on_hand ?? 0}</span>,
+    },
+    {
+      accessorKey: 'qty_on_open_so',
+      header: 'On Open SO',
+      cell: ({ row }) => {
+        const val = row.original.qty_on_open_so ?? 0
+        return <span style={{ color: val > 0 ? 'var(--so-warning-text)' : 'var(--so-text-tertiary)' }}>{val}</span>
+      },
+    },
+    {
+      accessorKey: 'qty_on_open_po',
+      header: 'On Open PO',
+      cell: ({ row }) => {
+        const val = row.original.qty_on_open_po ?? 0
+        return <span style={{ color: val > 0 ? 'var(--so-info-text, #3b82f6)' : 'var(--so-text-tertiary)' }}>{val}</span>
+      },
+    },
+    {
+      id: 'available',
+      header: 'Available',
+      cell: ({ row }) => {
+        const onHand = row.original.qty_on_hand ?? 0
+        const onSO = row.original.qty_on_open_so ?? 0
+        const avail = onHand - onSO
+        return <span className="font-medium" style={{ color: avail > 0 ? 'var(--so-success-text)' : avail < 0 ? '#ef4444' : 'var(--so-text-tertiary)' }}>{avail}</span>
+      },
+    },
+  ], [])
 
-  const { data: balancesData } = useInventoryBalances(itemParams)
-  const { data: lotsData } = useInventoryLots(itemParams)
-  const { data: palletsData } = useInventoryPallets()
-  const { data: transactionsData } = useInventoryTransactions(itemParams)
-
+  // -- Balance detail columns (when item selected) --
   const balanceColumns: ColumnDef<InventoryBalance>[] = useMemo(() => [
     { accessorKey: 'item_sku', header: 'MSPN', cell: ({ row }) => <span className="font-mono font-medium">{row.getValue('item_sku')}</span> },
     { accessorKey: 'item_name', header: 'Item' },
@@ -97,16 +137,19 @@ export default function Inventory() {
   ], [])
 
   const palletColumns: ColumnDef<InventoryPallet>[] = useMemo(() => [
-    { accessorKey: 'pallet_id', header: 'Pallet ID', cell: ({ row }) => <span className="font-mono font-medium">{row.getValue('pallet_id')}</span> },
-    { accessorKey: 'warehouse_name', header: 'Warehouse' },
+    { accessorKey: 'license_plate', header: 'License Plate', cell: ({ row }) => <span className="font-mono font-medium">{row.getValue('license_plate')}</span> },
+    { accessorKey: 'item_sku', header: 'MSPN', cell: ({ row }) => <span className="font-mono">{row.getValue('item_sku')}</span> },
+    { accessorKey: 'warehouse_code', header: 'Warehouse' },
     { accessorKey: 'bin_code', header: 'Bin', cell: ({ row }) => row.getValue('bin_code') || '-' },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => getStatusBadge(row.getValue('status') as string) },
-    { accessorKey: 'notes', header: 'Notes', cell: ({ row }) => { const notes = row.getValue('notes') as string; return notes || <span style={{ color: 'var(--so-text-tertiary)' }}>-</span> } },
+    { accessorKey: 'pallet_number', header: 'Pallet #', cell: ({ row }) => <span className="font-mono">{row.getValue('pallet_number')}</span> },
+    { accessorKey: 'quantity_on_hand', header: 'On Hand', cell: ({ row }) => <span className="font-medium">{row.getValue('quantity_on_hand')}</span> },
+    { accessorKey: 'quantity_received', header: 'Received', cell: ({ row }) => row.getValue('quantity_received') },
+    { accessorKey: 'status', header: 'Status', cell: ({ row }) => getStatusBadge((row.getValue('status') as string).toLowerCase()) },
   ], [])
 
   const transactionColumns: ColumnDef<InventoryTransaction>[] = useMemo(() => [
     { accessorKey: 'transaction_date', header: 'Date', cell: ({ row }) => format(new Date(row.getValue('transaction_date')), 'MMM d, yyyy HH:mm') },
-    { accessorKey: 'transaction_type', header: 'Type', cell: ({ row }) => getTypeBadge(row.getValue('transaction_type') as string) },
+    { accessorKey: 'transaction_type', header: 'Type', cell: ({ row }) => getTransactionTypeBadge(row.getValue('transaction_type') as string) },
     { accessorKey: 'item_sku', header: 'MSPN', cell: ({ row }) => <span className="font-mono">{row.getValue('item_sku')}</span> },
     { accessorKey: 'item_name', header: 'Item' },
     { accessorKey: 'quantity', header: 'Qty', cell: ({ row }) => <span className="font-medium">{row.getValue('quantity')}</span> },
@@ -115,16 +158,33 @@ export default function Inventory() {
     { accessorKey: 'created_by_name', header: 'By' },
   ], [])
 
-  const totalOnHand = balancesData?.results.reduce((sum, b) => sum + b.quantity_on_hand, 0) ?? 0
-  const totalReserved = balancesData?.results.reduce((sum, b) => sum + b.quantity_reserved, 0) ?? 0
-  const totalAvailable = balancesData?.results.reduce((sum, b) => sum + b.quantity_available, 0) ?? 0
-  const uniqueItems = new Set(balancesData?.results.map((b) => b.item)).size
+  // KPIs from items data
+  const totalOnHand = allItems.reduce((sum, i) => sum + (i.qty_on_hand ?? 0), 0)
+  const itemsWithStock = allItems.filter(i => (i.qty_on_hand ?? 0) > 0).length
+
+  // Pallet counts for open SO/PO: ceil(qty / units_per_pallet) per item, skip items without pallet config
+  const palletsOnSO = allItems.reduce((sum, i) => {
+    const qty = i.qty_on_open_so ?? 0
+    const upp = i.units_per_pallet
+    if (qty === 0 || !upp || upp <= 0) return sum
+    return sum + Math.ceil(qty / upp)
+  }, 0)
+  const palletsOnPO = allItems.reduce((sum, i) => {
+    const qty = i.qty_on_open_po ?? 0
+    const upp = i.units_per_pallet
+    if (qty === 0 || !upp || upp <= 0) return sum
+    return sum + Math.ceil(qty / upp)
+  }, 0)
+
+  const palletsInInventory = palletSummary?.pallets_in_inventory ?? 0
+  const totalCapacity = palletSummary?.total_capacity ?? 0
 
   const summaryKPIs = [
-    { label: 'Unique Items', value: uniqueItems },
-    { label: 'On Hand', value: totalOnHand.toLocaleString() },
-    { label: 'Reserved', value: totalReserved.toLocaleString() },
-    { label: 'Available', value: totalAvailable.toLocaleString() },
+    { label: 'Items with Stock', value: itemsWithStock },
+    { label: 'Total On Hand', value: totalOnHand.toLocaleString() },
+    { label: 'On Open SO', value: `${palletsOnSO.toLocaleString()} plt` },
+    { label: 'On Open PO', value: `${palletsOnPO.toLocaleString()} plt` },
+    { label: 'Pallet Slots', value: totalCapacity > 0 ? `${palletsInInventory.toLocaleString()} / ${totalCapacity.toLocaleString()}` : `${palletsInInventory.toLocaleString()}` },
   ]
 
   return (
@@ -140,9 +200,9 @@ export default function Inventory() {
 
         {/* KPI Summary */}
         <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-4">
+          <div className="grid grid-cols-5">
             {summaryKPIs.map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none' }}>
+              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 4 ? '1px solid var(--so-border-light)' : 'none' }}>
                 <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
                 <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
               </div>
@@ -160,110 +220,62 @@ export default function Inventory() {
               { id: 'transactions', label: 'Transactions', icon: <History className="h-3.5 w-3.5" /> },
             ]}
             activeTab={activeTab}
-            onTabChange={(id) => setActiveTab(id as Tab)}
+            onTabChange={(id) => { setActiveTab(id as Tab); setSelectedItemId(null) }}
           />
         </div>
 
         {/* Content */}
         <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">{{ balances: 'Balances', lots: 'Lots', pallets: 'Pallets', transactions: 'Transactions' }[activeTab]}</span>
+          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="flex items-center gap-3">
+              {selectedItemId && (
+                <button
+                  className="inline-flex items-center gap-1 text-[13px] font-medium cursor-pointer"
+                  style={{ color: 'var(--so-text-tertiary)' }}
+                  onClick={() => setSelectedItemId(null)}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  All Items
+                </button>
+              )}
+              <span className="text-sm font-semibold">
+                {selectedItem
+                  ? `${selectedItem.sku} — ${selectedItem.name}`
+                  : { balances: 'All Items', lots: 'All Items', pallets: 'Pallets', transactions: 'All Items' }[activeTab]}
+              </span>
+            </div>
+            {selectedItemId && (
+              <button
+                className={outlineBtnClass}
+                style={outlineBtnStyle}
+                onClick={() => navigate(`/items/${selectedItemId}`)}
+              >
+                View Item
+              </button>
+            )}
           </div>
           <div className="px-6 py-5">
-            {activeTab === 'balances' && (
-              <>
-                {/* Item filter dropdown — prepopulated from items API */}
-                <div ref={dropdownRef} className="relative mb-4" style={{ maxWidth: 320 }}>
-                  <div
-                    className="flex items-center gap-2 px-3 rounded-[10px] border"
-                    style={{
-                      background: 'var(--so-surface)',
-                      borderColor: dropdownOpen ? 'var(--so-accent)' : 'var(--so-border)',
-                      height: 36,
-                      transition: 'border-color 0.15s',
-                    }}
-                  >
-                    <Search className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--so-text-tertiary)' }} />
-                    {selectedItem ? (
-                      <div className="flex items-center justify-between flex-1 min-w-0">
-                        <span className="text-[13px] truncate">
-                          <span className="font-mono font-medium" style={{ color: 'var(--so-text-primary)' }}>{selectedItem.sku}</span>
-                          <span className="ml-1.5" style={{ color: 'var(--so-text-secondary)' }}>{selectedItem.name}</span>
-                        </span>
-                        <button
-                          className="ml-1 shrink-0 rounded hover:opacity-70"
-                          style={{ color: 'var(--so-text-tertiary)' }}
-                          onClick={() => {
-                            setSelectedItemId(null)
-                            setItemSearch('')
-                          }}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <input
-                        ref={inputRef}
-                        className="flex-1 bg-transparent outline-none text-[13px]"
-                        style={{ color: 'var(--so-text-primary)' }}
-                        placeholder="Filter by item..."
-                        value={itemSearch}
-                        onChange={(e) => {
-                          setItemSearch(e.target.value)
-                          setDropdownOpen(true)
-                        }}
-                        onFocus={() => setDropdownOpen(true)}
-                      />
-                    )}
-                  </div>
-
-                  {dropdownOpen && !selectedItem && (
-                    <div
-                      className="absolute left-0 right-0 top-full mt-1 rounded-lg border z-50 overflow-auto"
-                      style={{
-                        background: 'var(--so-surface)',
-                        borderColor: 'var(--so-border)',
-                        maxHeight: 256,
-                        boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
-                      }}
-                    >
-                      {filteredItems.length === 0 ? (
-                        <div className="px-3 py-3 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                          No items found
-                        </div>
-                      ) : (
-                        filteredItems.map((item) => (
-                          <button
-                            key={item.id}
-                            className="w-full text-left px-3 py-2 flex items-baseline gap-2 text-[13px]"
-                            style={{ borderBottom: '1px solid var(--so-border-light)' }}
-                            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--so-border-light)')}
-                            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              setSelectedItemId(item.id)
-                              setItemSearch('')
-                              setDropdownOpen(false)
-                            }}
-                          >
-                            <span className="font-mono font-medium shrink-0" style={{ color: 'var(--so-text-primary)' }}>
-                              {item.sku}
-                            </span>
-                            <span className="truncate" style={{ color: 'var(--so-text-secondary)' }}>
-                              {item.name}
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-                <DataTable columns={balanceColumns} data={balancesData?.results ?? []} storageKey="inventory-balances" />
-              </>
+            {activeTab === 'balances' && !selectedItemId && (
+              <DataTable columns={itemColumns} data={allItems} searchColumn="sku" searchPlaceholder="Search by MSPN or name..." storageKey="inventory-items" />
             )}
-            {activeTab === 'lots' && <DataTable columns={lotColumns} data={lotsData?.results ?? []} searchColumn="lot_number" searchPlaceholder="Search lots..." storageKey="inventory-lots" />}
-            {activeTab === 'pallets' && <DataTable columns={palletColumns} data={palletsData?.results ?? []} searchColumn="pallet_id" searchPlaceholder="Search pallets..." storageKey="inventory-pallets" />}
-            {activeTab === 'transactions' && <DataTable columns={transactionColumns} data={transactionsData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search transactions..." storageKey="inventory-transactions" />}
+            {activeTab === 'balances' && selectedItemId && (
+              <DataTable columns={balanceColumns} data={balancesData?.results ?? []} storageKey="inventory-balances-detail" />
+            )}
+            {activeTab === 'lots' && !selectedItemId && (
+              <DataTable columns={itemColumns} data={allItems} searchColumn="sku" searchPlaceholder="Search by MSPN or name..." storageKey="inventory-lots-items" />
+            )}
+            {activeTab === 'lots' && selectedItemId && (
+              <DataTable columns={lotColumns} data={lotsData?.results ?? []} searchColumn="lot_number" searchPlaceholder="Search lots..." storageKey="inventory-lots" />
+            )}
+            {activeTab === 'pallets' && <DataTable columns={palletColumns} data={palletsData?.results ?? []} searchColumn="license_plate" searchPlaceholder="Search by license plate..." storageKey="inventory-pallets" />}
+            {activeTab === 'transactions' && !selectedItemId && (
+              <DataTable columns={itemColumns} data={allItems} searchColumn="sku" searchPlaceholder="Search by MSPN or name..." storageKey="inventory-txn-items" />
+            )}
+            {activeTab === 'transactions' && selectedItemId && (
+              <DataTable columns={transactionColumns} data={transactionsData?.results ?? []} searchColumn="item_name" searchPlaceholder="Search transactions..." storageKey="inventory-transactions" />
+            )}
           </div>
         </div>
       </div>

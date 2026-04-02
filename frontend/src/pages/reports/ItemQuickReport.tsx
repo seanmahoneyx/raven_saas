@@ -216,12 +216,21 @@ export default function ItemQuickReport() {
   const [runParams, setRunParams] = useState<{ itemIds: number[]; start: string; end: string } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const autoRanRef = useRef(false)
+
   // Pre-select item from URL param (e.g. ?item=5)
   useEffect(() => {
     const itemParam = searchParams.get('item')
     if (itemParam) {
       const id = parseInt(itemParam, 10)
-      if (!isNaN(id)) setSelectedItemIds((prev) => prev.includes(id) ? prev : [...prev, id])
+      if (!isNaN(id)) {
+        setSelectedItemIds((prev) => prev.includes(id) ? prev : [...prev, id])
+        // Auto-run the report when navigating with item param
+        if (!autoRanRef.current) {
+          autoRanRef.current = true
+          setRunParams({ itemIds: [id], start: '', end: '' })
+        }
+      }
     }
   }, [searchParams])
 

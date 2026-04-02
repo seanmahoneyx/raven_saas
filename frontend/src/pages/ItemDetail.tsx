@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView, useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
 import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign, Star } from 'lucide-react'
@@ -15,39 +14,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems, useTransitionItem, useBumpRevision } from '@/api/items'
+import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems, useTransitionItem, useBumpRevision, useSetPreferredVendor, useUnitsOfMeasure, useCreateItemVendor } from '@/api/items'
+import { useParties } from '@/api/parties'
+import { useCostLists, useCreateCostList } from '@/api/costLists'
 import type { SimilarItemEntry } from '@/api/items'
-import api from '@/api/client'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
 import { ProductCardTab } from '@/components/items/ProductCardTab'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
 import { FileText } from 'lucide-react'
 
-import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
 
-type Tab = 'history' | 'product-card' | 'similar' | 'vendors' | 'audit' | 'attachments' | 'children'
-
-const ITEM_TYPE_BADGE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  inventory: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)', label: 'Inventory' },
-  crossdock: { bg: 'rgba(59,130,246,0.1)', color: '#3b82f6', label: 'Crossdock' },
-  non_stockable: { bg: 'rgba(168,85,247,0.1)', color: '#a855f7', label: 'Non-Stockable' },
-  other_charge: { bg: 'var(--so-bg)', color: 'var(--so-text-tertiary)', label: 'Other Charge' },
-}
-
-const getItemTypeBadge = (itemType: string) => {
-  const s = ITEM_TYPE_BADGE_STYLES[itemType] || ITEM_TYPE_BADGE_STYLES.inventory
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-      style={{ background: s.bg, border: '1px solid transparent', color: s.color }}
-    >
-      {s.label}
-    </span>
-  )
-}
+type Tab = 'details' | 'history' | 'product-card' | 'vendors' | 'similar' | 'attachments' | 'audit'
 
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+
+/** Convert a decimal number to a fraction string rounded to the nearest 1/16th. */
+const toFraction = (val: string | number | null | undefined): string | null => {
+  if (val == null || val === '') return null
+  const num = typeof val === 'string' ? parseFloat(val) : val
+  if (isNaN(num)) return null
+  const whole = Math.floor(num)
+  const remainder = num - whole
+  const sixteenths = Math.round(remainder * 16)
+  if (sixteenths === 0) return String(whole)
+  if (sixteenths === 16) return String(whole + 1)
+  // simplify fraction
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+  const g = gcd(sixteenths, 16)
+  const n = sixteenths / g
+  const d = 16 / g
+  return whole > 0 ? `${whole}-${n}/${d}` : `${n}/${d}`
+}
 
 export default function ItemDetail() {
   usePageTitle('Item Details')
@@ -59,20 +58,28 @@ export default function ItemDetail() {
   const { data: item, isLoading } = useItem(itemId)
   const { data: vendors } = useItemVendors(itemId)
   const { data: similarItems } = useSimilarItems(itemId)
+  const { data: uomData } = useUnitsOfMeasure()
+  const { data: customersData } = useParties({ party_type: 'CUSTOMER' })
+  const { data: vendorPartiesData } = useParties({ party_type: 'VENDOR' })
+  const uomList = uomData?.results ?? []
+  const customerList = customersData?.results ?? []
+  const vendorPartyList = vendorPartiesData?.results ?? []
   const duplicateItem = useDuplicateItem()
   const updateItem = useUpdateItem()
   const transitionItem = useTransitionItem()
   const bumpRevision = useBumpRevision()
+  const createItemVendor = useCreateItemVendor(itemId)
+  const createCostList = useCreateCostList()
+  const { data: costListsData } = useCostLists({ item: itemId })
+  const costLists = costListsData?.results ?? []
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false)
   const [revisionReason, setRevisionReason] = useState('')
-  const { data: childItems } = useQuery({
-    queryKey: ['items', itemId, 'children'],
-    queryFn: async () => {
-      const { data } = await api.get('/items/', { params: { parent: itemId } })
-      return data
-    },
-    enabled: !!itemId,
-  })
+  const [addVendorOpen, setAddVendorOpen] = useState(false)
+  const [addVendorForm, setAddVendorForm] = useState({ vendor: '', mpn: '', lead_time_days: '', min_order_qty: '' })
+  const [costListPrompt, setCostListPrompt] = useState<{ vendorRecordId: number; vendorName: string } | null>(null)
+  const [costListForm, setCostListForm] = useState({ unit_cost: '', min_quantity: '1', begin_date: new Date().toISOString().split('T')[0] })
+  const setPreferredVendor = useSetPreferredVendor()
+  const [searchParams] = useSearchParams()
   const trackView = useTrackEntityView()
   useEffect(() => {
     if (itemId) {
@@ -94,8 +101,15 @@ export default function ItemDetail() {
     }
   }
 
-  const [activeTab, setActiveTab] = useState<Tab>('history')
+  const [activeTab, setActiveTab] = useState<Tab>('details')
   const [isEditing, setIsEditing] = useState(false)
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab === 'product-card') {
+      setActiveTab('product-card')
+    }
+  }, [searchParams])
   const [formData, setFormData] = useState({
     is_active: 'true',
     name: '',
@@ -108,6 +122,13 @@ export default function ItemDetail() {
     min_stock: '',
     safety_stock: '',
     parent: '',
+    customer: '__none__',
+    base_uom: '',
+    units_per_layer: '',
+    units_per_pallet: '',
+    unit_height: '',
+    pallet_height: '',
+    pallet_footprint: '',
   })
 
   useEffect(() => {
@@ -124,6 +145,13 @@ export default function ItemDetail() {
         min_stock: item.min_stock !== null ? String(item.min_stock) : '',
         safety_stock: item.safety_stock !== null ? String(item.safety_stock) : '',
         parent: item.parent ? String(item.parent) : '',
+        customer: item.customer ? String(item.customer) : '__none__',
+        base_uom: String(item.base_uom),
+        units_per_layer: item.units_per_layer != null ? String(item.units_per_layer) : '',
+        units_per_pallet: item.units_per_pallet != null ? String(item.units_per_pallet) : '',
+        unit_height: item.unit_height || '',
+        pallet_height: item.pallet_height || '',
+        pallet_footprint: item.pallet_footprint || '',
       })
     }
   }, [isEditing, item])
@@ -153,6 +181,13 @@ export default function ItemDetail() {
         min_stock: formData.min_stock ? parseInt(formData.min_stock, 10) : null,
         safety_stock: formData.safety_stock ? parseInt(formData.safety_stock, 10) : null,
         parent: formData.parent ? parseInt(formData.parent, 10) : null,
+        customer: formData.customer && formData.customer !== '__none__' ? parseInt(formData.customer, 10) : null,
+        base_uom: parseInt(formData.base_uom, 10),
+        units_per_layer: formData.units_per_layer ? parseInt(formData.units_per_layer, 10) : null,
+        units_per_pallet: formData.units_per_pallet ? parseInt(formData.units_per_pallet, 10) : null,
+        unit_height: formData.unit_height || null,
+        pallet_height: formData.pallet_height || null,
+        pallet_footprint: formData.pallet_footprint || '',
       })
       setIsEditing(false)
     } catch (error) {
@@ -174,6 +209,13 @@ export default function ItemDetail() {
       min_stock: '',
       safety_stock: '',
       parent: '',
+      customer: '__none__',
+      base_uom: '',
+      units_per_layer: '',
+      units_per_pallet: '',
+      unit_height: '',
+      pallet_height: '',
+      pallet_footprint: '',
     })
   }
 
@@ -198,18 +240,20 @@ export default function ItemDetail() {
   }
 
   const tabs = [
+    { id: 'details' as Tab, label: 'Item Details', icon: Package },
     { id: 'history' as Tab, label: 'Transaction History', icon: History },
     { id: 'product-card' as Tab, label: 'Product Card', icon: DollarSign },
-    { id: 'similar' as Tab, label: 'Similar Items', icon: Search },
     { id: 'vendors' as Tab, label: 'Vendors', icon: Users },
+    { id: 'similar' as Tab, label: 'Similar Items', icon: Search },
     { id: 'attachments' as Tab, label: 'Attachments', icon: Paperclip },
     { id: 'audit' as Tab, label: 'Audit History', icon: FileText },
-    { id: 'children' as Tab, label: 'Sub-Items', icon: Package },
   ]
 
   const statusKey = item.is_active ? 'active' : 'inactive'
 
   /* -- Detail grid data ----------------------------------------- */
+  const inputStyle = { borderColor: 'var(--so-border)', background: 'var(--so-surface)' }
+
   const detailItems = isEditing
     ? [
         { label: 'Name', value: formData.name, empty: !formData.name, editable: true, editNode: (
@@ -218,7 +262,7 @@ export default function ItemDetail() {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             placeholder="Item name"
             className="h-9 text-sm border rounded-md px-2"
-            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+            style={inputStyle}
           />
         )},
         { label: 'Division', value: formData.division, empty: !formData.division, editable: true, editNode: (
@@ -226,10 +270,7 @@ export default function ItemDetail() {
             value={formData.division}
             onValueChange={(v) => setFormData({ ...formData, division: v })}
           >
-            <SelectTrigger
-              className="h-9 text-sm border rounded-md"
-              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-            >
+            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -241,26 +282,12 @@ export default function ItemDetail() {
             </SelectContent>
           </Select>
         )},
-        { label: 'Parent Item (ID)', value: formData.parent, empty: !formData.parent, editable: true, editNode: (
-          <Input
-            type="number"
-            value={formData.parent}
-            onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-            placeholder="Parent item ID"
-            min="1"
-            className="h-9 text-sm border rounded-md px-2"
-            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-          />
-        )},
         { label: 'Item Type', value: formData.item_type, empty: false, editable: true, editNode: (
           <Select
             value={formData.item_type}
             onValueChange={(v) => setFormData({ ...formData, item_type: v })}
           >
-            <SelectTrigger
-              className="h-9 text-sm border rounded-md"
-              style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-            >
+            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -271,21 +298,58 @@ export default function ItemDetail() {
             </SelectContent>
           </Select>
         )},
+        { label: 'Customer', value: formData.customer, empty: !formData.customer, editable: true, editNode: (
+          <Select
+            value={formData.customer}
+            onValueChange={(v) => setFormData({ ...formData, customer: v })}
+          >
+            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
+              <SelectValue placeholder="Stock Item" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Stock Item</SelectItem>
+              {customerList.map((c) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )},
+        { label: 'Base UoM', value: formData.base_uom, empty: !formData.base_uom, editable: true, editNode: (
+          <Select
+            value={formData.base_uom}
+            onValueChange={(v) => setFormData({ ...formData, base_uom: v })}
+          >
+            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
+              <SelectValue placeholder="Select UoM" />
+            </SelectTrigger>
+            <SelectContent>
+              {uomList.map((u: any) => (
+                <SelectItem key={u.id} value={String(u.id)}>{u.code} - {u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )},
+        { label: 'Parent Item (ID)', value: formData.parent, empty: !formData.parent, editable: true, editNode: (
+          <Input
+            type="number"
+            value={formData.parent}
+            onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
+            placeholder="Parent item ID"
+            min="1"
+            className="h-9 text-sm border rounded-md px-2"
+            style={inputStyle}
+          />
+        )},
       ]
     : [
         { label: 'Name', value: item.name || '-', empty: !item.name },
-        { label: 'Division', value: item.division || '-', empty: !item.division },
-        { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
+        { label: 'Division', value: item.division ? item.division.charAt(0).toUpperCase() + item.division.slice(1) : '-', empty: !item.division },
         { label: 'Item Type', value: { inventory: 'Inventory', crossdock: 'Crossdock', non_stockable: 'Non-Stockable', other_charge: 'Other Charge' }[item.item_type] || item.item_type, empty: false },
+        { label: 'Customer', value: item.customer_name || 'Stock Item', empty: !item.customer },
+        { label: 'Base UoM', value: item.base_uom_code || '-', empty: !item.base_uom_code },
+        { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
       ]
 
-  /* -- Summary stat cards --------------------------------------- */
-  const summaryItems = [
-    { label: 'Base UOM', value: item.base_uom_code || '-' },
-    { label: 'Division', value: item.division || '-' },
-    { label: 'Description', value: item.description || '-', isText: true },
-    { label: 'Vendors', value: String(vendors?.length ?? 0) },
-  ]
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -514,7 +578,7 @@ export default function ItemDetail() {
                   onChange={e => setRevisionReason(e.target.value)}
                   placeholder="e.g., Height increased 6&quot; to 7&quot; per customer request"
                   rows={3}
-                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  style={inputStyle}
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -529,216 +593,6 @@ export default function ItemDetail() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* -- Item Details Card --------------------------------- */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          {/* Card header */}
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">Item Details</span>
-          </div>
-
-          {/* Detail grid: 4 columns */}
-          <div className="grid grid-cols-4">
-            {detailItems.map((di, idx) => (
-              <div
-                key={idx}
-                className="px-5 py-4"
-                style={{
-                  borderRight: (idx + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none',
-                  borderBottom: idx < 4 ? '1px solid var(--so-border-light)' : 'none',
-                }}
-              >
-                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                  {di.label}
-                </div>
-                {'editable' in di && di.editable && 'editNode' in di ? (
-                  (di as { editNode: React.ReactNode }).editNode
-                ) : 'isParentLink' in di && di.isParentLink ? (
-                  <button
-                    onClick={() => navigate(`/items/${item.parent}`)}
-                    className="text-sm font-medium transition-colors cursor-pointer"
-                    style={{ color: 'var(--so-accent)' }}
-                    onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
-                    onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
-                  >
-                    {di.value}
-                  </button>
-                ) : (
-                  <div
-                    className="text-sm font-medium"
-                    style={{
-                      color: di.empty ? 'var(--so-text-tertiary)' : 'var(--so-text-primary)',
-                      fontStyle: di.empty ? 'italic' : 'normal',
-                    }}
-                  >
-                    {di.value}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Description fields row (view mode) */}
-          {!isEditing && (
-            <>
-              <div
-                className="px-5 py-4"
-                style={{ borderTop: '1px solid var(--so-border-light)' }}
-              >
-                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Description</div>
-                <div className="text-sm whitespace-pre-wrap" style={{ color: item.description ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.description ? 'normal' : 'italic' }}>
-                  {item.description || 'Not set'}
-                </div>
-              </div>
-              <div
-                className="px-5 py-4"
-                style={{ borderTop: '1px solid var(--so-border-light)' }}
-              >
-                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</div>
-                <div className="text-sm whitespace-pre-wrap" style={{ color: item.purch_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.purch_desc ? 'normal' : 'italic' }}>
-                  {item.purch_desc || 'Not set'}
-                </div>
-              </div>
-              <div
-                className="px-5 py-4"
-                style={{ borderTop: '1px solid var(--so-border-light)' }}
-              >
-                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</div>
-                <div className="text-sm whitespace-pre-wrap" style={{ color: item.sell_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.sell_desc ? 'normal' : 'italic' }}>
-                  {item.sell_desc || 'Not set'}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Description fields (edit mode) */}
-          {isEditing && (
-            <>
-              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Description</Label>
-                <Textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="General description..."
-                  rows={2}
-                  className="text-sm border rounded-md px-2"
-                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                />
-              </div>
-              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</Label>
-                <Textarea
-                  value={formData.purch_desc}
-                  onChange={(e) => setFormData({ ...formData, purch_desc: e.target.value })}
-                  placeholder="Description for purchase orders..."
-                  rows={2}
-                  className="text-sm border rounded-md px-2"
-                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                />
-              </div>
-              <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</Label>
-                <Textarea
-                  value={formData.sell_desc}
-                  onChange={(e) => setFormData({ ...formData, sell_desc: e.target.value })}
-                  placeholder="Description for sales orders..."
-                  rows={2}
-                  className="text-sm border rounded-md px-2"
-                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                />
-              </div>
-            </>
-          )}
-
-          {/* Summary row */}
-          <div
-            className="grid grid-cols-4"
-            style={{ borderTop: '1px solid var(--so-border-light)', background: 'var(--so-bg)' }}
-          >
-            {summaryItems.map((si, idx) => (
-              <div
-                key={idx}
-                className="px-5 py-3.5"
-                style={{
-                  borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none',
-                }}
-              >
-                <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>
-                  {si.label}
-                </div>
-                <span
-                  className={`font-mono text-sm font-bold ${si.isText ? 'truncate block' : ''}`}
-                  style={{ color: 'var(--so-text-primary)' }}
-                  title={si.isText ? si.value : undefined}
-                >
-                  {si.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* -- Reorder Settings Card ----------------------------- */}
-        {(item.item_type === 'inventory' || item.item_type === 'crossdock') && (
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            {/* Card header */}
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Reorder Settings</span>
-            </div>
-
-            {isEditing ? (
-              <div className="grid grid-cols-3">
-                {[
-                  { field: 'reorder_point' as const, label: 'Reorder Point', hint: 'Alert when on-hand reaches this level', value: formData.reorder_point },
-                  { field: 'min_stock' as const, label: 'Min Stock', hint: 'Minimum acceptable stock level', value: formData.min_stock },
-                  { field: 'safety_stock' as const, label: 'Safety Stock', hint: 'Buffer above min stock', value: formData.safety_stock },
-                ].map((f, idx) => (
-                  <div
-                    key={f.field}
-                    className="px-5 py-4"
-                    style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
-                  >
-                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                      {f.label}
-                    </div>
-                    <Input
-                      type="number"
-                      value={f.value}
-                      onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
-                      placeholder={f.hint}
-                      min="0"
-                      className="h-9 text-sm border rounded-md px-2 mb-1.5"
-                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                    />
-                    <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{f.hint}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3">
-                {[
-                  { label: 'Reorder Point', value: item.reorder_point, hint: 'Alert when on-hand reaches this level' },
-                  { label: 'Min Stock', value: item.min_stock, hint: 'Minimum acceptable stock level' },
-                  { label: 'Safety Stock', value: item.safety_stock, hint: 'Buffer above min stock' },
-                ].map((s, idx) => (
-                  <div
-                    key={s.label}
-                    className="px-5 py-4"
-                    style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
-                  >
-                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                      {s.label}
-                    </div>
-                    <div className="text-lg font-semibold font-mono mb-1" style={{ color: s.value != null ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
-                      {s.value ?? '-'}
-                    </div>
-                    <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{s.hint}</p>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -762,13 +616,391 @@ export default function ItemDetail() {
           ))}
         </div>
 
+        {/* -- Details Tab Content ------------------------------- */}
+        {activeTab === 'details' && (
+          <>
+            {/* Item Details Card */}
+            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              {/* Card header */}
+              <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                <span className="text-sm font-semibold">Item Details</span>
+              </div>
+
+              {/* Detail grid: 4 columns */}
+              <div className="grid grid-cols-4">
+                {detailItems.map((di, idx) => (
+                  <div
+                    key={idx}
+                    className="px-5 py-4"
+                    style={{
+                      borderRight: (idx + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none',
+                      borderBottom: idx < 4 ? '1px solid var(--so-border-light)' : 'none',
+                    }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                      {di.label}
+                    </div>
+                    {'editable' in di && di.editable && 'editNode' in di ? (
+                      (di as { editNode: React.ReactNode }).editNode
+                    ) : 'isParentLink' in di && di.isParentLink ? (
+                      <button
+                        onClick={() => navigate(`/items/${item.parent}`)}
+                        className="text-sm font-medium transition-colors cursor-pointer"
+                        style={{ color: 'var(--so-accent)' }}
+                        onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                        onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                      >
+                        {di.value}
+                      </button>
+                    ) : (
+                      <div
+                        className="text-sm font-medium"
+                        style={{
+                          color: di.empty ? 'var(--so-text-tertiary)' : 'var(--so-text-primary)',
+                          fontStyle: di.empty ? 'italic' : 'normal',
+                        }}
+                      >
+                        {di.value}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Description fields row (view mode) */}
+              {!isEditing && (
+                <>
+                  <div
+                    className="px-5 py-4"
+                    style={{ borderTop: '1px solid var(--so-border-light)' }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>General Description</div>
+                    <div className="text-sm whitespace-pre-wrap" style={{ color: item.description ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.description ? 'normal' : 'italic' }}>
+                      {item.description || 'Not set'}
+                    </div>
+                  </div>
+                  <div
+                    className="px-5 py-4"
+                    style={{ borderTop: '1px solid var(--so-border-light)' }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</div>
+                    <div className="text-sm whitespace-pre-wrap" style={{ color: item.purch_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.purch_desc ? 'normal' : 'italic' }}>
+                      {item.purch_desc || 'Not set'}
+                    </div>
+                  </div>
+                  <div
+                    className="px-5 py-4"
+                    style={{ borderTop: '1px solid var(--so-border-light)' }}
+                  >
+                    <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</div>
+                    <div className="text-sm whitespace-pre-wrap" style={{ color: item.sell_desc ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)', fontStyle: item.sell_desc ? 'normal' : 'italic' }}>
+                      {item.sell_desc || 'Not set'}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Unitizing / Pallet fields (edit mode) */}
+              {isEditing && (
+                <div style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                  <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                    <span className="text-[13px] font-semibold tracking-wide uppercase" style={{ color: 'var(--so-text-secondary)' }}>Unitizing / Pallet</span>
+                  </div>
+                  <div className="grid grid-cols-5">
+                    {[
+                      { field: 'units_per_layer' as const, label: 'Units / Bundle' },
+                      { field: 'units_per_pallet' as const, label: 'Units / Pallet' },
+                      { field: 'unit_height' as const, label: 'Unit Height' },
+                      { field: 'pallet_height' as const, label: 'Pallet Height' },
+                      { field: 'pallet_footprint' as const, label: 'Pallet Footprint' },
+                    ].map((f, idx) => (
+                      <div key={f.field} className="px-5 py-4" style={{ borderRight: idx < 4 ? '1px solid var(--so-border-light)' : 'none' }}>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
+                        <Input
+                          value={formData[f.field]}
+                          onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
+                          placeholder="-"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={inputStyle}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Description fields (edit mode) */}
+              {isEditing && (
+                <>
+                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Description</Label>
+                    <Textarea
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="General description..."
+                      rows={2}
+                      className="text-sm border rounded-md px-2"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</Label>
+                    <Textarea
+                      value={formData.purch_desc}
+                      onChange={(e) => setFormData({ ...formData, purch_desc: e.target.value })}
+                      placeholder="Description for purchase orders..."
+                      rows={2}
+                      className="text-sm border rounded-md px-2"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</Label>
+                    <Textarea
+                      value={formData.sell_desc}
+                      onChange={(e) => setFormData({ ...formData, sell_desc: e.target.value })}
+                      placeholder="Description for sales orders..."
+                      rows={2}
+                      className="text-sm border rounded-md px-2"
+                      style={inputStyle}
+                    />
+                  </div>
+                </>
+              )}
+
+            </div>
+
+            {/* Board Specifications (view only, corrugated) */}
+            {!isEditing && item.corrugated_details && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Board Specifications</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0">
+                  {[
+                    { label: 'Box Type', value: item.box_type ? item.box_type.toUpperCase().replace(/^DC$/, 'D/C') : null },
+                    { label: 'Test (ECT)', value: item.corrugated_details.test ? item.corrugated_details.test.toUpperCase() : null },
+                    { label: 'Flute', value: item.corrugated_details.flute ? item.corrugated_details.flute.toUpperCase() : null },
+                    { label: 'Paper', value: item.corrugated_details.paper ? item.corrugated_details.paper.toUpperCase() : null },
+                  ].map((f, i) => (
+                    <div key={i} className="px-5 py-4" style={{ borderRight: (i + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none' }}>
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
+                      <div className="text-sm font-medium" style={{ color: f.value ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>{f.value || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dimensions (view only, corrugated) */}
+            {!isEditing && item.dimensions && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Dimensions</span>
+                </div>
+                {item.box_type === 'dc' ? (
+                  <div className="grid grid-cols-3 gap-0">
+                    <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Blank Size (L × W)</div>
+                      <div className="text-sm font-medium font-mono" style={{ color: item.dimensions.blank_length ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+                        {item.dimensions.blank_length && item.dimensions.blank_width
+                          ? `${toFraction(item.dimensions.blank_length)} × ${toFraction(item.dimensions.blank_width)}`
+                          : '-'}
+                      </div>
+                    </div>
+                    <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Make-up Size (L × W × H)</div>
+                      <div className="text-sm font-medium font-mono" style={{ color: item.dimensions.length ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+                        {item.dimensions.length && item.dimensions.width
+                          ? `${toFraction(item.dimensions.length)} × ${toFraction(item.dimensions.width)}${item.dimensions.height ? ` × ${toFraction(item.dimensions.height)}` : ''}`
+                          : '-'}
+                      </div>
+                    </div>
+                    <div className="px-5 py-4">
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}># Out (Rotary)</div>
+                      <div className="text-sm font-medium font-mono" style={{ color: item.dimensions.out_per_rotary ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+                        {item.dimensions.out_per_rotary ?? '-'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-4 gap-0">
+                    {(() => {
+                      const d = item.dimensions!
+                      const fields: { label: string; value: string | number | null | undefined }[] = [
+                        { label: 'Length', value: toFraction(d.length) },
+                        { label: 'Width', value: toFraction(d.width) },
+                      ]
+                      if (d.height != null) fields.push({ label: 'Height', value: toFraction(d.height) })
+                      return fields.map((f, i) => (
+                        <div key={i} className="px-5 py-4" style={{ borderRight: (i + 1) % fields.length !== 0 ? '1px solid var(--so-border-light)' : 'none' }}>
+                          <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
+                          <div className="text-sm font-medium font-mono" style={{ color: f.value ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>{f.value ?? '-'}</div>
+                        </div>
+                      ))
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Print Info (view only, corrugated + printed) */}
+            {!isEditing && item.corrugated_details?.is_printed && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Print Information</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0">
+                  {[
+                    { label: 'Printed', value: 'Yes' },
+                    { label: 'Panels Printed', value: item.corrugated_details.panels_printed != null ? String(item.corrugated_details.panels_printed) : null },
+                    { label: 'Colors Printed', value: item.corrugated_details.colors_printed != null ? String(item.corrugated_details.colors_printed) : null },
+                    { label: 'Ink List', value: item.corrugated_details.ink_list || null, isInkList: true },
+                  ].map((f, i) => (
+                    <div key={i} className="px-5 py-4" style={{ borderRight: (i + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none' }}>
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
+                      {'isInkList' in f && f.isInkList && f.value ? (
+                        <div className="flex flex-col gap-0.5">
+                          {f.value.split(',').map((ink: string, j: number) => (
+                            <div key={j} className="text-sm font-medium" style={{ color: 'var(--so-text-primary)' }}>{ink.trim()}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-sm font-medium" style={{ color: f.value ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>{f.value || '-'}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Packaging Specifications (view only) */}
+            {!isEditing && item.packaging_details && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Packaging Specifications</span>
+                </div>
+                <div className="grid grid-cols-4 gap-0">
+                  {Object.entries(item.packaging_details)
+                    .filter(([, v]) => v != null && v !== '' && v !== false)
+                    .map(([key, value], i) => (
+                      <div key={key} className="px-5 py-4" style={{ borderRight: (i + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none', borderBottom: '1px solid var(--so-border-light)' }}>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {key.replace(/_/g, ' ')}
+                        </div>
+                        <div className="text-sm font-medium" style={{ color: 'var(--so-text-primary)' }}>
+                          {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Unitizing / Pallet (view only) */}
+            {!isEditing && (item.units_per_layer != null || item.units_per_pallet != null || item.unit_height || item.pallet_height || item.pallet_footprint) && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Unitizing / Pallet</span>
+                </div>
+                <div className="grid grid-cols-5 gap-0">
+                  {[
+                    { label: 'Units / Bundle', value: item.units_per_layer != null ? String(item.units_per_layer) : null },
+                    { label: 'Units / Pallet', value: item.units_per_pallet != null ? String(item.units_per_pallet) : null },
+                    { label: 'Unit Height', value: item.unit_height },
+                    { label: 'Pallet Height', value: item.pallet_height },
+                    { label: 'Pallet Footprint', value: item.pallet_footprint || null },
+                  ].map((f, i) => (
+                    <div key={i} className="px-5 py-4" style={{ borderRight: (i + 1) % 5 !== 0 ? '1px solid var(--so-border-light)' : 'none' }}>
+                      <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
+                      <div className="text-sm font-medium" style={{ color: f.value ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>{f.value || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reorder Settings Card - only for inventory/crossdock */}
+            {(item.item_type === 'inventory' || item.item_type === 'crossdock') && (
+              <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+                {/* Card header */}
+                <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                  <span className="text-sm font-semibold">Reorder Settings</span>
+                </div>
+
+                {isEditing ? (
+                  <div className="grid grid-cols-3">
+                    {[
+                      { field: 'reorder_point' as const, label: 'Reorder Point', hint: 'Alert when on-hand reaches this level', value: formData.reorder_point },
+                      { field: 'min_stock' as const, label: 'Min Stock', hint: 'Minimum acceptable stock level', value: formData.min_stock },
+                      { field: 'safety_stock' as const, label: 'Safety Stock', hint: 'Buffer above min stock', value: formData.safety_stock },
+                    ].map((f, idx) => (
+                      <div
+                        key={f.field}
+                        className="px-5 py-4"
+                        style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
+                      >
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {f.label}
+                        </div>
+                        <Input
+                          type="number"
+                          value={f.value}
+                          onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
+                          placeholder={f.hint}
+                          min="0"
+                          className="h-9 text-sm border rounded-md px-2 mb-1.5"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                        <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{f.hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3">
+                    {[
+                      { label: 'Reorder Point', value: item.reorder_point, hint: 'Alert when on-hand reaches this level' },
+                      { label: 'Min Stock', value: item.min_stock, hint: 'Minimum acceptable stock level' },
+                      { label: 'Safety Stock', value: item.safety_stock, hint: 'Buffer above min stock' },
+                    ].map((s, idx) => (
+                      <div
+                        key={s.label}
+                        className="px-5 py-4"
+                        style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
+                      >
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {s.label}
+                        </div>
+                        <div className="text-lg font-semibold font-mono mb-1" style={{ color: s.value != null ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
+                          {s.value ?? '-'}
+                        </div>
+                        <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{s.hint}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         {/* -- Tab Content Card ---------------------------------- */}
+        {activeTab !== 'details' && (
         <div className="rounded-[14px] border overflow-hidden animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           {/* Card header */}
-          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">
               {tabs.find((t) => t.id === activeTab)?.label}
             </span>
+            {activeTab === 'vendors' && !addVendorOpen && (
+              <button
+                className={outlineBtnClass}
+                style={outlineBtnStyle}
+                onClick={() => setAddVendorOpen(true)}
+              >
+                + Add Vendor
+              </button>
+            )}
           </div>
 
           <div className="px-6 py-5">
@@ -868,12 +1100,173 @@ export default function ItemDetail() {
 
             {activeTab === 'vendors' && (
               <div>
+                {/* Quick Add Vendor */}
+                {addVendorOpen && (
+                  <div className="rounded-lg border p-4 mb-4" style={{ borderColor: 'var(--so-border)', background: 'var(--so-bg)' }}>
+                    <div className="grid grid-cols-4 gap-3 mb-3">
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Vendor *</div>
+                        <Select value={addVendorForm.vendor} onValueChange={(v) => setAddVendorForm({ ...addVendorForm, vendor: v })}>
+                          <SelectTrigger className="h-9 text-sm border rounded-md" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                            <SelectValue placeholder="Select vendor..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {vendorPartyList
+                              .filter(vp => !vendors?.some((ev: ItemVendor) => ev.vendor === vp.id))
+                              .map((vp) => (
+                                <SelectItem key={vp.id} value={String(vp.id)}>{vp.display_name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>MPN</div>
+                        <Input
+                          value={addVendorForm.mpn}
+                          onChange={(e) => setAddVendorForm({ ...addVendorForm, mpn: e.target.value })}
+                          placeholder="Vendor part #"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Lead Time (days)</div>
+                        <Input
+                          type="number"
+                          value={addVendorForm.lead_time_days}
+                          onChange={(e) => setAddVendorForm({ ...addVendorForm, lead_time_days: e.target.value })}
+                          placeholder="-"
+                          min="0"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Min Order Qty</div>
+                        <Input
+                          type="number"
+                          value={addVendorForm.min_order_qty}
+                          onChange={(e) => setAddVendorForm({ ...addVendorForm, min_order_qty: e.target.value })}
+                          placeholder="-"
+                          min="0"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className={primaryBtnClass}
+                        style={primaryBtnStyle}
+                        disabled={!addVendorForm.vendor || createItemVendor.isPending}
+                        onClick={async () => {
+                          const newVendor = await createItemVendor.mutateAsync({
+                            vendor: parseInt(addVendorForm.vendor, 10),
+                            mpn: addVendorForm.mpn,
+                            lead_time_days: addVendorForm.lead_time_days ? parseInt(addVendorForm.lead_time_days, 10) : null,
+                            min_order_qty: addVendorForm.min_order_qty ? parseInt(addVendorForm.min_order_qty, 10) : null,
+                          })
+                          const vendorName = vendorPartyList.find(vp => vp.id === parseInt(addVendorForm.vendor, 10))?.display_name || 'this vendor'
+                          setAddVendorForm({ vendor: '', mpn: '', lead_time_days: '', min_order_qty: '' })
+                          setAddVendorOpen(false)
+                          if (newVendor.vendor_record_id) {
+                            setCostListForm({ unit_cost: '', min_quantity: '1', begin_date: new Date().toISOString().split('T')[0] })
+                            setCostListPrompt({ vendorRecordId: newVendor.vendor_record_id, vendorName })
+                          }
+                        }}
+                      >
+                        {createItemVendor.isPending ? 'Adding...' : 'Add Vendor'}
+                      </button>
+                      <button
+                        className={outlineBtnClass}
+                        style={outlineBtnStyle}
+                        onClick={() => {
+                          setAddVendorForm({ vendor: '', mpn: '', lead_time_days: '', min_order_qty: '' })
+                          setAddVendorOpen(false)
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cost list creation prompt after adding vendor */}
+                {costListPrompt && (
+                  <div className="rounded-lg border p-4 mb-4" style={{ borderColor: 'rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.04)' }}>
+                    <div className="text-sm font-medium mb-3" style={{ color: 'var(--so-text-primary)' }}>
+                      Create a cost list for <span className="font-semibold">{costListPrompt.vendorName}</span>?
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mb-3">
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Unit Cost *</div>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={costListForm.unit_cost}
+                          onChange={(e) => setCostListForm({ ...costListForm, unit_cost: e.target.value })}
+                          placeholder="0.00"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Min Quantity</div>
+                        <Input
+                          type="number"
+                          value={costListForm.min_quantity}
+                          onChange={(e) => setCostListForm({ ...costListForm, min_quantity: e.target.value })}
+                          placeholder="1"
+                          min="1"
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                      <div>
+                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Begin Date</div>
+                        <Input
+                          type="date"
+                          value={costListForm.begin_date}
+                          onChange={(e) => setCostListForm({ ...costListForm, begin_date: e.target.value })}
+                          className="h-9 text-sm border rounded-md px-2"
+                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        className={primaryBtnClass}
+                        style={primaryBtnStyle}
+                        disabled={!costListForm.unit_cost || createCostList.isPending}
+                        onClick={async () => {
+                          await createCostList.mutateAsync({
+                            vendor: costListPrompt.vendorRecordId,
+                            item: itemId,
+                            begin_date: costListForm.begin_date,
+                            lines: [{ min_quantity: parseInt(costListForm.min_quantity, 10) || 1, unit_cost: costListForm.unit_cost }],
+                          })
+                          setCostListPrompt(null)
+                        }}
+                      >
+                        {createCostList.isPending ? 'Creating...' : 'Create Cost List'}
+                      </button>
+                      <button
+                        className={outlineBtnClass}
+                        style={outlineBtnStyle}
+                        onClick={() => setCostListPrompt(null)}
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {vendors && vendors.length > 0 ? (
-                  <div className="overflow-x-auto -mx-6 -my-5">
+                  <div className="overflow-x-auto -mx-6" style={{ marginBottom: '-20px' }}>
                     <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                       <thead>
                         <tr>
-                          {['Vendor', 'MPN', 'Lead Time', 'Min Order', 'Preferred'].map((h) => (
+                          {['Vendor', 'MPN', 'Lead Time', 'Min Order', 'Cost List', 'Preferred'].map((h) => (
                             <th
                               key={h}
                               className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left"
@@ -885,99 +1278,88 @@ export default function ItemDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {vendors.map((v: ItemVendor) => (
-                          <tr key={v.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                            <td className="py-3.5 px-4 font-medium" style={{ color: 'var(--so-text-primary)' }}>
-                              {v.vendor_name || `Vendor ${v.vendor}`}
-                            </td>
-                            <td className="py-3.5 px-4 font-mono text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                              {v.mpn || '-'}
-                            </td>
-                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
-                              {v.lead_time_days ? `${v.lead_time_days} days` : '-'}
-                            </td>
-                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
-                              {v.min_order_qty ?? '-'}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {v.is_preferred
-                                ? (
+                        {vendors.map((v: ItemVendor) => {
+                          const vendorCostList = costLists.find(cl => cl.vendor === v.vendor_record_id)
+                          return (
+                            <tr key={v.id} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                              <td className="py-3.5 px-4 font-medium" style={{ color: 'var(--so-text-primary)' }}>
+                                {v.vendor_name || `Vendor ${v.vendor}`}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                                {v.mpn || '-'}
+                              </td>
+                              <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                                {v.lead_time_days ? `${v.lead_time_days} days` : '-'}
+                              </td>
+                              <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
+                                {v.min_order_qty ?? '-'}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                {vendorCostList ? (
                                   <span
                                     className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
                                     style={{ background: 'var(--so-success-bg)', border: '1px solid transparent', color: 'var(--so-success-text)' }}
                                   >
-                                    <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: 'var(--so-success-text)' }} />
-                                    Preferred
+                                    Active
                                   </span>
-                                )
-                                : <span style={{ color: 'var(--so-text-tertiary)' }}>-</span>}
-                            </td>
-                          </tr>
-                        ))}
+                                ) : v.vendor_record_id ? (
+                                  <button
+                                    className="text-[12px] font-medium cursor-pointer transition-colors"
+                                    style={{ color: 'var(--so-accent)', background: 'none', border: 'none' }}
+                                    onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                                    onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                                    onClick={() => {
+                                      setCostListForm({ unit_cost: '', min_quantity: '1', begin_date: new Date().toISOString().split('T')[0] })
+                                      setCostListPrompt({ vendorRecordId: v.vendor_record_id!, vendorName: v.vendor_name })
+                                    }}
+                                  >
+                                    + Add Cost
+                                  </button>
+                                ) : (
+                                  <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>-</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                {v.is_preferred
+                                  ? (
+                                    <span
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+                                      style={{ background: 'var(--so-success-bg)', border: '1px solid transparent', color: 'var(--so-success-text)' }}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full opacity-60" style={{ background: 'var(--so-success-text)' }} />
+                                      Preferred
+                                    </span>
+                                  )
+                                  : (
+                                    <button
+                                      className="text-[12px] font-medium cursor-pointer transition-colors"
+                                      style={{ color: 'var(--so-accent)', background: 'none', border: 'none' }}
+                                      onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
+                                      onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
+                                      onClick={() => setPreferredVendor.mutate({ itemId, vendorLinkId: v.id })}
+                                      disabled={setPreferredVendor.isPending}
+                                    >
+                                      Set as Preferred
+                                    </button>
+                                  )}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
-                ) : (
+                ) : !addVendorOpen ? (
                   <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                     No vendors linked to this item
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
-            {activeTab === 'children' && (
-              <div>
-                {childItems?.results && childItems.results.length > 0 ? (
-                  <div className="overflow-x-auto -mx-6 -my-5">
-                    <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr>
-                          {['SKU', 'Name', 'Division', 'Status'].map((h) => (
-                            <th
-                              key={h}
-                              className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left"
-                              style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {childItems.results.map((child: any) => (
-                          <tr
-                            key={child.id}
-                            style={{ borderBottom: '1px solid var(--so-border-light)', cursor: 'pointer' }}
-                            onClick={() => navigate(`/items/${child.id}`)}
-                            onMouseEnter={e => ((e.currentTarget as HTMLTableRowElement).style.background = 'var(--so-bg)')}
-                            onMouseLeave={e => ((e.currentTarget as HTMLTableRowElement).style.background = 'transparent')}
-                          >
-                            <td className="py-3.5 px-4 font-mono font-medium" style={{ color: 'var(--so-accent)' }}>
-                              {child.sku}
-                            </td>
-                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-primary)' }}>
-                              {child.name}
-                            </td>
-                            <td className="py-3.5 px-4" style={{ color: 'var(--so-text-secondary)' }}>
-                              {child.division || '-'}
-                            </td>
-                            <td className="py-3.5 px-4">
-                              {getStatusBadge(child.is_active ? 'active' : 'inactive')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                    No sub-items
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
+        )}
 
       </div>
 

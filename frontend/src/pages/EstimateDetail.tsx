@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
+import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Paperclip, Plus, Trash2,
   ArrowRightLeft, FileText, ChevronDown,
@@ -48,6 +51,7 @@ export default function EstimateDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const estimateId = parseInt(id || '0', 10)
+  const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
 
   const { data: estimate, isLoading } = useEstimate(estimateId)
   const updateEstimate = useUpdateEstimate()
@@ -909,7 +913,8 @@ export default function EstimateDetail() {
       </div>
 
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="estimates" modelName="estimate" objectId={estimateId} />
-
+      <PanelToggleButton contentType="estimate" objectId={estimateId} onClick={togglePanel} isOpen={panelOpen} />
+      <TransactionPanel contentType="estimate" objectId={estimateId} open={panelOpen} onClose={closePanel} label={estimate ? `Estimate ${estimate.estimate_number}` : 'Estimate'} />
     </div>
   )
 }

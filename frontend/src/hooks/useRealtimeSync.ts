@@ -150,7 +150,6 @@ export function useInvoiceSync() {
  *
  * Connects to ws/notifications/ (user-scoped, not tenant-scoped)
  * and invalidates the notification query when new notifications arrive.
- * This allows the NotificationBell to update its unread count instantly.
  */
 export function useNotificationSync() {
   const queryClient = useQueryClient()

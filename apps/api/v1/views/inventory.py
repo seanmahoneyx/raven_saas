@@ -8,7 +8,11 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from django.db.models import Sum
+from rest_framework.views import APIView
+
 from apps.inventory.models import InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction
+from apps.warehousing.models import Warehouse
 from apps.api.v1.serializers.inventory import (
     InventoryLotSerializer, InventoryLotListSerializer, InventoryLotDetailSerializer,
     InventoryPalletSerializer, InventoryBalanceSerializer, InventoryTransactionSerializer,
@@ -175,3 +179,24 @@ class InventoryTransactionViewSet(viewsets.ModelViewSet):
     ordering_fields = ['transaction_date', 'created_at']
     ordering = ['-transaction_date']
     http_method_names = ['get', 'post', 'head', 'options']  # No updates/deletes on transactions
+
+
+class WarehousePalletSummaryView(APIView):
+    """GET /inventory/warehouse-pallet-summary/ - Pallets in inventory vs total capacity."""
+
+    @extend_schema(tags=['inventory'], summary='Get warehouse pallet summary')
+    def get(self, request):
+        pallets_in_inventory = InventoryPallet.objects.filter(
+            lot__tenant=request.tenant,
+            quantity_on_hand__gt=0,
+        ).count()
+
+        total_capacity = Warehouse.objects.filter(
+            tenant=request.tenant,
+            is_active=True,
+        ).aggregate(total=Sum('pallet_capacity'))['total'] or 0
+
+        return Response({
+            'pallets_in_inventory': pallets_in_inventory,
+            'total_capacity': total_capacity,
+        })
