@@ -113,6 +113,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/users', icon: Users, label: 'Users' },
       { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
       { type: 'item', to: '/accounting-settings', icon: Calculator, label: 'Accounting Settings' },
+      { type: 'item', to: '/fixed-assets', icon: Building2, label: 'Fixed Assets' },
       { type: 'separator' },
       { type: 'item', to: '/admin/user-audit', icon: FileText, label: 'User Audit Report', requiresAdmin: true },
       { type: 'item', to: '/admin', icon: Cog, label: 'Settings' },

@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.approvals',
     'apps.collaboration',
+    'apps.assets',
     'apps.favorites',
     'apps.api',
     # User management

@@ -84,6 +84,7 @@ from .views.auth import CookieTokenObtainPairView, CookieTokenRefreshView, Cooki
 from .views.search import GlobalSearchView
 from .views.users import CurrentUserView, UserPreferencesView, UserListView, UserDetailView
 from .views.accounting import AccountViewSet, JournalEntryViewSet
+from .views.assets import AssetCategoryViewSet, FixedAssetViewSet, DepreciationRunView
 from .views.email import SendInvoiceEmailView, SendPurchaseOrderEmailView
 from .views.notifications import NotificationListView, NotificationMarkReadView
 from .views.approvals import ApprovalRequestViewSet, TokenApproveView, TokenRejectView
@@ -203,6 +204,10 @@ router.register(r'contracts', ContractViewSet, basename='contract')
 # Accounting
 router.register(r'accounts', AccountViewSet, basename='account')
 router.register(r'journal-entries', JournalEntryViewSet, basename='journalentry')
+
+# Fixed Assets
+router.register(r'asset-categories', AssetCategoryViewSet, basename='assetcategory')
+router.register(r'fixed-assets', FixedAssetViewSet, basename='fixedasset')
 
 # Approvals
 router.register(r'approvals', ApprovalRequestViewSet, basename='approvalrequest')
@@ -361,6 +366,9 @@ urlpatterns = [
     path('favorites/<int:pk>/', FavoriteViewSet.as_view({'delete': 'destroy'}), name='favorites-detail'),
     path('recents/', RecentViewAPI.as_view(), name='recents'),
     path('suggestions/', SuggestionsAPI.as_view(), name='suggestions'),
+
+    # Fixed Asset Depreciation Run
+    path('fixed-assets/run-depreciation/', DepreciationRunView.as_view(), name='run-depreciation'),
 
     # Health check (no auth required - used by load balancers)
     path('health/', health_check, name='health-check'),

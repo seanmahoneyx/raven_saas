@@ -84,6 +84,9 @@ import AccountingSettings from '@/pages/AccountingSettings'
 import Preferences from '@/pages/settings/Preferences'
 import UsersPage from '@/pages/Users'
 import Onboarding from '@/pages/Onboarding'
+import FixedAssets from '@/pages/FixedAssets'
+import FixedAssetDetail from '@/pages/FixedAssetDetail'
+import CreateFixedAsset from '@/pages/CreateFixedAsset'
 import Approvals from '@/pages/Approvals'
 import NotificationHub from '@/pages/NotificationHub'
 import UnitOfMeasure from '@/pages/UnitOfMeasure'
@@ -220,6 +223,9 @@ function App() {
                 <Route path="/admin/import" element={<DataImport />} />
                 <Route path="/admin/tax-zones" element={<TaxZones />} />
                 <Route path="/admin/user-audit" element={<UserAuditReport />} />
+                <Route path="/fixed-assets" element={<FixedAssets />} />
+                <Route path="/fixed-assets/new" element={<CreateFixedAsset />} />
+                <Route path="/fixed-assets/:id" element={<FixedAssetDetail />} />
                 <Route path="/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="/journal-entries" element={<JournalEntries />} />
                 <Route path="/journal-entries/new" element={<CreateJournalEntry />} />
