@@ -159,6 +159,9 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
       { type: 'separator' },
       { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
+      { type: 'separator' },
+      { type: 'item', to: '/items/request', icon: Plus, label: 'Request New Item' },
+      { type: 'item', to: '/items/workbench', icon: ClipboardList, label: 'Item Setup Workbench' },
     ],
   },
   // 5. Design

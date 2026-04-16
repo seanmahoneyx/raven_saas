@@ -104,6 +104,8 @@ const DRAWER_SECTIONS: DrawerSection[] = [
       { icon: DollarSign, label: 'Product Cards', to: '/product-cards' },
       { icon: Boxes, label: 'Inventory', to: '/inventory' },
       { icon: Ruler, label: 'Units of Measure', to: '/uom' },
+      { icon: FileText, label: 'Request New Item', to: '/items/request' },
+      { icon: ClipboardList, label: 'Item Workbench', to: '/items/workbench' },
     ],
   },
   {

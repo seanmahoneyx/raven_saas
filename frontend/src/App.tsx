@@ -32,6 +32,8 @@ import ItemDetail from '@/pages/ItemDetail'
 import CustomerDetail from '@/pages/CustomerDetail'
 import VendorDetail from '@/pages/VendorDetail'
 import CreateItem from '@/pages/CreateItem'
+import RequestItem from '@/pages/RequestItem'
+import ItemSetupWorkbench from '@/pages/ItemSetupWorkbench'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import ReportsDashboard from '@/pages/reports/ReportsDashboard'
 import CannedReport from '@/pages/reports/CannedReport'
@@ -168,6 +170,8 @@ function App() {
                 <Route path="/contacts/:id" element={<ContactDetail />} />
                 <Route path="/items" element={<Items />} />
                 <Route path="/items/new" element={<CreateItem />} />
+                <Route path="/items/request" element={<RequestItem />} />
+                <Route path="/items/workbench" element={<ItemSetupWorkbench />} />
                 <Route path="/items/:id" element={<ItemDetail />} />
                 <Route path="/product-cards" element={<ProductCards />} />
                 <Route path="/estimates" element={<Estimates />} />
