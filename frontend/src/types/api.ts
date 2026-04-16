@@ -940,6 +940,9 @@ export interface DesignRequest {
   notes: string
   generated_item: number | null
   generated_item_sku: string | null
+  checked_out_by: number | null
+  checked_out_by_name: string | null
+  checked_out_at: string | null
   created_at: string
   updated_at: string
 }
