@@ -33,6 +33,8 @@ import {
   GitBranchPlus,
   Ruler,
   Mail,
+  MapPin,
+  Navigation,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -186,6 +188,10 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/warehouse/scanner', icon: ScanLine, label: 'Scanner' },
       { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
       { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },
+      { type: 'separator' },
+      { type: 'item', to: '/warehouse/locations', icon: MapPin, label: 'Locations & Lots' },
+      { type: 'item', to: '/logistics', icon: Navigation, label: 'Logistics' },
+      { type: 'item', to: '/logistics/manifest', icon: Truck, label: 'Driver Manifest' },
     ],
   },
   // 8. Reports (with nested submenus)

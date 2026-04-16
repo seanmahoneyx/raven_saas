@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   useTrialBalance,
   useIncomeStatement,
   useBalanceSheet,
+  useCashFlowStatement,
 } from '@/api/reports'
 import type {
   IncomeStatementSection,
   BalanceSheetSection,
   TrialBalanceAccount,
+  CashFlowSection,
 } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -82,6 +85,50 @@ function LoadingSkeleton() {
   )
 }
 
+function CashFlowSectionView({ section }: { section: CashFlowSection }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">{section.label}</h3>
+      {section.details.length > 0 && (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left">
+              <th className="py-1 font-medium">Date</th>
+              <th className="py-1 font-medium">Description</th>
+              <th className="py-1 font-medium">Reference</th>
+              <th className="py-1 font-medium text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {section.details.map((row, i) => (
+              <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                <td className="py-1 font-mono text-xs">{row.date}</td>
+                <td className="py-1">{row.description}</td>
+                <td className="py-1 text-muted-foreground">{row.reference}</td>
+                <td className="py-1 text-right font-mono">{formatCurrency(row.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="pl-4 space-y-0.5 border-t pt-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Inflows</span>
+          <span className="font-mono">{formatCurrency(section.inflows)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Outflows</span>
+          <span className="font-mono">{formatCurrency(section.outflows)}</span>
+        </div>
+        <div className="flex justify-between font-semibold border-t pt-1">
+          <span>Net {section.label}</span>
+          <span className="font-mono">{formatCurrency(section.net)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
@@ -104,7 +151,16 @@ export default function FinancialStatements() {
   const [bsDate, setBsDate] = useState(today())
   const { data: bsData, isLoading: bsLoading } = useBalanceSheet(bsDate)
 
+  // Cash Flow state
+  const [cfStartDate, setCfStartDate] = useState(firstOfYear())
+  const [cfEndDate, setCfEndDate] = useState(today())
+  const { data: cfData, isLoading: cfLoading } = useCashFlowStatement(cfStartDate, cfEndDate)
+
   const handleExportCsv = () => {
+    if (activeTab === 'cash-flow') {
+      toast.info('Use Print for Cash Flow export')
+      return
+    }
     const datestamp = new Date().toISOString().split('T')[0]
     if (activeTab === 'trial-balance' && tbData) {
       const headers = ['Code', 'Account', 'Type', 'Debit', 'Credit']
@@ -163,7 +219,7 @@ export default function FinancialStatements() {
 
       <PrintReportHeader
         title="Financial Statements"
-        subtitle={activeTab === 'trial-balance' ? 'Trial Balance' : activeTab === 'income-statement' ? 'Income Statement' : 'Balance Sheet'}
+        subtitle={activeTab === 'trial-balance' ? 'Trial Balance' : activeTab === 'income-statement' ? 'Income Statement' : activeTab === 'cash-flow' ? 'Cash Flow Statement' : 'Balance Sheet'}
       />
 
       <Tabs defaultValue="trial-balance" onValueChange={setActiveTab}>
@@ -171,6 +227,7 @@ export default function FinancialStatements() {
           <TabsTrigger value="trial-balance">Trial Balance</TabsTrigger>
           <TabsTrigger value="income-statement">Income Statement</TabsTrigger>
           <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
+          <TabsTrigger value="cash-flow">Cash Flow</TabsTrigger>
         </TabsList>
 
         {/* Trial Balance */}
@@ -328,6 +385,54 @@ export default function FinancialStatements() {
             ) : null}
           </div>
         </TabsContent>
+        {/* Cash Flow Statement */}
+        <TabsContent value="cash-flow">
+          <div className="space-y-4">
+            <div className="flex items-end gap-4" data-print-hide>
+              <div className="space-y-1">
+                <Label className="text-xs">Start Date</Label>
+                <Input type="date" value={cfStartDate} onChange={(e) => setCfStartDate(e.target.value)} className="w-44 h-8" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">End Date</Label>
+                <Input type="date" value={cfEndDate} onChange={(e) => setCfEndDate(e.target.value)} className="w-44 h-8" />
+              </div>
+            </div>
+
+            {cfLoading ? (
+              <LoadingSkeleton />
+            ) : cfData ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Cash Flow Statement: {cfData.start_date} to {cfData.end_date}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex justify-between font-bold">
+                    <span>Beginning Cash Balance</span>
+                    <span className="font-mono">{formatCurrency(cfData.beginning_cash_balance)}</span>
+                  </div>
+
+                  <CashFlowSectionView section={cfData.sections.operating} />
+                  <CashFlowSectionView section={cfData.sections.investing} />
+                  <CashFlowSectionView section={cfData.sections.financing} />
+
+                  <div className={`flex justify-between border-t-2 pt-2 font-bold ${parseFloat(cfData.net_change_in_cash) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                    <span>Net Change in Cash</span>
+                    <span className="font-mono">{formatCurrency(cfData.net_change_in_cash)}</span>
+                  </div>
+
+                  <div className="flex justify-between border-t-4 border-double pt-3 font-bold text-lg">
+                    <span>Ending Cash Balance</span>
+                    <span className="font-mono">{formatCurrency(cfData.ending_cash_balance)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        </TabsContent>
+
         <PrintFooter />
       </Tabs>
     </div>

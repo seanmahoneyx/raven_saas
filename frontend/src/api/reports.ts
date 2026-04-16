@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import api from './client'
+import { getApiErrorMessage } from '@/lib/errors'
 import type { PaginatedResponse } from '@/types/api'
 
 export interface ReportDefinition {
@@ -52,7 +54,7 @@ export function useReportDefinitions(params?: { category?: string; is_active?: b
   return useQuery({
     queryKey: ['report-definitions', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<ReportDefinition>>('/report-definitions/', { params })
+      const { data } = await api.get<PaginatedResponse<ReportDefinition>>('/reports/definitions/', { params })
       return data
     },
   })
@@ -62,7 +64,7 @@ export function useReportDefinition(id: number) {
   return useQuery({
     queryKey: ['report-definitions', id],
     queryFn: async () => {
-      const { data } = await api.get<ReportDefinition>(`/report-definitions/${id}/`)
+      const { data } = await api.get<ReportDefinition>(`/reports/definitions/${id}/`)
       return data
     },
     enabled: !!id,
@@ -74,7 +76,7 @@ export function useSavedReports(params?: { report_definition?: number }) {
   return useQuery({
     queryKey: ['saved-reports', params],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<SavedReport>>('/saved-reports/', { params })
+      const { data } = await api.get<PaginatedResponse<SavedReport>>('/reports/saved/', { params })
       return data
     },
   })
@@ -85,7 +87,7 @@ export function useReportSchedules() {
   return useQuery({
     queryKey: ['report-schedules'],
     queryFn: async () => {
-      const { data } = await api.get<PaginatedResponse<ReportSchedule>>('/report-schedules/')
+      const { data } = await api.get<PaginatedResponse<ReportSchedule>>('/reports/schedules/')
       return data
     },
   })
@@ -95,7 +97,7 @@ export function useCreateReportSchedule() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (schedule: Partial<ReportSchedule>) => {
-      const { data } = await api.post<ReportSchedule>('/report-schedules/', schedule)
+      const { data } = await api.post<ReportSchedule>('/reports/schedules/', schedule)
       return data
     },
     onSuccess: () => {
@@ -108,7 +110,7 @@ export function useUpdateReportSchedule() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...schedule }: Partial<ReportSchedule> & { id: number }) => {
-      const { data } = await api.patch<ReportSchedule>(`/report-schedules/${id}/`, schedule)
+      const { data } = await api.patch<ReportSchedule>(`/reports/schedules/${id}/`, schedule)
       return data
     },
     onSuccess: () => {
@@ -122,7 +124,7 @@ export function useExecuteReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ reportId, parameters }: { reportId: number; parameters?: Record<string, unknown> }) => {
-      const { data } = await api.post<SavedReport>(`/report-definitions/${reportId}/execute/`, { parameters })
+      const { data } = await api.post<SavedReport>(`/reports/definitions/${reportId}/execute/`, { parameters })
       return data
     },
     onSuccess: () => {
@@ -514,5 +516,101 @@ export function useAPAgingReport(date?: string) {
       const { data } = await api.get<AgingReport>('/reports/ap-aging/', { params })
       return data
     },
+  })
+}
+
+// =============================================================================
+// CASH FLOW STATEMENT
+// =============================================================================
+
+export interface CashFlowSection {
+  label: string
+  inflows: string
+  outflows: string
+  net: string
+  details: Array<{
+    date: string
+    description: string
+    reference: string
+    amount: string
+    account: string
+  }>
+}
+
+export interface CashFlowStatement {
+  start_date: string
+  end_date: string
+  beginning_cash_balance: string
+  sections: {
+    operating: CashFlowSection
+    investing: CashFlowSection
+    financing: CashFlowSection
+  }
+  net_change_in_cash: string
+  ending_cash_balance: string
+}
+
+export function useCashFlowStatement(start: string, end: string) {
+  return useQuery({
+    queryKey: ['cash-flow-statement', start, end],
+    queryFn: async () => {
+      const { data } = await api.get('/reports/cash-flow/', { params: { start, end } })
+      return data
+    },
+    enabled: !!start && !!end,
+  })
+}
+
+// =============================================================================
+// REPORT FAVORITES
+// =============================================================================
+
+export interface ReportFavorite {
+  id: number
+  user: number
+  report: number
+  report_name: string
+  report_type: string
+  report_category: string
+  display_order: number
+  saved_filters: Record<string, unknown>
+}
+
+export function useReportFavorites() {
+  return useQuery({
+    queryKey: ['report-favorites'],
+    queryFn: async () => {
+      const { data } = await api.get('/reports/favorites/')
+      return data.results ?? data
+    },
+  })
+}
+
+export function useAddReportFavorite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { report: number; display_order?: number; saved_filters?: Record<string, unknown> }) => {
+      const { data } = await api.post('/reports/favorites/', payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report-favorites'] })
+      toast.success('Report added to favorites')
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to add favorite')),
+  })
+}
+
+export function useRemoveReportFavorite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/reports/favorites/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report-favorites'] })
+      toast.success('Report removed from favorites')
+    },
+    onError: (error: any) => toast.error(getApiErrorMessage(error, 'Failed to remove favorite')),
   })
 }

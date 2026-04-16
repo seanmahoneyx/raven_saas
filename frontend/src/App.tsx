@@ -73,6 +73,9 @@ import InvoiceDetail from '@/pages/InvoiceDetail'
 import Scanner from '@/pages/warehouse/Scanner'
 import CycleCounts from '@/pages/warehouse/CycleCounts'
 import PrintLabels from '@/pages/warehouse/PrintLabels'
+import WarehouseLocations from '@/pages/warehouse/WarehouseLocations'
+import Logistics from '@/pages/Logistics'
+import DriverManifest from '@/pages/DriverManifest'
 import Settings from '@/pages/Settings'
 import AccountingSettings from '@/pages/AccountingSettings'
 import Preferences from '@/pages/settings/Preferences'
@@ -200,6 +203,9 @@ function App() {
                 <Route path="/warehouse/scanner" element={<Scanner />} />
                 <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
                 <Route path="/warehouse/print-labels" element={<PrintLabels />} />
+                <Route path="/warehouse/locations" element={<WarehouseLocations />} />
+                <Route path="/logistics" element={<Logistics />} />
+                <Route path="/logistics/manifest" element={<DriverManifest />} />
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/accounting-settings" element={<AccountingSettings />} />
