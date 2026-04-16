@@ -25,7 +25,7 @@ import {
   useDailyOverrides,
 } from '@/api/priorityList'
 import type { PriorityLine } from '@/types/api'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { useVendors } from '@/api/parties'
 
 interface PriorityListViewProps {
   startDate: string
@@ -43,6 +43,13 @@ export const PriorityListView = memo(function PriorityListView({
 }: PriorityListViewProps) {
   // Local filter state (not from store to avoid re-render loops)
   const [filterVendorId, setFilterVendorId] = useState<number | null>(initialVendorId ?? null)
+
+  // Vendors with open POs (for the dropdown filter)
+  const { data: vendorsData } = useVendors()
+  const vendorsWithOpenPOs = useMemo(() => {
+    const results = vendorsData?.results ?? []
+    return results.filter((v: { open_po_count?: number }) => (v.open_po_count ?? 0) > 0)
+  }, [vendorsData])
 
   // Store actions only (stable references)
   const hydrate = usePriorityListStore((s) => s.hydrate)
@@ -241,14 +248,21 @@ export const PriorityListView = memo(function PriorityListView({
       {/* Header / Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <SearchableCombobox
-            entityType="vendor"
-            value={filterVendorId}
-            onChange={(id) => setFilterVendorId(id)}
-            placeholder={initialVendorId != null ? "All Vendors" : "Select a vendor..."}
-            allowClear={initialVendorId != null}
-            className="min-w-[240px]"
-          />
+          <select
+            className="min-w-[240px] h-9 rounded-md border px-3 text-sm"
+            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-primary)' }}
+            value={filterVendorId ?? ''}
+            onChange={(e) => setFilterVendorId(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">
+              {initialVendorId != null ? 'All Vendors' : 'Select a vendor...'}
+            </option>
+            {vendorsWithOpenPOs.map((v: { id: number; party_display_name: string; open_po_count?: number }) => (
+              <option key={v.id} value={v.id}>
+                {v.party_display_name} ({v.open_po_count} open PO{v.open_po_count === 1 ? '' : 's'})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="flex items-center gap-2" />
