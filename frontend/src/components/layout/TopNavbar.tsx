@@ -161,12 +161,15 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
     ],
   },
-  // 5. Design (direct link — single destination)
+  // 5. Design
   {
-    type: 'link',
+    type: 'dropdown',
     icon: Palette,
     label: 'Design',
-    to: '/design-requests',
+    items: [
+      { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Requests' },
+      { type: 'item', to: '/design-workbench', icon: Palette, label: 'Design Workbench' },
+    ],
   },
   // 6. Accounting
   {

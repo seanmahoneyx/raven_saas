@@ -4,7 +4,6 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -19,36 +18,8 @@ import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } fr
 
 const STYLE_OPTIONS = ['RSC', 'DC', 'HSC', 'FOL', 'TELE', 'Other']
 
-const TEST_OPTIONS = [
-  { value: 'ect29', label: 'ECT 29' },
-  { value: 'ect32', label: 'ECT 32' },
-  { value: 'ect40', label: 'ECT 40' },
-  { value: 'ect44', label: 'ECT 44' },
-  { value: 'ect48', label: 'ECT 48' },
-  { value: 'ect51', label: 'ECT 51' },
-  { value: 'ect55', label: 'ECT 55' },
-  { value: 'ect112', label: 'ECT 112' },
-  { value: '200t', label: '200T' },
-]
-
-const FLUTE_OPTIONS = [
-  { value: 'a', label: 'A' },
-  { value: 'b', label: 'B' },
-  { value: 'c', label: 'C' },
-  { value: 'e', label: 'E' },
-  { value: 'f', label: 'F' },
-  { value: 'bc', label: 'BC DW' },
-  { value: 'eb', label: 'EB DW' },
-  { value: 'tw', label: 'TW' },
-]
-
-const PAPER_OPTIONS = [
-  { value: 'k', label: 'Kraft' },
-  { value: 'mw', label: 'Mottled White' },
-]
-
 export default function CreateDesignRequest() {
-  usePageTitle('Create Design Request')
+  usePageTitle('Submit Design Request')
   const navigate = useNavigate()
   const createMutation = useCreateDesignRequest()
   const { data: partiesData } = useParties({ party_type: 'CUSTOMER' })
@@ -61,17 +32,8 @@ export default function CreateDesignRequest() {
   const [length, setLength] = useState('')
   const [width, setWidth] = useState('')
   const [depth, setDepth] = useState('')
-  const [test, setTest] = useState('')
-  const [flute, setFlute] = useState('')
-  const [paper, setPaper] = useState('')
   const [sampleQuantity, setSampleQuantity] = useState('')
   const [notes, setNotes] = useState('')
-  const [hasArd, setHasArd] = useState(false)
-  const [hasPdf, setHasPdf] = useState(false)
-  const [hasEps, setHasEps] = useState(false)
-  const [hasDxf, setHasDxf] = useState(false)
-  const [hasSamples, setHasSamples] = useState(false)
-  const [palletConfiguration, setPalletConfiguration] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,17 +47,8 @@ export default function CreateDesignRequest() {
       length: length || null,
       width: width || null,
       depth: depth || null,
-      test,
-      flute,
-      paper,
       sample_quantity: sampleQuantity ? Number(sampleQuantity) : null,
       notes,
-      has_ard: hasArd,
-      has_pdf: hasPdf,
-      has_eps: hasEps,
-      has_dxf: hasDxf,
-      has_samples: hasSamples,
-      pallet_configuration: palletConfiguration,
     }
 
     try {
@@ -134,9 +87,9 @@ export default function CreateDesignRequest() {
 
         {/* Title row */}
         <div className="mb-7 animate-in delay-1">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Design Request</h1>
+          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Submit Design Request</h1>
           <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-            Submit a new packaging design request
+            Request a new packaging design from the design team
           </p>
         </div>
 
@@ -248,91 +201,6 @@ export default function CreateDesignRequest() {
             </div>
           </div>
 
-          {/* Board Specifications */}
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Board Specifications</span>
-            </div>
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Test</Label>
-                  <Select value={test} onValueChange={setTest}>
-                    <SelectTrigger style={inputStyle}>
-                      <SelectValue placeholder="Select test" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEST_OPTIONS.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Flute</Label>
-                  <Select value={flute} onValueChange={setFlute}>
-                    <SelectTrigger style={inputStyle}>
-                      <SelectValue placeholder="Select flute" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FLUTE_OPTIONS.map((f) => (
-                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Paper</Label>
-                  <Select value={paper} onValueChange={setPaper}>
-                    <SelectTrigger style={inputStyle}>
-                      <SelectValue placeholder="Select paper" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAPER_OPTIONS.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Checklist */}
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Checklist</span>
-            </div>
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="hasArd" checked={hasArd} onCheckedChange={(v) => setHasArd(!!v)} />
-                  <Label htmlFor="hasArd" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>ARD (Art Ready Document)</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="hasPdf" checked={hasPdf} onCheckedChange={(v) => setHasPdf(!!v)} />
-                  <Label htmlFor="hasPdf" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>PDF Proof</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="hasEps" checked={hasEps} onCheckedChange={(v) => setHasEps(!!v)} />
-                  <Label htmlFor="hasEps" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>EPS File</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="hasDxf" checked={hasDxf} onCheckedChange={(v) => setHasDxf(!!v)} />
-                  <Label htmlFor="hasDxf" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>DXF Die Drawing</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="hasSamples" checked={hasSamples} onCheckedChange={(v) => setHasSamples(!!v)} />
-                  <Label htmlFor="hasSamples" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>Physical Samples</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="palletConfig" checked={palletConfiguration} onCheckedChange={(v) => setPalletConfiguration(!!v)} />
-                  <Label htmlFor="palletConfig" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>Pallet Configuration</Label>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Notes */}
           <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
@@ -376,7 +244,7 @@ export default function CreateDesignRequest() {
               style={primaryBtnStyle}
               disabled={createMutation.isPending}
             >
-              {createMutation.isPending ? 'Creating...' : 'Create Design Request'}
+              {createMutation.isPending ? 'Submitting...' : 'Submit Request'}
             </button>
           </div>
         </form>

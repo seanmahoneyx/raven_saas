@@ -147,7 +147,8 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     icon: Cog,
     items: [
       { icon: Calendar, label: 'Scheduler', to: '/scheduler' },
-      { icon: Palette, label: 'Design Requests', to: '/design-requests' },
+      { icon: FileText, label: 'Design Requests', to: '/design-requests' },
+      { icon: Palette, label: 'Design Workbench', to: '/design-workbench' },
       { icon: CheckSquare, label: 'Approvals', to: '/approvals' },
     ],
   },

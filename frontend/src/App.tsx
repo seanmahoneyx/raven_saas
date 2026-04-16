@@ -27,6 +27,7 @@ import CreateVendor from '@/pages/CreateVendor'
 import DesignRequests from '@/pages/DesignRequests'
 import CreateDesignRequest from '@/pages/CreateDesignRequest'
 import DesignRequestDetail from '@/pages/DesignRequestDetail'
+import DesignWorkbench from '@/pages/DesignWorkbench'
 import ItemDetail from '@/pages/ItemDetail'
 import CustomerDetail from '@/pages/CustomerDetail'
 import VendorDetail from '@/pages/VendorDetail'
@@ -209,6 +210,7 @@ function App() {
                 <Route path="/design-requests" element={<DesignRequests />} />
                 <Route path="/design-requests/new" element={<CreateDesignRequest />} />
                 <Route path="/design-requests/:id" element={<DesignRequestDetail />} />
+                <Route path="/design-workbench" element={<DesignWorkbench />} />
                 <Route path="/warehouse/scanner" element={<Scanner />} />
                 <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
                 <Route path="/warehouse/print-labels" element={<PrintLabels />} />
