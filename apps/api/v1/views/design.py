@@ -72,6 +72,38 @@ class DesignRequestViewSet(viewsets.ModelViewSet):
                 item.lifecycle_status = 'in_design'
                 item.save(update_fields=['lifecycle_status'])
 
+    @extend_schema(tags=['design'], summary='Check out a pending design request')
+    @action(detail=True, methods=['post'])
+    def checkout(self, request, pk=None):
+        """Designer checks out a pending request to work on it."""
+        dr = self.get_object()
+        if dr.status != 'pending':
+            return Response({'error': 'Only pending requests can be checked out.'}, status=status.HTTP_400_BAD_REQUEST)
+        if dr.checked_out_by and dr.checked_out_by != request.user:
+            return Response({'error': f'Already checked out by {dr.checked_out_by.get_full_name()}'}, status=status.HTTP_400_BAD_REQUEST)
+        from django.utils import timezone
+        dr.checked_out_by = request.user
+        dr.checked_out_at = timezone.now()
+        dr.assigned_to = request.user
+        dr.status = 'in_progress'
+        dr.save()
+        serializer = DesignRequestSerializer(dr, context={'request': request})
+        return Response(serializer.data)
+
+    @extend_schema(tags=['design'], summary='Release a checked-out design request back to pending')
+    @action(detail=True, methods=['post'])
+    def release(self, request, pk=None):
+        """Release a checked-out request back to pending."""
+        dr = self.get_object()
+        if dr.checked_out_by != request.user and not request.user.is_staff:
+            return Response({'error': 'Only the checkout user or admin can release.'}, status=status.HTTP_400_BAD_REQUEST)
+        dr.checked_out_by = None
+        dr.checked_out_at = None
+        dr.status = 'pending'
+        dr.save()
+        serializer = DesignRequestSerializer(dr, context={'request': request})
+        return Response(serializer.data)
+
     @extend_schema(
         tags=['design'],
         summary='Promote design request to item',

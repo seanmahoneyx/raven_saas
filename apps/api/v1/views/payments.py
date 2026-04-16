@@ -11,7 +11,7 @@ from rest_framework import filters
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from decimal import Decimal
 
-from apps.payments.models import CustomerPayment
+from apps.payments.models import CustomerPayment, OtherName, Check
 from apps.payments.services import PaymentService
 from apps.parties.models import Customer
 from apps.accounting.models import Account
@@ -21,6 +21,9 @@ from ..serializers.payments import (
     CreatePaymentSerializer,
     PostPaymentSerializer,
     OpenInvoiceSerializer,
+    OtherNameSerializer,
+    CheckListSerializer,
+    CheckSerializer,
 )
 
 
@@ -190,4 +193,75 @@ class OpenInvoicesView(APIView):
 
         # Serialize and return
         serializer = OpenInvoiceSerializer(invoices, many=True)
+        return Response(serializer.data)
+
+
+class OtherNameViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing Other Names (non-vendor payees)."""
+    serializer_class = OtherNameSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_1099', 'is_active']
+    search_fields = ['name', 'company_name', 'print_name']
+    ordering = ['name']
+    ordering_fields = ['name', 'company_name', 'created_at']
+
+    def get_queryset(self):
+        return OtherName.objects.all()
+
+
+class CheckViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing checks."""
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'vendor', 'other_name', 'bank_account']
+    search_fields = ['payee_name', 'memo']
+    ordering = ['-check_date', '-check_number']
+    ordering_fields = ['check_date', 'check_number', 'amount', 'payee_name']
+
+    def get_queryset(self):
+        return Check.objects.select_related(
+            'vendor__party', 'other_name', 'bank_account', 'printed_by'
+        ).all()
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CheckListSerializer
+        return CheckSerializer
+
+    @action(detail=True, methods=['post'])
+    def print_check(self, request, pk=None):
+        """Mark check as printed and assign check number."""
+        check = self.get_object()
+        if check.status != 'draft':
+            return Response({'error': 'Only draft checks can be printed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.utils import timezone
+        last_num = Check.objects.filter(
+            tenant=request.tenant,
+            bank_account=check.bank_account,
+            check_number__isnull=False
+        ).order_by('-check_number').values_list('check_number', flat=True).first() or 0
+
+        check.check_number = last_num + 1
+        check.status = 'printed'
+        check.printed_at = timezone.now()
+        check.printed_by = request.user
+        check.save()
+
+        serializer = CheckSerializer(check, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def void(self, request, pk=None):
+        """Void a check."""
+        check = self.get_object()
+        if check.status == 'voided':
+            return Response({'error': 'Check is already voided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.utils import timezone
+        check.status = 'voided'
+        check.voided_at = timezone.now()
+        check.void_reason = request.data.get('reason', '')
+        check.save()
+
+        serializer = CheckSerializer(check, context={'request': request})
         return Response(serializer.data)

@@ -56,6 +56,15 @@ class DesignRequest(TenantMixin, TimestampMixin, models.Model):
         help_text="Designer assigned to this request"
     )
 
+    checked_out_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='checked_out_designs',
+        help_text="Designer who checked out this request"
+    )
+    checked_out_at = models.DateTimeField(null=True, blank=True)
+
     # Status
     status = models.CharField(
         max_length=20,

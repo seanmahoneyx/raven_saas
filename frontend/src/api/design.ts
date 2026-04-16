@@ -169,6 +169,36 @@ export function useDeleteDesignRequestAttachment() {
   })
 }
 
+export function useCheckoutDesign() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post(`/design-requests/${id}/checkout/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['design-requests'] })
+      toast.success('Design request checked out')
+    },
+    onError: (error: unknown) => toast.error(getApiErrorMessage(error, 'Failed to check out')),
+  })
+}
+
+export function useReleaseDesign() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const { data } = await api.post(`/design-requests/${id}/release/`)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['design-requests'] })
+      toast.success('Design request released')
+    },
+    onError: (error: unknown) => toast.error(getApiErrorMessage(error, 'Failed to release')),
+  })
+}
+
 export function useCreateEstimateFromDesign() {
   const queryClient = useQueryClient()
   return useMutation({

@@ -44,7 +44,7 @@ from .views.inventory import (
 )
 from .views.shipping import ShipmentViewSet, BillOfLadingViewSet, DeliveryRunCreateShipmentView
 from .views.invoicing import InvoiceViewSet, PaymentViewSet, TaxZoneViewSet, TaxRuleViewSet
-from .views.payments import CustomerPaymentViewSet, OpenInvoicesView
+from .views.payments import CustomerPaymentViewSet, OpenInvoicesView, OtherNameViewSet, CheckViewSet
 from .views.reporting import (
     ReportDefinitionViewSet, ReportScheduleViewSet,
     SavedReportViewSet, ReportFavoriteViewSet,
@@ -180,6 +180,8 @@ router.register(r'tax-rules', TaxRuleViewSet, basename='taxrule')
 
 # Customer Payments (Cash Receipts)
 router.register(r'customer-payments', CustomerPaymentViewSet, basename='customerpayment')
+router.register(r'other-names', OtherNameViewSet, basename='othername')
+router.register(r'checks', CheckViewSet, basename='check')
 
 # Reporting
 router.register(r'reports/definitions', ReportDefinitionViewSet, basename='reportdefinition')

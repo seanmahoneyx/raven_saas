@@ -35,6 +35,8 @@ import {
   Mail,
   MapPin,
   Navigation,
+  PenLine,
+  ContactRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -154,7 +156,6 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
       { type: 'item', to: '/product-cards', icon: DollarSign, label: 'Product Cards' },
       { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
-      { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
       { type: 'separator' },
       { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
     ],
@@ -177,6 +178,9 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
       { type: 'separator' },
       { type: 'item', to: '/invoices', icon: FileText, label: 'Invoices' },
       { type: 'item', to: '/receive-payment', icon: DollarSign, label: 'Receive Payments' },
+      { type: 'separator' },
+      { type: 'item', to: '/checks', icon: PenLine, label: 'Write Checks' },
+      { type: 'item', to: '/other-names', icon: ContactRound, label: 'Other Names' },
     ],
   },
   // 7. Warehouse
@@ -185,6 +189,7 @@ const NAVIGATION_STRUCTURE: NavItem[] = [
     icon: Warehouse,
     label: 'Warehouse',
     items: [
+      { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
       { type: 'item', to: '/warehouse/scanner', icon: ScanLine, label: 'Scanner' },
       { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
       { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },

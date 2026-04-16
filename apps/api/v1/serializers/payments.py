@@ -6,7 +6,7 @@ from rest_framework import serializers
 from decimal import Decimal
 
 from .base import TenantModelSerializer
-from apps.payments.models import CustomerPayment, PaymentApplication
+from apps.payments.models import CustomerPayment, PaymentApplication, OtherName, Check
 
 
 class PaymentApplicationSerializer(TenantModelSerializer):
@@ -127,3 +127,69 @@ class OpenInvoiceSerializer(serializers.Serializer):
     def get_balance_due(self, obj):
         """Calculate balance due."""
         return obj.total_amount - obj.amount_paid
+
+
+# ─── Other Name Serializers ─────────────────────────────────────────────────
+
+class OtherNameSerializer(TenantModelSerializer):
+    """Serializer for OtherName model."""
+    full_address = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OtherName
+        fields = [
+            'id', 'name', 'company_name', 'print_name',
+            'address_line1', 'address_line2', 'city', 'state',
+            'postal_code', 'country', 'phone', 'email',
+            'is_1099', 'is_active', 'notes', 'full_address',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_full_address(self, obj):
+        parts = filter(None, [
+            obj.address_line1, obj.address_line2,
+            f"{obj.city}, {obj.state} {obj.postal_code}".strip(', ')
+        ])
+        return ', '.join(parts)
+
+
+# ─── Check Serializers ───────────────────────────────────────────────────────
+
+class CheckListSerializer(TenantModelSerializer):
+    """Lightweight serializer for Check list views."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True, allow_null=True)
+    other_name_display = serializers.CharField(source='other_name.name', read_only=True, allow_null=True)
+    bank_account_name = serializers.CharField(source='bank_account.name', read_only=True)
+
+    class Meta:
+        model = Check
+        fields = [
+            'id', 'check_number', 'status', 'check_date',
+            'payee_name', 'amount', 'memo',
+            'vendor', 'vendor_name', 'other_name', 'other_name_display',
+            'bank_account', 'bank_account_name',
+            'printed_at', 'created_at',
+        ]
+
+
+class CheckSerializer(TenantModelSerializer):
+    """Full serializer for Check model."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True, allow_null=True)
+    other_name_display = serializers.CharField(source='other_name.name', read_only=True, allow_null=True)
+    bank_account_name = serializers.CharField(source='bank_account.name', read_only=True)
+    printed_by_name = serializers.CharField(source='printed_by.get_full_name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Check
+        fields = [
+            'id', 'check_number', 'status', 'check_date',
+            'payee_name', 'payee_address', 'amount', 'memo',
+            'vendor', 'vendor_name', 'other_name', 'other_name_display',
+            'bank_account', 'bank_account_name',
+            'bill_payment', 'journal_entry',
+            'printed_at', 'printed_by', 'printed_by_name',
+            'voided_at', 'void_reason',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['check_number', 'printed_at', 'printed_by', 'voided_at', 'created_at', 'updated_at']

@@ -22,10 +22,11 @@ import {
 import {
   useDesignRequest, useUpdateDesignRequest, usePromoteDesign,
   useDesignRequestAttachments, useUploadDesignRequestAttachment, useDeleteDesignRequestAttachment,
-  useCreateEstimateFromDesign,
+  useCreateEstimateFromDesign, useCheckoutDesign, useReleaseDesign,
 } from '@/api/design'
 import { useCustomers } from '@/api/parties'
 import { useUnitsOfMeasure } from '@/api/items'
+import { useAuth } from '@/hooks/useAuth'
 import type { DesignRequestStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -130,8 +131,11 @@ export default function DesignRequestDetail() {
   const { panelOpen, togglePanel, closePanel } = useCollaborationPanel()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const { user } = useAuth()
   const { data: designRequest, isLoading } = useDesignRequest(designRequestId)
   const updateDesignRequest = useUpdateDesignRequest()
+  const checkoutMutation = useCheckoutDesign()
+  const releaseMutation = useReleaseDesign()
   const { data: attachments } = useDesignRequestAttachments(designRequestId)
   const uploadAttachment = useUploadDesignRequestAttachment()
   const deleteAttachment = useDeleteDesignRequestAttachment()
@@ -341,6 +345,15 @@ export default function DesignRequestDetail() {
                   <span>Assigned to {designRequest.assigned_to_name}</span>
                 </>
               )}
+              {designRequest.checked_out_by && (
+                <>
+                  <span style={{ color: 'var(--so-border)' }}>•</span>
+                  <span style={{ color: 'var(--so-text-tertiary)' }}>
+                    Checked out by {designRequest.checked_out_by_name}
+                    {designRequest.checked_out_at && ` · ${new Date(designRequest.checked_out_at).toLocaleDateString()}`}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 
@@ -365,6 +378,26 @@ export default function DesignRequestDetail() {
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setIsEditing(true)}>
                   <Pencil className="h-3.5 w-3.5" /> Edit
                 </button>
+                {designRequest.status === 'pending' && !designRequest.checked_out_by && (
+                  <button
+                    className={primaryBtnClass}
+                    style={checkoutMutation.isPending ? { ...primaryBtnStyle, opacity: 0.6 } : primaryBtnStyle}
+                    onClick={() => checkoutMutation.mutate(designRequest.id)}
+                    disabled={checkoutMutation.isPending}
+                  >
+                    {checkoutMutation.isPending ? 'Checking out...' : 'Check Out'}
+                  </button>
+                )}
+                {designRequest.checked_out_by === user?.id && (
+                  <button
+                    className={outlineBtnClass}
+                    style={releaseMutation.isPending ? { ...outlineBtnStyle, opacity: 0.6 } : outlineBtnStyle}
+                    onClick={() => releaseMutation.mutate(designRequest.id)}
+                    disabled={releaseMutation.isPending}
+                  >
+                    {releaseMutation.isPending ? 'Releasing...' : 'Release'}
+                  </button>
+                )}
                 {designRequest.status === 'approved' && !designRequest.generated_item && (
                   <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => setPromoteDialogOpen(true)}>
                     <Rocket className="h-3.5 w-3.5" /> Promote to Item

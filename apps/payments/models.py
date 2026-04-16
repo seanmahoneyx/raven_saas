@@ -175,3 +175,100 @@ class PaymentApplication(TenantMixin):
 
     def __str__(self):
         return f"{self.payment.payment_number} → {self.invoice.invoice_number}: ${self.amount_applied}"
+
+
+class OtherName(TenantMixin, TimestampMixin):
+    """
+    Outside service providers (not vendors) that checks can be written to.
+    Examples: landlord, utility company, insurance provider, etc.
+    """
+    name = models.CharField(max_length=200, help_text="Full name")
+    company_name = models.CharField(max_length=200, blank=True, help_text="Company/organization name")
+    print_name = models.CharField(max_length=200, help_text="Name to print on checks")
+    address_line1 = models.CharField(max_length=200, blank=True)
+    address_line2 = models.CharField(max_length=200, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=50, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=50, default='US', blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    is_1099 = models.BooleanField(default=False, help_text="Subject to 1099 reporting")
+    is_active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Other Name'
+        verbose_name_plural = 'Other Names'
+
+    def __str__(self):
+        return self.company_name or self.name
+
+
+class Check(TenantMixin, TimestampMixin):
+    """
+    A physical check to be printed and mailed.
+    Can pay a vendor bill or be written to an Other Name.
+    """
+    CHECK_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('printed', 'Printed'),
+        ('voided', 'Voided'),
+        ('cleared', 'Cleared'),
+    ]
+
+    check_number = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Auto-assigned on print"
+    )
+    bank_account = models.ForeignKey(
+        'accounting.Account',
+        on_delete=models.PROTECT,
+        related_name='checks',
+        help_text="Bank account to draw from"
+    )
+    status = models.CharField(max_length=20, choices=CHECK_STATUS_CHOICES, default='draft')
+
+    # Payee
+    vendor = models.ForeignKey(
+        'parties.Vendor', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='checks'
+    )
+    other_name = models.ForeignKey(
+        'OtherName', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='checks'
+    )
+    payee_name = models.CharField(max_length=200, help_text="Name printed on check")
+    payee_address = models.TextField(blank=True)
+
+    # Details
+    check_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    memo = models.CharField(max_length=200, blank=True)
+
+    # Links
+    bill_payment = models.OneToOneField(
+        'invoicing.BillPayment', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='written_check'
+    )
+    journal_entry = models.OneToOneField(
+        'accounting.JournalEntry', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='written_check'
+    )
+
+    # Print tracking
+    printed_at = models.DateTimeField(null=True, blank=True)
+    printed_by = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='printed_checks'
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    void_reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['-check_date', '-check_number']
+
+    def __str__(self):
+        num = self.check_number or 'DRAFT'
+        return f"Check #{num} - {self.payee_name} - ${self.amount}"

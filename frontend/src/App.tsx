@@ -76,6 +76,8 @@ import PrintLabels from '@/pages/warehouse/PrintLabels'
 import WarehouseLocations from '@/pages/warehouse/WarehouseLocations'
 import Logistics from '@/pages/Logistics'
 import DriverManifest from '@/pages/DriverManifest'
+import OtherNames from '@/pages/OtherNames'
+import Checks from '@/pages/Checks'
 import Settings from '@/pages/Settings'
 import AccountingSettings from '@/pages/AccountingSettings'
 import Preferences from '@/pages/settings/Preferences'
@@ -184,6 +186,8 @@ function App() {
                 <Route path="/invoices/new" element={<CreateInvoice />} />
                 <Route path="/invoices/:id" element={<InvoiceDetail />} />
                 <Route path="/receive-payment" element={<ReceivePayment />} />
+                <Route path="/other-names" element={<OtherNames />} />
+                <Route path="/checks" element={<Checks />} />
                 <Route path="/reports" element={<ReportsDashboard />} />
                 <Route path="/reports/item-quick-report" element={<ItemQuickReport />} />
                 <Route path="/reports/financial-statements" element={<FinancialStatements />} />
