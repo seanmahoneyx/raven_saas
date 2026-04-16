@@ -34,6 +34,12 @@ import {
   PenLine,
   ContactRound,
   Boxes,
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  Ruler,
+  Calculator,
+  Warehouse,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/components/theme-provider'
@@ -48,42 +54,73 @@ interface DrawerNavItem {
 }
 
 interface DrawerSection {
+  label: string
+  icon: React.ElementType
   items: DrawerNavItem[]
 }
 
 const DRAWER_SECTIONS: DrawerSection[] = [
   {
+    label: 'Company',
+    icon: Building2,
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
+      { icon: LayoutDashboard, label: 'Company Snapshot', to: '/' },
+      { icon: Users, label: 'Users', to: '/users' },
+      { icon: Building2, label: 'My Company', to: '/settings' },
+      { icon: Calculator, label: 'Accounting Settings', to: '/accounting-settings' },
+      { icon: Building2, label: 'Fixed Assets', to: '/fixed-assets' },
+      { icon: FileText, label: 'User Audit Report', to: '/admin/user-audit' },
+      { icon: Cog, label: 'Settings', to: '/admin' },
     ],
   },
   {
+    label: 'Customers',
+    icon: Users,
     items: [
-      { icon: Users, label: 'Customers', to: '/customers' },
-      { icon: Truck, label: 'Vendors', to: '/vendors' },
-      { icon: Package, label: 'Items', to: '/items' },
-      { icon: Boxes, label: 'Inventory', to: '/inventory' },
-    ],
-  },
-  {
-    items: [
-      { icon: Package, label: 'Sales Orders', to: '/orders/sales' },
-      { icon: Truck, label: 'Purchase Orders', to: '/vendors/open-orders' },
+      { icon: Users, label: 'Customer Center', to: '/customers' },
+      { icon: Eye, label: 'Sales Orders', to: '/customers/open-orders' },
       { icon: FileText, label: 'Estimates', to: '/estimates' },
       { icon: ScrollText, label: 'Contracts', to: '/contracts' },
+      { icon: DollarSign, label: 'Price Lists', to: '/price-lists' },
+      { icon: GitBranchPlus, label: 'Sales Pipeline', to: '/pipeline' },
     ],
   },
   {
+    label: 'Vendors',
+    icon: Truck,
     items: [
-      { icon: FileText, label: 'Invoices', to: '/invoices' },
-      { icon: DollarSign, label: 'Receive Payment', to: '/receive-payment' },
-      { icon: PenLine, label: 'Write Checks', to: '/checks' },
-      { icon: ContactRound, label: 'Other Names', to: '/other-names' },
+      { icon: Building2, label: 'Vendor Center', to: '/vendors' },
+      { icon: Eye, label: 'Purchase Orders', to: '/vendors/open-orders' },
+      { icon: FileText, label: 'RFQs', to: '/rfqs' },
+      { icon: Scale, label: 'Priority Lists', to: '/priority-list' },
+      { icon: Truck, label: 'Trucks', to: '/trucks' },
+    ],
+  },
+  {
+    label: 'Items',
+    icon: Package,
+    items: [
+      { icon: Package, label: 'Item Center', to: '/items' },
+      { icon: DollarSign, label: 'Product Cards', to: '/product-cards' },
+      { icon: Boxes, label: 'Inventory', to: '/inventory' },
+      { icon: Ruler, label: 'Units of Measure', to: '/uom' },
+    ],
+  },
+  {
+    label: 'Accounting',
+    icon: DollarSign,
+    items: [
       { icon: BookUser, label: 'Chart of Accounts', to: '/chart-of-accounts' },
       { icon: FileSpreadsheet, label: 'Journal Entries', to: '/journal-entries' },
+      { icon: FileText, label: 'Invoices', to: '/invoices' },
+      { icon: DollarSign, label: 'Receive Payments', to: '/receive-payment' },
+      { icon: PenLine, label: 'Write Checks', to: '/checks' },
+      { icon: ContactRound, label: 'Other Names', to: '/other-names' },
     ],
   },
   {
+    label: 'Warehouse',
+    icon: Warehouse,
     items: [
       { icon: Truck, label: 'Shipping', to: '/shipping' },
       { icon: ScanLine, label: 'Scanner', to: '/warehouse/scanner' },
@@ -95,24 +132,23 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     ],
   },
   {
+    label: 'Reports',
+    icon: BarChart3,
     items: [
-      { icon: BarChart3, label: 'Reports', to: '/reports' },
+      { icon: BarChart3, label: 'All Reports', to: '/reports' },
+      { icon: Package, label: 'Item Quick Report', to: '/reports/item-quick-report' },
+      { icon: DollarSign, label: 'Financial Statements', to: '/reports/financial-statements' },
+      { icon: FileText, label: 'Aging Reports', to: '/reports/aging' },
+      { icon: BarChart3, label: 'Gross Margin', to: '/reports/gross-margin' },
+    ],
+  },
+  {
+    label: 'More',
+    icon: Cog,
+    items: [
       { icon: Calendar, label: 'Scheduler', to: '/scheduler' },
       { icon: Palette, label: 'Design Requests', to: '/design-requests' },
-      { icon: FileText, label: 'RFQs', to: '/rfqs' },
-      { icon: Scale, label: 'Price Lists', to: '/price-lists' },
-    ],
-  },
-  {
-    items: [
-      { icon: GitBranchPlus, label: 'Pipeline', to: '/pipeline' },
       { icon: CheckSquare, label: 'Approvals', to: '/approvals' },
-    ],
-  },
-  {
-    items: [
-      { icon: Cog, label: 'Settings', to: '/settings' },
-      { icon: Shield, label: 'Admin', to: '/admin' },
     ],
   },
 ]
@@ -128,6 +164,16 @@ export function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerProps) {
   const { logout } = useAuth()
   const { resolvedTheme, setTheme } = useTheme()
   const [search, setSearch] = useState('')
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+
+  const toggleSection = (label: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
 
   const { data: notifData } = useNotifications()
   const { data: pendingApprovals } = useMyPendingApprovals()
@@ -152,8 +198,10 @@ export function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerProps) {
   const lowerSearch = search.toLowerCase()
   const filteredSections = lowerSearch
     ? DRAWER_SECTIONS.map((section) => ({
+        ...section,
         items: section.items.filter((item) =>
-          item.label.toLowerCase().includes(lowerSearch)
+          item.label.toLowerCase().includes(lowerSearch) ||
+          section.label.toLowerCase().includes(lowerSearch)
         ),
       })).filter((section) => section.items.length > 0)
     : DRAWER_SECTIONS
@@ -223,51 +271,71 @@ export function MobileNavDrawer({ open, onOpenChange }: MobileNavDrawerProps) {
 
           {/* Nav items — scrollable */}
           <nav className="flex-1 overflow-y-auto py-2">
-            {filteredSections.map((section, sIdx) => (
-              <div key={sIdx}>
-                {sIdx > 0 && (
-                  <div
-                    className="mx-4 my-1"
-                    style={{ height: '1px', background: 'var(--so-border-light)' }}
-                  />
-                )}
-                {section.items.map((item) => {
-                  const active = isActive(item.to)
-                  const isInbox = item.to === '/notifications'
-                  return (
-                    <button
-                      key={item.to}
-                      className="flex items-center gap-3 w-full px-4 rounded-none transition-colors"
-                      style={{
-                        minHeight: '48px',
-                        color: active ? 'var(--so-accent)' : 'var(--so-text-primary)',
-                        background: active ? 'var(--so-accent-light)' : 'transparent',
-                        fontWeight: active ? 600 : 400,
-                        fontSize: '14px',
-                      }}
-                      onMouseEnter={e => {
-                        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--so-bg)'
-                      }}
-                      onMouseLeave={e => {
-                        if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
-                      }}
-                      onClick={() => handleNav(item.to)}
-                    >
-                      <item.icon size={18} style={{ flexShrink: 0 }} />
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {isInbox && inboxBadge > 0 && (
-                        <span
-                          className="flex items-center justify-center rounded-full text-[10px] font-bold text-white px-1.5"
-                          style={{ background: '#f97316', minWidth: '18px', height: '18px' }}
-                        >
-                          {inboxBadge > 99 ? '99+' : inboxBadge}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
+            {filteredSections.map((section, sIdx) => {
+              const isExpanded = expandedSections.has(section.label) || !!lowerSearch
+              const hasActiveChild = section.items.some(item => isActive(item.to))
+
+              return (
+                <div key={section.label}>
+                  {sIdx > 0 && (
+                    <div
+                      className="mx-4 my-1"
+                      style={{ height: '1px', background: 'var(--so-border-light)' }}
+                    />
+                  )}
+                  {/* Section header - collapsible */}
+                  <button
+                    className="flex items-center gap-3 w-full px-4 transition-colors"
+                    style={{
+                      minHeight: '44px',
+                      color: hasActiveChild ? 'var(--so-accent)' : 'var(--so-text-primary)',
+                      fontWeight: 600,
+                      fontSize: '13px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}
+                    onClick={() => toggleSection(section.label)}
+                  >
+                    <section.icon size={16} style={{ flexShrink: 0, opacity: 0.7 }} />
+                    <span className="flex-1 text-left">{section.label}</span>
+                    {isExpanded
+                      ? <ChevronDown size={14} style={{ opacity: 0.5 }} />
+                      : <ChevronRight size={14} style={{ opacity: 0.5 }} />
+                    }
+                  </button>
+
+                  {/* Section items */}
+                  {isExpanded && section.items.map((item) => {
+                    const active = isActive(item.to)
+                    return (
+                      <button
+                        key={item.to}
+                        className="flex items-center gap-3 w-full rounded-none transition-colors"
+                        style={{
+                          minHeight: '42px',
+                          paddingLeft: '3rem',
+                          paddingRight: '1rem',
+                          color: active ? 'var(--so-accent)' : 'var(--so-text-primary)',
+                          background: active ? 'var(--so-accent-light)' : 'transparent',
+                          fontWeight: active ? 600 : 400,
+                          fontSize: '14px',
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'var(--so-bg)'
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'
+                        }}
+                        onClick={() => handleNav(item.to)}
+                      >
+                        <item.icon size={16} style={{ flexShrink: 0 }} />
+                        <span className="flex-1 text-left">{item.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )
+            })}
 
             {/* Notifications shortcut */}
             {!lowerSearch && (
