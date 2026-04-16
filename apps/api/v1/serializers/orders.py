@@ -33,7 +33,7 @@ class PurchaseOrderLineSerializer(TenantModelSerializer):
             'fulfillment_method',
             'notes', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['purchase_order', 'created_at', 'updated_at']
 
 
 class PurchaseOrderListSerializer(TenantModelSerializer):
@@ -232,7 +232,7 @@ class SalesOrderLineSerializer(TenantModelSerializer):
             'notes', 'contract_number', 'contract_id',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['sales_order', 'created_at', 'updated_at']
 
 
 class SalesOrderListSerializer(TenantModelSerializer):
@@ -428,7 +428,7 @@ class EstimateLineSerializer(TenantModelSerializer):
             'unit_price', 'amount',
             'notes', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['amount', 'created_at', 'updated_at']
+        read_only_fields = ['amount', 'estimate', 'created_at', 'updated_at']
 
 
 class EstimateListSerializer(TenantModelSerializer):
@@ -599,7 +599,7 @@ class RFQLineSerializer(TenantModelSerializer):
             'target_price', 'quoted_price', 'line_total',
             'notes', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['rfq', 'created_at', 'updated_at']
 
 
 class RFQListSerializer(TenantModelSerializer):

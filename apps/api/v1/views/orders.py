@@ -165,11 +165,9 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
                 {'error': str(e.message if hasattr(e, 'message') else e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        return Response({
-            'message': 'PO received successfully',
-            'lots_created': len(result['lots_created']),
-            'po_status': result['po_status'],
-        })
+        po.refresh_from_db()
+        serializer = PurchaseOrderDetailSerializer(po, context={'request': request})
+        return Response(serializer.data)
 
     @extend_schema(tags=['orders'], summary='List unscheduled purchase orders')
     @action(detail=False, methods=['get'])

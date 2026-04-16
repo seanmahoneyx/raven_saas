@@ -618,6 +618,9 @@ class OrderService:
                     line.save(update_fields=['quantity_received'])
                     lots_created.append(lot)
 
+            # Clear prefetch cache to get fresh line data after quantity_received updates
+            if hasattr(purchase_order, '_prefetched_objects_cache'):
+                purchase_order._prefetched_objects_cache.pop('lines', None)
             # Determine PO status based on line receipt completeness
             all_lines = purchase_order.lines.all()
             all_fully_received = all(

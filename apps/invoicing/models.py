@@ -346,7 +346,8 @@ class Invoice(TenantMixin, TimestampMixin):
     def calculate_totals(self):
         """Recalculate subtotal and total from lines."""
         self.subtotal = sum(line.line_total for line in self.lines.all())
-        self.tax_amount = self.subtotal * self.tax_rate
+        from decimal import Decimal
+        self.tax_amount = self.subtotal * (self.tax_rate / Decimal('100'))
         self.total_amount = (
             self.subtotal + self.tax_amount +
             self.freight_amount - self.discount_amount

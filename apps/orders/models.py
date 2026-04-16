@@ -543,8 +543,9 @@ class Estimate(TenantMixin, TimestampMixin):
 
     def calculate_totals(self):
         """Recalculate subtotal and total from lines."""
+        from decimal import Decimal
         self.subtotal = sum(line.amount for line in self.lines.all())
-        self.tax_amount = self.subtotal * self.tax_rate
+        self.tax_amount = self.subtotal * (self.tax_rate / Decimal('100'))
         self.total_amount = self.subtotal + self.tax_amount
 
     @property
