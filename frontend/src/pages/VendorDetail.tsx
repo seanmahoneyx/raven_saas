@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
+import { formatCurrency } from '@/lib/format'
 import {
   DollarSign, Package, MapPin, FileText, History,
   Paperclip, Phone, Plus, AlertCircle, ListOrdered,
@@ -44,11 +45,6 @@ export default function VendorDetail() {
   const orders = ordersData?.results ?? []
   const contacts = contactsData?.results ?? []
 
-  const fmtCurrency = (val: string | number | null | undefined) => {
-    const num = parseFloat(String(val || '0'))
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const hasOverdue = parseFloat(String(vendor?.overdue_bill_balance || '0')) > 0
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,9 +73,9 @@ export default function VendorDetail() {
       notes={vendor?.notes}
       partyId={vendor?.party ?? 0}
       kpiItems={[
-        { label: 'Open PO Total', value: `$${fmtCurrency(vendor?.open_po_total)}`, mono: true, onClick: () => navigate('/orders?tab=purchase') },
+        { label: 'Open PO Total', value: `${formatCurrency(vendor?.open_po_total)}`, mono: true, onClick: () => navigate('/orders?tab=purchase') },
         { label: 'Open POs', value: String(vendor?.open_po_count ?? 0), onClick: () => navigate('/orders?tab=purchase') },
-        { label: 'Overdue Bills', value: `$${fmtCurrency(vendor?.overdue_bill_balance)}`, mono: true, danger: hasOverdue, onClick: () => navigate('/invoices') },
+        { label: 'Overdue Bills', value: `${formatCurrency(vendor?.overdue_bill_balance)}`, mono: true, danger: hasOverdue, onClick: () => navigate('/invoices') },
         { label: 'Active RFQs', value: String(vendor?.active_rfq_count ?? 0), onClick: () => navigate('/rfqs') },
         { label: 'Next Incoming', value: vendor?.next_incoming ? format(new Date(vendor.next_incoming + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(vendorLocations.length), onClick: () => {} },

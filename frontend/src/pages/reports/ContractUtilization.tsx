@@ -10,10 +10,7 @@ import { ArrowLeft, Printer, Download } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-}
+import { formatCurrency } from '@/lib/format'
 
 function ProgressBar({ pct }: { pct: number }) {
   const clamped = Math.min(100, Math.max(0, pct))

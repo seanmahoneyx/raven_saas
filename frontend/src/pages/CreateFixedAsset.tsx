@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCreateFixedAsset } from '@/api/assets'
 import { useAssetCategories } from '@/api/assets'
+import type { FixedAsset } from '@/api/assets'
 import { DEPRECIATION_METHODS } from '@/constants/assets'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -106,7 +107,7 @@ export default function CreateFixedAsset() {
         salvage_value: formData.salvage_value,
         depreciation_start_date: formData.depreciation_start_date,
         notes: formData.notes,
-      } as any)
+      } as Partial<FixedAsset>)
 
       navigate(`/fixed-assets/${result.id}`)
     } catch (err: any) {

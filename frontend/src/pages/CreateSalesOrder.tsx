@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { formatCurrency } from '@/lib/format'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2, FileText, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Trash2, FileText, AlertTriangle, Plus } from 'lucide-react'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -315,12 +318,6 @@ export default function CreateSalesOrder() {
     }))
   }
 
-  /* ---- Currency formatting ---- */
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity_ordered) || 0
     const price = parseFloat(line.unit_price) || 0
@@ -328,6 +325,7 @@ export default function CreateSalesOrder() {
   }, 0)
 
   const isPending = createOrder.isPending
+  const isMobile = useIsMobile()
 
   /* ---- Check if a line row has any data ---- */
   const lineHasData = (line: typeof linesFormData[number]) =>
@@ -401,7 +399,7 @@ export default function CreateSalesOrder() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className={`max-w-[1280px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -431,21 +429,23 @@ export default function CreateSalesOrder() {
               {selectedCustomer ? selectedCustomer.party_display_name : 'Fill in order details below'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-              Cancel
-            </button>
-            <button
-              className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
-              style={primaryBtnStyle}
-              onClick={onSubmit as any}
-              type="submit"
-              form="create-so-form"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              {isPending ? 'Creating...' : 'Create Order'}
-            </button>
-          </div>
+          {!isMobile && (
+            <div className="flex items-center gap-2">
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+                Cancel
+              </button>
+              <button
+                className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+                style={primaryBtnStyle}
+                onClick={onSubmit as any}
+                type="submit"
+                form="create-so-form"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                {isPending ? 'Creating...' : 'Create Order'}
+              </button>
+            </div>
+          )}
         </div>
 
         <form id="create-so-form" onSubmit={onSubmit}>
@@ -674,6 +674,24 @@ export default function CreateSalesOrder() {
             <div style={{ borderTop: '1px solid var(--so-border)' }} />
 
             {/* ---- Line Items ---- */}
+            {isMobile ? (
+              <MobileLineItemList
+                lines={linesFormData}
+                items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                contracts={activeContracts.map(c => ({ value: c.contract_number, label: c.contract_number }))}
+                fulfillmentMethods={[
+                  { value: 'stock', label: 'Stock' },
+                  { value: 'direct', label: 'Direct Ship' },
+                  { value: 'crossdock', label: 'Crossdock' },
+                ]}
+                onLineChange={handleLineChange}
+                onRemove={handleRemoveLine}
+                onAdd={() => setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '', fulfillment_method: '' }])}
+                total={editTotal}
+                formatCurrency={formatCurrency}
+              />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead>
@@ -865,7 +883,7 @@ export default function CreateSalesOrder() {
                         </td>
                         {/* Amount (read-only) */}
                         <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                          {line.item ? `$${fmtCurrency(lineAmount)}` : '\u2014'}
+                          {line.item ? `${formatCurrency(lineAmount)}` : '\u2014'}
                         </td>
                         {/* Notes (col 4) */}
                         <td className="py-1.5 px-1">
@@ -927,12 +945,13 @@ export default function CreateSalesOrder() {
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
                     <td colSpan={7} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(editTotal)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(editTotal)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
               </table>
             </div>
+            )}
           </div>
         </form>
 
@@ -950,6 +969,44 @@ export default function CreateSalesOrder() {
           loading={isPending}
         />
       </div>
+
+      {/* Mobile sticky bottom bar */}
+      {isMobile && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{
+            background: 'var(--so-surface)',
+            borderTop: '1px solid var(--so-border)',
+          }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={() => {
+              setLinesFormData(prev => [...prev, { ...EMPTY_LINE }])
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            ${editTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <button
+            className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            onClick={onSubmit as any}
+            type="submit"
+            form="create-so-form"
+          >
+            {isPending ? 'Creating...' : 'Create Order'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

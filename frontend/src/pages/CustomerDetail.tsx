@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
+import { formatCurrency } from '@/lib/format'
 import {
   DollarSign, ShoppingCart, MapPin, FileText, History,
   Paperclip, BarChart3, Users, Phone, Plus,
@@ -56,11 +57,6 @@ export default function CustomerDetail() {
   const orders = ordersData?.results ?? []
   const contacts = contactsData?.results ?? []
 
-  const fmtCurrency = (val: string | number | null | undefined) => {
-    const num = parseFloat(String(val || '0'))
-    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const isOverdue = parseFloat(String(customer?.overdue_balance || '0')) > 0
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,9 +88,9 @@ export default function CustomerDetail() {
       notes={customer?.notes}
       partyId={customer?.party ?? 0}
       kpiItems={[
-        { label: 'Open Sales', value: `$${fmtCurrency(customer?.open_sales_total)}`, mono: true, onClick: () => navigate('/orders?tab=sales') },
+        { label: 'Open Sales', value: `${formatCurrency(customer?.open_sales_total)}`, mono: true, onClick: () => navigate('/orders?tab=sales') },
         { label: 'Open Orders', value: String(customer?.open_order_count ?? 0), onClick: () => navigate('/orders?tab=sales') },
-        { label: 'Overdue Balance', value: `$${fmtCurrency(customer?.overdue_balance)}`, mono: true, danger: isOverdue, onClick: () => navigate('/invoices') },
+        { label: 'Overdue Balance', value: `${formatCurrency(customer?.overdue_balance)}`, mono: true, danger: isOverdue, onClick: () => navigate('/invoices') },
         { label: 'Active Estimates', value: String(customer?.active_estimate_count ?? 0), onClick: () => navigate('/estimates') },
         { label: 'Next Delivery', value: customer?.next_expected_delivery ? format(new Date(customer.next_expected_delivery + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(customerLocations.length), onClick: () => {} },

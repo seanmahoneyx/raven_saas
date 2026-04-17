@@ -37,6 +37,7 @@ import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } fr
 import { DetailCard } from '@/components/common/DetailCard'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { formatCurrency } from '@/lib/format'
 
 /* -- Contract line row with expandable releases ----------------- */
 function ContractLineRow({
@@ -58,12 +59,6 @@ function ContractLineRow({
   const progressPct = line.blanket_qty > 0
     ? Math.round((line.released_qty / line.blanket_qty) * 100)
     : 0
-
-  const fmtCurrency = (val: string | number | null) => {
-    if (val === null) return '\u2014'
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
 
   return (
     <>
@@ -112,7 +107,7 @@ function ContractLineRow({
         </td>
         {/* Unit Price */}
         <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-          {line.unit_price ? `$${fmtCurrency(line.unit_price)}` : '\u2014'}
+          {line.unit_price ? formatCurrency(line.unit_price) : '\u2014'}
         </td>
         {/* Actions */}
         <td className="py-3.5 px-4 pr-5">

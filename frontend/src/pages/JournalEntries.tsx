@@ -12,12 +12,7 @@ import type { JournalEntry } from '@/types/api'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import React from 'react'
 
-function formatCurrency(value: string | number): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
-}
-
+import { formatCurrency } from '@/lib/format'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 

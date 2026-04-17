@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatCurrency } from '@/lib/format'
 import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
@@ -6,9 +7,10 @@ import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Paperclip, Plus, Trash2,
-  ArrowRightLeft, FileText, ChevronDown,
+  ArrowRightLeft, FileText, ChevronDown, MoreVertical, Printer, Mail, Copy,
 } from 'lucide-react'
 import { useAttachments } from '@/api/attachments'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
@@ -57,7 +59,9 @@ export default function EstimateDetail() {
   const updateEstimate = useUpdateEstimate()
   const convertToContract = useConvertEstimateToContract()
 
+  const isMobile = useIsMobile()
   const [isEditing, setIsEditing] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)
   const [convertMenuOpen, setConvertMenuOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const { data: attachments } = useAttachments('estimates', 'estimate', estimateId)
@@ -256,12 +260,6 @@ export default function EstimateDetail() {
     )
   }
 
-  /* ── Helpers ────────────────────────────────────── */
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const editSubtotal = lines.reduce((sum, line) => {
     const qty = parseFloat(line.quantity) || 0
     const price = parseFloat(line.unit_price) || 0
@@ -303,7 +301,7 @@ export default function EstimateDetail() {
             style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
           />
         )},
-        { label: 'Total Amount', value: `$${fmtCurrency(editTotal)}`, empty: false, mono: true, editable: false },
+        { label: 'Total Amount', value: `${formatCurrency(editTotal)}`, empty: false, mono: true, editable: false },
         { label: 'Ship To', value: estimate.ship_to_name || 'Not set', empty: !estimate.ship_to_name, mono: false, editable: true, editNode: (
           <Select
             value={formData.ship_to}
@@ -357,7 +355,7 @@ export default function EstimateDetail() {
         { label: 'Date', value: format(new Date(estimate.date + 'T00:00:00'), 'MMM d, yyyy'), empty: false, mono: false },
         { label: 'Expiration', value: estimate.expiration_date ? format(new Date(estimate.expiration_date + 'T00:00:00'), 'MMM d, yyyy') : 'No expiration', empty: !estimate.expiration_date, mono: false },
         { label: 'Customer PO', value: estimate.customer_po || 'Not set', empty: !estimate.customer_po, mono: true },
-        { label: 'Total Amount', value: `$${fmtCurrency(estimate.total_amount)}`, empty: false, mono: true },
+        { label: 'Total Amount', value: `${formatCurrency(estimate.total_amount)}`, empty: false, mono: true },
         { label: 'Ship To', value: estimate.ship_to_name || 'Not set', empty: !estimate.ship_to_name, mono: false },
         { label: 'Bill To', value: estimate.bill_to_name || 'Not set', empty: !estimate.bill_to_name, mono: false },
         { label: 'Tax Rate', value: `${parseFloat(estimate.tax_rate).toFixed(2)}%`, empty: false, mono: true },
@@ -380,7 +378,7 @@ export default function EstimateDetail() {
           { label: 'Customer PO', value: estimate.customer_po || null },
           { label: 'Expiration', value: estimate.expiration_date ? format(new Date(estimate.expiration_date + 'T00:00:00'), 'MMM d, yyyy') : null },
           { label: 'Ship To', value: estimate.ship_to_name },
-          { label: 'Total Amount', value: `$${fmtCurrency(estimate.total_amount)}` },
+          { label: 'Total Amount', value: `${formatCurrency(estimate.total_amount)}` },
           { label: 'Bill To', value: estimate.bill_to_name || null },
           { label: 'Lines', value: estimate.num_lines },
         ]}
@@ -400,13 +398,13 @@ export default function EstimateDetail() {
           line.description,
           line.quantity,
           line.uom_code,
-          `$${fmtCurrency(line.unit_price)}`,
-          `$${fmtCurrency(line.amount)}`,
+          `${formatCurrency(line.unit_price)}`,
+          `${formatCurrency(line.amount)}`,
         ]) || []}
         totals={[
-          { label: 'Subtotal:', value: `$${fmtCurrency(estimate.subtotal)}` },
-          { label: `Tax (${parseFloat(estimate.tax_rate).toFixed(2)}%):`, value: `$${fmtCurrency(estimate.tax_amount)}` },
-          { label: 'Total:', value: `$${fmtCurrency(estimate.total_amount)}` },
+          { label: 'Subtotal:', value: `${formatCurrency(estimate.subtotal)}` },
+          { label: `Tax (${parseFloat(estimate.tax_rate).toFixed(2)}%):`, value: `${formatCurrency(estimate.tax_amount)}` },
+          { label: 'Total:', value: `${formatCurrency(estimate.total_amount)}` },
         ]}
       />
 
@@ -768,7 +766,7 @@ export default function EstimateDetail() {
                           </td>
                           {/* Amount */}
                           <td className="py-1 px-4 text-right font-mono text-[13px] font-semibold">
-                            ${fmtCurrency(lineAmount)}
+                            {formatCurrency(lineAmount)}
                           </td>
                           {/* Delete */}
                           <td className="py-1.5 px-1 pr-6">
@@ -849,11 +847,11 @@ export default function EstimateDetail() {
                         </td>
                         {/* Rate */}
                         <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                          ${fmtCurrency(line.unit_price)}
+                          {formatCurrency(line.unit_price)}
                         </td>
                         {/* Amount */}
                         <td className="py-3.5 px-4 text-right font-mono font-semibold pr-6">
-                          ${fmtCurrency(line.amount)}
+                          {formatCurrency(line.amount)}
                         </td>
                       </tr>
                     ))}
@@ -876,7 +874,7 @@ export default function EstimateDetail() {
                   Subtotal
                 </span>
                 <span className="font-mono text-sm font-medium w-32 text-right" style={{ color: 'var(--so-text-secondary)' }}>
-                  ${fmtCurrency(isEditing ? editSubtotal : estimate.subtotal)}
+                  {formatCurrency(isEditing ? editSubtotal : estimate.subtotal)}
                 </span>
               </div>
               {/* Tax */}
@@ -885,7 +883,7 @@ export default function EstimateDetail() {
                   Tax ({isEditing ? parseFloat(formData.tax_rate).toFixed(2) : parseFloat(estimate.tax_rate).toFixed(2)}%)
                 </span>
                 <span className="font-mono text-sm font-medium w-32 text-right" style={{ color: 'var(--so-text-secondary)' }}>
-                  ${fmtCurrency(isEditing ? editTaxAmount : estimate.tax_amount)}
+                  {formatCurrency(isEditing ? editTaxAmount : estimate.tax_amount)}
                 </span>
               </div>
               {/* Total */}
@@ -897,7 +895,7 @@ export default function EstimateDetail() {
                   Total
                 </span>
                 <span className="font-mono text-xl font-bold w-32 text-right" style={{ color: 'var(--so-text-primary)' }}>
-                  ${fmtCurrency(isEditing ? editTotal : estimate.total_amount)}
+                  {formatCurrency(isEditing ? editTotal : estimate.total_amount)}
                 </span>
               </div>
             </div>
@@ -915,6 +913,85 @@ export default function EstimateDetail() {
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="estimates" modelName="estimate" objectId={estimateId} />
       <PanelToggleButton contentType="estimate" objectId={estimateId} onClick={togglePanel} isOpen={panelOpen} />
       <TransactionPanel contentType="estimate" objectId={estimateId} open={panelOpen} onClose={closePanel} label={estimate ? `Estimate ${estimate.estimate_number}` : 'Estimate'} />
+
+      {/* Mobile: sticky bottom bar when editing */}
+      {isMobile && isEditing && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            {formatCurrency(editTotal)}
+          </span>
+          <button
+            className={primaryBtnClass + (updateEstimate.isPending ? ' opacity-50 pointer-events-none' : '')}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            onClick={handleSave}
+            disabled={updateEstimate.isPending}
+          >
+            {updateEstimate.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      )}
+
+      {/* Mobile: FAB when viewing */}
+      {isMobile && !isEditing && estimate && (
+        <>
+          {fabOpen && (
+            <div className="fixed inset-0 z-40" onClick={() => setFabOpen(false)} />
+          )}
+          <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-3">
+            {fabOpen && (
+              <div className="flex flex-col items-end gap-2 mb-2">
+                {[
+                  { label: 'Print', icon: Printer, action: () => { window.print(); setFabOpen(false) } },
+                  { label: 'Attachments', icon: Paperclip, action: () => { setAttachmentsOpen(true); setFabOpen(false) } },
+                  { label: 'Convert to SO', icon: ArrowRightLeft, action: () => { navigate('/orders/sales/new', { state: { fromEstimate: estimate } }); setFabOpen(false) } },
+                ].map(({ label, icon: Icon, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="flex items-center gap-2 pr-2 pl-3 rounded-full shadow-lg text-[13px] font-medium"
+                    style={{
+                      minHeight: 44,
+                      background: 'var(--so-surface)',
+                      border: '1px solid var(--so-border)',
+                      color: 'var(--so-text-primary)',
+                    }}
+                  >
+                    {label}
+                    <span
+                      className="flex items-center justify-center rounded-full"
+                      style={{ width: 36, height: 36, background: 'var(--so-bg)' }}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setFabOpen(v => !v)}
+              className="flex items-center justify-center rounded-full shadow-xl"
+              style={{ width: 56, height: 56, background: 'var(--so-accent)', color: '#fff' }}
+            >
+              <MoreVertical className="h-6 w-6" />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

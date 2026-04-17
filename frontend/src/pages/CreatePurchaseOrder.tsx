@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobilePOLineItemList } from '@/components/orders/MobilePOLineItemList'
 import { useCreatePurchaseOrder } from '@/api/orders'
 import { useCostLookup } from '@/api/costLists'
 import { useVendors, useLocations } from '@/api/parties'
@@ -18,6 +20,7 @@ import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } fr
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
+import { formatCurrency } from '@/lib/format'
 
 const DEFAULT_FULFILLMENT: Record<string, string> = {
   inventory: 'stock',
@@ -111,6 +114,7 @@ export default function CreatePurchaseOrder() {
   }, [costData, costLookupLine, linesFormData, isCostFetching])
 
   const isPending = createOrder.isPending
+  const isMobile = useIsMobile()
 
   const handleAddLine = () => {
     setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00', notes: '', fulfillment_method: '' }])
@@ -165,11 +169,6 @@ export default function CreatePurchaseOrder() {
     }
   }
 
-  const formatCurrency = (value: string) => {
-    const num = parseFloat(value)
-    return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  }
-
   const calcLineAmount = (qty: string, cost: string) => {
     return (parseFloat(qty) || 0) * (parseFloat(cost) || 0)
   }
@@ -215,7 +214,7 @@ export default function CreatePurchaseOrder() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className={`max-w-[1080px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-7 animate-in">
           <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
@@ -249,24 +248,26 @@ export default function CreatePurchaseOrder() {
         </div>
 
         {/* Main Card */}
-        <form onSubmit={onSubmit}>
+        <form id="create-po-form" onSubmit={onSubmit}>
           <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Details</span>
-              <div className="flex items-center gap-2">
-                <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-                  <X className="h-3.5 w-3.5" /> Cancel
-                </button>
-                <button
-                  type="submit"
-                  className={`${primaryBtnClass} ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
-                  style={primaryBtnStyle}
-                  disabled={isPending}
-                >
-                  <Save className="h-3.5 w-3.5" />
-                  {isPending ? 'Creating...' : 'Create'}
-                </button>
-              </div>
+              {!isMobile && (
+                <div className="flex items-center gap-2">
+                  <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+                    <X className="h-3.5 w-3.5" /> Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={`${primaryBtnClass} ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+                    style={primaryBtnStyle}
+                    disabled={isPending}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {isPending ? 'Creating...' : 'Create'}
+                  </button>
+                </div>
+              )}
             </div>
             <div className="px-6 pt-0 pb-4">
               {/* Error */}
@@ -351,6 +352,23 @@ export default function CreatePurchaseOrder() {
               </div>
 
               {/* Line Items Table */}
+              {isMobile ? (
+                <MobilePOLineItemList
+                  lines={linesFormData}
+                  items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                  uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                  fulfillmentMethods={[
+                    { value: 'stock', label: 'Stock' },
+                    { value: 'direct', label: 'Direct Ship' },
+                    { value: 'crossdock', label: 'Crossdock' },
+                  ]}
+                  onLineChange={handleLineChange}
+                  onRemove={handleRemoveLine}
+                  onAdd={handleAddLine}
+                  total={editTotal}
+                  formatCurrency={formatCurrency}
+                />
+              ) : (
               <div className="mt-4 overflow-x-auto -mx-6">
                 <table className="w-full text-sm">
                   <thead>
@@ -524,10 +542,35 @@ export default function CreatePurchaseOrder() {
                   </tfoot>
                 </table>
               </div>
+              )}
             </div>
           </div>
         </form>
       </div>
+
+      {/* Mobile sticky bottom bar */}
+      {isMobile && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <span
+            className="flex-1 font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            Total: {formatCurrency(editTotal.toFixed(2))}
+          </span>
+          <button
+            type="submit"
+            form="create-po-form"
+            className={`${primaryBtnClass} ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            disabled={isPending}
+          >
+            {isPending ? 'Creating...' : 'Create PO'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { formatCurrency as formatCurrencyFull } from '@/lib/format'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePipelineData } from '@/api/pipeline'
@@ -63,12 +64,6 @@ function formatCurrency(value: string | null) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num)
 }
 
-function formatCurrencyFull(value: string | null) {
-  if (!value) return '—'
-  const num = parseFloat(value)
-  if (isNaN(num)) return '—'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
-}
 
 export default function Pipeline() {
   usePageTitle('Pipeline')

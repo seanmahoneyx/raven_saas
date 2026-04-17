@@ -14,6 +14,7 @@ import {
   BarChart, Bar,
 } from 'recharts'
 
+import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 interface DashboardData {
@@ -43,16 +44,6 @@ interface DashboardData {
     message: string
     timestamp: string
   }[]
-}
-
-function formatCurrency(value: string | number) {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num)
 }
 
 function formatShortDate(dateStr: string) {

@@ -1,10 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { DataTable } from '@/components/ui/data-table'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { FolderTabs } from '@/components/ui/folder-tabs'
 import { useWarehouseLocations, useLots } from '@/api/warehouse'
 import type { WarehouseLocation, Lot } from '@/api/warehouse'
 import { format, isPast, parseISO } from 'date-fns'
@@ -15,8 +15,12 @@ function toTitleCase(str: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+type Tab = 'locations' | 'lots'
+
 export default function WarehouseLocations() {
   usePageTitle('Warehouse Locations & Lots')
+
+  const [activeTab, setActiveTab] = useState<Tab>('locations')
 
   const { data: locationsData, isLoading: locationsLoading } = useWarehouseLocations()
   const { data: lotsData, isLoading: lotsLoading } = useLots()
@@ -200,18 +204,23 @@ export default function WarehouseLocations() {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="locations" className="w-full animate-in delay-1">
-          <TabsList className="grid w-full max-w-xs grid-cols-2 mb-6">
-            <TabsTrigger value="locations">Locations</TabsTrigger>
-            <TabsTrigger value="lots">Lots</TabsTrigger>
-          </TabsList>
+        <div className="mb-5 animate-in delay-1">
+          <FolderTabs
+            tabs={[
+              { id: 'locations', label: 'Locations' },
+              { id: 'lots', label: 'Lots' },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(id) => setActiveTab(id as Tab)}
+          />
+        </div>
+
+        <div className="rounded-[14px] overflow-hidden animate-in delay-2"
+          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
 
           {/* Locations Tab */}
-          <TabsContent value="locations">
-            <div
-              className="rounded-[14px] border overflow-hidden"
-              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
-            >
+          {activeTab === 'locations' && (
+            <>
               <div
                 className="flex items-center justify-between px-6 py-4"
                 style={{ borderBottom: '1px solid var(--so-border-light)' }}
@@ -234,15 +243,12 @@ export default function WarehouseLocations() {
                   searchPlaceholder="Search locations..."
                 />
               )}
-            </div>
-          </TabsContent>
+            </>
+          )}
 
           {/* Lots Tab */}
-          <TabsContent value="lots">
-            <div
-              className="rounded-[14px] border overflow-hidden"
-              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
-            >
+          {activeTab === 'lots' && (
+            <>
               <div
                 className="flex items-center justify-between px-6 py-4"
                 style={{ borderBottom: '1px solid var(--so-border-light)' }}
@@ -265,9 +271,10 @@ export default function WarehouseLocations() {
                   searchPlaceholder="Search lots..."
                 />
               )}
-            </div>
-          </TabsContent>
-        </Tabs>
+            </>
+          )}
+
+        </div>
 
       </div>
     </div>

@@ -3,12 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
 import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { formatCurrency } from '@/lib/format'
 import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
-  ArrowLeft, Plus, Trash2, FileText,
+  ArrowLeft, Plus, Trash2, FileText, MoreVertical, Printer, Mail, Copy,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobilePOLineItemList } from '@/components/orders/MobilePOLineItemList'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
@@ -76,8 +79,10 @@ export default function PurchaseOrderDetail() {
     }
   }, [purchaseOrderId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isMobile = useIsMobile()
   const [isEditing, setIsEditing] = useState(false)
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [activityData, setActivityData] = useState<{ timestamp: string; user: string; action: string }[]>([])
@@ -286,12 +291,6 @@ export default function PurchaseOrderDetail() {
     )
   }
 
-  /* -- Helpers ---------------------------------------------------- */
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity_ordered) || 0
     const cost = parseFloat(line.unit_cost) || 0
@@ -367,12 +366,12 @@ export default function PurchaseOrderDetail() {
           line.item_name,
           line.quantity_ordered.toLocaleString(),
           line.uom_code,
-          `$${fmtCurrency(line.unit_cost)}`,
-          `$${fmtCurrency(line.line_total)}`,
+          `${formatCurrency(line.unit_cost)}`,
+          `${formatCurrency(line.line_total)}`,
         ]) || []}
         totals={[
-          { label: 'Subtotal:', value: `$${fmtCurrency(order.subtotal)}` },
-          { label: 'Total:', value: `$${fmtCurrency(order.subtotal)}` },
+          { label: 'Subtotal:', value: `${formatCurrency(order.subtotal)}` },
+          { label: 'Total:', value: `${formatCurrency(order.subtotal)}` },
         ]}
         footerMessage="Thank you for your business!"
       />
@@ -570,7 +569,18 @@ export default function PurchaseOrderDetail() {
 
           {/* -- EDIT MODE TABLE ----------------------------------- */}
           {isEditing ? (
-            linesFormData.length === 0 ? (
+            isMobile ? (
+              <MobilePOLineItemList
+                lines={linesFormData.map(l => ({ ...l, fulfillment_method: (l as any).fulfillment_method || '' }))}
+                items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                onLineChange={handleLineChange}
+                onRemove={handleRemoveLine}
+                onAdd={handleAddLine}
+                total={editTotal}
+                formatCurrency={formatCurrency}
+              />
+            ) : linesFormData.length === 0 ? (
               <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                 No lines. Click "Add Line" below to add items.
               </div>
@@ -662,7 +672,7 @@ export default function PurchaseOrderDetail() {
                           </td>
                           {/* Amount */}
                           <td className="py-1 px-4 text-right font-mono text-[13px] font-semibold">
-                            ${fmtCurrency(lineAmount)}
+                            {formatCurrency(lineAmount)}
                           </td>
                           {/* Notes */}
                           <td className="py-1 px-1">
@@ -708,6 +718,30 @@ export default function PurchaseOrderDetail() {
           ) : (
             /* -- READ-ONLY TABLE ---------------------------------- */
             order.lines && order.lines.length > 0 ? (
+              isMobile ? (
+                <div className="px-4 py-4 space-y-2">
+                  {order.lines.map((line, i) => {
+                    const lineAmt = (line.quantity_ordered || 0) * parseFloat(line.unit_cost || '0')
+                    return (
+                      <div
+                        key={line.id ?? i}
+                        className="p-3 rounded-xl"
+                        style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
+                      >
+                        <div className="font-medium text-[14px]" style={{ color: 'var(--so-text-primary)' }}>
+                          {line.item_name}
+                        </div>
+                        {line.item_sku && (
+                          <div className="font-mono text-[12px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
+                        )}
+                        <div className="text-[13px] mt-1" style={{ color: 'var(--so-text-secondary)' }}>
+                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_cost)} = <span className="font-mono font-semibold">{{formatCurrency(lineAmt)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                   <thead>
@@ -752,17 +786,18 @@ export default function PurchaseOrderDetail() {
                         </td>
                         {/* Rate */}
                         <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                          ${fmtCurrency(line.unit_cost)}
+                          {formatCurrency(line.unit_cost)}
                         </td>
                         {/* Amount */}
                         <td className="py-3.5 px-4 text-right font-mono font-semibold pr-6">
-                          ${fmtCurrency(line.line_total)}
+                          {formatCurrency(line.line_total)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              )
             ) : (
               <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                 No line items
@@ -780,7 +815,7 @@ export default function PurchaseOrderDetail() {
                 Total
               </span>
               <span className="font-mono text-xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
-                ${fmtCurrency(isEditing ? editTotal : order.subtotal)}
+                {formatCurrency(isEditing ? editTotal : order.subtotal)}
               </span>
             </div>
           )}
@@ -834,6 +869,86 @@ export default function PurchaseOrderDetail() {
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="purchaseorder" objectId={purchaseOrderId} />
       <PanelToggleButton contentType="purchaseorder" objectId={purchaseOrderId} onClick={togglePanel} isOpen={panelOpen} />
       <TransactionPanel contentType="purchaseorder" objectId={purchaseOrderId} open={panelOpen} onClose={closePanel} label={order ? `PO ${order.po_number}` : 'Purchase Order'} />
+
+      {/* Mobile: sticky bottom bar when editing */}
+      {isMobile && isEditing && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            {formatCurrency(editTotal)}
+          </span>
+          <button
+            className={primaryBtnClass + (updatePurchaseOrder.isPending ? ' opacity-50 pointer-events-none' : '')}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            onClick={handleSave}
+            disabled={updatePurchaseOrder.isPending}
+          >
+            {updatePurchaseOrder.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      )}
+
+      {/* Mobile: FAB when viewing */}
+      {isMobile && !isEditing && order && (
+        <>
+          {fabOpen && (
+            <div className="fixed inset-0 z-40" onClick={() => setFabOpen(false)} />
+          )}
+          <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-3">
+            {fabOpen && (
+              <div className="flex flex-col items-end gap-2 mb-2">
+                {[
+                  { label: 'Print', icon: Printer, action: () => { window.print(); setFabOpen(false) } },
+                  { label: 'Email', icon: Mail, action: () => { setEmailModalOpen(true); setFabOpen(false) } },
+                  { label: 'Duplicate', icon: Copy, action: () => { handleSaveAsCopy(); setFabOpen(false) } },
+                  { label: 'Receive', icon: FileText, action: () => { setReceiveDialogOpen(true); setFabOpen(false) } },
+                ].map(({ label, icon: Icon, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="flex items-center gap-2 pr-2 pl-3 rounded-full shadow-lg text-[13px] font-medium"
+                    style={{
+                      minHeight: 44,
+                      background: 'var(--so-surface)',
+                      border: '1px solid var(--so-border)',
+                      color: 'var(--so-text-primary)',
+                    }}
+                  >
+                    {label}
+                    <span
+                      className="flex items-center justify-center rounded-full"
+                      style={{ width: 36, height: 36, background: 'var(--so-bg)' }}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setFabOpen(v => !v)}
+              className="flex items-center justify-center rounded-full shadow-xl"
+              style={{ width: 56, height: 56, background: 'var(--so-accent)', color: '#fff' }}
+            >
+              <MoreVertical className="h-6 w-6" />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

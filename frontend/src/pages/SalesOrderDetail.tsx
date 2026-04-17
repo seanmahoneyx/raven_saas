@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView } from '@/api/favorites'
 import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
+import { formatCurrency } from '@/lib/format'
 import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Plus, Trash2,
-  FileText,
+  FileText, MoreVertical, Printer, Mail, Copy, ShoppingCart,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
@@ -33,6 +35,7 @@ import { toast } from 'sonner'
 import { EntryToolbar } from '@/components/common/EntryToolbar'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { DetailCard } from '@/components/common/DetailCard'
+import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 
 const ORDER_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -77,9 +80,11 @@ export default function SalesOrderDetail() {
     }
   }, [orderId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isMobile = useIsMobile()
   const [isEditing, setIsEditing] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)
   const { data: attachments } = useAttachments('orders', 'salesorder', orderId)
   const attachmentCount = attachments?.length ?? 0
   const [formData, setFormData] = useState({
@@ -313,12 +318,6 @@ export default function SalesOrderDetail() {
     )
   }
 
-  /* ── Helpers ────────────────────────────────────── */
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity_ordered) || 0
     const price = parseFloat(line.unit_price) || 0
@@ -398,12 +397,12 @@ export default function SalesOrderDetail() {
           line.item_name,
           line.quantity_ordered.toLocaleString(),
           line.uom_code,
-          `$${fmtCurrency(line.unit_price)}`,
-          `$${fmtCurrency(line.line_total)}`,
+          `${formatCurrency(line.unit_price)}`,
+          `${formatCurrency(line.line_total)}`,
         ]) || []}
         totals={[
-          { label: 'Subtotal:', value: `$${fmtCurrency(order.subtotal)}` },
-          { label: 'Total:', value: `$${fmtCurrency(order.subtotal)}` },
+          { label: 'Subtotal:', value: `${formatCurrency(order.subtotal)}` },
+          { label: 'Total:', value: `${formatCurrency(order.subtotal)}` },
         ]}
         footerMessage="Thank you for your business!"
       />
@@ -658,7 +657,19 @@ export default function SalesOrderDetail() {
 
           {/* ── EDIT MODE TABLE ──────────────────── */}
           {isEditing ? (
-            linesFormData.length === 0 ? (
+            isMobile ? (
+              <MobileLineItemList
+                lines={linesFormData.map(l => ({ ...l, fulfillment_method: (l as any).fulfillment_method || '' }))}
+                items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                contracts={activeContracts.map(c => ({ value: c.contract_number, label: c.contract_number }))}
+                onLineChange={handleLineChange}
+                onRemove={handleRemoveLine}
+                onAdd={handleAddLine}
+                total={editTotal}
+                formatCurrency={formatCurrency}
+              />
+            ) : linesFormData.length === 0 ? (
               <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                 No lines. Click "Add Line" below to add items.
               </div>
@@ -772,7 +783,7 @@ export default function SalesOrderDetail() {
                           </td>
                           {/* Amount */}
                           <td className="py-1 px-4 text-right font-mono text-[13px] font-semibold">
-                            ${fmtCurrency(lineAmount)}
+                            {formatCurrency(lineAmount)}
                           </td>
                           {/* Notes */}
                           <td className="py-1 px-1">
@@ -818,6 +829,33 @@ export default function SalesOrderDetail() {
           ) : (
             /* ── READ-ONLY TABLE ─────────────────── */
             order.lines && order.lines.length > 0 ? (
+              isMobile ? (
+                <div className="px-4 py-4 space-y-2">
+                  {order.lines.map((line, i) => {
+                    const lineAmt = (line.quantity_ordered || 0) * parseFloat(line.unit_price || '0')
+                    return (
+                      <div
+                        key={line.id ?? i}
+                        className="p-3 rounded-xl"
+                        style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
+                      >
+                        <div className="font-medium text-[14px]" style={{ color: 'var(--so-text-primary)' }}>
+                          {line.item_name}
+                        </div>
+                        {line.item_sku && (
+                          <div className="font-mono text-[12px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
+                        )}
+                        <div className="text-[13px] mt-1" style={{ color: 'var(--so-text-secondary)' }}>
+                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_price)} = <span className="font-mono font-semibold">{{formatCurrency(lineAmt)}</span>
+                        </div>
+                        {line.contract_number && (
+                          <div className="text-[12px] mt-0.5 font-mono" style={{ color: 'var(--so-accent)' }}>{line.contract_number}</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                   <thead>
@@ -871,17 +909,18 @@ export default function SalesOrderDetail() {
                         </td>
                         {/* Rate */}
                         <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                          ${fmtCurrency(line.unit_price)}
+                          {formatCurrency(line.unit_price)}
                         </td>
                         {/* Amount */}
                         <td className="py-3.5 px-4 text-right font-mono font-semibold pr-6">
-                          ${fmtCurrency(line.line_total)}
+                          {formatCurrency(line.line_total)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              )
             ) : (
               <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                 No line items
@@ -899,7 +938,7 @@ export default function SalesOrderDetail() {
                 Total
               </span>
               <span className="font-mono text-xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
-                ${fmtCurrency(isEditing ? editTotal : order.subtotal)}
+                {formatCurrency(isEditing ? editTotal : order.subtotal)}
               </span>
             </div>
           )}
@@ -931,6 +970,128 @@ export default function SalesOrderDetail() {
       <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="salesorder" objectId={orderId} />
       <PanelToggleButton contentType="salesorder" objectId={orderId} onClick={togglePanel} isOpen={panelOpen} />
       <TransactionPanel contentType="salesorder" objectId={orderId} open={panelOpen} onClose={closePanel} label={order ? `SO ${order.order_number}` : 'Sales Order'} />
+
+      {/* Mobile: sticky bottom bar when editing */}
+      {isMobile && isEditing && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            {formatCurrency(editTotal)}
+          </span>
+          <button
+            className={primaryBtnClass + (updateOrder.isPending ? ' opacity-50 pointer-events-none' : '')}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            onClick={handleSave}
+            disabled={updateOrder.isPending}
+          >
+            {updateOrder.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      )}
+
+      {/* Mobile: FAB when viewing */}
+      {isMobile && !isEditing && order && (
+        <>
+          {fabOpen && (
+            <div className="fixed inset-0 z-40" onClick={() => setFabOpen(false)} />
+          )}
+          <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-3">
+            {fabOpen && (
+              <div className="flex flex-col items-end gap-2 mb-2">
+                {[
+                  { label: 'Print', icon: Printer, action: () => { window.print(); setFabOpen(false) } },
+                  { label: 'Email', icon: Mail, action: () => { setFabOpen(false) } },
+                  { label: 'Duplicate', icon: Copy, action: () => { handleSaveAsCopy(); setFabOpen(false) } },
+                  { label: 'Create Invoice', icon: FileText, action: async () => {
+                    setFabOpen(false)
+                    try {
+                      const inv = await createInvoice.mutateAsync({
+                        invoice_type: 'AR',
+                        party: order.customer,
+                        sales_order: order.id,
+                        invoice_date: new Date().toISOString().split('T')[0],
+                        due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+                        lines: order.lines?.map(line => ({
+                          item: line.item,
+                          description: line.item_name,
+                          quantity: line.quantity_ordered,
+                          unit_price: line.unit_price,
+                        })) || [],
+                      })
+                      navigate(`/invoices/${inv.id}`)
+                    } catch { /* handled by mutation */ }
+                  }},
+                  { label: 'Create PO', icon: ShoppingCart, action: () => {
+                    setFabOpen(false)
+                    navigate('/orders/purchase/new', {
+                      state: {
+                        copyFrom: {
+                          status: 'draft',
+                          priority: String(order.priority),
+                          order_date: new Date().toISOString().split('T')[0],
+                          notes: `PO from ${order.order_number}`,
+                          lines: order.lines?.map(line => ({
+                            item: String(line.item),
+                            quantity_ordered: String(line.quantity_ordered),
+                            uom: String(line.uom),
+                            unit_cost: '0.00',
+                          })) || [],
+                        }
+                      }
+                    })
+                  }},
+                ].map(({ label, icon: Icon, action }) => (
+                  <button
+                    key={label}
+                    onClick={action}
+                    className="flex items-center gap-2 pr-2 pl-3 rounded-full shadow-lg text-[13px] font-medium"
+                    style={{
+                      minHeight: 44,
+                      background: 'var(--so-surface)',
+                      border: '1px solid var(--so-border)',
+                      color: 'var(--so-text-primary)',
+                    }}
+                  >
+                    {label}
+                    <span
+                      className="flex items-center justify-center rounded-full"
+                      style={{ width: 36, height: 36, background: 'var(--so-bg)' }}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setFabOpen(v => !v)}
+              className="flex items-center justify-center rounded-full shadow-xl"
+              style={{
+                width: 56,
+                height: 56,
+                background: 'var(--so-accent)',
+                color: '#fff',
+              }}
+            >
+              <MoreVertical className="h-6 w-6" />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

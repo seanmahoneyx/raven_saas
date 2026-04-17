@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatCurrency } from '@/lib/format'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -148,12 +149,6 @@ export default function InvoiceDetailPage() {
     )
   }
 
-  /* ── Helpers ────────────────────────────────────── */
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const balanceNum = parseFloat(invoice.balance_due)
 
   const tabs: { id: TabType; label: string }[] = [
@@ -184,10 +179,10 @@ export default function InvoiceDetailPage() {
           { label: 'Status', value: invoice.is_overdue ? 'OVERDUE' : invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1) },
         ]}
         summary={[
-          { label: 'Subtotal', value: `$${fmtCurrency(invoice.subtotal)}` },
-          { label: 'Tax', value: `$${fmtCurrency(invoice.tax_amount)}` },
-          { label: 'Total', value: `$${fmtCurrency(invoice.total_amount)}` },
-          { label: 'Balance Due', value: `$${fmtCurrency(invoice.balance_due)}` },
+          { label: 'Subtotal', value: `${formatCurrency(invoice.subtotal)}` },
+          { label: 'Tax', value: `${formatCurrency(invoice.tax_amount)}` },
+          { label: 'Total', value: `${formatCurrency(invoice.total_amount)}` },
+          { label: 'Balance Due', value: `${formatCurrency(invoice.balance_due)}` },
         ]}
         notes={invoice.notes}
         columns={[
@@ -205,13 +200,13 @@ export default function InvoiceDetailPage() {
           line.description,
           parseFloat(line.quantity).toLocaleString(),
           line.uom_code,
-          `$${fmtCurrency(line.unit_price)}`,
-          `$${fmtCurrency(line.line_total)}`,
+          `${formatCurrency(line.unit_price)}`,
+          `${formatCurrency(line.line_total)}`,
         ])}
         totals={[
-          { label: 'Subtotal:', value: `$${fmtCurrency(invoice.subtotal)}` },
-          { label: `Tax (${(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%):`, value: `$${fmtCurrency(invoice.tax_amount)}` },
-          { label: 'Total:', value: `$${fmtCurrency(invoice.total_amount)}` },
+          { label: 'Subtotal:', value: `${formatCurrency(invoice.subtotal)}` },
+          { label: `Tax (${(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%):`, value: `${formatCurrency(invoice.tax_amount)}` },
+          { label: 'Total:', value: `${formatCurrency(invoice.total_amount)}` },
         ]}
       />
 
@@ -383,7 +378,7 @@ export default function InvoiceDetailPage() {
                 className="text-sm font-bold font-mono"
                 style={{ color: balanceNum > 0 ? 'var(--so-danger-text)' : 'var(--so-success-text)' }}
               >
-                ${fmtCurrency(invoice.balance_due)}
+                {formatCurrency(invoice.balance_due)}
               </div>
             </div>
           </div>
@@ -395,7 +390,7 @@ export default function InvoiceDetailPage() {
                 Total
               </div>
               <div className="text-sm font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                ${fmtCurrency(invoice.total_amount)}
+                {formatCurrency(invoice.total_amount)}
               </div>
             </div>
             <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
@@ -403,7 +398,7 @@ export default function InvoiceDetailPage() {
                 Paid
               </div>
               <div className="text-sm font-bold font-mono" style={{ color: 'var(--so-success-text)' }}>
-                ${fmtCurrency(invoice.amount_paid)}
+                {formatCurrency(invoice.amount_paid)}
               </div>
             </div>
             <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
@@ -414,7 +409,7 @@ export default function InvoiceDetailPage() {
                 className="text-sm font-bold font-mono"
                 style={{ color: balanceNum > 0 ? 'var(--so-danger-text)' : 'var(--so-success-text)' }}
               >
-                ${fmtCurrency(invoice.balance_due)}
+                {formatCurrency(invoice.balance_due)}
               </div>
             </div>
             <div className="px-5 py-4">
@@ -422,7 +417,7 @@ export default function InvoiceDetailPage() {
                 Tax ({(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%)
               </div>
               <div className="text-sm font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                ${fmtCurrency(invoice.tax_amount)}
+                {formatCurrency(invoice.tax_amount)}
               </div>
             </div>
           </div>
@@ -502,7 +497,7 @@ export default function InvoiceDetailPage() {
                           </td>
                           {/* Rate */}
                           <td className="py-3.5 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                            ${fmtCurrency(line.unit_price)}
+                            {formatCurrency(line.unit_price)}
                           </td>
                           {/* Disc % */}
                           <td className="py-3.5 px-4 text-right" style={{ color: 'var(--so-text-secondary)' }}>
@@ -510,7 +505,7 @@ export default function InvoiceDetailPage() {
                           </td>
                           {/* Amount */}
                           <td className="py-3.5 px-4 text-right font-mono font-bold pr-6">
-                            ${fmtCurrency(line.line_total)}
+                            {formatCurrency(line.line_total)}
                           </td>
                         </tr>
                       ))}
@@ -528,19 +523,19 @@ export default function InvoiceDetailPage() {
                 <div style={{ borderTop: '2px solid var(--so-text-primary)' }}>
                   <div className="flex items-center justify-end gap-8 px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                     <span className="text-[13px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal</span>
-                    <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(invoice.subtotal)}</span>
+                    <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.subtotal)}</span>
                   </div>
                   {parseFloat(invoice.tax_amount) > 0 && (
                     <div className="flex items-center justify-end gap-8 px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                       <span className="text-[13px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>
                         Tax ({(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%)
                       </span>
-                      <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(invoice.tax_amount)}</span>
+                      <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.tax_amount)}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-end gap-8 px-6 py-4">
                     <span className="text-[13px] font-semibold uppercase tracking-wider" style={{ color: 'var(--so-text-secondary)' }}>Total</span>
-                    <span className="font-mono text-xl font-bold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(invoice.total_amount)}</span>
+                    <span className="font-mono text-xl font-bold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.total_amount)}</span>
                   </div>
                 </div>
               )}
@@ -579,7 +574,7 @@ export default function InvoiceDetailPage() {
                             {format(new Date(pmt.payment_date + 'T00:00:00'), 'MMM d, yyyy')}
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono font-semibold" style={{ color: 'var(--so-success-text)' }}>
-                            ${fmtCurrency(pmt.amount)}
+                            {formatCurrency(pmt.amount)}
                           </td>
                           <td className="py-3.5 px-4">
                             <span
@@ -630,7 +625,7 @@ export default function InvoiceDetailPage() {
         onOpenChange={setEmailModalOpen}
         endpoint={`/invoices/${invoiceId}/email/`}
         defaultSubject={`Invoice ${invoice.invoice_number}`}
-        defaultBody={`Dear ${invoice.customer_name},\n\nPlease find attached Invoice ${invoice.invoice_number} for $${fmtCurrency(invoice.total_amount)}.\n\nPayment is due by ${format(new Date(invoice.due_date + 'T00:00:00'), 'MMMM d, yyyy')}.\n\nThank you for your business.`}
+        defaultBody={`Dear ${invoice.customer_name},\n\nPlease find attached Invoice ${invoice.invoice_number} for ${formatCurrency(invoice.total_amount)}.\n\nPayment is due by ${format(new Date(invoice.due_date + 'T00:00:00'), 'MMMM d, yyyy')}.\n\nThank you for your business.`}
       />
       <PanelToggleButton contentType="invoice" objectId={invoiceId} onClick={togglePanel} isOpen={panelOpen} />
       <TransactionPanel contentType="invoice" objectId={invoiceId} open={panelOpen} onClose={closePanel} label={invoice ? `Invoice ${invoice.invoice_number}` : 'Invoice'} />

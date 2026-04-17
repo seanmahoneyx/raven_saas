@@ -11,15 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ShieldCheck, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import { useMyPendingApprovals, useApproveRequest, useRejectRequest } from '@/api/approvals'
 import type { ApprovalRequest } from '@/api/approvals'
-
-function formatCurrency(value: string | number | null) {
-  if (!value) return '-'
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(num)
-}
+import { formatCurrency } from '@/lib/format'
 
 function timeUntil(dateStr: string) {
   const now = new Date()

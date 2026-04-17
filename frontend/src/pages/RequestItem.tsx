@@ -14,6 +14,7 @@ import {
 import { ArrowLeft } from 'lucide-react'
 import { useParties } from '@/api/parties'
 import { useCreateItem, useUnitsOfMeasure } from '@/api/items'
+import type { Item } from '@/types/api'
 import { DIVISIONS, BOX_TYPES, PKG_SUB_TYPES } from '@/constants/items'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
@@ -55,14 +56,14 @@ export default function RequestItem() {
       await createMutation.mutateAsync({
         sku: '',
         name: name.trim(),
-        division: division as any,
+        division: division as Item['division'],
         base_uom: baseUom ? Number(baseUom) : undefined,
         customer: customer ? Number(customer) : null,
         item_type: 'inventory',
         is_active: true,
         lifecycle_status: 'draft',
         sell_desc,
-      } as any)
+      } as Partial<Item>)
       navigate('/items')
     } catch (err: any) {
       const msg = err?.response?.data

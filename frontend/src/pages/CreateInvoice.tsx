@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { formatCurrency } from '@/lib/format'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -127,11 +129,6 @@ export default function CreateInvoice() {
   const lineHasData = (line: typeof linesFormData[number]) =>
     !!(line.item || line.quantity || line.notes)
 
-  const fmtCurrency = (val: string | number) => {
-    const num = parseFloat(String(val))
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity) || 0
     const price = parseFloat(line.unit_price) || 0
@@ -139,6 +136,7 @@ export default function CreateInvoice() {
   }, 0)
 
   const isPending = createInvoice.isPending
+  const isMobile = useIsMobile()
 
   /* ---- Submit ---- */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -197,7 +195,7 @@ export default function CreateInvoice() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className={`max-w-[1280px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -229,21 +227,23 @@ export default function CreateInvoice() {
                 : 'Fill in invoice details below'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/invoices')}>
-              Cancel
-            </button>
-            <button
-              className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
-              style={primaryBtnStyle}
-              onClick={handleSubmit as any}
-              type="submit"
-              form="create-invoice-form"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              {isPending ? 'Creating...' : 'Create Invoice'}
-            </button>
-          </div>
+          {!isMobile && (
+            <div className="flex items-center gap-2">
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate('/invoices')}>
+                Cancel
+              </button>
+              <button
+                className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+                style={primaryBtnStyle}
+                onClick={handleSubmit as any}
+                type="submit"
+                form="create-invoice-form"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                {isPending ? 'Creating...' : 'Create Invoice'}
+              </button>
+            </div>
+          )}
         </div>
 
         <form id="create-invoice-form" onSubmit={handleSubmit}>
@@ -471,7 +471,7 @@ export default function CreateInvoice() {
                         </td>
                         {/* Amount (read-only) */}
                         <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                          {line.item ? `$${fmtCurrency(lineAmount)}` : '\u2014'}
+                          {line.item ? `${formatCurrency(lineAmount)}` : '\u2014'}
                         </td>
                         {/* Notes */}
                         <td className="py-1.5 px-1">
@@ -521,7 +521,7 @@ export default function CreateInvoice() {
                   </tr>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
                     <td colSpan={4} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>${fmtCurrency(editTotal)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(editTotal)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>
@@ -531,6 +531,39 @@ export default function CreateInvoice() {
         </form>
 
       </div>
+
+      {/* Mobile sticky bottom bar */}
+      {isMobile && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            {formatCurrency(editTotal)}
+          </span>
+          <button
+            className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            onClick={handleSubmit as any}
+            type="submit"
+            form="create-invoice-form"
+          >
+            {isPending ? 'Creating...' : 'Create Invoice'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

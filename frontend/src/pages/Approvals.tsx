@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea'
 import { format, formatDistanceToNow } from 'date-fns'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { formatCurrency } from '@/lib/format'
 
 const TABS = [
   { key: 'pending', label: 'Pending', icon: Clock },
@@ -57,15 +58,6 @@ function StatusBadge({ status }: { status: string }) {
       {config.label}
     </span>
   )
-}
-
-function formatCurrency(value: string | number | null) {
-  if (!value) return '-'
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
-  }).format(num)
 }
 
 function timeUntil(dateStr: string) {

@@ -15,6 +15,7 @@ import {
 import { useAccounts } from '@/api/accounting'
 import { useCreateJournalEntry } from '@/api/accounting'
 import { toast } from 'sonner'
+import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 interface LineForm {
@@ -22,12 +23,6 @@ interface LineForm {
   description: string
   debit: string
   credit: string
-}
-
-function formatCurrency(value: string | number): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
 }
 
 export default function CreateJournalEntry() {
