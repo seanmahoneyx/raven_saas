@@ -4,7 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCreateFixedAsset } from '@/api/assets'
 import { useAssetCategories } from '@/api/assets'
-import { useVendors } from '@/api/parties'
+import { DEPRECIATION_METHODS } from '@/constants/assets'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,13 +19,6 @@ import { ArrowLeft } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
-const DEPRECIATION_METHODS = [
-  { value: 'straight_line', label: 'Straight Line' },
-  { value: 'declining_balance', label: 'Declining Balance' },
-  { value: 'double_declining', label: 'Double Declining' },
-  { value: 'sum_of_years', label: 'Sum of Years' },
-  { value: 'units_of_production', label: 'Units of Production' },
-]
 
 export default function CreateFixedAsset() {
   usePageTitle('Create Fixed Asset')

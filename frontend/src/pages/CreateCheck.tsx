@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft } from 'lucide-react'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
-type PayeeType = 'vendor' | 'other_name' | 'manual'
+type PayeeType = 'other_name' | 'manual'
 
 interface BankAccount {
   id: number
@@ -37,7 +37,7 @@ export default function CreateCheck() {
   const bankAccounts: BankAccount[] = bankAccountsData ?? []
 
   const [error, setError] = useState('')
-  const [payeeType, setPayeeType] = useState<PayeeType>('vendor')
+  const [payeeType, setPayeeType] = useState<PayeeType>('other_name')
   const [otherNameId, setOtherNameId] = useState('')
   const [formData, setFormData] = useState({
     payee_name: '',
@@ -140,8 +140,8 @@ export default function CreateCheck() {
               <div className="space-y-1.5">
                 <Label style={{ color: 'var(--so-text-secondary)' }}>Payee Type</Label>
                 <div className="flex rounded-md overflow-hidden border" style={{ borderColor: 'var(--so-border)' }}>
-                  {(['vendor', 'other_name', 'manual'] as PayeeType[]).map((type) => {
-                    const label = type === 'vendor' ? 'Vendor' : type === 'other_name' ? 'Other Name' : 'Manual'
+                  {(['other_name', 'manual'] as PayeeType[]).map((type) => {
+                    const label = type === 'other_name' ? 'Other Name' : 'Manual'
                     const active = payeeType === type
                     return (
                       <button
@@ -182,18 +182,6 @@ export default function CreateCheck() {
                 </div>
               )}
 
-              {/* Vendor name input */}
-              {payeeType === 'vendor' && (
-                <div className="space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Vendor Name</Label>
-                  <Input
-                    value={formData.payee_name}
-                    onChange={(e) => update('payee_name', e.target.value)}
-                    placeholder="Enter vendor name"
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
-              )}
 
               {/* Manual: name + address */}
               {payeeType === 'manual' && (

@@ -51,7 +51,7 @@ export default function OtherNames() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
-  const { data, isLoading } = useOtherNames()
+  const { data, isLoading, isError } = useOtherNames()
   const createOtherName = useCreateOtherName()
   const updateOtherName = useUpdateOtherName()
   const deleteOtherName = useDeleteOtherName()
@@ -207,6 +207,11 @@ export default function OtherNames() {
             </span>
           </div>
           <div className="p-4">
+            {isError && (
+              <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }}>
+                Failed to load other names. Please try again.
+              </div>
+            )}
             {isLoading ? (
               <TableSkeleton columns={7} rows={6} />
             ) : (

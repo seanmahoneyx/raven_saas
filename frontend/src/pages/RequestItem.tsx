@@ -50,6 +50,8 @@ export default function RequestItem() {
     }
 
     try {
+      const dimStr = length && width ? `${length} x ${width} x ${height}` : ''
+      const sell_desc = [notes, dimStr].filter(Boolean).join('\n') || undefined
       await createMutation.mutateAsync({
         sku: '',
         name: name.trim(),
@@ -59,7 +61,7 @@ export default function RequestItem() {
         item_type: 'inventory',
         is_active: true,
         lifecycle_status: 'draft',
-        sell_desc: notes || undefined,
+        sell_desc,
       } as any)
       navigate('/items')
     } catch (err: any) {

@@ -24,12 +24,7 @@ import {
   type Check,
 } from '@/api/checks'
 import { format } from 'date-fns'
-
-const formatCurrency = (value: string | number) => {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
-}
+import { formatCurrency } from '@/lib/format'
 
 export default function Checks() {
   usePageTitle('Checks')
@@ -39,7 +34,7 @@ export default function Checks() {
   const [pendingVoidId, setPendingVoidId] = useState<number | null>(null)
   const [voidReason, setVoidReason] = useState('')
 
-  const { data, isLoading } = useChecks()
+  const { data, isLoading, isError } = useChecks()
   const printCheck = usePrintCheck()
   const voidCheck = useVoidCheck()
 
@@ -204,6 +199,11 @@ export default function Checks() {
             </span>
           </div>
           <div className="p-4">
+            {isError && (
+              <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }}>
+                Failed to load checks. Please try again.
+              </div>
+            )}
             {isLoading ? (
               <TableSkeleton columns={8} rows={6} />
             ) : (

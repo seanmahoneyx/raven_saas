@@ -17,31 +17,11 @@ import {
   type FixedAsset,
   type AssetCategory,
 } from '@/api/assets'
+import { formatCurrency, formatLifeMonths } from '@/lib/format'
+import { DEPRECIATION_METHODS } from '@/constants/assets'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
-
-const fmtCurrency = (val: string | number) => {
-  const num = parseFloat(String(val))
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
-}
-
-const fmtLife = (months: number) => {
-  const years = Math.floor(months / 12)
-  const rem = months % 12
-  if (years === 0) return `${rem} months`
-  if (rem === 0) return `${years} year${years > 1 ? 's' : ''}`
-  return `${years}y ${rem}m`
-}
-
-const DEPRECIATION_METHODS = [
-  { value: 'straight_line', label: 'Straight Line' },
-  { value: 'declining_balance', label: 'Declining Balance' },
-  { value: 'double_declining', label: 'Double Declining' },
-  { value: 'sum_of_years', label: 'Sum of Years' },
-  { value: 'units_of_production', label: 'Units of Production' },
-]
 
 const methodLabel = (method: string) =>
   DEPRECIATION_METHODS.find(m => m.value === method)?.label ?? method
@@ -158,7 +138,7 @@ export default function FixedAssets() {
       header: 'Cost',
       cell: ({ row }) => (
         <span className="font-mono whitespace-nowrap" style={{ color: 'var(--so-text-primary)' }}>
-          {fmtCurrency(row.getValue('acquisition_cost'))}
+          {formatCurrency(row.getValue('acquisition_cost'))}
         </span>
       ),
     },
@@ -167,7 +147,7 @@ export default function FixedAssets() {
       header: 'Accum Depr',
       cell: ({ row }) => (
         <span className="font-mono whitespace-nowrap" style={{ color: 'var(--so-text-secondary)' }}>
-          {fmtCurrency(row.getValue('accumulated_depreciation'))}
+          {formatCurrency(row.getValue('accumulated_depreciation'))}
         </span>
       ),
     },
@@ -176,7 +156,7 @@ export default function FixedAssets() {
       header: 'Net Book Value',
       cell: ({ row }) => (
         <span className="font-mono font-semibold whitespace-nowrap" style={{ color: 'var(--so-text-primary)' }}>
-          {fmtCurrency(row.getValue('net_book_value'))}
+          {formatCurrency(row.getValue('net_book_value'))}
         </span>
       ),
     },
@@ -208,7 +188,7 @@ export default function FixedAssets() {
       header: 'Useful Life',
       cell: ({ row }) => (
         <span style={{ color: 'var(--so-text-secondary)' }}>
-          {fmtLife(row.getValue('default_useful_life_months') as number)}
+          {formatLifeMonths(row.getValue('default_useful_life_months') as number)}
         </span>
       ),
     },
@@ -358,7 +338,7 @@ export default function FixedAssets() {
                     Total Cost
                   </div>
                   <div className="text-2xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                    {fmtCurrency(totalCost)}
+                    {formatCurrency(totalCost)}
                   </div>
                 </div>
                 <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
@@ -366,7 +346,7 @@ export default function FixedAssets() {
                     Net Book Value
                   </div>
                   <div className="text-2xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                    {fmtCurrency(totalNBV)}
+                    {formatCurrency(totalNBV)}
                   </div>
                 </div>
               </div>
@@ -522,7 +502,7 @@ export default function FixedAssets() {
                           Total Depreciation
                         </div>
                         <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                          {fmtCurrency(deprResult.total_depreciation)}
+                          {formatCurrency(deprResult.total_depreciation)}
                         </div>
                       </div>
                     </div>

@@ -13,41 +13,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useFixedAsset, useFixedAssets, useDisposeAsset, type FixedAsset } from '@/api/assets'
+import { useFixedAsset, useDisposeAsset, type FixedAsset } from '@/api/assets'
+import { formatCurrency, formatLifeMonths } from '@/lib/format'
+import { DISPOSAL_METHODS, DEPRECIATION_METHOD_MAP } from '@/constants/assets'
 import { EntryToolbar } from '@/components/common/EntryToolbar'
 import { DetailCard } from '@/components/common/DetailCard'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
-const fmtCurrency = (val: string | number) => {
-  const num = parseFloat(String(val))
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
-}
-
-const fmtLife = (months: number) => {
-  const years = Math.floor(months / 12)
-  const rem = months % 12
-  if (years === 0) return `${rem} months`
-  if (rem === 0) return `${years} year${years > 1 ? 's' : ''}`
-  return `${years}y ${rem}m`
-}
-
-const DISPOSAL_METHODS = [
-  { value: 'sold', label: 'Sold' },
-  { value: 'scrapped', label: 'Scrapped' },
-  { value: 'donated', label: 'Donated' },
-  { value: 'traded_in', label: 'Traded In' },
-  { value: 'other', label: 'Other' },
-]
-
-const DEPRECIATION_METHODS: Record<string, string> = {
-  straight_line: 'Straight Line',
-  declining_balance: 'Declining Balance',
-  double_declining: 'Double Declining',
-  sum_of_years: 'Sum of Years',
-  units_of_production: 'Units of Production',
-}
 
 export default function FixedAssetDetail() {
   const { id } = useParams<{ id: string }>()
@@ -116,19 +89,19 @@ export default function FixedAssetDetail() {
 
   const acquisitionItems = [
     { label: 'Acquisition Date', value: asset.acquisition_date ? new Date(asset.acquisition_date + 'T00:00:00').toLocaleDateString() : '-' },
-    { label: 'Acquisition Cost', value: fmtCurrency(asset.acquisition_cost), mono: true },
+    { label: 'Acquisition Cost', value: formatCurrency(asset.acquisition_cost), mono: true },
     { label: 'Vendor', value: asset.vendor_name || 'N/A', empty: !asset.vendor_name },
   ]
 
   const depreciationItems = [
-    { label: 'Method', value: DEPRECIATION_METHODS[asset.depreciation_method] || asset.depreciation_method },
-    { label: 'Useful Life', value: fmtLife(asset.useful_life_months) },
-    { label: 'Salvage Value', value: fmtCurrency(asset.salvage_value), mono: true },
+    { label: 'Method', value: DEPRECIATION_METHOD_MAP[asset.depreciation_method] || asset.depreciation_method },
+    { label: 'Useful Life', value: formatLifeMonths(asset.useful_life_months) },
+    { label: 'Salvage Value', value: formatCurrency(asset.salvage_value), mono: true },
     { label: 'Start Date', value: asset.depreciation_start_date ? new Date(asset.depreciation_start_date + 'T00:00:00').toLocaleDateString() : '-' },
-    { label: 'Accumulated Depreciation', value: fmtCurrency(asset.accumulated_depreciation), mono: true },
-    { label: 'Net Book Value', value: fmtCurrency(asset.net_book_value), mono: true },
-    { label: 'Monthly Depreciation', value: fmtCurrency(asset.monthly_depreciation), mono: true },
-    { label: 'Remaining Life', value: fmtLife(asset.remaining_life_months) },
+    { label: 'Accumulated Depreciation', value: formatCurrency(asset.accumulated_depreciation), mono: true },
+    { label: 'Net Book Value', value: formatCurrency(asset.net_book_value), mono: true },
+    { label: 'Monthly Depreciation', value: formatCurrency(asset.monthly_depreciation), mono: true },
+    { label: 'Remaining Life', value: formatLifeMonths(asset.remaining_life_months) },
   ]
 
   const depreciation_entries = asset.depreciation_entries ?? []
@@ -309,13 +282,13 @@ export default function FixedAssetDetail() {
                         {new Date(entry.period_date + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}
                       </td>
                       <td className="py-3 px-4 text-right font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                        {fmtCurrency(entry.amount)}
+                        {formatCurrency(entry.amount)}
                       </td>
                       <td className="py-3 px-4 text-right font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                        {fmtCurrency(entry.accumulated_after)}
+                        {formatCurrency(entry.accumulated_after)}
                       </td>
                       <td className="py-3 px-4 pr-6 text-right font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                        {fmtCurrency(entry.net_book_value_after)}
+                        {formatCurrency(entry.net_book_value_after)}
                       </td>
                     </tr>
                   ))}
@@ -364,7 +337,7 @@ export default function FixedAssetDetail() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right font-mono" style={{ color: 'var(--so-text-primary)' }}>
-                        {fmtCurrency(tx.amount)}
+                        {formatCurrency(tx.amount)}
                       </td>
                       <td className="py-3 px-4 pr-6" style={{ color: 'var(--so-text-secondary)' }}>
                         {tx.description || '\u2014'}
