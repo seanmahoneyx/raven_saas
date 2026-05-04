@@ -667,7 +667,6 @@ export default function SalesOrderDetail() {
                 onRemove={handleRemoveLine}
                 onAdd={handleAddLine}
                 total={editTotal}
-                formatCurrency={formatCurrency}
               />
             ) : linesFormData.length === 0 ? (
               <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
@@ -846,7 +845,7 @@ export default function SalesOrderDetail() {
                           <div className="font-mono text-[12px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
                         )}
                         <div className="text-[13px] mt-1" style={{ color: 'var(--so-text-secondary)' }}>
-                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_price)} = <span className="font-mono font-semibold">{{formatCurrency(lineAmt)}</span>
+                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_price)} = <span className="font-mono font-semibold">{formatCurrency(lineAmt)}</span>
                         </div>
                         {line.contract_number && (
                           <div className="text-[12px] mt-0.5 font-mono" style={{ color: 'var(--so-accent)' }}>{line.contract_number}</div>
@@ -897,7 +896,7 @@ export default function SalesOrderDetail() {
                         </td>
                         {/* Fulfillment */}
                         <td className="py-3.5 px-4 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                          {{ stock: 'Stock', direct: 'Direct', crossdock: 'Cross' }[line.fulfillment_method ?? ''] ?? '-'}
+                          {{ stock: 'Stock', direct: 'Direct', crossdock: 'Cross' }[(line.fulfillment_method ?? '') as string] ?? '-'}
                         </td>
                         {/* Qty */}
                         <td className="py-3.5 px-4 text-center font-mono font-semibold">

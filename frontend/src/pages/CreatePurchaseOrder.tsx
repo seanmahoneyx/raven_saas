@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { MobilePOLineItemList } from '@/components/orders/MobilePOLineItemList'
+import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 import { useCreatePurchaseOrder } from '@/api/orders'
 import { useCostLookup } from '@/api/costLists'
 import { useVendors, useLocations } from '@/api/parties'
@@ -353,7 +353,7 @@ export default function CreatePurchaseOrder() {
 
               {/* Line Items Table */}
               {isMobile ? (
-                <MobilePOLineItemList
+                <MobileLineItemList
                   lines={linesFormData}
                   items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
                   uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
@@ -362,11 +362,11 @@ export default function CreatePurchaseOrder() {
                     { value: 'direct', label: 'Direct Ship' },
                     { value: 'crossdock', label: 'Crossdock' },
                   ]}
+                  priceField="unit_cost"
                   onLineChange={handleLineChange}
                   onRemove={handleRemoveLine}
                   onAdd={handleAddLine}
                   total={editTotal}
-                  formatCurrency={formatCurrency}
                 />
               ) : (
               <div className="mt-4 overflow-x-auto -mx-6">

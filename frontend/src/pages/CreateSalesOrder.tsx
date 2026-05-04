@@ -25,7 +25,6 @@ import type { SimilarItemsResponse } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { SalesOrderClass } from '@/types/api'
-import { toast } from 'sonner'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -148,7 +147,7 @@ export default function CreateSalesOrder() {
       const options = contractsByItem.get(cl.item) || []
       options.push({
         contractNumber: contract.contract_number,
-        unitPrice: cl.unit_price,
+        unitPrice: cl.unit_price ?? '',
         remainingQty: cl.remaining_qty,
       })
       contractsByItem.set(cl.item, options)
@@ -689,7 +688,6 @@ export default function CreateSalesOrder() {
                 onRemove={handleRemoveLine}
                 onAdd={() => setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '', fulfillment_method: '' }])}
                 total={editTotal}
-                formatCurrency={formatCurrency}
               />
             ) : (
             <div className="overflow-x-auto">
@@ -945,7 +943,7 @@ export default function CreateSalesOrder() {
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
                     <td colSpan={7} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(editTotal)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>

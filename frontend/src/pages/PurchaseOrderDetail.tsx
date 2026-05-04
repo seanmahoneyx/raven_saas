@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { MobilePOLineItemList } from '@/components/orders/MobilePOLineItemList'
+import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
@@ -508,19 +508,6 @@ export default function PurchaseOrderDetail() {
                 </div>
                 {'editable' in item && item.editable && 'editNode' in item ? (
                   (item as { editNode: React.ReactNode }).editNode
-                ) : item.badge ? (
-                  <span
-                    className="inline-flex items-center justify-center text-sm font-semibold"
-                    style={{
-                      width: '28px',
-                      height: '28px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--so-border)',
-                      color: 'var(--so-text-primary)',
-                    }}
-                  >
-                    {item.value}
-                  </span>
                 ) : (
                   <div
                     className={`text-sm font-medium ${item.mono ? 'font-mono' : ''}`}
@@ -570,15 +557,15 @@ export default function PurchaseOrderDetail() {
           {/* -- EDIT MODE TABLE ----------------------------------- */}
           {isEditing ? (
             isMobile ? (
-              <MobilePOLineItemList
+              <MobileLineItemList
                 lines={linesFormData.map(l => ({ ...l, fulfillment_method: (l as any).fulfillment_method || '' }))}
                 items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
                 uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                priceField="unit_cost"
                 onLineChange={handleLineChange}
                 onRemove={handleRemoveLine}
                 onAdd={handleAddLine}
                 total={editTotal}
-                formatCurrency={formatCurrency}
               />
             ) : linesFormData.length === 0 ? (
               <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
@@ -735,7 +722,7 @@ export default function PurchaseOrderDetail() {
                           <div className="font-mono text-[12px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{line.item_sku}</div>
                         )}
                         <div className="text-[13px] mt-1" style={{ color: 'var(--so-text-secondary)' }}>
-                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_cost)} = <span className="font-mono font-semibold">{{formatCurrency(lineAmt)}</span>
+                          {line.quantity_ordered.toLocaleString()} {line.uom_code} &times; ${formatCurrency(line.unit_cost)} = <span className="font-mono font-semibold">{formatCurrency(lineAmt)}</span>
                         </div>
                       </div>
                     )
@@ -774,7 +761,7 @@ export default function PurchaseOrderDetail() {
                         </td>
                         {/* Fulfillment */}
                         <td className="py-3.5 px-4 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                          {{ stock: 'Stock', direct: 'Direct', crossdock: 'Cross' }[line.fulfillment_method ?? ''] ?? '-'}
+                          {{ stock: 'Stock', direct: 'Direct', crossdock: 'Cross' }[(line.fulfillment_method ?? '') as string] ?? '-'}
                         </td>
                         {/* Qty */}
                         <td className="py-3.5 px-4 text-center font-mono font-semibold">
