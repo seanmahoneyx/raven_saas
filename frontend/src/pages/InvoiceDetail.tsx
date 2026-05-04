@@ -523,19 +523,19 @@ export default function InvoiceDetailPage() {
                 <div style={{ borderTop: '2px solid var(--so-text-primary)' }}>
                   <div className="flex items-center justify-end gap-8 px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                     <span className="text-[13px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal</span>
-                    <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.subtotal)}</span>
+                    <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(invoice.subtotal)}</span>
                   </div>
                   {parseFloat(invoice.tax_amount) > 0 && (
                     <div className="flex items-center justify-end gap-8 px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                       <span className="text-[13px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>
                         Tax ({(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%)
                       </span>
-                      <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.tax_amount)}</span>
+                      <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(invoice.tax_amount)}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-end gap-8 px-6 py-4">
                     <span className="text-[13px] font-semibold uppercase tracking-wider" style={{ color: 'var(--so-text-secondary)' }}>Total</span>
-                    <span className="font-mono text-xl font-bold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(invoice.total_amount)}</span>
+                    <span className="font-mono text-xl font-bold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(invoice.total_amount)}</span>
                   </div>
                 </div>
               )}

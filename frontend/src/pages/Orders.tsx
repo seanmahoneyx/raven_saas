@@ -16,17 +16,19 @@ import {
 import { useSalesOrders, usePurchaseOrders, useDeleteSalesOrder, useDeletePurchaseOrder, useUpdateSalesOrder } from '@/api/orders'
 import { SalesOrderDialog } from '@/components/orders/SalesOrderDialog'
 import { PurchaseOrderDialog } from '@/components/orders/PurchaseOrderDialog'
-import type { SalesOrder, PurchaseOrder, OrderStatus } from '@/types/api'
+import type { SalesOrder, PurchaseOrder } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import React from 'react'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { SalesOrderCard, PurchaseOrderCard } from '@/components/orders/OrderCard'
 
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 type Tab = 'sales' | 'purchase'
 
@@ -35,6 +37,11 @@ export default function Orders() {
   useOrderSync()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
+
+  const isMobile = useIsMobile()
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('order_number')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
 
   // Read initial tab from URL params, default to 'sales'
   const tabParam = searchParams.get('tab')
@@ -86,6 +93,42 @@ export default function Orders() {
   const deleteSalesOrder = useDeleteSalesOrder()
   const deletePurchaseOrder = useDeletePurchaseOrder()
   const updateOrder = useUpdateSalesOrder()
+
+  const mobileOrders = useMemo(() => {
+    const raw = activeTab === 'sales'
+      ? (salesData?.results ?? [])
+      : (purchaseData?.results ?? [])
+    let rows = [...raw]
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(o => {
+        const num = activeTab === 'sales' ? (o as SalesOrder).order_number : (o as PurchaseOrder).po_number
+        const party = activeTab === 'sales' ? (o as SalesOrder).customer_name : (o as PurchaseOrder).vendor_name
+        return num?.toLowerCase().includes(q) || party?.toLowerCase().includes(q)
+      })
+    }
+    rows.sort((a, b) => {
+      let av: string | number = ''
+      let bv: string | number = ''
+      if (mobileSortKey === 'order_number') {
+        av = activeTab === 'sales' ? (a as SalesOrder).order_number ?? '' : (a as PurchaseOrder).po_number ?? ''
+        bv = activeTab === 'sales' ? (b as SalesOrder).order_number ?? '' : (b as PurchaseOrder).po_number ?? ''
+      } else if (mobileSortKey === 'party') {
+        av = activeTab === 'sales' ? (a as SalesOrder).customer_name ?? '' : (a as PurchaseOrder).vendor_name ?? ''
+        bv = activeTab === 'sales' ? (b as SalesOrder).customer_name ?? '' : (b as PurchaseOrder).vendor_name ?? ''
+      } else if (mobileSortKey === 'subtotal') {
+        av = parseFloat(a.subtotal || '0')
+        bv = parseFloat(b.subtotal || '0')
+      } else if (mobileSortKey === 'scheduled_date') {
+        av = a.scheduled_date ?? ''
+        bv = b.scheduled_date ?? ''
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+    return rows
+  }, [activeTab, salesData, purchaseData, mobileSearch, mobileSortKey, mobileSortDir])
 
   const handleAddNew = () => {
     if (activeTab === 'sales') {
@@ -374,7 +417,7 @@ export default function Orders() {
           </div>
           <div className="flex items-center gap-2">
             <ExportButton
-              data={activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])}
+              data={(activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])) as unknown as Record<string, unknown>[]}
               filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
               columns={activeTab === 'sales' ? [
                 { key: 'order_number', header: 'Order #' },
@@ -430,49 +473,80 @@ export default function Orders() {
           </div>
         </div>
 
-        {/* Orders Table */}
-        <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-              {tabs.find((t) => t.id === activeTab)?.label}
-            </span>
+        {/* Orders Table / Mobile Cards */}
+        {isMobile ? (
+          <MobileCardList
+            data={mobileOrders}
+            renderCard={(item) =>
+              activeTab === 'sales'
+                ? <SalesOrderCard order={item as SalesOrder} />
+                : <PurchaseOrderCard order={item as PurchaseOrder} />
+            }
+            searchValue={mobileSearch}
+            onSearchChange={setMobileSearch}
+            searchPlaceholder={activeTab === 'sales' ? 'Search orders...' : 'Search POs...'}
+            sortOptions={[
+              { label: activeTab === 'sales' ? 'Order #' : 'PO #', key: 'order_number' },
+              { label: activeTab === 'sales' ? 'Customer' : 'Vendor', key: 'party' },
+              { label: 'Total', key: 'subtotal' },
+              { label: 'Scheduled Date', key: 'scheduled_date' },
+            ]}
+            currentSort={mobileSortKey}
+            onSortChange={setMobileSortKey}
+            sortDirection={mobileSortDir}
+            onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            resultCount={mobileOrders.length}
+            onItemClick={(item) =>
+              activeTab === 'sales'
+                ? navigate(`/orders/sales/${(item as SalesOrder).id}`)
+                : navigate(`/orders/purchase/${(item as PurchaseOrder).id}`)
+            }
+            emptyMessage="No orders found."
+          />
+        ) : (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {tabs.find((t) => t.id === activeTab)?.label}
+              </span>
+            </div>
+            {activeTab === 'sales' && (
+              <DataTable
+                columns={salesColumns}
+                data={salesData?.results ?? []}
+                searchColumn="order_number"
+                searchPlaceholder="Search orders..."
+                storageKey="all-sales-orders"
+                onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
+                enableSelection
+                bulkActions={[
+                  { key: 'print', label: 'Print', icon: <Printer className="mr-1 h-4 w-4" /> },
+                  { key: 'status', label: 'Update Status', icon: <RefreshCw className="mr-1 h-4 w-4" /> },
+                ]}
+                onBulkAction={(action, rows) => {
+                  if (action === 'print') {
+                    rows.forEach((row: any) => {
+                      window.open(`/api/v1/sales-orders/${row.id}/pick-ticket/`, '_blank')
+                    })
+                  } else if (action === 'status') {
+                    setStatusDialogRows(rows as SalesOrder[])
+                    setStatusDialogOpen(true)
+                  }
+                }}
+              />
+            )}
+            {activeTab === 'purchase' && (
+              <DataTable
+                columns={purchaseColumns}
+                data={purchaseData?.results ?? []}
+                searchColumn="po_number"
+                searchPlaceholder="Search POs..."
+                storageKey="all-purchase-orders"
+                onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
+              />
+            )}
           </div>
-          {activeTab === 'sales' && (
-            <DataTable
-              columns={salesColumns}
-              data={salesData?.results ?? []}
-              searchColumn="order_number"
-              searchPlaceholder="Search orders..."
-              storageKey="all-sales-orders"
-              onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
-              enableSelection
-              bulkActions={[
-                { key: 'print', label: 'Print', icon: <Printer className="mr-1 h-4 w-4" /> },
-                { key: 'status', label: 'Update Status', icon: <RefreshCw className="mr-1 h-4 w-4" /> },
-              ]}
-              onBulkAction={(action, rows) => {
-                if (action === 'print') {
-                  rows.forEach((row: any) => {
-                    window.open(`/api/v1/sales-orders/${row.id}/pick-ticket/`, '_blank')
-                  })
-                } else if (action === 'status') {
-                  setStatusDialogRows(rows as SalesOrder[])
-                  setStatusDialogOpen(true)
-                }
-              }}
-            />
-          )}
-          {activeTab === 'purchase' && (
-            <DataTable
-              columns={purchaseColumns}
-              data={purchaseData?.results ?? []}
-              searchColumn="po_number"
-              searchPlaceholder="Search POs..."
-              storageKey="all-purchase-orders"
-              onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
-            />
-          )}
-        </div>
+        )}
 
       </div>
 

@@ -19,6 +19,13 @@ export interface Invoice {
   amount_paid: string
   balance_due: string
   notes: string
+  sales_order?: number | null
+  lines?: Array<{
+    item?: number
+    description?: string
+    quantity?: number
+    unit_price?: string
+  }>
   created_at: string
   updated_at: string
 }

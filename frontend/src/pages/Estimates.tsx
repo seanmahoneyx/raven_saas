@@ -24,10 +24,17 @@ import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } f
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { EstimateCard } from '@/components/estimates/EstimateCard'
 
 export default function Estimates() {
   usePageTitle('Estimates')
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('estimate_number')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [convertDialogOpen, setConvertDialogOpen] = useState(false)
@@ -90,7 +97,7 @@ export default function Estimates() {
       const s = v == null ? '' : String(v)
       return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -285,6 +292,33 @@ export default function Estimates() {
     return rows
   }, [estimates, printFilters])
 
+  const mobileEstimates = useMemo(() => {
+    let rows = filteredEstimates
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(e =>
+        e.estimate_number?.toLowerCase().includes(q) ||
+        e.customer_name?.toLowerCase().includes(q)
+      )
+    }
+    return [...rows].sort((a, b) => {
+      let av: string | number = ''
+      let bv: string | number = ''
+      if (mobileSortKey === 'estimate_number') {
+        av = a.estimate_number ?? ''; bv = b.estimate_number ?? ''
+      } else if (mobileSortKey === 'customer_name') {
+        av = a.customer_name ?? ''; bv = b.customer_name ?? ''
+      } else if (mobileSortKey === 'total_amount') {
+        av = parseFloat(a.total_amount || '0'); bv = parseFloat(b.total_amount || '0')
+      } else if (mobileSortKey === 'date') {
+        av = a.date ?? ''; bv = b.date ?? ''
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filteredEstimates, mobileSearch, mobileSortKey, mobileSortDir])
+
   const kpiStats = [
     { label: 'Draft',     value: estimates.filter((e) => e.status === 'draft').length,     status: 'draft' },
     { label: 'Sent',      value: estimates.filter((e) => e.status === 'sent').length,      status: 'sent' },
@@ -403,26 +437,49 @@ export default function Estimates() {
           </div>
         </div>
 
-        {/* Estimates Table */}
-        <div className="rounded-[14px] border overflow-hidden animate-in delay-3"
-          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="flex items-center justify-between px-6 py-4"
-            style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
-              Estimates
-            </span>
-            <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-              {filteredEstimates.length} of {estimates.length}
-            </span>
-          </div>
-          <DataTable
-            storageKey="estimates"
-            columns={columns}
-            data={filteredEstimates}
-            onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
+        {/* Estimates Table / Mobile Cards */}
+        {isMobile ? (
+          <MobileCardList
+            data={mobileEstimates}
+            renderCard={(estimate) => <EstimateCard estimate={estimate} />}
+            searchValue={mobileSearch}
+            onSearchChange={setMobileSearch}
+            searchPlaceholder="Search estimates..."
+            sortOptions={[
+              { label: 'Estimate #', key: 'estimate_number' },
+              { label: 'Customer', key: 'customer_name' },
+              { label: 'Total', key: 'total_amount' },
+              { label: 'Date', key: 'date' },
+            ]}
+            currentSort={mobileSortKey}
+            onSortChange={setMobileSortKey}
+            sortDirection={mobileSortDir}
+            onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            resultCount={mobileEstimates.length}
+            onItemClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
+            emptyMessage="No estimates found."
           />
-        </div>
+        ) : (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-3"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+                Estimates
+              </span>
+              <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                {filteredEstimates.length} of {estimates.length}
+              </span>
+            </div>
+            <DataTable
+              storageKey="estimates"
+              columns={columns}
+              data={filteredEstimates}
+              onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
+            />
+          </div>
+        )}
 
       </div>
 

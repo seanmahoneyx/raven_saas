@@ -1,4 +1,3 @@
-import React from 'react'
 
 export const ITEM_TYPE_BADGE_STYLES: Record<string, { bg: string; color: string; label: string }> = {
   inventory: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)', label: 'Inventory' },

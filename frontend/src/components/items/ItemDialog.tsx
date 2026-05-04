@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { itemSchema, type ItemFormData } from '@/schemas'
 import { FormField } from '@/components/ui/form-field'
@@ -143,7 +143,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
     reset,
     formState: { errors },
   } = useForm<ItemFormData>({
-    resolver: zodResolver(itemSchema),
+    resolver: zodResolver(itemSchema) as Resolver<ItemFormData>,
     defaultValues,
   })
 
@@ -332,9 +332,9 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
         }
 
         if (isEditing && item) {
-          await updateBoxItem.mutateAsync({ id: item.id, ...corrugatedPayload })
+          await updateBoxItem.mutateAsync({ id: item.id, ...corrugatedPayload } as any)
         } else {
-          await createBoxItem.mutateAsync(corrugatedPayload)
+          await createBoxItem.mutateAsync(corrugatedPayload as any)
         }
       } else if (isPackaging) {
         // Packaging item payload — only send fields relevant to the sub-type
@@ -382,9 +382,9 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
       } else {
         // Base item
         if (isEditing && item) {
-          await updateItem.mutateAsync({ id: item.id, ...basePayload })
+          await updateItem.mutateAsync({ id: item.id, ...basePayload } as any)
         } else {
-          await createItem.mutateAsync(basePayload)
+          await createItem.mutateAsync(basePayload as any)
         }
       }
       onOpenChange(false)
@@ -414,7 +414,7 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Item' : 'Add Item'}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit as any)}>
           <div className="grid gap-4 py-4">
             {/* Division & Box Type / Pkg Sub-Type */}
             <div className="grid grid-cols-2 gap-4">

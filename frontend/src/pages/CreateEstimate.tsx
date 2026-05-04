@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCreateEstimate } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
@@ -77,6 +78,7 @@ export default function CreateEstimate() {
   }, 0)
 
   const isPending = createEstimate.isPending
+  const isMobile = useIsMobile()
 
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -144,7 +146,7 @@ export default function CreateEstimate() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className={`max-w-[1080px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -170,7 +172,7 @@ export default function CreateEstimate() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form id="create-estimate-form" onSubmit={handleSubmit} className="space-y-4">
 
           {/* Estimate Details */}
           <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
@@ -469,22 +471,57 @@ export default function CreateEstimate() {
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-            <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className={`${primaryBtnClass}${isPending || !formData.customer ? ' opacity-50 pointer-events-none' : ''}`}
-              style={primaryBtnStyle}
-              disabled={isPending || !formData.customer}
-            >
-              {isPending ? 'Creating...' : 'Create Estimate'}
-            </button>
-          </div>
+          {!isMobile && (
+            <div className="flex justify-end gap-3 pt-2" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+              <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`${primaryBtnClass}${isPending || !formData.customer ? ' opacity-50 pointer-events-none' : ''}`}
+                style={primaryBtnStyle}
+                disabled={isPending || !formData.customer}
+              >
+                {isPending ? 'Creating...' : 'Create Estimate'}
+              </button>
+            </div>
+          )}
 
         </form>
       </div>
+
+      {/* Mobile sticky bottom bar */}
+      {isMobile && (
+        <div
+          className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
+          style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
+        >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
+          <span
+            className="flex-1 text-center font-mono text-sm font-semibold"
+            style={{ color: 'var(--so-text-primary)' }}
+          >
+            ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          <button
+            type="submit"
+            form="create-estimate-form"
+            className={`${primaryBtnClass}${isPending || !formData.customer ? ' opacity-50 pointer-events-none' : ''}`}
+            style={{ ...primaryBtnStyle, minHeight: 44 }}
+            disabled={isPending || !formData.customer}
+          >
+            {isPending ? 'Creating...' : 'Create Estimate'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

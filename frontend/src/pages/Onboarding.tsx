@@ -559,8 +559,8 @@ function QuickLink({ href, title, description }: { href: string; title: string; 
 export default function Onboarding() {
   usePageTitle('Welcome to Raven')
   const [step, setStep] = useState(1)
-  const [companyAddress, setCompanyAddress] = useState('')
-  const [companyName, setCompanyName] = useState('My Company')
+  const [companyAddress] = useState('')
+  const [companyName] = useState('My Company')
   const { data: presetsData } = useOnboardingUoMPresets()
 
   function nextStep() {

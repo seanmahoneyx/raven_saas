@@ -6,8 +6,7 @@ import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Pencil, Save, X, Printer, Rocket,
-  CheckCircle, XCircle, Clock, Loader2, Check,
-  Paperclip, Upload, Trash2,
+  CheckCircle, Paperclip, Upload, Trash2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,22 +33,6 @@ import { getApiErrorMessage } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-
-const statusLabels: Record<DesignRequestStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  completed: 'Completed',
-}
-
-const statusIcons: Record<DesignRequestStatus, React.ElementType> = {
-  pending: Clock,
-  in_progress: Loader2,
-  approved: Check,
-  rejected: XCircle,
-  completed: CheckCircle,
-}
 
 const DESIGN_STATUSES = [
   { value: 'pending', label: 'Pending' },
@@ -106,8 +89,6 @@ const CHECKLIST_ITEMS = [
   { key: 'pallet_configuration' as const, label: 'Pallet Config', description: 'Pallet layout configured' },
 ]
 
-const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium transition-all cursor-pointer'
-const dangerBtnStyle: React.CSSProperties = { border: '1px solid var(--so-danger-text)', background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }
 
 interface FormData {
   ident: string

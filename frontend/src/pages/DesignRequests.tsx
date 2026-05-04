@@ -4,7 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
   Plus, MoreHorizontal, Pencil, Trash2, Rocket,
-  CheckCircle, XCircle, Clock, Loader2, Check, Palette, Printer, Download,
+  CheckCircle, XCircle, Loader2, Palette, Printer, Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
@@ -44,18 +44,9 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
-import React from 'react'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
-
-const statusIcons: Record<DesignRequestStatus, React.ElementType> = {
-  pending: Clock,
-  in_progress: Loader2,
-  approved: Check,
-  rejected: XCircle,
-  completed: CheckCircle,
-}
 
 // Promote dialog sub-component
 function PromoteDialog({
@@ -164,7 +155,7 @@ export default function DesignRequests() {
   const designRequests = requestsData?.results ?? []
 
   const customerOptions = useMemo(() => {
-    const names = new Set(designRequests.map(dr => dr.customer_name).filter(Boolean))
+    const names = new Set(designRequests.map(dr => dr.customer_name).filter((n): n is string => Boolean(n)))
     return Array.from(names).sort()
   }, [designRequests])
 
@@ -410,7 +401,7 @@ export default function DesignRequests() {
     const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => {
       const key = c.key
       if (key === 'created_at') return esc(r.created_at ? new Date(r.created_at).toLocaleDateString() : '')
-      return esc((r as Record<string, unknown>)[key])
+      return esc((r as unknown as Record<string, unknown>)[key])
     }).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)

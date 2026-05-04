@@ -151,7 +151,7 @@ export default function PriceLists() {
     const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => {
       const key = c.key
       if (key === 'is_active') return esc((r as any).is_active ? 'Yes' : 'No')
-      return esc((r as Record<string, unknown>)[key])
+      return esc((r as unknown as Record<string, unknown>)[key])
     }).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)

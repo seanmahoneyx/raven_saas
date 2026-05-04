@@ -17,12 +17,19 @@ import { format } from 'date-fns'
 type Tab = 'invoices' | 'payments'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { InvoiceCard } from '@/components/invoices/InvoiceCard'
 
 export default function Invoices() {
   usePageTitle('Invoices')
   useInvoiceSync()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('invoice_number')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
 
@@ -221,6 +228,35 @@ export default function Invoices() {
     })
   }, [invoices, searchTerm, selectedParty, selectedStatus, dateFrom, dateTo])
 
+  const mobileInvoices = useMemo(() => {
+    let rows = filteredInvoices
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(i =>
+        i.invoice_number?.toLowerCase().includes(q) ||
+        i.party_name?.toLowerCase().includes(q)
+      )
+    }
+    return [...rows].sort((a, b) => {
+      let av: string | number = ''
+      let bv: string | number = ''
+      if (mobileSortKey === 'invoice_number') {
+        av = a.invoice_number ?? ''; bv = b.invoice_number ?? ''
+      } else if (mobileSortKey === 'party_name') {
+        av = a.party_name ?? ''; bv = b.party_name ?? ''
+      } else if (mobileSortKey === 'total_amount') {
+        av = parseFloat(a.total_amount || '0'); bv = parseFloat(b.total_amount || '0')
+      } else if (mobileSortKey === 'due_date') {
+        av = a.due_date ?? ''; bv = b.due_date ?? ''
+      } else if (mobileSortKey === 'balance_due') {
+        av = parseFloat(a.balance_due || '0'); bv = parseFloat(b.balance_due || '0')
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filteredInvoices, mobileSearch, mobileSortKey, mobileSortDir])
+
   // Summary stats
   const arInvoices = invoicesData?.results.filter((i) => i.invoice_type === 'AR') ?? []
   const apInvoices = invoicesData?.results.filter((i) => i.invoice_type === 'AP') ?? []
@@ -242,7 +278,7 @@ export default function Invoices() {
           </div>
           <div className="flex items-center gap-2">
             <ExportButton
-              data={activeTab === 'invoices' ? (invoicesData?.results ?? []) : (paymentsData?.results ?? [])}
+              data={(activeTab === 'invoices' ? (invoicesData?.results ?? []) : (paymentsData?.results ?? [])) as unknown as Record<string, unknown>[]}
               filename={activeTab === 'invoices' ? 'invoices' : 'payments'}
               columns={activeTab === 'invoices' ? [
                 { key: 'invoice_number', header: 'Invoice #' },
@@ -386,42 +422,66 @@ export default function Invoices() {
           </div>
         )}
 
-        {/* DataTable Card */}
-        <div className="rounded-[14px] overflow-hidden animate-in delay-2"
-          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-          <div className="px-6 py-4 flex items-center justify-between"
-            style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
-            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-              {activeTab === 'invoices' ? 'Invoices' : 'Payments'}
-            </span>
+        {/* DataTable Card / Mobile Cards */}
+        {isMobile && activeTab === 'invoices' ? (
+          <MobileCardList
+            data={mobileInvoices}
+            renderCard={(invoice) => <InvoiceCard invoice={invoice} />}
+            searchValue={mobileSearch}
+            onSearchChange={setMobileSearch}
+            searchPlaceholder="Search invoices..."
+            sortOptions={[
+              { label: 'Invoice #', key: 'invoice_number' },
+              { label: 'Party', key: 'party_name' },
+              { label: 'Total', key: 'total_amount' },
+              { label: 'Due Date', key: 'due_date' },
+              { label: 'Balance', key: 'balance_due' },
+            ]}
+            currentSort={mobileSortKey}
+            onSortChange={setMobileSortKey}
+            sortDirection={mobileSortDir}
+            onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            resultCount={mobileInvoices.length}
+            onItemClick={(invoice) => navigate(`/invoices/${invoice.id}`)}
+            emptyMessage="No invoices found."
+          />
+        ) : (
+          <div className="rounded-[14px] overflow-hidden animate-in delay-2"
+            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
+            <div className="px-6 py-4 flex items-center justify-between"
+              style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
+              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {activeTab === 'invoices' ? 'Invoices' : 'Payments'}
+              </span>
+            </div>
+            <div className="p-4">
+              {activeTab === 'invoices' && (
+                invoicesLoading ? (
+                  <TableSkeleton columns={8} rows={8} />
+                ) : (
+                  <DataTable
+                    columns={invoiceColumns}
+                    data={filteredInvoices}
+                    storageKey="invoices"
+                  />
+                )
+              )}
+              {activeTab === 'payments' && (
+                paymentsLoading ? (
+                  <TableSkeleton columns={6} rows={8} />
+                ) : (
+                  <DataTable
+                    columns={paymentColumns}
+                    data={paymentsData?.results ?? []}
+                    searchColumn="payment_number"
+                    searchPlaceholder="Search payments..."
+                    storageKey="bills"
+                  />
+                )
+              )}
+            </div>
           </div>
-          <div className="p-4">
-            {activeTab === 'invoices' && (
-              invoicesLoading ? (
-                <TableSkeleton columns={8} rows={8} />
-              ) : (
-                <DataTable
-                  columns={invoiceColumns}
-                  data={filteredInvoices}
-                  storageKey="invoices"
-                />
-              )
-            )}
-            {activeTab === 'payments' && (
-              paymentsLoading ? (
-                <TableSkeleton columns={6} rows={8} />
-              ) : (
-                <DataTable
-                  columns={paymentColumns}
-                  data={paymentsData?.results ?? []}
-                  searchColumn="payment_number"
-                  searchPlaceholder="Search payments..."
-                  storageKey="bills"
-                />
-              )
-            )}
-          </div>
-        </div>
+        )}
 
       </div>
     </div>

@@ -23,7 +23,7 @@ const MONTHS = [
   { value: 12, label: 'December' },
 ]
 
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function Settings() {
   usePageTitle('My Company')

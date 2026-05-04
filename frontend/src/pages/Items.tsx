@@ -19,13 +19,19 @@ import type { Item } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
-import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { ItemCard } from '@/components/items/ItemCard'
 
 export default function Items() {
   usePageTitle('Items')
 
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('name')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Dialog states
   const [itemDialogOpen, setItemDialogOpen] = useState(false)
@@ -38,6 +44,33 @@ export default function Items() {
     lifecycleFilter === 'all' ? undefined : { lifecycle_status: lifecycleFilter }
   )
   const deleteItem = useDeleteItem()
+
+  const mobileItems = useMemo(() => {
+    let rows = itemsData?.results ?? []
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(i =>
+        i.name?.toLowerCase().includes(q) ||
+        i.sku?.toLowerCase().includes(q)
+      )
+    }
+    return [...rows].sort((a, b) => {
+      let av: string | number = ''
+      let bv: string | number = ''
+      if (mobileSortKey === 'name') {
+        av = a.name ?? ''; bv = b.name ?? ''
+      } else if (mobileSortKey === 'sku') {
+        av = a.sku ?? ''; bv = b.sku ?? ''
+      } else if (mobileSortKey === 'qty_on_hand') {
+        av = a.qty_on_hand ?? 0; bv = b.qty_on_hand ?? 0
+      } else if (mobileSortKey === 'qty_on_open_so') {
+        av = a.qty_on_open_so ?? 0; bv = b.qty_on_open_so ?? 0
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [itemsData, mobileSearch, mobileSortKey, mobileSortDir])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
@@ -328,7 +361,7 @@ export default function Items() {
               Add Item
             </button>
             <ExportButton
-              data={itemsData?.results ?? []}
+              data={(itemsData?.results ?? []) as unknown as Record<string, unknown>[]}
               filename="items"
               columns={[
                 { key: 'sku', header: 'SKU' },
@@ -368,48 +401,67 @@ export default function Items() {
           ))}
         </div>
 
-        {/* Items DataTable */}
-        <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
-          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="flex items-center justify-between px-6 py-4"
-            style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-            <span className="text-sm font-semibold">Items</span>
-            <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-              {itemsData?.results?.length ?? 0} total
-            </span>
+        {/* Items DataTable / Mobile Cards */}
+        {isMobile ? (
+          <MobileCardList
+            data={mobileItems}
+            renderCard={(item) => <ItemCard item={item} />}
+            searchValue={mobileSearch}
+            onSearchChange={setMobileSearch}
+            searchPlaceholder="Search items..."
+            sortOptions={[
+              { label: 'Name', key: 'name' },
+              { label: 'SKU', key: 'sku' },
+              { label: 'On Hand', key: 'qty_on_hand' },
+              { label: 'Open SO', key: 'qty_on_open_so' },
+            ]}
+            currentSort={mobileSortKey}
+            onSortChange={setMobileSortKey}
+            sortDirection={mobileSortDir}
+            onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            resultCount={mobileItems.length}
+            onItemClick={(item) => navigate(`/items/${item.id}`)}
+            emptyMessage="No items found."
+          />
+        ) : (
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Items</span>
+              <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                {itemsData?.results?.length ?? 0} total
+              </span>
+            </div>
+            {itemsLoading ? (
+              <div className="p-6"><TableSkeleton columns={14} rows={8} /></div>
+            ) : (
+              <DataTable
+                storageKey="items"
+                columns={itemColumns}
+                data={itemsData?.results ?? []}
+                searchColumn="name"
+                searchPlaceholder="Search items..."
+                onRowClick={(item) => navigate(`/items/${item.id}`)}
+                responsiveColumns={{
+                  item_type: 768,
+                  division: 768,
+                  lifecycle_status: 768,
+                  revision: 768,
+                  box_type: 768,
+                  qty_on_hand: 768,
+                  qty_on_open_po: 1024,
+                  qty_on_open_so: 1024,
+                  preferred_vendor_name: 1024,
+                  expense_account_name: 1280,
+                  asset_account_name: 1280,
+                  income_account_name: 1280,
+                  attachment_count: 1280,
+                }}
+              />
+            )}
           </div>
-          {itemsLoading ? (
-            <div className="p-6"><TableSkeleton columns={14} rows={8} /></div>
-          ) : (
-            <DataTable
-              storageKey="items"
-              columns={itemColumns}
-              data={itemsData?.results ?? []}
-              searchColumn="name"
-              searchPlaceholder="Search items..."
-              onRowClick={(item) => navigate(`/items/${item.id}`)}
-              responsiveColumns={{
-                // Always visible: sku, name, actions
-                // Show at ≥768px (tablet)
-                item_type: 768,
-                division: 768,
-                lifecycle_status: 768,
-                revision: 768,
-                box_type: 768,
-                qty_on_hand: 768,
-                // Show at ≥1024px (desktop)
-                qty_on_open_po: 1024,
-                qty_on_open_so: 1024,
-                preferred_vendor_name: 1024,
-                // Show at ≥1280px (wide)
-                expense_account_name: 1280,
-                asset_account_name: 1280,
-                income_account_name: 1280,
-                attachment_count: 1280,
-              }}
-            />
-          )}
-        </div>
+        )}
 
       </div>
 

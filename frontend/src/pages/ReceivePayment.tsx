@@ -52,9 +52,9 @@ export default function ReceivePayment() {
   const [depositAccount, setDepositAccount] = useState<string>('')
 
   // Fetch bank/cash accounts for deposit account dropdown
-  const { data: accountsData } = useAccounts({ account_type: 'asset', is_active: true })
+  const { data: accountsData } = useAccounts({ account_type: 'ASSET_CURRENT', is_active: true })
   const bankAccounts = (accountsData?.results ?? []).filter(a =>
-    a.account_type === 'asset' && (a.name?.toLowerCase().includes('bank') || a.name?.toLowerCase().includes('cash') || a.account_number?.startsWith('1'))
+    (a.account_type === 'ASSET_CURRENT' || a.account_type === 'ASSET_FIXED' || a.account_type === 'ASSET_OTHER') && (a.name?.toLowerCase().includes('bank') || a.name?.toLowerCase().includes('cash') || a.code?.startsWith('1'))
   )
 
   // Fetch customers
@@ -340,7 +340,7 @@ export default function ReceivePayment() {
                     <SelectContent>
                       {bankAccounts.map(acct => (
                         <SelectItem key={acct.id} value={String(acct.id)}>
-                          {acct.account_number} - {acct.name}
+                          {acct.code} - {acct.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -11,7 +11,6 @@ import type {
 } from '@/api/items'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
-import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
 import { useSettings } from '@/api/settings'
 
 // ---------------------------------------------------------------------------
@@ -152,8 +151,7 @@ function QuickStatsRow({
       className="rounded-[14px] border overflow-hidden mb-4 grid grid-cols-2 sm:grid-cols-4 divide-x"
       style={{
         background: 'var(--so-bg)',
-        borderColor: 'var(--so-border)',
-        divideColor: 'var(--so-border-light)',
+        borderColor: 'var(--so-border-light)',
       }}
     >
       {/* Last Buy */}

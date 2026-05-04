@@ -7,7 +7,6 @@ import { useAccounts } from '@/api/accounting'
 import { useSettings } from '@/api/settings'
 import type { GLAccount, GLAccountType } from '@/types/api'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
-import React from 'react'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 
 const accountTypeLabels: Record<GLAccountType, string> = {
@@ -165,7 +164,7 @@ export default function ChartOfAccounts() {
       const key = c.key
       if (key === 'account_type') return esc(accountTypeLabels[r.account_type] || r.account_type)
       if (key === 'is_active') return esc(r.is_active ? 'Yes' : 'No')
-      return esc((r as Record<string, unknown>)[key])
+      return esc((r as unknown as Record<string, unknown>)[key])
     }).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)

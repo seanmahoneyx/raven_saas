@@ -23,7 +23,7 @@ import {
 } from '@/api/items'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useParties } from '@/api/parties'
-import type { PackagingSubType } from '@/types/api'
+import type { PackagingSubType, DivisionType, ItemType, TestType, FluteType, PaperType } from '@/types/api'
 import {
   DIVISIONS, BOX_TYPES, PKG_SUB_TYPES,
   TEST_TYPES, FLUTE_TYPES, PAPER_TYPES,
@@ -344,7 +344,7 @@ export default function CreateItem() {
       sell_desc: formData.sell_desc || undefined, base_uom: Number(formData.base_uom),
       customer: formData.customer ? Number(formData.customer) : null,
       item_type: formData.item_type, is_active: formData.is_active,
-      lifecycle_status: 'draft',
+      lifecycle_status: 'draft' as import('@/types/api').LifecycleStatus,
       units_per_layer: formData.units_per_bundle ? Number(formData.units_per_bundle) : null,
       layers_per_pallet: null,
       units_per_pallet: formData.units_per_pallet ? Number(formData.units_per_pallet) : null,
@@ -365,7 +365,7 @@ export default function CreateItem() {
             ? { blank_length: formData.blank_length || null, blank_width: formData.blank_width || null, out_per_rotary: formData.out_per_rotary ? Number(formData.out_per_rotary) : null }
             : { height: formData.height }),
         }
-        const boxResult = await createBoxItem.mutateAsync(corrugatedPayload)
+        const boxResult = await createBoxItem.mutateAsync(corrugatedPayload as any)
         if (printAfterCreate.current && boxResult?.id) {
           window.open(`/api/v1/items/${boxResult.id}/spec_sheet/`, '_blank')
         }
@@ -410,7 +410,7 @@ export default function CreateItem() {
           window.open(`/api/v1/items/${pkgResult.id}/spec_sheet/`, '_blank')
         }
       } else {
-        const baseResult = await createItem.mutateAsync(basePayload)
+        const baseResult = await createItem.mutateAsync(basePayload as any)
         if (printAfterCreate.current && baseResult?.id) {
           window.open(`/api/v1/items/${baseResult.id}/spec_sheet/`, '_blank')
         }

@@ -30,6 +30,9 @@ import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } f
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { ContractCard } from '@/components/contracts/ContractCard'
 
 const statusLabels: Record<ContractStatus, string> = {
   draft: 'Draft',
@@ -43,6 +46,10 @@ export default function Contracts() {
   usePageTitle('Contracts')
 
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+  const [mobileSortKey, setMobileSortKey] = useState('contract_number')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
+
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
@@ -140,6 +147,29 @@ export default function Contracts() {
       return true
     })
   }, [tabContracts, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
+
+  const mobileSortedContracts = useMemo(() => {
+    return [...filteredContracts].sort((a, b) => {
+      let av: string | number = ''
+      let bv: string | number = ''
+      if (mobileSortKey === 'contract_number') {
+        av = String(a.contract_number ?? '')
+        bv = String(b.contract_number ?? '')
+      } else if (mobileSortKey === 'customer_name') {
+        av = a.customer_name ?? ''
+        bv = b.customer_name ?? ''
+      } else if (mobileSortKey === 'issue_date') {
+        av = a.issue_date ?? ''
+        bv = b.issue_date ?? ''
+      } else if (mobileSortKey === 'completion_percentage') {
+        av = a.completion_percentage ?? 0
+        bv = b.completion_percentage ?? 0
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [filteredContracts, mobileSortKey, mobileSortDir])
 
   const activeCount = filteredContracts.filter((c) => c.status === 'active').length
   const draftCount = filteredContracts.filter((c) => c.status === 'draft').length
@@ -348,7 +378,7 @@ export default function Contracts() {
       const s = v == null ? '' : String(v)
       return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -516,29 +546,52 @@ export default function Contracts() {
           </div>
         </div>
 
-        {/* DataTable Card */}
-        <div className="rounded-[14px] overflow-hidden animate-in delay-3"
-          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-          <div className="px-6 py-4 flex items-center gap-2"
-            style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
-            <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
-            <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-              {activeTab === 'all' ? 'All Contracts' : activeTab === 'blanket' ? 'Blanket Contracts' : 'Direct Contracts'}
-            </span>
+        {/* DataTable Card / Mobile Cards */}
+        {isMobile ? (
+          <MobileCardList
+            data={mobileSortedContracts}
+            renderCard={(contract) => <ContractCard contract={contract} />}
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Contract # or PO..."
+            sortOptions={[
+              { label: 'Contract #', key: 'contract_number' },
+              { label: 'Customer', key: 'customer_name' },
+              { label: 'Issue Date', key: 'issue_date' },
+              { label: 'Progress', key: 'completion_percentage' },
+            ]}
+            currentSort={mobileSortKey}
+            onSortChange={setMobileSortKey}
+            sortDirection={mobileSortDir}
+            onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            resultCount={mobileSortedContracts.length}
+            onItemClick={(contract) => navigate(`/contracts/${contract.id}`)}
+            emptyMessage="No contracts found."
+          />
+        ) : (
+          <div className="rounded-[14px] overflow-hidden animate-in delay-3"
+            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
+            <div className="px-6 py-4 flex items-center gap-2"
+              style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
+              <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
+              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {activeTab === 'all' ? 'All Contracts' : activeTab === 'blanket' ? 'Blanket Contracts' : 'Direct Contracts'}
+              </span>
+            </div>
+            <div className="p-4">
+              {isLoading ? (
+                <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+              ) : (
+                <DataTable
+                  storageKey="contracts"
+                  columns={columns}
+                  data={filteredContracts}
+                  onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
+                />
+              )}
+            </div>
           </div>
-          <div className="p-4">
-            {isLoading ? (
-              <div className="text-center py-8 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
-            ) : (
-              <DataTable
-                storageKey="contracts"
-                columns={columns}
-                data={filteredContracts}
-                onRowClick={(contract) => navigate(`/contracts/${contract.id}`)}
-              />
-            )}
-          </div>
-        </div>
+        )}
 
       </div>
 
@@ -617,7 +670,7 @@ export default function Contracts() {
                   {showCol('contract_number') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', fontFamily: 'monospace' }}>CTR-{row.contract_number}</td>}
                   {showCol('customer_name') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.customer_name}</td>}
                   {showCol('issue_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.issue_date ? new Date(row.issue_date).toLocaleDateString() : '\u2014'}</td>}
-                  {showCol('expiration_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.expiration_date ? new Date(row.expiration_date).toLocaleDateString() : '\u2014'}</td>}
+                  {showCol('expiration_date') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.end_date ? new Date(row.end_date).toLocaleDateString() : '\u2014'}</td>}
                   {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.status}</td>}
                   {showCol('total_committed_qty') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{row.total_committed_qty?.toLocaleString() || 0}</td>}
                 </tr>

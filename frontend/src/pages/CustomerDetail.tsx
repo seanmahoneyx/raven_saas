@@ -88,9 +88,9 @@ export default function CustomerDetail() {
       notes={customer?.notes}
       partyId={customer?.party ?? 0}
       kpiItems={[
-        { label: 'Open Sales', value: `${formatCurrency(customer?.open_sales_total)}`, mono: true, onClick: () => navigate('/orders?tab=sales') },
+        { label: 'Open Sales', value: `${formatCurrency(customer?.open_sales_total ?? 0)}`, mono: true, onClick: () => navigate('/orders?tab=sales') },
         { label: 'Open Orders', value: String(customer?.open_order_count ?? 0), onClick: () => navigate('/orders?tab=sales') },
-        { label: 'Overdue Balance', value: `${formatCurrency(customer?.overdue_balance)}`, mono: true, danger: isOverdue, onClick: () => navigate('/invoices') },
+        { label: 'Overdue Balance', value: `${formatCurrency(customer?.overdue_balance ?? 0)}`, mono: true, danger: isOverdue, onClick: () => navigate('/invoices') },
         { label: 'Active Estimates', value: String(customer?.active_estimate_count ?? 0), onClick: () => navigate('/estimates') },
         { label: 'Next Delivery', value: customer?.next_expected_delivery ? format(new Date(customer.next_expected_delivery + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(customerLocations.length), onClick: () => {} },

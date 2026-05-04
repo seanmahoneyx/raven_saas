@@ -1,9 +1,10 @@
 import { useState, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, DollarSign, MapPin, Plus, Eye, History,
+  ArrowLeft, DollarSign, MapPin, Plus, Eye,
   Paperclip, Trash2, Upload, Pencil, Printer, Phone, StickyNote, Star,
 } from 'lucide-react'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { LocationDialog } from '@/components/parties/LocationDialog'
 import type { Location, TimelineEvent, Contact, CustomerAttachment, EntityType } from '@/types/api'
 import { useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
@@ -142,6 +143,7 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
 
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const isMobile = useIsMobile()
 
   /* favorites */
   const { data: favorites } = useFavorites(entityType)
@@ -221,47 +223,51 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className={isMobile ? 'px-4 py-4 pb-16' : 'max-w-[1080px] mx-auto px-8 py-7 pb-16'} data-print-hide>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate(backPath)}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />{backLabel}
-          </button>
-          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
-          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{partyName}</span>
-        </div>
+        {isMobile ? (
+          <div className="flex items-center gap-2 mb-4 animate-in">
+            <button
+              onClick={() => navigate(backPath)}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+              style={{ color: 'var(--so-text-tertiary)', minHeight: 44 }}
+            >
+              <ArrowLeft className="h-4 w-4" />{backLabel}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 mb-5 animate-in">
+            <button
+              onClick={() => navigate(backPath)}
+              className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+              style={{ color: 'var(--so-text-tertiary)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />{backLabel}
+            </button>
+            <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+            <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>{partyName}</span>
+          </div>
+        )}
 
         {/* Title Row */}
-        <div className="flex items-start justify-between gap-4 mb-6 animate-in delay-1">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>{partyName}</h1>
-              <span
-                className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
-                style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-tertiary)' }}
-              >
-                {partyCode}
-              </span>
+        {isMobile ? (
+          <div className="mb-4 animate-in delay-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-xl font-bold flex-1" style={{ color: 'var(--so-text-primary)' }}>{partyName}</h1>
               {entityType && entityId != null && (
                 <button
                   onClick={handleToggleFavorite}
                   title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-                  className="inline-flex items-center justify-center transition-colors cursor-pointer"
-                  style={{ background: 'none', border: 'none', padding: '2px' }}
-                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
-                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  className="inline-flex items-center justify-center cursor-pointer"
+                  style={{ background: 'none', border: 'none', padding: '4px', minWidth: 44, minHeight: 44 }}
                 >
                   <Star
                     style={{
-                      width: 18,
-                      height: 18,
+                      width: 20,
+                      height: 20,
                       fill: isFavorited ? '#f59e0b' : 'none',
                       color: isFavorited ? '#f59e0b' : 'var(--so-text-tertiary)',
                       transition: 'fill 0.15s, color 0.15s',
@@ -269,22 +275,61 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                   />
                 </button>
               )}
+              <div className="flex items-center gap-2" data-print-hide>
+                {titleActions}
+                {primaryAction}
+              </div>
             </div>
             <p className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>{subtitle}</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0" data-print-hide>
-            {titleActions}
-            <button
-              className={outlineBtnClass}
-              style={outlineBtnStyle}
-              onClick={() => window.print()}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Print
-            </button>
-            {primaryAction}
+        ) : (
+          <div className="flex items-start justify-between gap-4 mb-6 animate-in delay-1">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>{partyName}</h1>
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold font-mono"
+                  style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-tertiary)' }}
+                >
+                  {partyCode}
+                </span>
+                {entityType && entityId != null && (
+                  <button
+                    onClick={handleToggleFavorite}
+                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                    className="inline-flex items-center justify-center transition-colors cursor-pointer"
+                    style={{ background: 'none', border: 'none', padding: '2px' }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                  >
+                    <Star
+                      style={{
+                        width: 18,
+                        height: 18,
+                        fill: isFavorited ? '#f59e0b' : 'none',
+                        color: isFavorited ? '#f59e0b' : 'var(--so-text-tertiary)',
+                        transition: 'fill 0.15s, color 0.15s',
+                      }}
+                    />
+                  </button>
+                )}
+              </div>
+              <p className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>{subtitle}</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0" data-print-hide>
+              {titleActions}
+              <button
+                className={outlineBtnClass}
+                style={outlineBtnStyle}
+                onClick={() => window.print()}
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Print
+              </button>
+              {primaryAction}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Notes */}
         {notes && (
@@ -298,48 +343,95 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
         )}
 
         {/* KPI Cards */}
-        <div
-          className="rounded-[14px] mb-6 animate-in delay-2 overflow-hidden"
-          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
-        >
-          <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-y md:divide-y-0" style={{ borderColor: 'var(--so-border-light)' }}>
+        {isMobile ? (
+          <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory -mx-4 px-4 mb-5 animate-in delay-2">
             {kpiItems.map((kpi, idx) => (
               <button
                 key={idx}
                 onClick={kpi.onClick}
-                className="p-5 text-left cursor-pointer transition-colors"
-                style={{ borderColor: 'var(--so-border-light)' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                className="snap-start flex-shrink-0 text-left cursor-pointer transition-colors rounded-xl p-4"
+                style={{
+                  minWidth: 130,
+                  border: '1px solid var(--so-border)',
+                  background: 'var(--so-surface)',
+                }}
               >
-                <p className="text-[11px] font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</p>
-                <p className={`text-lg font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>
+                <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</p>
+                <p className={`text-base font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>
                   {kpi.value}
                 </p>
               </button>
             ))}
           </div>
-        </div>
+        ) : (
+          <div
+            className="rounded-[14px] mb-6 animate-in delay-2 overflow-hidden"
+            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
+          >
+            <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-y md:divide-y-0" style={{ borderColor: 'var(--so-border-light)' }}>
+              {kpiItems.map((kpi, idx) => (
+                <button
+                  key={idx}
+                  onClick={kpi.onClick}
+                  className="p-5 text-left cursor-pointer transition-colors"
+                  style={{ borderColor: 'var(--so-border-light)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <p className="text-[11px] font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</p>
+                  <p className={`text-lg font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>
+                    {kpi.value}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5"
-             style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium rounded-lg transition-all cursor-pointer"
-              style={{
-                background: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
-                color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
-                boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-              }}
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {isMobile ? (
+          <div className="flex overflow-x-auto gap-2 -mx-4 px-4 py-2 mb-4 animate-in delay-3">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex-shrink-0 cursor-pointer transition-all"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 9999,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  whiteSpace: 'nowrap',
+                  background: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-surface)',
+                  color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
+                  border: activeTab === tab.id ? 'none' : '1px solid var(--so-border)',
+                  boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5"
+               style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium rounded-lg transition-all cursor-pointer"
+                style={{
+                  background: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
+                  color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
+                  boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                }}
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ============ Timeline Tab ============ */}
         {activeTab === 'timeline' && (
@@ -381,9 +473,9 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                       className="flex items-start gap-4 p-3 rounded-lg border-l-4 cursor-pointer transition-colors"
                       style={{
                         borderLeftColor:
-                          event.type === 'order' || event.type === 'po' ? '#3b82f6' :
-                          event.type === 'estimate' || event.type === 'rfq' ? '#8b5cf6' :
-                          event.type === 'invoice' || event.type === 'bill' ? '#f59e0b' :
+                          event.type === 'order' ? '#3b82f6' :
+                          event.type === 'estimate' ? '#8b5cf6' :
+                          event.type === 'invoice' ? '#f59e0b' :
                           '#10b981',
                         background: 'transparent',
                       }}
@@ -434,33 +526,21 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                 Add Contact
               </button>
             </div>
-            <div className="px-6 py-5">
+            <div className={isMobile ? 'px-4 py-4' : 'px-6 py-5'}>
               {contacts.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr style={{ background: 'var(--so-bg)' }}>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Title</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Email</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Phone</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Primary</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                isMobile ? (
+                  <div className="space-y-2">
                     {contacts.map((c: Contact) => (
-                      <tr
+                      <div
                         key={c.id}
-                        className="cursor-pointer"
-                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        className="p-3 rounded-xl cursor-pointer"
+                        style={{ border: '1px solid var(--so-border)', background: 'var(--so-bg)' }}
                         onClick={() => navigate(`/contacts/${c.id}`)}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <td className="py-3 px-4 text-sm font-medium">{c.first_name} {c.last_name}</td>
-                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.title || '\u2014'}</td>
-                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.email || '\u2014'}</td>
-                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.phone || '\u2014'}</td>
-                        <td className="py-3 px-4">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-[14px]" style={{ color: 'var(--so-text-primary)' }}>
+                            {c.first_name} {c.last_name}
+                          </span>
                           {c.is_primary && (
                             <span
                               className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
@@ -469,11 +549,56 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                               Primary
                             </span>
                           )}
-                        </td>
-                      </tr>
+                        </div>
+                        {c.title && (
+                          <div className="text-[13px] mt-0.5" style={{ color: 'var(--so-text-secondary)' }}>{c.title}</div>
+                        )}
+                        <div className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {[c.email, c.phone].filter(Boolean).join(' · ') || '\u2014'}
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ background: 'var(--so-bg)' }}>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Title</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Email</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Phone</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Primary</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contacts.map((c: Contact) => (
+                        <tr
+                          key={c.id}
+                          className="cursor-pointer"
+                          style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                          onClick={() => navigate(`/contacts/${c.id}`)}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td className="py-3 px-4 text-sm font-medium">{c.first_name} {c.last_name}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.title || '\u2014'}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.email || '\u2014'}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>{c.phone || '\u2014'}</td>
+                          <td className="py-3 px-4">
+                            {c.is_primary && (
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                style={{ background: 'var(--so-success-bg)', color: 'var(--so-success-text)' }}
+                              >
+                                Primary
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
               ) : (
                 <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
                   <Phone className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -509,73 +634,107 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
                 Add Location
               </button>
             </div>
-            <div className="px-6 py-5">
+            <div className={isMobile ? 'px-4 py-4' : 'px-6 py-5'}>
               {locations.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr style={{ background: 'var(--so-bg)' }}>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
-                      <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                isMobile ? (
+                  <div className="space-y-2">
                     {locations.map((loc: Location) => (
-                      <tr
+                      <div
                         key={loc.id}
-                        className="cursor-pointer"
-                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                        className="p-3 rounded-xl cursor-pointer"
+                        style={{ border: '1px solid var(--so-border)', background: 'var(--so-bg)' }}
                         onClick={() => { setEditingLocation(loc); setLocationDialogOpen(true) }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       >
-                        <td className="py-3 px-4 font-medium font-mono text-sm">{loc.code}</td>
-                        <td className="py-3 px-4 text-sm">{loc.name}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
-                            style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
-                          >
-                            {loc.location_type}
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium font-mono text-[14px]" style={{ color: 'var(--so-text-primary)' }}>
+                            {loc.code}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                          {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
-                        </td>
-                        <td className="py-3 px-4">
-                          {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="inline-flex items-center gap-1">
+                          <div className="flex items-center gap-1">
+                            {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
                             <button
-                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
-                              style={{ color: 'var(--so-text-tertiary)', background: 'transparent', border: 'none' }}
-                              title="Edit location"
-                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                              onClick={(e) => { e.stopPropagation(); setEditingLocation(loc); setLocationDialogOpen(true) }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
-                              style={{ color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
-                              title="Delete location"
-                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              className="inline-flex items-center justify-center rounded-md cursor-pointer"
+                              style={{ width: 36, height: 36, color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
                               onClick={(e) => { e.stopPropagation(); setPendingDeleteLocationId(loc.id); setDeleteLocationDialogOpen(true) }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="text-[13px]" style={{ color: 'var(--so-text-primary)' }}>{loc.name}</div>
+                        <div className="text-[13px] mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                          {loc.location_type}
+                          {(loc.city || loc.state) ? ` · ${loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || ''}` : ''}
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ background: 'var(--so-bg)' }}>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Code</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Name</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Type</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Address</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-left" style={{ color: 'var(--so-text-tertiary)' }}>Status</th>
+                        <th className="text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 text-right" style={{ color: 'var(--so-text-tertiary)' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {locations.map((loc: Location) => (
+                        <tr
+                          key={loc.id}
+                          className="cursor-pointer"
+                          style={{ borderBottom: '1px solid var(--so-border-light)' }}
+                          onClick={() => { setEditingLocation(loc); setLocationDialogOpen(true) }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <td className="py-3 px-4 font-medium font-mono text-sm">{loc.code}</td>
+                          <td className="py-3 px-4 text-sm">{loc.name}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider"
+                              style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-secondary)' }}
+                            >
+                              {loc.location_type}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
+                            {loc.city && loc.state ? `${loc.city}, ${loc.state}` : loc.full_address || '\u2014'}
+                          </td>
+                          <td className="py-3 px-4">
+                            {getStatusBadge(loc.is_active ? 'active' : 'inactive')}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                                style={{ color: 'var(--so-text-tertiary)', background: 'transparent', border: 'none' }}
+                                title="Edit location"
+                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                onClick={(e) => { e.stopPropagation(); setEditingLocation(loc); setLocationDialogOpen(true) }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer"
+                                style={{ color: 'var(--so-danger-text)', background: 'transparent', border: 'none' }}
+                                title="Delete location"
+                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                onClick={(e) => { e.stopPropagation(); setPendingDeleteLocationId(loc.id); setDeleteLocationDialogOpen(true) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
               ) : (
                 <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>
                   <MapPin className="h-8 w-8 mx-auto mb-2 opacity-30" />

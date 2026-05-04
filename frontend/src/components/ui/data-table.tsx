@@ -276,7 +276,7 @@ export function DataTable<TData, TValue>({
                       onMouseEnter={() => setHighlightIndex(idx)}
                     >
                       <div className="font-medium text-foreground">
-                        {searchDropdownLabel(row.original)}
+                        {searchDropdownLabel?.(row.original)}
                       </div>
                       {searchDropdownSublabel && (
                         <div className="text-xs text-muted-foreground">

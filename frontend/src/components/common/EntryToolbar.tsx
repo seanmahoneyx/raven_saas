@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,8 +12,10 @@ import {
   ShoppingCart,
   Ban,
   Package,
+  MoreVertical,
 } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface EntryToolbarProps {
   // Navigation
@@ -74,6 +76,21 @@ export function EntryToolbar({
   onReceive,
   isReceiving,
 }: EntryToolbarProps) {
+  const isMobile = useIsMobile()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [dropdownOpen])
+
   const hasNav = onPrev !== undefined || onNext !== undefined
   const hasSaveOrVoid = onSave !== undefined || onVoid !== undefined || onDelete !== undefined
   const hasRight =
@@ -85,6 +102,117 @@ export function EntryToolbar({
     onCreatePO !== undefined ||
     onReceive !== undefined
 
+  // Mobile: show only nav + save inline, everything else in overflow menu
+  if (isMobile) {
+    const overflowActions = [
+      onDuplicate ? { label: 'Duplicate', icon: Copy, action: () => { setDropdownOpen(false); onDuplicate() }, destructive: false } : null,
+      onPrint ? { label: 'Print', icon: Printer, action: () => { setDropdownOpen(false); onPrint() }, destructive: false } : null,
+      onEmail ? { label: 'Email', icon: Mail, action: () => { setDropdownOpen(false); onEmail() }, destructive: false } : null,
+      onAttachments ? { label: `Attachments${attachmentCount ? ` (${attachmentCount})` : ''}`, icon: Paperclip, action: () => { setDropdownOpen(false); onAttachments() }, destructive: false } : null,
+      onCreateInvoice ? { label: 'Create Invoice', icon: FileText, action: () => { setDropdownOpen(false); onCreateInvoice() }, destructive: false } : null,
+      onCreatePO ? { label: 'Create PO', icon: ShoppingCart, action: () => { setDropdownOpen(false); onCreatePO() }, destructive: false } : null,
+      onReceive ? { label: isReceiving ? 'Receiving…' : 'Receive', icon: Package, action: () => { if (!isReceiving) { setDropdownOpen(false); onReceive() } }, destructive: false } : null,
+      onVoid ? { label: 'Void', icon: Ban, action: () => { setDropdownOpen(false); onVoid() }, destructive: true } : null,
+      onDelete ? { label: 'Delete', icon: Trash2, action: () => { setDropdownOpen(false); onDelete() }, destructive: true } : null,
+    ].filter(Boolean) as { label: string; icon: React.ElementType; action: () => void; destructive: boolean }[]
+
+    const hasOverflow = overflowActions.length > 0
+
+    return (
+      <div
+        className="flex items-center gap-1 px-3 py-2 rounded-[14px] border"
+        style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+      >
+        {/* Nav buttons */}
+        {hasNav && (
+          <div className="flex items-center gap-1">
+            {onPrev !== undefined && (
+              <button
+                className={`${outlineBtnClass} ${!hasPrev ? disabledClass : ''}`}
+                style={outlineBtnStyle}
+                onClick={onPrev}
+                disabled={!hasPrev}
+                title="Previous record"
+              >
+                <ChevronLeft size={15} />
+              </button>
+            )}
+            {onNext !== undefined && (
+              <button
+                className={`${outlineBtnClass} ${!hasNext ? disabledClass : ''}`}
+                style={outlineBtnStyle}
+                onClick={onNext}
+                disabled={!hasNext}
+                title="Next record"
+              >
+                <ChevronRight size={15} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Save button (edit mode) */}
+        {onSave !== undefined && (
+          <>
+            {hasNav && <Divider />}
+            <button
+              className={`${primaryBtnClass} ${isSaving ? disabledClass : ''}`}
+              style={primaryBtnStyle}
+              onClick={onSave}
+              disabled={isSaving}
+              title="Save"
+            >
+              <Save size={14} />
+              {isSaving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        )}
+
+        {/* Overflow menu */}
+        {hasOverflow && (
+          <div className="relative ml-auto" ref={dropdownRef}>
+            <button
+              className={outlineBtnClass}
+              style={outlineBtnStyle}
+              onClick={() => setDropdownOpen(v => !v)}
+              title="More actions"
+            >
+              <MoreVertical size={15} />
+            </button>
+            {dropdownOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 rounded-[10px] border shadow-lg z-[60] py-1 min-w-[180px]"
+                style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+              >
+                {overflowActions.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={item.action}
+                      className="w-full flex items-center gap-2.5 px-3 text-[13px] font-medium transition-colors cursor-pointer"
+                      style={{
+                        minHeight: 44,
+                        color: item.destructive ? 'var(--so-danger-text)' : 'var(--so-text-primary)',
+                        background: 'transparent',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <Icon size={15} />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Desktop: original behavior
   return (
     <div
       className="flex items-center gap-1 px-3 py-2 rounded-[14px] border"

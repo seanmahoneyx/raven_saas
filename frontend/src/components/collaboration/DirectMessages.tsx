@@ -3,7 +3,7 @@ import { Send, ArrowLeft, MessageSquare, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import {
   useConversations, useDirectMessages, useSendDirectMessage,
-  type Conversation, type DirectMessage,
+  type DirectMessage,
 } from '@/api/collaboration'
 import { useUsers } from '@/api/users'
 import { useAuth } from '@/hooks/useAuth'
@@ -151,7 +151,7 @@ export function DirectMessages() {
   const [userSearch, setUserSearch] = useState('')
 
   const conversations = convData?.results ?? []
-  const allUsers = (usersData?.results ?? usersData ?? []) as Array<{ id: number; username: string; name?: string }>
+  const allUsers = (usersData ?? []) as Array<{ id: number; username: string; name?: string }>
 
   // Filter users for new chat (exclude self and existing conversations)
   const existingPartnerIds = new Set(conversations.map(c => c.user_id))

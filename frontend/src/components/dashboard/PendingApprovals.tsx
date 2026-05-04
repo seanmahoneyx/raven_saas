@@ -134,7 +134,7 @@ export default function PendingApprovals() {
                       {approval.order_display}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(approval.amount)} &middot; by {approval.requestor_name}
+                      {formatCurrency(approval.amount ?? 0)} &middot; by {approval.requestor_name}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">

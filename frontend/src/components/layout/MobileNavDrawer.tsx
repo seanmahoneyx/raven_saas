@@ -21,7 +21,6 @@ import {
   GitBranchPlus,
   CheckSquare,
   Cog,
-  Shield,
   LogOut,
   Search,
   X,

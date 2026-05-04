@@ -266,6 +266,7 @@ export interface Item {
     out_per_rotary?: number | null
   } | null
   packaging_details?: Record<string, any> | null
+  product_card_notes?: string | null
   uom_conversions?: ItemUOM[]
   vendors?: ItemVendor[]
   created_at: string
@@ -1031,6 +1032,8 @@ export interface GLAccount {
   is_active: boolean
   is_system: boolean
   children_count?: number
+  balance?: number | string | null
+  account_number?: string | null
   created_at: string
   updated_at: string
 }

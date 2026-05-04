@@ -23,7 +23,7 @@ import {
   useCreateRelease,
   useCreateMultiLineRelease,
 } from './contracts'
-import type { Contract, ContractLine, ContractRelease, SalesOrder } from '@/types/api'
+import type { Contract, ContractLine, ContractRelease } from '@/types/api'
 
 // Mock the API client
 vi.mock('./client', () => ({
@@ -74,6 +74,8 @@ const mockContract: Contract = {
   total_remaining_qty: 75,
   completion_percentage: 25,
   num_lines: 1,
+  prev_id: null,
+  next_id: null,
   created_at: '2025-01-15T00:00:00Z',
   updated_at: '2025-01-15T00:00:00Z',
 }

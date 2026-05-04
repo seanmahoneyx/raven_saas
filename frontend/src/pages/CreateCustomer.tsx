@@ -192,8 +192,6 @@ export default function CreateCustomer() {
         code: formData.code,
         display_name: formData.display_name,
         legal_name: formData.legal_name,
-        main_phone: formData.main_phone,
-        main_email: formData.main_email,
         party_type: 'CUSTOMER',
         is_active: true,
         notes: formData.notes,
@@ -559,7 +557,7 @@ export default function CreateCustomer() {
             </button>
             {contactsOpen && contacts.length > 0 && (
               <div className="px-6 py-4 space-y-3">
-                {contacts.map((contact, idx) => (
+                {contacts.map((contact) => (
                   <div key={contact.key} className="rounded-lg p-4 flex items-start gap-3" style={{ border: '1px solid var(--so-border-light)', background: 'var(--so-bg)' }}>
                     <div className="flex-1 grid grid-cols-4 gap-3">
                       <div className="space-y-1">

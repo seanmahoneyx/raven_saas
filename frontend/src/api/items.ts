@@ -5,7 +5,7 @@ import { getApiErrorMessage } from '@/lib/errors'
 import type {
   Item, UnitOfMeasure, PaginatedResponse,
   CorrugatedFeature, DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
-  PackagingItem, PackagingSubType,
+  PackagingItem,
   ItemVendor, ApiError
 } from '@/types/api'
 
@@ -453,7 +453,7 @@ export function useCreateItemVendor(itemId: number) {
 export function useSetPreferredVendor() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ itemId, vendorLinkId }: { itemId: number; vendorLinkId: number }) => {
+    mutationFn: async ({ vendorLinkId }: { itemId: number; vendorLinkId: number }) => {
       const { data } = await api.post(`/item-vendors/${vendorLinkId}/set-preferred/`)
       return data
     },

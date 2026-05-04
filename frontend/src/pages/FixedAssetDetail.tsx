@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useFixedAsset, useDisposeAsset, type FixedAsset } from '@/api/assets'
+import { useFixedAsset, useDisposeAsset } from '@/api/assets'
 import { formatCurrency, formatLifeMonths } from '@/lib/format'
 import { DISPOSAL_METHODS, DEPRECIATION_METHOD_MAP } from '@/constants/assets'
 import { EntryToolbar } from '@/components/common/EntryToolbar'

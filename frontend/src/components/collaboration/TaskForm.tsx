@@ -16,7 +16,7 @@ export function TaskForm({ contentType, objectId, onDone }: TaskFormProps) {
 
   const createTask = useCreateTask()
   const { data: usersData } = useUsers()
-  const users = usersData?.results ?? usersData ?? []
+  const users = usersData ?? []
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

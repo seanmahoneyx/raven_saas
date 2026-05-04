@@ -5,7 +5,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePipelineData } from '@/api/pipeline'
 import { useItems } from '@/api/items'
 import type { PipelineStage, PipelineCard as PipelineCardType, Item } from '@/types/api'
-import { ArrowRight, Filter, X, Clock, Layers, Package } from 'lucide-react'
+import { ArrowRight, Filter, X, Clock, Layers } from 'lucide-react'
 
 type Track = 'customer' | 'vendor' | 'both' | 'items'
 

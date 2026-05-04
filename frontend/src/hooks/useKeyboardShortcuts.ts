@@ -4,6 +4,7 @@ interface Shortcut {
   key: string            // e.g., 'k', 'n', 's', '/'
   ctrl?: boolean         // Ctrl/Cmd
   shift?: boolean        // Shift key
+  alt?: boolean          // Alt key
   description: string    // For help modal
   category: string       // Group in help modal
   action: () => void

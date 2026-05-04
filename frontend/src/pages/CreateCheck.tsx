@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useQuery } from '@tanstack/react-query'
 import { useCreateCheck } from '@/api/checks'
-import { useOtherNames } from '@/api/otherNames'
+import { useOtherNames, type OtherName } from '@/api/otherNames'
 import api from '@/api/client'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,7 +58,7 @@ export default function CreateCheck() {
   }
 
   const handleOtherNameSelect = (id: string) => {
-    const found = otherNames.find((o) => String(o.id) === id)
+    const found = otherNames.find((o: OtherName) => String(o.id) === id)
     setOtherNameId(id)
     setFormData((prev) => ({
       ...prev,
@@ -173,7 +173,7 @@ export default function CreateCheck() {
                     onChange={(e) => handleOtherNameSelect(e.target.value)}
                   >
                     <option value="">Select a payee...</option>
-                    {otherNames.map((o) => (
+                    {otherNames.map((o: OtherName) => (
                       <option key={o.id} value={String(o.id)}>
                         {o.print_name || o.name}
                       </option>

@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import {
   ShieldCheck, CheckCircle2, XCircle, Clock, Filter,
-  ArrowRightLeft,
 } from 'lucide-react'
 import { useAllApprovals, useMyPendingApprovals, useApproveRequest, useRejectRequest } from '@/api/approvals'
 import type { ApprovalRequest } from '@/api/approvals'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { format, formatDistanceToNow } from 'date-fns'
+import { formatDistanceToNow } from 'date-fns'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { formatCurrency } from '@/lib/format'
 

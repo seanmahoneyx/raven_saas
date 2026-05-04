@@ -7,7 +7,7 @@ import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
   ArrowLeft, Paperclip, Plus, Trash2,
-  ArrowRightLeft, FileText, ChevronDown, MoreVertical, Printer, Mail, Copy,
+  ArrowRightLeft, FileText, ChevronDown, MoreVertical, Printer,
 } from 'lucide-react'
 import { useAttachments } from '@/api/attachments'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useEstimate, useUpdateEstimate, useConvertEstimateToContract } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'

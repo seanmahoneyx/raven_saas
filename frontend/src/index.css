@@ -81,6 +81,23 @@
   --so-danger-text: #991b1b;
 }
 
+/* Mobile touch targets */
+@media (max-width: 1023px) {
+  :root {
+    --so-input-height: 44px;
+    --so-touch-min: 44px;
+    --so-font-base: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --so-input-height: 36px;
+    --so-touch-min: 36px;
+    --so-font-base: 13px;
+  }
+}
+
 .raven-page,
 .so-detail-page {
   background: var(--so-bg);

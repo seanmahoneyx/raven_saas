@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'

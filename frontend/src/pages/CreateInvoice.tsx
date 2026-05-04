@@ -521,7 +521,7 @@ export default function CreateInvoice() {
                   </tr>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
                     <td colSpan={4} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{{formatCurrency(editTotal)}</td>
+                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tfoot>

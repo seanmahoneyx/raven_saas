@@ -238,7 +238,7 @@ export default function OpenPurchaseOrders() {
       const s = v == null ? '' : String(v)
       return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

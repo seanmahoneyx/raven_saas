@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Users, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer, Star } from 'lucide-react'
+import { Plus, MoreHorizontal, Pencil, Trash2, Paperclip, Download, Printer, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import {
@@ -14,30 +14,33 @@ import {
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { useVendors, useDeleteVendor } from '@/api/parties'
 import { useFavorites } from '@/api/favorites'
-import { useSettings } from '@/api/settings'
-import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import { VendorDialog } from '@/components/parties/VendorDialog'
 import type { Vendor } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-
-import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { VendorCard } from '@/components/parties/VendorCard'
+import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
 export default function Vendors() {
   usePageTitle('Vendor Center')
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('party_display_name')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('asc')
+  const [mobileTypeFilter, setMobileTypeFilter] = useState('all')
 
   const [vendorDialogOpen, setVendorDialogOpen] = useState(false)
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
-
-  const { data: settings } = useSettings()
-
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [_printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
 
   const { data: vendorsData, isLoading: vendorsLoading } = useVendors()
   const deleteVendor = useDeleteVendor()
@@ -57,6 +60,57 @@ export default function Vendors() {
       return aFav - bFav
     })
   }, [vendorsData, favoritedVendorIds])
+
+  const mobileVendors = useMemo(() => {
+    let rows = vendorsData?.results ?? []
+    // Filter by type
+    if (mobileTypeFilter && mobileTypeFilter !== 'all') {
+      rows = rows.filter(v => v.vendor_type === mobileTypeFilter)
+    }
+    // Filter by search
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(v =>
+        v.party_display_name.toLowerCase().includes(q) ||
+        v.party_code.toLowerCase().includes(q)
+      )
+    }
+    // Sort
+    rows = [...rows].sort((a, b) => {
+      let av: number | string = 0
+      let bv: number | string = 0
+      if (mobileSortKey === 'party_display_name') {
+        av = a.party_display_name ?? ''
+        bv = b.party_display_name ?? ''
+      } else if (mobileSortKey === 'open_po_total') {
+        av = parseFloat(a.open_po_total || '0')
+        bv = parseFloat(b.open_po_total || '0')
+      } else if (mobileSortKey === 'open_po_count') {
+        av = a.open_po_count ?? 0
+        bv = b.open_po_count ?? 0
+      } else if (mobileSortKey === 'next_incoming') {
+        av = a.next_incoming ?? ''
+        bv = b.next_incoming ?? ''
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+    // Favorites first
+    if (favoritedVendorIds.size > 0) {
+      rows = [...rows].sort((a, b) => {
+        const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
+        const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
+        return aFav - bFav
+      })
+    }
+    return rows
+  }, [vendorsData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedVendorIds])
+
+  const vendorTypeOptions = useMemo(
+    () => Array.from(new Set((vendorsData?.results ?? []).map(v => v.vendor_type).filter(Boolean))).sort() as string[],
+    [vendorsData]
+  )
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
@@ -118,7 +172,7 @@ export default function Vendors() {
       const s = v == null ? '' : String(v)
       return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -334,7 +388,49 @@ export default function Vendors() {
           </div>
           <div className="overflow-x-auto">
             {vendorsLoading ? (
-              <div className="p-6"><TableSkeleton columns={6} rows={8} /></div>
+              <div className="p-6"><TableSkeleton columns={isMobile ? 1 : 6} rows={8} /></div>
+            ) : isMobile ? (
+              <MobileCardList
+                data={mobileVendors}
+                searchValue={mobileSearch}
+                onSearchChange={setMobileSearch}
+                searchPlaceholder="Search vendors..."
+                currentSort={mobileSortKey}
+                onSortChange={setMobileSortKey}
+                sortDirection={mobileSortDir}
+                onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                sortOptions={[
+                  { key: 'party_display_name', label: 'Name' },
+                  { key: 'open_po_total', label: 'Open PO $' },
+                  { key: 'open_po_count', label: 'Open POs' },
+                  { key: 'next_incoming', label: 'Next Incoming' },
+                ]}
+                resultCount={mobileVendors.length}
+                filterContent={
+                  vendorTypeOptions.length > 0 ? (
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--so-text-secondary)' }}>Vendor Type</label>
+                      <select
+                        value={mobileTypeFilter}
+                        onChange={(e) => setMobileTypeFilter(e.target.value)}
+                        className="w-full h-11 px-3 rounded-lg text-sm"
+                        style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-primary)' }}
+                      >
+                        <option value="all">All Types</option>
+                        {vendorTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  ) : undefined
+                }
+                isFiltered={mobileTypeFilter !== 'all'}
+                onItemClick={(vendor) => navigate(`/vendors/${vendor.id}`)}
+                renderCard={(vendor) => (
+                  <VendorCard
+                    vendor={vendor}
+                    isFavorite={favoritedVendorIds.has(vendor.id)}
+                  />
+                )}
+              />
             ) : (
               <div style={{ minWidth: '1100px' }}>
                 <DataTable
@@ -373,6 +469,20 @@ export default function Vendors() {
         variant="destructive"
         onConfirm={handleConfirmDelete}
         loading={deleteVendor.isPending}
+      />
+      <ReportFilterModal
+        open={printFilterOpen}
+        onOpenChange={setPrintFilterOpen}
+        config={reportFilterConfig}
+        mode="print"
+        onConfirm={handleFilteredPrint}
+      />
+      <ReportFilterModal
+        open={exportFilterOpen}
+        onOpenChange={setExportFilterOpen}
+        config={reportFilterConfig}
+        mode="export"
+        onConfirm={handleFilteredExport}
       />
     </div>
   )

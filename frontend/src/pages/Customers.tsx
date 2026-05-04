@@ -21,10 +21,19 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileCardList } from '@/components/ui/MobileCardList'
+import { CustomerCard } from '@/components/parties/CustomerCard'
 
 export default function Customers() {
   usePageTitle('Customer Center')
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
+
+  const [mobileSearch, setMobileSearch] = useState('')
+  const [mobileSortKey, setMobileSortKey] = useState('party_display_name')
+  const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('asc')
+  const [mobileTypeFilter, setMobileTypeFilter] = useState('all')
 
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
@@ -50,6 +59,57 @@ export default function Customers() {
       return aFav - bFav
     })
   }, [customersData, favoritedCustomerIds])
+
+  const mobileCustomers = useMemo(() => {
+    let rows = customersData?.results ?? []
+    // Filter by type
+    if (mobileTypeFilter && mobileTypeFilter !== 'all') {
+      rows = rows.filter(c => c.customer_type === mobileTypeFilter)
+    }
+    // Filter by search
+    if (mobileSearch.trim()) {
+      const q = mobileSearch.toLowerCase()
+      rows = rows.filter(c =>
+        c.party_display_name.toLowerCase().includes(q) ||
+        c.party_code.toLowerCase().includes(q)
+      )
+    }
+    // Sort
+    rows = [...rows].sort((a, b) => {
+      let av: number | string = 0
+      let bv: number | string = 0
+      if (mobileSortKey === 'party_display_name') {
+        av = a.party_display_name ?? ''
+        bv = b.party_display_name ?? ''
+      } else if (mobileSortKey === 'open_sales_total') {
+        av = parseFloat(a.open_sales_total || '0')
+        bv = parseFloat(b.open_sales_total || '0')
+      } else if (mobileSortKey === 'open_order_count') {
+        av = a.open_order_count ?? 0
+        bv = b.open_order_count ?? 0
+      } else if (mobileSortKey === 'next_expected_delivery') {
+        av = a.next_expected_delivery ?? ''
+        bv = b.next_expected_delivery ?? ''
+      }
+      if (av < bv) return mobileSortDir === 'asc' ? -1 : 1
+      if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
+      return 0
+    })
+    // Favorites first
+    if (favoritedCustomerIds.size > 0) {
+      rows = [...rows].sort((a, b) => {
+        const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
+        const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
+        return aFav - bFav
+      })
+    }
+    return rows
+  }, [customersData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedCustomerIds])
+
+  const customerTypeOptions = useMemo(
+    () => Array.from(new Set((customersData?.results ?? []).map(c => c.customer_type).filter(Boolean))).sort() as string[],
+    [customersData]
+  )
 
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
@@ -106,7 +166,7 @@ export default function Customers() {
       const s = v == null ? '' : String(v)
       return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
     }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
+    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -359,7 +419,49 @@ export default function Customers() {
           </div>
           <div className="overflow-x-auto">
             {customersLoading ? (
-              <div className="p-6"><TableSkeleton columns={11} rows={8} /></div>
+              <div className="p-6"><TableSkeleton columns={isMobile ? 1 : 11} rows={8} /></div>
+            ) : isMobile ? (
+              <MobileCardList
+                data={mobileCustomers}
+                searchValue={mobileSearch}
+                onSearchChange={setMobileSearch}
+                searchPlaceholder="Search customers..."
+                currentSort={mobileSortKey}
+                onSortChange={setMobileSortKey}
+                sortDirection={mobileSortDir}
+                onSortDirectionChange={() => setMobileSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                sortOptions={[
+                  { key: 'party_display_name', label: 'Name' },
+                  { key: 'open_sales_total', label: 'Open Sales' },
+                  { key: 'open_order_count', label: 'Orders' },
+                  { key: 'next_expected_delivery', label: 'Next Delivery' },
+                ]}
+                resultCount={mobileCustomers.length}
+                filterContent={
+                  customerTypeOptions.length > 0 ? (
+                    <div>
+                      <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--so-text-secondary)' }}>Customer Type</label>
+                      <select
+                        value={mobileTypeFilter}
+                        onChange={(e) => setMobileTypeFilter(e.target.value)}
+                        className="w-full h-11 px-3 rounded-lg text-sm"
+                        style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border)', color: 'var(--so-text-primary)' }}
+                      >
+                        <option value="all">All Types</option>
+                        {customerTypeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  ) : undefined
+                }
+                isFiltered={mobileTypeFilter !== 'all'}
+                onItemClick={(customer) => navigate(`/customers/${customer.id}`)}
+                renderCard={(customer) => (
+                  <CustomerCard
+                    customer={customer}
+                    isFavorite={favoritedCustomerIds.has(customer.id)}
+                  />
+                )}
+              />
             ) : (
               <div style={{ minWidth: '1200px' }}>
                 <DataTable

@@ -19,7 +19,7 @@ vi.mock('@/components/ui/dialog', () => ({
 }))
 
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: any) => <div data-value={value}>{typeof children === 'function' ? null : children}</div>,
+  Select: ({ children, value, onValueChange: _onValueChange }: any) => <div data-value={value}>{typeof children === 'function' ? null : children}</div>,
   SelectTrigger: ({ children }: any) => <button role="combobox">{children}</button>,
   SelectValue: ({ placeholder }: any) => <span>{placeholder || ''}</span>,
   SelectContent: ({ children }: any) => <div role="listbox">{children}</div>,
@@ -28,7 +28,7 @@ vi.mock('@/components/ui/select', () => ({
 
 vi.mock('@/components/ui/collapsible', () => ({
   Collapsible: ({ children }: any) => <div>{children}</div>,
-  CollapsibleTrigger: ({ children, asChild }: any) => <div>{children}</div>,
+  CollapsibleTrigger: ({ children, asChild: _asChild }: any) => <div>{children}</div>,
   CollapsibleContent: ({ children }: any) => <div>{children}</div>,
 }))
 
@@ -149,6 +149,11 @@ function createMockItem(overrides: Partial<Item> = {}): Item {
     item_type: 'inventory',
     is_active: true,
     attachment: null,
+    parent: null,
+    lifecycle_status: 'active',
+    reorder_point: null,
+    min_stock: null,
+    safety_stock: null,
     created_at: '',
     updated_at: '',
     ...overrides,
@@ -331,7 +336,7 @@ describe('ItemDialog Corrugated Mode', () => {
   it('shows corrugated-specific fields when item is corrugated', () => {
     const corrugatedItem = createMockItem({
       division: 'corrugated',
-      item_type: 'rsc',
+      box_type: 'rsc',
     })
     renderDialog({ item: corrugatedItem })
     expect(screen.getByText('Edit Item')).toBeInTheDocument()

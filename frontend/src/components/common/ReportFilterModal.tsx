@@ -99,7 +99,6 @@ export function ReportFilterModal({ open, onOpenChange, config, mode, onConfirm 
   }
 
   const allChecked = Object.values(visibleColumns).every(Boolean)
-  const someChecked = Object.values(visibleColumns).some(Boolean) && !allChecked
 
   const handleConfirm = () => {
     const selectedCols = Object.entries(visibleColumns)

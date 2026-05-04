@@ -5,7 +5,7 @@ import { useTrackEntityView } from '@/api/favorites'
 import { formatCurrency } from '@/lib/format'
 import {
   DollarSign, Package, MapPin, FileText, History,
-  Paperclip, Phone, Plus, AlertCircle, ListOrdered,
+  Paperclip, Phone, Plus, ListOrdered,
 } from 'lucide-react'
 import { useVendor, useLocations, useVendorTimeline, useVendorAttachments, useUploadVendorAttachment, useDeleteVendorAttachment } from '@/api/parties'
 import { usePurchaseOrders } from '@/api/orders'
@@ -73,9 +73,9 @@ export default function VendorDetail() {
       notes={vendor?.notes}
       partyId={vendor?.party ?? 0}
       kpiItems={[
-        { label: 'Open PO Total', value: `${formatCurrency(vendor?.open_po_total)}`, mono: true, onClick: () => navigate('/orders?tab=purchase') },
+        { label: 'Open PO Total', value: `${formatCurrency(vendor?.open_po_total ?? 0)}`, mono: true, onClick: () => navigate('/orders?tab=purchase') },
         { label: 'Open POs', value: String(vendor?.open_po_count ?? 0), onClick: () => navigate('/orders?tab=purchase') },
-        { label: 'Overdue Bills', value: `${formatCurrency(vendor?.overdue_bill_balance)}`, mono: true, danger: hasOverdue, onClick: () => navigate('/invoices') },
+        { label: 'Overdue Bills', value: `${formatCurrency(vendor?.overdue_bill_balance ?? 0)}`, mono: true, danger: hasOverdue, onClick: () => navigate('/invoices') },
         { label: 'Active RFQs', value: String(vendor?.active_rfq_count ?? 0), onClick: () => navigate('/rfqs') },
         { label: 'Next Incoming', value: vendor?.next_incoming ? format(new Date(vendor.next_incoming + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
         { label: 'Locations', value: String(vendorLocations.length), onClick: () => {} },

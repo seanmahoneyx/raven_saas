@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  ClipboardCheck, Plus, Play, CheckCircle, Eye,
+  ClipboardCheck, Plus, Play, CheckCircle,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'

@@ -99,13 +99,13 @@ export default function CreateRFQ() {
     try {
       await createRFQ.mutateAsync({
         rfq_number: formData.rfq_number || undefined,
-        status: formData.status,
+        status: formData.status as import('@/types/api').RFQStatus,
         vendor: Number(formData.vendor),
         date: formData.date,
         expected_date: formData.expected_date || null,
         ship_to: formData.ship_to ? Number(formData.ship_to) : null,
         notes: formData.notes,
-        lines: linesPayload,
+        lines: linesPayload as import('@/types/api').RFQLine[],
       })
       navigate('/vendors')
     } catch (err: any) {
