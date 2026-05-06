@@ -214,7 +214,7 @@ export default function CreatePurchaseOrder() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1080px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+      <div className={`max-w-[1080px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-7 animate-in">
           <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>

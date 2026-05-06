@@ -23,10 +23,11 @@ import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { EstimateCard } from '@/components/estimates/EstimateCard'
+import { TableColumnPicker, useTableColumnVisibility } from '@/components/ui/data-table-column-picker'
+import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
 
 export default function Estimates() {
   usePageTitle('Estimates')
@@ -49,6 +50,7 @@ export default function Estimates() {
 
   const { data: estimatesData } = useEstimates()
   const { data: settings } = useSettings()
+  const { visibility: estimatesVisibility, setVisibility: setEstimatesVisibility, toggle: toggleEstimateColumn, reset: resetEstimateColumns } = useTableColumnVisibility('estimates')
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
@@ -329,41 +331,29 @@ export default function Estimates() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Estimates</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Create and manage customer estimates and quotes
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/estimates/new')}>
-              <Plus className="h-4 w-4" />
-              New Estimate
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
-              <Download className="h-4 w-4" />
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
-              <Printer className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Estimates"
+          description="Create and manage customer estimates and quotes"
+          primary={{ label: 'New Estimate', icon: Plus, onClick: () => navigate('/estimates/new') }}
+          actions={[
+            { label: 'Export CSV', icon: Download, onClick: () => setExportFilterOpen(true) },
+            { label: 'Print', icon: Printer, onClick: () => setPrintFilterOpen(true) },
+          ]}
+        />
 
-        {/* KPI Summary */}
-        <div className="rounded-[14px] border mb-6 animate-in delay-1"
-          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-5 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+        <div className="mb-6 animate-in delay-1">
+          <KpiGrid columns={5}>
             {kpiStats.map((stat) => (
-              <div key={stat.label} className="px-6 py-5">
-                <div className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{stat.value}</div>
-                <div className="mt-1">{getStatusBadge(stat.status)}</div>
-              </div>
+              <KpiCard
+                key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                hint={getStatusBadge(stat.status)}
+              />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
         {/* Filters */}
@@ -462,21 +452,33 @@ export default function Estimates() {
         ) : (
           <div className="rounded-[14px] border overflow-hidden animate-in delay-3"
             style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="flex items-center justify-between px-6 py-4"
+            <div className="flex items-center justify-between px-6 py-3"
               style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold flex items-center gap-2">
                 <FileText className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
                 Estimates
               </span>
-              <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                {filteredEstimates.length} of {estimates.length}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                  {filteredEstimates.length} of {estimates.length}
+                </span>
+                <TableColumnPicker
+                  columns={columns}
+                  visibility={estimatesVisibility}
+                  onToggle={toggleEstimateColumn}
+                  onReset={resetEstimateColumns}
+                />
+              </div>
             </div>
             <DataTable
               storageKey="estimates"
               columns={columns}
               data={filteredEstimates}
               onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
+              hideToolbar
+              embedded
+              userToggledColumns={estimatesVisibility}
+              onUserToggledColumnsChange={setEstimatesVisibility}
             />
           </div>
         )}

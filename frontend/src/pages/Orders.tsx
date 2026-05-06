@@ -28,7 +28,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { SalesOrderCard, PurchaseOrderCard } from '@/components/orders/OrderCard'
 
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
 
 type Tab = 'sales' | 'purchase'
 
@@ -405,17 +405,17 @@ export default function Orders() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Header */}
-        <div className="flex items-start justify-between mb-8 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Orders</h1>
-            <p className="mt-1 text-[13.5px]" style={{ color: 'var(--so-text-muted)' }}>
-              Manage sales and purchase orders
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="Orders"
+          description="Manage sales and purchase orders"
+          primary={{
+            label: `New ${activeTab === 'sales' ? 'Sales' : 'Purchase'} Order`,
+            icon: Plus,
+            onClick: handleAddNew,
+          }}
+          trailing={
             <ExportButton
               data={(activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])) as unknown as Record<string, unknown>[]}
               filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
@@ -438,13 +438,11 @@ export default function Orders() {
                 { key: 'num_lines', header: 'Lines' },
                 { key: 'subtotal', header: 'Total' },
               ]}
+              iconOnly
             />
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-              <Plus className="h-4 w-4" />
-              New {activeTab === 'sales' ? 'Sales' : 'Purchase'} Order
-            </button>
-          </div>
-        </div>
+          }
+        />
+
 
         {/* Tabs */}
         <div className="mb-6 animate-in">
@@ -461,16 +459,12 @@ export default function Orders() {
           />
         </div>
 
-        {/* KPI Cards */}
-        <div className="rounded-[14px] border mb-5 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border-light)' }}>
+        <div className="mb-5 animate-in delay-2">
+          <KpiGrid columns={4}>
             {kpis.map((kpi) => (
-              <div key={kpi.label} className="px-6 py-5">
-                <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>{kpi.count}</div>
-                <div className="text-[12.5px] mt-0.5" style={{ color: 'var(--so-text-muted)' }}>{kpi.label}</div>
-              </div>
+              <KpiCard key={kpi.label} label={kpi.label} value={kpi.count} />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
         {/* Orders Table / Mobile Cards */}

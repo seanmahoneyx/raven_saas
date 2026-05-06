@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { useDriverManifest, useStartRun, useArriveAtStop } from '@/api/logistics'
 import { ChevronDown, ChevronRight, MapPin, Package, Truck } from 'lucide-react'
 
@@ -37,26 +38,18 @@ export default function DriverManifest() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Driver Manifest</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>{today}</p>
-          </div>
-          {manifest && !manifest.is_complete && manifest.stops.every((s) => s.arrived_at === null) && (
-            <button
-              className={primaryBtnClass}
-              style={primaryBtnStyle}
-              onClick={() => startRun.mutate()}
-              disabled={startRun.isPending}
-            >
-              <Truck className="h-3.5 w-3.5" />
-              {startRun.isPending ? 'Starting...' : 'Start Run'}
-            </button>
-          )}
-        </div>
+        <PageHeader
+          title="Driver Manifest"
+          description={today}
+          primary={
+            manifest && !manifest.is_complete && manifest.stops.every((s) => s.arrived_at === null)
+              ? { label: 'Start Run', icon: Truck, loading: startRun.isPending, onClick: () => startRun.mutate() }
+              : undefined
+          }
+        />
 
         {/* Loading */}
         {isLoading && (
@@ -110,7 +103,7 @@ export default function DriverManifest() {
                   {getStatusBadge(manifest.is_complete ? 'COMPLETED' : 'PENDING')}
                 </div>
               </div>
-              <div className="grid grid-cols-4 divide-x px-0"
+              <div className="grid grid-cols-2 md:grid-cols-4 divide-x px-0"
                 style={{ borderColor: 'var(--so-border)' }}>
                 <div className="px-6 py-5">
                   <div className="text-xs font-semibold uppercase tracking-wider mb-1.5"

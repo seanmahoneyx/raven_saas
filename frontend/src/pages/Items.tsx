@@ -19,10 +19,10 @@ import type { Item } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { ItemCard } from '@/components/items/ItemCard'
+import { PageHeader, TabStrip } from '@/components/page'
 
 export default function Items() {
   usePageTitle('Items')
@@ -345,21 +345,13 @@ export default function Items() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Items</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage products and inventory
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/items/new')}>
-              <Plus className="h-4 w-4" />
-              Add Item
-            </button>
+        <PageHeader
+          title="Items"
+          description="Manage products and inventory"
+          primary={{ label: 'Add Item', icon: Plus, onClick: () => navigate('/items/new') }}
+          trailing={
             <ExportButton
               data={(itemsData?.results ?? []) as unknown as Record<string, unknown>[]}
               filename="items"
@@ -372,33 +364,22 @@ export default function Items() {
               ]}
               iconOnly
             />
-          </div>
-        </div>
+          }
+        />
 
-        {/* Lifecycle Filter Tabs */}
-        <div className="flex items-center gap-1 mb-4 rounded-lg p-1 animate-in delay-1"
-          style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border-light)', width: 'fit-content' }}>
-          {[
-            { value: 'all', label: 'All' },
-            { value: 'active', label: 'Active' },
-            { value: 'draft', label: 'Drafts' },
-            { value: 'pending_design', label: 'Design Requested' },
-            { value: 'in_design', label: 'In Design' },
-            { value: 'pending_approval', label: 'Pending Approval' },
-          ].map(tab => (
-            <button
-              key={tab.value}
-              onClick={() => setLifecycleFilter(tab.value)}
-              className="px-4 py-1.5 rounded-md text-[13px] font-medium transition-colors"
-              style={{
-                background: lifecycleFilter === tab.value ? 'var(--so-surface)' : 'transparent',
-                color: lifecycleFilter === tab.value ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
-                boxShadow: lifecycleFilter === tab.value ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-4 animate-in delay-1">
+          <TabStrip
+            tabs={[
+              { id: 'all', label: 'All' },
+              { id: 'active', label: 'Active' },
+              { id: 'draft', label: 'Drafts' },
+              { id: 'pending_design', label: 'Design Requested' },
+              { id: 'in_design', label: 'In Design' },
+              { id: 'pending_approval', label: 'Pending Approval' },
+            ]}
+            active={lifecycleFilter}
+            onChange={setLifecycleFilter}
+          />
         </div>
 
         {/* Items DataTable / Mobile Cards */}

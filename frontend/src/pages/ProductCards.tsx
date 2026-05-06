@@ -69,7 +69,7 @@ export default function ProductCards() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Page header */}
         <div className="mb-7" data-print-hide>

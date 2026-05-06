@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 
@@ -123,31 +124,13 @@ export default function CreateFixedAsset() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1080px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+      <div className={`max-w-[1080px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate('/fixed-assets')}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Fixed Assets
-          </button>
-          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
-          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>New</span>
-        </div>
-
-        {/* Header */}
-        <div className="mb-7 animate-in delay-1">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Fixed Asset</h1>
-          <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-            Register a new fixed asset in the asset register
-          </p>
-        </div>
+        <PageHeader
+          title="Create New Fixed Asset"
+          description="Register a new fixed asset in the asset register"
+          breadcrumb={[{ label: 'Fixed Assets', to: '/fixed-assets' }, { label: 'New' }]}
+        />
 
         <form id="create-asset-form" onSubmit={handleSubmit} className="space-y-4">
 
@@ -157,7 +140,7 @@ export default function CreateFixedAsset() {
               <span className="text-sm font-semibold">Asset Information</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Asset Number</Label>
                   <Input
@@ -179,7 +162,7 @@ export default function CreateFixedAsset() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Category *</Label>
                   <Select value={formData.category} onValueChange={(v) => update('category', v)}>
@@ -224,7 +207,7 @@ export default function CreateFixedAsset() {
               <span className="text-sm font-semibold">Acquisition</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Acquisition Date *</Label>
                   <Input
@@ -269,7 +252,7 @@ export default function CreateFixedAsset() {
               <span className="text-sm font-semibold">Depreciation</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Method</Label>
                   <Select value={formData.depreciation_method} onValueChange={(v) => update('depreciation_method', v)}>

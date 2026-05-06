@@ -6,7 +6,7 @@ import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { useLicensePlates, useDeliveryStops, type LicensePlate, type DeliveryStopListItem } from '@/api/logistics'
 
 type Tab = 'lpns' | 'stops'
@@ -153,25 +153,14 @@ export default function Logistics() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Logistics</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage deliveries, license plates, and driver runs
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {activeTab === 'lpns' && (
-              <button className={primaryBtnClass} style={primaryBtnStyle}>
-                <Plus className="h-3.5 w-3.5" />
-                New LPN
-              </button>
-            )}
-          </div>
-        </div>
+        <PageHeader
+          title="Logistics"
+          description="Manage deliveries, license plates, and driver runs"
+          primary={activeTab === 'lpns' ? { label: 'New LPN', icon: Plus, onClick: () => {} } : undefined}
+        />
 
         {/* Tabs */}
         <div className="mb-5 animate-in delay-1">

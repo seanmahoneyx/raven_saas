@@ -54,7 +54,7 @@ export default function AdminHub() {
   const navigate = useNavigate()
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-1">Manage your company configuration and admin tools.</p>

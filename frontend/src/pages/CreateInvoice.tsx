@@ -195,7 +195,7 @@ export default function CreateInvoice() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1280px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+      <div className={`max-w-[1280px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">

@@ -132,7 +132,7 @@ export default function PriceListDetail() {
   if (isLoading) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
           <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function PriceListDetail() {
   if (!priceList) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
           <div className="text-center py-8" style={{ color: 'var(--so-text-tertiary)' }}>Price list not found</div>
         </div>
       </div>
@@ -151,7 +151,7 @@ export default function PriceListDetail() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -168,7 +168,7 @@ export default function PriceListDetail() {
         </div>
 
         {/* Title Row */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-7 animate-in delay-1">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Price List</h1>
@@ -194,7 +194,7 @@ export default function PriceListDetail() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0" data-print-hide>
+          <div className="flex flex-wrap items-center gap-2" data-print-hide>
             {isEditing ? (
               <>
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
@@ -222,14 +222,14 @@ export default function PriceListDetail() {
           <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Overview</span>
           </div>
-          <div className="grid grid-cols-4">
+          <div className="grid grid-cols-2 md:grid-cols-4">
             {[
               { label: 'Customer', value: priceList.customer_name, sub: priceList.customer_code, mono: false },
               { label: 'Item', value: priceList.item_sku, sub: priceList.item_name, mono: true },
               { label: 'Valid From', value: formatDate(priceList.begin_date), mono: false },
               { label: 'Tiers', value: String(priceList.lines?.length ?? 0), mono: true },
             ].map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none' }}>
+              <div key={idx} className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
                 <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
                 <div className={`text-sm font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
                 {kpi.sub && <div className="text-[12px] mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.sub}</div>}
@@ -327,7 +327,7 @@ export default function PriceListDetail() {
               </div>
             ) : (
               <div className="space-y-5">
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div>
                     <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Begin Date</div>
                     <div className="text-sm font-medium" style={{ color: 'var(--so-text-primary)' }}>{formatDate(priceList.begin_date)}</div>

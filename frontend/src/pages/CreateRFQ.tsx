@@ -16,6 +16,7 @@ import { useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { useCreateRFQ } from '@/api/rfqs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface LineFormData {
@@ -123,17 +124,12 @@ export default function CreateRFQ() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-7 animate-in">
-          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New RFQ</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Request for Quote from a vendor</p>
-          </div>
-        </div>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
+        <PageHeader
+          title="Create New RFQ"
+          description="Request for Quote from a vendor"
+          breadcrumb={[{ label: 'RFQs', to: '/rfqs' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* RFQ Details */}
@@ -142,7 +138,7 @@ export default function CreateRFQ() {
               <span className="text-sm font-semibold">RFQ Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor *</Label>
                   <SearchableCombobox
@@ -167,7 +163,7 @@ export default function CreateRFQ() {
               <span className="text-sm font-semibold">Dates &amp; Shipping</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>RFQ Date *</Label>
                   <Input type="date" value={formData.date} onChange={(e) => update('date', e.target.value)} required style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />

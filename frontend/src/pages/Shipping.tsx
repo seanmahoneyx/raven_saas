@@ -7,8 +7,8 @@ import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import { useShipments, useBillsOfLading, type Shipment, type BillOfLading } from '@/api/shipping'
 import { format } from 'date-fns'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
 
 type Tab = 'shipments' | 'bols'
 
@@ -61,28 +61,20 @@ export default function Shipping() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Shipping</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Manage shipments and bills of lading</p>
-          </div>
-          <button className={primaryBtnClass} style={primaryBtnStyle}>
-            <Plus className="h-3.5 w-3.5" /> New {activeTab === 'shipments' ? 'Shipment' : 'BOL'}
-          </button>
-        </div>
+        <PageHeader
+          title="Shipping"
+          description="Manage shipments and bills of lading"
+          primary={{ label: `New ${activeTab === 'shipments' ? 'Shipment' : 'BOL'}`, icon: Plus, onClick: () => {} }}
+        />
 
-        {/* KPI Summary */}
-        <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-3">
+        <div className="mb-5 animate-in delay-1">
+          <KpiGrid columns={3}>
             {summaryKPIs.map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}>
-                <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
-              </div>
+              <KpiCard key={idx} label={kpi.label} value={<span className="font-mono">{kpi.value}</span>} />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
         {/* Tabs */}

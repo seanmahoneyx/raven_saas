@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from '@/components/ui/textarea'
 import { formatDistanceToNow } from 'date-fns'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { formatCurrency } from '@/lib/format'
 
 const TABS = [
@@ -108,23 +109,20 @@ export default function Approvals() {
 
   return (
     <div className="so-detail-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-6 w-6" style={{ color: 'var(--so-accent)' }} />
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Approvals</h1>
-            {pendingCount > 0 && (
-              <span
-                className="inline-flex items-center justify-center h-6 min-w-6 px-2 rounded-full text-xs font-bold text-white"
-                style={{ background: 'rgb(239,68,68)' }}
-              >
-                {pendingCount}
-              </span>
-            )}
-          </div>
-        </div>
+        <PageHeader
+          title="Approvals"
+          meta={pendingCount > 0 ? (
+            <span
+              className="inline-flex items-center justify-center h-6 min-w-6 px-2 rounded-full text-xs font-bold text-white"
+              style={{ background: 'rgb(239,68,68)' }}
+            >
+              {pendingCount} pending
+            </span>
+          ) : undefined}
+        />
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 animate-in delay-1">

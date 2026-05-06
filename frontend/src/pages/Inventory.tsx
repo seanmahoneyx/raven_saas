@@ -4,7 +4,6 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useInventorySync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Package, Layers, BarChart3, History, ArrowLeft } from 'lucide-react'
-import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import {
   useInventoryBalances,
@@ -22,6 +21,7 @@ import type { Item } from '@/types/api'
 import { format } from 'date-fns'
 import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader, KpiGrid, KpiCard, TabStrip } from '@/components/page'
 
 type Tab = 'balances' | 'lots' | 'pallets' | 'transactions'
 
@@ -189,38 +189,34 @@ export default function Inventory() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Inventory</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Track inventory balances, lots, pallets, and transactions</p>
-          </div>
-        </div>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
+        <PageHeader
+          title="Inventory"
+          description="Track inventory balances, lots, pallets, and transactions"
+        />
 
-        {/* KPI Summary */}
-        <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-5">
+        <div className="mb-5 animate-in delay-1">
+          <KpiGrid columns={5}>
             {summaryKPIs.map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 4 ? '1px solid var(--so-border-light)' : 'none' }}>
-                <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
-              </div>
+              <KpiCard
+                key={idx}
+                label={kpi.label}
+                value={<span className="font-mono">{kpi.value}</span>}
+              />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
-        {/* Tabs */}
         <div className="mb-5 animate-in delay-2">
-          <FolderTabs
+          <TabStrip
             tabs={[
-              { id: 'balances', label: 'Balances', icon: <BarChart3 className="h-3.5 w-3.5" /> },
-              { id: 'lots', label: 'Lots', icon: <Package className="h-3.5 w-3.5" /> },
-              { id: 'pallets', label: 'Pallets', icon: <Layers className="h-3.5 w-3.5" /> },
-              { id: 'transactions', label: 'Transactions', icon: <History className="h-3.5 w-3.5" /> },
+              { id: 'balances', label: 'Balances', icon: BarChart3 },
+              { id: 'lots', label: 'Lots', icon: Package },
+              { id: 'pallets', label: 'Pallets', icon: Layers },
+              { id: 'transactions', label: 'Transactions', icon: History },
             ]}
-            activeTab={activeTab}
-            onTabChange={(id) => { setActiveTab(id as Tab); setSelectedItemId(null) }}
+            active={activeTab}
+            onChange={(id) => { setActiveTab(id as Tab); setSelectedItemId(null) }}
           />
         </div>
 

@@ -127,6 +127,17 @@ export function SearchableCombobox({
     setHighlightedIndex(-1)
   }
 
+  function toggleDropdown() {
+    if (disabled) return
+    if (isOpen) {
+      setIsOpen(false)
+      setSearchText('')
+      setHighlightedIndex(-1)
+    } else {
+      openDropdown()
+    }
+  }
+
   function selectItem(item: SuggestionItem) {
     setResolvedLabel(item.label)
     onChange(item.id, item.label)
@@ -363,16 +374,21 @@ export function SearchableCombobox({
       ref={containerRef}
       className={className}
       style={{ position: 'relative', display: 'block' }}
-      onKeyDown={handleKeyDown}
     >
-      {/* Trigger */}
+      {/* Trigger (becomes a search input when open) */}
       <div
         role="combobox"
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-required={required}
-        tabIndex={disabled ? -1 : 0}
-        onClick={openDropdown}
+        tabIndex={disabled || isOpen ? -1 : 0}
+        onClick={toggleDropdown}
+        onKeyDown={(e) => {
+          if (!isOpen && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown')) {
+            e.preventDefault()
+            openDropdown()
+          }
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -384,7 +400,7 @@ export function SearchableCombobox({
           background: disabled ? 'var(--so-bg)' : 'var(--so-surface)',
           color: hasValue ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
           fontSize: '13px',
-          cursor: disabled ? 'not-allowed' : 'pointer',
+          cursor: disabled ? 'not-allowed' : isOpen ? 'text' : 'pointer',
           userSelect: 'none',
           outline: 'none',
           transition: 'border-color 0.15s',
@@ -393,21 +409,49 @@ export function SearchableCombobox({
           minWidth: 0,
         }}
       >
-        <span
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {hasValue ? resolvedLabel : placeholder}
-        </span>
+        {isOpen ? (
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchText}
+            onChange={e => {
+              setSearchText(e.target.value)
+              setHighlightedIndex(-1)
+            }}
+            onKeyDown={handleKeyDown}
+            onClick={e => e.stopPropagation()}
+            placeholder={hasValue ? resolvedLabel : placeholder}
+            autoFocus
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: '100%',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--so-text-primary)',
+              fontSize: '13px',
+              outline: 'none',
+              padding: 0,
+            }}
+          />
+        ) : (
+          <span
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {hasValue ? resolvedLabel : placeholder}
+          </span>
+        )}
 
         {allowClear && hasValue && !disabled && (
           <button
             type="button"
             onMouseDown={clearValue}
+            onClick={(e) => e.stopPropagation()}
             tabIndex={-1}
             aria-label="Clear selection"
             style={{
@@ -436,6 +480,7 @@ export function SearchableCombobox({
             color: 'var(--so-text-tertiary)',
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
             transition: 'transform 0.15s',
+            cursor: disabled ? 'not-allowed' : 'pointer',
           }}
         />
       </div>
@@ -457,38 +502,6 @@ export function SearchableCombobox({
             overflow: 'hidden',
           }}
         >
-          {/* Search input */}
-          <div
-            style={{
-              padding: '8px',
-              borderBottom: '1px solid var(--so-border-light)',
-            }}
-          >
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchText}
-              onChange={e => {
-                setSearchText(e.target.value)
-                setHighlightedIndex(-1)
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Search…"
-              style={{
-                width: '100%',
-                height: '30px',
-                padding: '0 8px',
-                fontSize: '13px',
-                border: '1px solid var(--so-border)',
-                borderRadius: '6px',
-                background: 'var(--so-bg)',
-                color: 'var(--so-text-primary)',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-
           {/* Rows */}
           <div
             style={{

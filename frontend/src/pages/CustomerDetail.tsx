@@ -8,7 +8,15 @@ import {
   DollarSign, ShoppingCart, MapPin, FileText, History,
   Paperclip, BarChart3, Users, Phone, Plus,
 } from 'lucide-react'
-import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment } from '@/api/parties'
+import { useCustomer, useLocations, useCustomerTimeline, useCustomerAttachments, useUploadCustomerAttachment, useDeleteCustomerAttachment, useUpdateCustomer } from '@/api/parties'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import api from '@/api/client'
 import { useSalesOrders } from '@/api/orders'
 import { useContractsByCustomer } from '@/api/contracts'
@@ -34,6 +42,7 @@ export default function CustomerDetail() {
   const { data: attachments } = useCustomerAttachments(customerId)
   const uploadAttachment = useUploadCustomerAttachment()
   const deleteAttachment = useDeleteCustomerAttachment()
+  const updateCustomer = useUpdateCustomer()
   const { data: childCustomers } = useQuery({
     queryKey: ['customers', customerId, 'children'],
     queryFn: async () => {
@@ -305,6 +314,65 @@ export default function CustomerDetail() {
         </>
       )}
       locations={customerLocations}
+      locationsTabPrefix={
+        customerLocations.length > 0 ? (
+          <div
+            className="rounded-[14px] animate-in delay-3 mb-4"
+            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
+          >
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <h2 className="text-[14px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                Defaults
+              </h2>
+              <p className="text-[12px] mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
+                Auto-populated when creating estimates, sales orders, and contracts for this customer.
+              </p>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+                  Default Ship To
+                </Label>
+                <Select
+                  value={customer?.default_ship_to ? String(customer.default_ship_to) : ''}
+                  onValueChange={(v) => updateCustomer.mutate({ id: customerId, default_ship_to: v ? Number(v) : null } as any)}
+                >
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="Select location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customerLocations.map((loc) => (
+                      <SelectItem key={loc.id} value={String(loc.id)}>
+                        {loc.code} - {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+                  Default Bill To
+                </Label>
+                <Select
+                  value={customer?.default_bill_to ? String(customer.default_bill_to) : ''}
+                  onValueChange={(v) => updateCustomer.mutate({ id: customerId, default_bill_to: v ? Number(v) : null } as any)}
+                >
+                  <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectValue placeholder="Select location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customerLocations.map((loc) => (
+                      <SelectItem key={loc.id} value={String(loc.id)}>
+                        {loc.code} - {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        ) : null
+      }
       contacts={contacts}
       attachments={attachments}
       onUploadFile={handleFileUpload}

@@ -132,7 +132,7 @@ export default function InvoiceDetailPage() {
   if (isLoading) {
     return (
       <div className="so-detail-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
         </div>
       </div>
@@ -142,7 +142,7 @@ export default function InvoiceDetailPage() {
   if (!invoice) {
     return (
       <div className="so-detail-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Invoice not found</div>
         </div>
       </div>
@@ -211,7 +211,7 @@ export default function InvoiceDetailPage() {
       />
 
       {/* ── Main content ──────────────────────────── */}
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* ── Breadcrumb ─────────────────────────── */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -230,7 +230,7 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* ── Title row ──────────────────────────── */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-7 animate-in delay-1">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Invoice {invoice.invoice_number}</h1>
@@ -243,7 +243,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               className={outlineBtnClass}
               style={outlineBtnStyle}
@@ -279,7 +279,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Detail grid - Row 1: Invoice Date | Due Date | Payment Terms | Customer PO */}
-          <div className="grid grid-cols-4" style={{ borderTop: 'none' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4" style={{ borderTop: 'none' }}>
             {[
               { label: 'Invoice Date', value: format(new Date(invoice.invoice_date + 'T00:00:00'), 'MMM d, yyyy'), empty: false, mono: false },
               { label: 'Due Date', value: format(new Date(invoice.due_date + 'T00:00:00'), 'MMM d, yyyy'), empty: false, mono: false },
@@ -290,7 +290,7 @@ export default function InvoiceDetailPage() {
                 key={idx}
                 className="px-5 py-4"
                 style={{
-                  borderRight: (idx + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none',
+                  borderRight: '1px solid var(--so-border-light)',
                   borderBottom: '1px solid var(--so-border-light)',
                 }}
               >
@@ -314,7 +314,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Detail grid - Row 2: Bill To | Ship To | Status | Balance Due */}
-          <div className="grid grid-cols-4" style={{ borderTop: 'none' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4" style={{ borderTop: 'none' }}>
             {/* Bill To */}
             <div
               className="px-5 py-4"
@@ -384,7 +384,7 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Summary row: Total | Paid | Balance Due | Tax */}
-          <div className="grid grid-cols-4" style={{ background: 'var(--so-bg)' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4" style={{ background: 'var(--so-bg)' }}>
             <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
               <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                 Total

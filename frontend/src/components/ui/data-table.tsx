@@ -42,6 +42,13 @@ interface DataTableProps<TData, TValue> {
   /** Map column id → minimum viewport width (px) at which the column is shown by default.
    *  Columns hidden by responsive rules can still be toggled on via the column picker. */
   responsiveColumns?: ResponsiveColumns
+  /** When true, suppress the inline toolbar (search + columns picker) above the table. */
+  hideToolbar?: boolean
+  /** Controlled column visibility state. When provided alongside onUserToggledColumnsChange the parent owns the state and persistence. */
+  userToggledColumns?: Record<string, boolean>
+  onUserToggledColumnsChange?: (next: Record<string, boolean>) => void
+  /** When true, drop the wrapper border + rounding around the table so it can sit flush inside another card. */
+  embedded?: boolean
 }
 
 export function DataTable<TData, TValue>({
@@ -60,13 +67,19 @@ export function DataTable<TData, TValue>({
   storageKey,
   defaultColumnVisibility,
   responsiveColumns,
+  hideToolbar,
+  userToggledColumns: controlledToggled,
+  onUserToggledColumnsChange,
+  embedded,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
+  const isToggleControlled = controlledToggled !== undefined && onUserToggledColumnsChange !== undefined
+
   // Track which columns the user has explicitly toggled (overrides responsive defaults)
-  const [userToggledColumns, setUserToggledColumns] = useState<Record<string, boolean>>(() => {
+  const [internalToggled, setInternalToggled] = useState<Record<string, boolean>>(() => {
     if (storageKey) {
       try {
         const stored = localStorage.getItem(`raven-table-${storageKey}`)
@@ -75,6 +88,19 @@ export function DataTable<TData, TValue>({
     }
     return {}
   })
+
+  const userToggledColumns = isToggleControlled ? controlledToggled! : internalToggled
+  const setUserToggledColumns = useCallback(
+    (updater: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => {
+      if (isToggleControlled) {
+        const next = typeof updater === 'function' ? updater(controlledToggled!) : updater
+        onUserToggledColumnsChange!(next)
+      } else {
+        setInternalToggled(updater)
+      }
+    },
+    [isToggleControlled, controlledToggled, onUserToggledColumnsChange]
+  )
 
   // Compute responsive visibility based on viewport width
   const getResponsiveVisibility = useCallback((width: number): VisibilityState => {
@@ -108,7 +134,7 @@ export function DataTable<TData, TValue>({
       const next = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
       return next
     })
-  }, [])
+  }, [setUserToggledColumns])
   const [columnPickerOpen, setColumnPickerOpen] = useState(false)
   const columnPickerRef = useRef<HTMLDivElement>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
@@ -128,10 +154,10 @@ export function DataTable<TData, TValue>({
   }, [handleClickOutside])
 
   useEffect(() => {
-    if (storageKey) {
+    if (storageKey && !isToggleControlled) {
       localStorage.setItem(`raven-table-${storageKey}`, JSON.stringify(userToggledColumns))
     }
-  }, [userToggledColumns, storageKey])
+  }, [userToggledColumns, storageKey, isToggleControlled])
 
   useEffect(() => {
     const handlePickerClickOutside = (e: MouseEvent) => {
@@ -203,7 +229,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      {(searchColumn || storageKey) && (
+      {!hideToolbar && (searchColumn || storageKey) && (
         <div className="flex items-center justify-between gap-4 px-6 pt-4">
           {/* Search */}
           {searchColumn ? (
@@ -354,7 +380,7 @@ export function DataTable<TData, TValue>({
                       style={{ color: 'var(--so-accent)', background: 'none', border: 'none' }}
                       onClick={() => {
                         setUserToggledColumns({})
-                        if (storageKey) {
+                        if (storageKey && !isToggleControlled) {
                           localStorage.removeItem(`raven-table-${storageKey}`)
                         }
                       }}
@@ -369,7 +395,7 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="rounded-md border border-border overflow-x-auto">
+      <div className={cn('overflow-x-auto', !embedded && 'rounded-md border border-border')}>
         <table className="w-full">
           <thead className="bg-muted/50 dark:bg-muted/20">
             {table.getHeaderGroups().map((headerGroup) => (

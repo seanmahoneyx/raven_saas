@@ -4,18 +4,11 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import { useCustomers } from '@/api/parties'
-import { useItems } from '@/api/items'
 import { useCreatePriceList } from '@/api/priceLists'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface LineFormData {
   id: string
@@ -27,9 +20,6 @@ export default function CreatePriceList() {
   usePageTitle('Create Price List')
   const navigate = useNavigate()
   const createPriceList = useCreatePriceList()
-
-  const { data: customersData } = useCustomers()
-  const { data: itemsData } = useItems()
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -92,39 +82,40 @@ export default function CreatePriceList() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-7 animate-in">
-          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Price List</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Define quantity-based pricing for a customer and item</p>
-          </div>
-        </div>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
+        <PageHeader
+          title="Create New Price List"
+          description="Define quantity-based pricing for a customer and item"
+          breadcrumb={[{ label: 'Price Lists', to: '/price-lists' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Price List Details */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}>
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Price List Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
-                  <Select value={formData.customer} onValueChange={(v) => update('customer', v)}>
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                    <SelectContent>{customersData?.results?.map((customer) => (<SelectItem key={customer.id} value={String(customer.id)}>{customer.party_code} - {customer.party_display_name}</SelectItem>))}</SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={formData.customer ? Number(formData.customer) : null}
+                    onChange={(id) => update('customer', id ? String(id) : '')}
+                    placeholder="Select customer..."
+                    allowClear
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Item *</Label>
-                  <Select value={formData.item} onValueChange={(v) => update('item', v)}>
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select item..." /></SelectTrigger>
-                    <SelectContent>{itemsData?.results?.map((item) => (<SelectItem key={item.id} value={String(item.id)}>{item.sku} - {item.name}</SelectItem>))}</SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="item"
+                    value={formData.item ? Number(formData.item) : null}
+                    onChange={(id) => update('item', id ? String(id) : '')}
+                    placeholder="Select item..."
+                    allowClear
+                  />
                 </div>
               </div>
             </div>
@@ -136,7 +127,7 @@ export default function CreatePriceList() {
               <span className="text-sm font-semibold">Date Range &amp; Status</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Begin Date *</Label>
                   <Input type="date" value={formData.begin_date} onChange={(e) => update('begin_date', e.target.value)} required style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
@@ -152,16 +143,6 @@ export default function CreatePriceList() {
                 <Label htmlFor="is_active" className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Active</Label>
                 <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>Inactive price lists will not be applied during order entry.</p>
               </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Notes</span>
-            </div>
-            <div className="px-6 py-5">
-              <Textarea value={formData.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Pricing notes, special conditions..." rows={3} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
             </div>
           </div>
 
@@ -194,6 +175,16 @@ export default function CreatePriceList() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Notes</span>
+            </div>
+            <div className="px-6 py-5">
+              <Textarea value={formData.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Pricing notes, special conditions..." rows={3} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
             </div>
           </div>
 

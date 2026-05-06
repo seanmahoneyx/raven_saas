@@ -122,7 +122,7 @@ export default function DesignWorkbench() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
         <div className="mb-8 animate-in">
@@ -133,7 +133,7 @@ export default function DesignWorkbench() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex items-center gap-1 mb-6 animate-in delay-1">
+        <div className="flex flex-wrap items-center gap-1 mb-6 animate-in delay-1">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key
             return (

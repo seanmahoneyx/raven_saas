@@ -57,7 +57,7 @@ export default function AccountingSettings() {
   if (isLoading) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading accounting settings...</div>
         </div>
       </div>
@@ -92,7 +92,7 @@ export default function AccountingSettings() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
         <div className="mb-7 animate-in">

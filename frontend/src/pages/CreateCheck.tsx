@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ArrowLeft } from 'lucide-react'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 type PayeeType = 'other_name' | 'manual'
 
@@ -101,31 +102,13 @@ export default function CreateCheck() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[720px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[720px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate('/checks')}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Checks
-          </button>
-          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
-          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>New</span>
-        </div>
-
-        {/* Header */}
-        <div className="mb-7 animate-in delay-1">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Write Check</h1>
-          <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-            Create a new check
-          </p>
-        </div>
+        <PageHeader
+          title="Write Check"
+          description="Create a new check"
+          breadcrumb={[{ label: 'Checks', to: '/checks' }, { label: 'New' }]}
+        />
 
         <form id="create-check-form" onSubmit={handleSubmit} className="space-y-4">
 
@@ -249,7 +232,7 @@ export default function CreateCheck() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Check Date */}
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Check Date</Label>

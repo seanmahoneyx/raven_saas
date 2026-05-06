@@ -17,6 +17,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useParties } from '@/api/parties'
 import { useCreateDesignRequest } from '@/api/design'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 const STYLE_OPTIONS = ['RSC', 'DC', 'HSC', 'FOL', 'TELE', 'Other']
 
@@ -158,29 +159,13 @@ export default function CreateDesignRequest() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate('/design-requests')}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Design Requests
-          </button>
-        </div>
-
-        {/* Title row */}
-        <div className="mb-7 animate-in delay-1">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Submit Design Request</h1>
-          <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-            Request a new packaging design from the design team
-          </p>
-        </div>
+        <PageHeader
+          title="Submit Design Request"
+          description="Request a new packaging design from the design team"
+          breadcrumb={[{ label: 'Design Requests', to: '/design-requests' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit}>
           {/* Design Information + Dimensions */}
@@ -192,7 +177,7 @@ export default function CreateDesignRequest() {
               </span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="ident" style={{ color: 'var(--so-text-secondary)' }}>Item Identifier</Label>
                   <Input
@@ -217,7 +202,7 @@ export default function CreateDesignRequest() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="customer" style={{ color: 'var(--so-text-secondary)' }}>Customer</Label>
                   <Select value={customer} onValueChange={setCustomer}>
@@ -241,7 +226,7 @@ export default function CreateDesignRequest() {
                     <span className="text-[11px]" style={{ color: dimDisplay === 'decimal' ? 'var(--so-primary)' : 'var(--so-text-tertiary)' }}>Decimal</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <Input
                       id="length"
@@ -286,7 +271,7 @@ export default function CreateDesignRequest() {
               <span className="text-sm font-semibold">Requested Files</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-4 gap-x-4 gap-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3">
                 <div className="flex items-center space-x-2">
                   <Checkbox id="needsArd" checked={needsArd} onCheckedChange={(v) => setNeedsArd(!!v)} />
                   <Label htmlFor="needsArd" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>.ARD</Label>
@@ -318,7 +303,7 @@ export default function CreateDesignRequest() {
                 <Label htmlFor="needsSamples" className="font-normal cursor-pointer" style={{ color: 'var(--so-text-secondary)' }}>Samples needed</Label>
               </div>
               {needsSamples && (
-                <div className="grid grid-cols-3 gap-4" style={{ paddingTop: '4px', borderTop: '1px solid var(--so-border-light)' }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" style={{ paddingTop: '4px', borderTop: '1px solid var(--so-border-light)' }}>
                   <div className="space-y-1.5">
                     <Label htmlFor="sampleQty" style={{ color: 'var(--so-text-secondary)' }}>Number of Samples</Label>
                     <Input

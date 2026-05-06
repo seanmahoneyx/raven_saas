@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useCreateParty, useCreateCustomer, useCreateLocation } from '@/api/parties'
+import { useCreateParty, useCreateCustomer, useCreateLocation, useUpdateCustomer } from '@/api/parties'
 import { useUsers } from '@/api/users'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, Plus, Trash2, MapPin, UserPlus, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 const inputStyle: React.CSSProperties = { borderColor: 'var(--so-border)', background: 'var(--so-surface)' }
 const labelClass = 'text-sm font-medium'
@@ -117,6 +118,7 @@ export default function CreateCustomer() {
   const createParty = useCreateParty()
   const createCustomer = useCreateCustomer()
   const createLocation = useCreateLocation()
+  const updateCustomer = useUpdateCustomer()
   const { data: users } = useUsers()
 
   const [error, setError] = useState('')
@@ -212,8 +214,10 @@ export default function CreateCustomer() {
       } as any)
 
       // Step 3: Create Bill-To location if address provided
+      let defaultBillToId: number | null = null
+      let defaultShipToId: number | null = null
       if (formData.bill_to_address_line1) {
-        await createLocation.mutateAsync({
+        const billToLoc = await createLocation.mutateAsync({
           party: party.id,
           location_type: 'BILL_TO',
           name: 'Bill To',
@@ -226,12 +230,13 @@ export default function CreateCustomer() {
           is_default: true,
           is_active: true,
         } as any)
+        defaultBillToId = billToLoc.id
       }
 
       // Step 4: Create inline locations
       for (const loc of locations) {
         if (!loc.name && !loc.address_line1) continue
-        await createLocation.mutateAsync({
+        const created = await createLocation.mutateAsync({
           party: party.id,
           location_type: loc.location_type,
           name: loc.name,
@@ -247,6 +252,21 @@ export default function CreateCustomer() {
           is_default: loc.is_default,
           is_active: true,
         } as any)
+        if (loc.is_default) {
+          if (loc.location_type === 'SHIP_TO' && defaultShipToId == null) defaultShipToId = created.id
+          if (loc.location_type === 'BILL_TO' && defaultBillToId == null) defaultBillToId = created.id
+        }
+        // Fall back to first SHIP_TO location if no explicit default chosen
+        if (defaultShipToId == null && loc.location_type === 'SHIP_TO') defaultShipToId = created.id
+      }
+
+      // Step 4b: Link the customer to its default ship-to / bill-to locations
+      if (defaultBillToId != null || defaultShipToId != null) {
+        await updateCustomer.mutateAsync({
+          id: newCustomer.id,
+          ...(defaultBillToId != null ? { default_bill_to: defaultBillToId } : {}),
+          ...(defaultShipToId != null ? { default_ship_to: defaultShipToId } : {}),
+        } as any).catch(() => {/* best effort */})
       }
 
       // Step 5: Store contacts in party notes (until Contact model exists)
@@ -282,29 +302,13 @@ export default function CreateCustomer() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate('/customers')}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Customers
-          </button>
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Customer</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Add a new customer to your system</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Create New Customer"
+          description="Add a new customer to your system"
+          breadcrumb={[{ label: 'Customers', to: '/customers' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -314,7 +318,7 @@ export default function CreateCustomer() {
               <span className="text-sm font-semibold">Company Information</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="display_name" className={labelClass} style={labelStyle}>Customer Name *</Label>
                   <Input id="display_name" value={formData.display_name} onChange={(e) => update('display_name', e.target.value)} placeholder="Company name as it appears" required style={inputStyle} />
@@ -324,7 +328,7 @@ export default function CreateCustomer() {
                   <Input id="legal_name" value={formData.legal_name} onChange={(e) => update('legal_name', e.target.value)} placeholder="Legal entity name (for invoices)" style={inputStyle} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="code" className={labelClass} style={labelStyle}>Customer Code *</Label>
                   <Input id="code" value={formData.code} onChange={(e) => update('code', e.target.value)} placeholder="e.g., ACME" required style={inputStyle} />
@@ -338,7 +342,7 @@ export default function CreateCustomer() {
                   <Input id="main_email" type="email" value={formData.main_email} onChange={(e) => update('main_email', e.target.value)} placeholder="info@company.com" style={inputStyle} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="customer_type" className={labelClass} style={labelStyle}>Customer Type</Label>
                   <Select value={formData.customer_type} onValueChange={(v) => update('customer_type', v)}>
@@ -376,7 +380,7 @@ export default function CreateCustomer() {
               <span className="text-sm font-semibold">Billing & Terms</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="payment_terms" className={labelClass} style={labelStyle}>Payment Terms</Label>
                   <Select value={formData.payment_terms} onValueChange={(v) => update('payment_terms', v)}>
@@ -400,7 +404,7 @@ export default function CreateCustomer() {
                   <Input id="credit_limit" type="number" step="0.01" min="0" value={formData.credit_limit} onChange={(e) => update('credit_limit', e.target.value)} placeholder="0.00" style={inputStyle} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="tax_code" className={labelClass} style={labelStyle}>Tax Code</Label>
                   <Input id="tax_code" value={formData.tax_code} onChange={(e) => update('tax_code', e.target.value)} placeholder="e.g., TAXABLE" style={inputStyle} />
@@ -422,7 +426,7 @@ export default function CreateCustomer() {
                 <Label className={labelClass} style={labelStyle}>Bill To Address</Label>
                 <div className="grid grid-cols-1 gap-3 mt-1.5">
                   <Input value={formData.bill_to_address_line1} onChange={(e) => update('bill_to_address_line1', e.target.value)} placeholder="Street address" style={inputStyle} />
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <Input value={formData.bill_to_city} onChange={(e) => update('bill_to_city', e.target.value)} placeholder="City" style={inputStyle} />
                     <Input value={formData.bill_to_state} onChange={(e) => update('bill_to_state', e.target.value)} placeholder="State" style={inputStyle} />
                     <Input value={formData.bill_to_postal_code} onChange={(e) => update('bill_to_postal_code', e.target.value)} placeholder="Zip" style={inputStyle} />
@@ -475,7 +479,7 @@ export default function CreateCustomer() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Type</Label>
                         <Select value={loc.location_type} onValueChange={(v) => updateLocation(loc.key, 'location_type', v)}>
@@ -499,12 +503,12 @@ export default function CreateCustomer() {
                       <Input value={loc.address_line1} onChange={(e) => updateLocation(loc.key, 'address_line1', e.target.value)} placeholder="Street address" style={inputStyle} />
                     </div>
                     <Input value={loc.address_line2} onChange={(e) => updateLocation(loc.key, 'address_line2', e.target.value)} placeholder="Suite, unit, etc. (optional)" style={inputStyle} />
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                       <Input value={loc.city} onChange={(e) => updateLocation(loc.key, 'city', e.target.value)} placeholder="City" style={inputStyle} />
                       <Input value={loc.state} onChange={(e) => updateLocation(loc.key, 'state', e.target.value)} placeholder="State" style={inputStyle} />
                       <Input value={loc.postal_code} onChange={(e) => updateLocation(loc.key, 'postal_code', e.target.value)} placeholder="Zip" style={inputStyle} />
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Input value={loc.phone} onChange={(e) => updateLocation(loc.key, 'phone', e.target.value)} placeholder="Phone" style={inputStyle} />
                       <Input value={loc.email} onChange={(e) => updateLocation(loc.key, 'email', e.target.value)} placeholder="Email" style={inputStyle} />
                     </div>

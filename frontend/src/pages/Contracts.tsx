@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Eye, FileText, CheckCircle, XCircle, Play, Printer, Download } from 'lucide-react'
@@ -28,6 +28,7 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -50,24 +51,12 @@ export default function Contracts() {
   const [mobileSortKey, setMobileSortKey] = useState('contract_number')
   const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
 
-  const [searchParams, setSearchParams] = useSearchParams()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingContract, setEditingContract] = useState<Contract | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null)
-
-  // Handle URL params for action=new
-  useEffect(() => {
-    const action = searchParams.get('action')
-    if (action === 'new') {
-      setEditingContract(null)
-      setDialogOpen(true)
-      searchParams.delete('action')
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [searchParams, setSearchParams])
 
   const { data: settingsData } = useSettings()
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
@@ -90,8 +79,7 @@ export default function Contracts() {
   }
 
   const handleAddNew = () => {
-    setEditingContract(null)
-    setDialogOpen(true)
+    navigate('/contracts/new')
   }
 
   const handleConfirmDelete = async () => {
@@ -399,29 +387,18 @@ export default function Contracts() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Contracts</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage contracts and customer commitments
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddNew}>
-              <Plus className="h-4 w-4" />
-              New Contract
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
-              <Download className="h-4 w-4" />
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
-              <Printer className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Contracts"
+          description="Manage contracts and customer commitments"
+          primary={{ label: 'New Contract', icon: Plus, onClick: handleAddNew }}
+          actions={[
+            { label: 'Export CSV', icon: Download, onClick: () => setExportFilterOpen(true) },
+            { label: 'Print', icon: Printer, onClick: () => setPrintFilterOpen(true) },
+          ]}
+        />
 
         {/* Tab Bar */}
         <div className="mb-6 animate-in">
@@ -439,7 +416,7 @@ export default function Contracts() {
         {/* KPI Summary Cards */}
         <div className="rounded-[14px] mb-6 overflow-hidden animate-in delay-1"
           style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-5">
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                 Total Contracts

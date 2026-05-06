@@ -34,6 +34,7 @@ import VendorDetail from '@/pages/VendorDetail'
 import CreateItem from '@/pages/CreateItem'
 import RequestItem from '@/pages/RequestItem'
 import ItemSetupWorkbench from '@/pages/ItemSetupWorkbench'
+import WorkbenchSetup from '@/pages/WorkbenchSetup'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import ReportsDashboard from '@/pages/reports/ReportsDashboard'
 import CannedReport from '@/pages/reports/CannedReport'
@@ -57,6 +58,9 @@ import RFQDetail from '@/pages/RFQDetail'
 import PriceLists from '@/pages/PriceLists'
 import ProductCards from '@/pages/ProductCards'
 import PriceListDetail from '@/pages/PriceListDetail'
+import CostLists from '@/pages/CostLists'
+import CostListDetail from '@/pages/CostListDetail'
+import CreateCostList from '@/pages/CreateCostList'
 import OpenSalesOrders from '@/pages/OpenSalesOrders'
 import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
 import SalesOrderDetail from '@/pages/SalesOrderDetail'
@@ -172,6 +176,7 @@ function App() {
                 <Route path="/items/new" element={<CreateItem />} />
                 <Route path="/items/request" element={<RequestItem />} />
                 <Route path="/items/workbench" element={<ItemSetupWorkbench />} />
+                <Route path="/items/workbench/:id" element={<WorkbenchSetup />} />
                 <Route path="/items/:id" element={<ItemDetail />} />
                 <Route path="/product-cards" element={<ProductCards />} />
                 <Route path="/estimates" element={<Estimates />} />
@@ -189,6 +194,9 @@ function App() {
                 <Route path="/price-lists" element={<PriceLists />} />
                 <Route path="/price-lists/new" element={<CreatePriceList />} />
                 <Route path="/price-lists/:id" element={<PriceListDetail />} />
+                <Route path="/cost-lists" element={<CostLists />} />
+                <Route path="/cost-lists/new" element={<CreateCostList />} />
+                <Route path="/cost-lists/:id" element={<CostListDetail />} />
                 <Route path="/inventory" element={<Inventory />} />
                 <Route path="/shipping" element={<Shipping />} />
                 <Route path="/invoices" element={<Invoices />} />

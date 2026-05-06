@@ -105,7 +105,7 @@ export default function Pipeline() {
 
   return (
     <div className="raven-page animate-in" style={{ minHeight: '100vh' }}>
-      <div className="mx-auto px-8 py-7 pb-16">
+      <div className="mx-auto px-4 md:px-8 py-7 pb-16">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
@@ -146,31 +147,13 @@ export default function CreateEstimate() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1080px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+      <div className={`max-w-[1080px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Estimates
-          </button>
-          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
-          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>New</span>
-        </div>
-
-        {/* Header */}
-        <div className="mb-7 animate-in delay-1">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Estimate</h1>
-          <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-            Create a new estimate for a customer
-          </p>
-        </div>
+        <PageHeader
+          title="Create New Estimate"
+          description="Create a new estimate for a customer"
+          breadcrumb={[{ label: 'Estimates', to: '/estimates' }, { label: 'New' }]}
+        />
 
         <form id="create-estimate-form" onSubmit={handleSubmit} className="space-y-4">
 
@@ -180,7 +163,7 @@ export default function CreateEstimate() {
               <span className="text-sm font-semibold">Estimate Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="estimate_number" style={{ color: 'var(--so-text-secondary)' }}>Estimate Number</Label>
                   <Input
@@ -224,18 +207,27 @@ export default function CreateEstimate() {
           </div>
 
           {/* Customer */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}>
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Customer</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="customer" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
                   <SearchableCombobox
                     entityType="customer"
                     value={formData.customer ? Number(formData.customer) : null}
-                    onChange={(id) => setFormData((prev) => ({ ...prev, customer: id ? String(id) : '', ship_to: '', bill_to: '' }))}
+                    onChange={(id) => {
+                      const idStr = id ? String(id) : ''
+                      const cust = customers.find((c) => String(c.id) === idStr)
+                      setFormData((prev) => ({
+                        ...prev,
+                        customer: idStr,
+                        ship_to: cust?.default_ship_to ? String(cust.default_ship_to) : '',
+                        bill_to: cust?.default_bill_to ? String(cust.default_bill_to) : '',
+                      }))
+                    }}
                     placeholder="Select customer..."
                     allowClear
                   />
@@ -260,7 +252,7 @@ export default function CreateEstimate() {
               <span className="text-sm font-semibold">Dates</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="date" style={{ color: 'var(--so-text-secondary)' }}>Estimate Date *</Label>
                   <Input
@@ -292,7 +284,7 @@ export default function CreateEstimate() {
               <span className="text-sm font-semibold">Shipping &amp; Billing</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="ship_to" style={{ color: 'var(--so-text-secondary)' }}>Ship To</Label>
                   <Select
@@ -332,23 +324,6 @@ export default function CreateEstimate() {
                   </Select>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Notes</span>
-            </div>
-            <div className="px-6 py-5">
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => update('notes', e.target.value)}
-                placeholder="Estimate notes..."
-                rows={3}
-                style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-              />
             </div>
           </div>
 
@@ -457,6 +432,23 @@ export default function CreateEstimate() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Notes</span>
+            </div>
+            <div className="px-6 py-5">
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => update('notes', e.target.value)}
+                placeholder="Estimate notes..."
+                rows={3}
+                style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+              />
             </div>
           </div>
 

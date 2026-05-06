@@ -17,15 +17,15 @@ import {
   Scale,
   Sun,
   Moon,
-  Eye,
+  PackageCheck,
   DollarSign,
   Boxes,
   ScrollText,
+  ShoppingCart,
   Palette,
   Search,
   Cog,
   Keyboard,
-  Calculator,
   ScanLine,
   Warehouse,
   Tags,
@@ -37,6 +37,7 @@ import {
   Navigation,
   PenLine,
   ContactRound,
+  Wrench,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -46,7 +47,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuSub,
@@ -82,6 +82,14 @@ interface NavMenuItem {
   requiresAdmin?: boolean
 }
 
+interface NavMenuAction {
+  type: 'action'
+  icon: React.ElementType
+  label: string
+  shortcut?: string
+  onClick: () => void
+}
+
 interface NavMenuSeparator {
   type: 'separator'
 }
@@ -96,173 +104,10 @@ interface NavSubMenu {
 interface NavDropdownItem extends NavItemBase {
   type: 'dropdown'
   requiresAdmin?: boolean
-  items: Array<NavMenuItem | NavMenuSeparator | NavSubMenu>
+  items: Array<NavMenuItem | NavMenuAction | NavMenuSeparator | NavSubMenu>
 }
 
 type NavItem = NavLinkItem | NavDropdownItem
-
-const NAVIGATION_STRUCTURE: NavItem[] = [
-  // 1. Company (Admin only - placeholder, will show for all until auth has isAdmin)
-  {
-    type: 'dropdown',
-    icon: Building2,
-    label: 'Company',
-    requiresAdmin: true,
-    items: [
-      { type: 'item', to: '/', icon: LayoutDashboard, label: 'Company Snapshot' },
-      { type: 'item', to: '/users', icon: Users, label: 'Users' },
-      { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
-      { type: 'item', to: '/accounting-settings', icon: Calculator, label: 'Accounting Settings' },
-      { type: 'item', to: '/fixed-assets', icon: Building2, label: 'Fixed Assets' },
-      { type: 'separator' },
-      { type: 'item', to: '/admin/user-audit', icon: FileText, label: 'User Audit Report', requiresAdmin: true },
-      { type: 'item', to: '/admin', icon: Cog, label: 'Settings' },
-    ],
-  },
-  // 2. Customers
-  {
-    type: 'dropdown',
-    icon: Users,
-    label: 'Customers',
-    items: [
-      { type: 'item', to: '/customers', icon: Users, label: 'Customer Center' },
-      { type: 'item', to: '/customers/open-orders', icon: Eye, label: 'Sales Orders' },
-      { type: 'item', to: '/estimates', icon: FileText, label: 'Estimates' },
-      { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
-      { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
-      { type: 'separator' },
-      { type: 'item', to: '/pipeline', icon: GitBranchPlus, label: 'Sales Pipeline' },
-    ],
-  },
-  // 3. Vendors
-  {
-    type: 'dropdown',
-    icon: Truck,
-    label: 'Vendors',
-    items: [
-      { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
-      { type: 'item', to: '/vendors/open-orders', icon: Eye, label: 'Purchase Orders' },
-      { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
-      { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
-      { type: 'separator' },
-      { type: 'item', to: '/trucks', icon: Truck, label: 'Trucks' },
-    ],
-  },
-  // 4. Items
-  {
-    type: 'dropdown',
-    icon: Package,
-    label: 'Items',
-    items: [
-      { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
-      { type: 'item', to: '/product-cards', icon: DollarSign, label: 'Product Cards' },
-      { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
-      { type: 'separator' },
-      { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
-      { type: 'separator' },
-      { type: 'item', to: '/items/request', icon: Plus, label: 'Request New Item' },
-      { type: 'item', to: '/items/workbench', icon: ClipboardList, label: 'Item Setup Workbench' },
-    ],
-  },
-  // 5. Design
-  {
-    type: 'dropdown',
-    icon: Palette,
-    label: 'Design',
-    items: [
-      { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Requests' },
-      { type: 'item', to: '/design-workbench', icon: Palette, label: 'Design Workbench' },
-    ],
-  },
-  // 6. Accounting
-  {
-    type: 'dropdown',
-    icon: DollarSign,
-    label: 'Accounting',
-    items: [
-      { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
-      { type: 'item', to: '/journal-entries', icon: FileSpreadsheet, label: 'Journal Entries' },
-      { type: 'separator' },
-      { type: 'item', to: '/invoices', icon: FileText, label: 'Invoices' },
-      { type: 'item', to: '/receive-payment', icon: DollarSign, label: 'Receive Payments' },
-      { type: 'separator' },
-      { type: 'item', to: '/checks', icon: PenLine, label: 'Write Checks' },
-      { type: 'item', to: '/other-names', icon: ContactRound, label: 'Other Names' },
-    ],
-  },
-  // 7. Warehouse
-  {
-    type: 'dropdown',
-    icon: Warehouse,
-    label: 'Warehouse',
-    items: [
-      { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
-      { type: 'item', to: '/warehouse/scanner', icon: ScanLine, label: 'Scanner' },
-      { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
-      { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },
-      { type: 'separator' },
-      { type: 'item', to: '/warehouse/locations', icon: MapPin, label: 'Locations & Lots' },
-      { type: 'item', to: '/logistics', icon: Navigation, label: 'Logistics' },
-      { type: 'item', to: '/logistics/manifest', icon: Truck, label: 'Driver Manifest' },
-    ],
-  },
-  // 8. Reports (with nested submenus)
-  {
-    type: 'dropdown',
-    icon: BarChart3,
-    label: 'Reports',
-    items: [
-      { type: 'item', to: '/reports', icon: BarChart3, label: 'All Reports' },
-      { type: 'item', to: '/reports/item-quick-report', icon: Package, label: 'Item Quick Report' },
-      { type: 'separator' },
-      {
-        type: 'submenu',
-        icon: Boxes,
-        label: 'Inventory',
-        items: [
-          { type: 'item', to: '/reports/stock-status', icon: Package, label: 'Stock Status by Item' },
-          { type: 'item', to: '/reports/inventory-valuation', icon: DollarSign, label: 'Inventory Valuation' },
-        ],
-      },
-    ],
-  },
-  // 9. Schedulizer (direct link)
-  {
-    type: 'link',
-    icon: Calendar,
-    label: 'Schedulizer',
-    to: '/scheduler',
-  },
-  // 10. Notifications / Messages (direct link)
-  {
-    type: 'link',
-    icon: Mail,
-    label: 'Inbox',
-    to: '/notifications',
-  },
-]
-
-// ─── Theme Toggle ──────────────────────────────────────────────────────────────
-
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      title={resolvedTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-    >
-      {resolvedTheme === 'dark' ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
-    </Button>
-  )
-}
 
 // ─── Nav Dropdown Component ────────────────────────────────────────────────────
 
@@ -287,8 +132,6 @@ function NavDropdown({ item, isAdmin }: { item: NavDropdownItem; isAdmin: boolea
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>{item.label}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
         {visibleItems.map((subItem, idx) => {
           if (subItem.type === 'separator') {
             return <DropdownMenuSeparator key={idx} />
@@ -320,6 +163,17 @@ function NavDropdown({ item, isAdmin }: { item: NavDropdownItem; isAdmin: boolea
               </DropdownMenuSub>
             )
           }
+          if (subItem.type === 'action') {
+            return (
+              <DropdownMenuItem key={subItem.label} onSelect={() => subItem.onClick()} className="flex items-center gap-2 cursor-pointer">
+                <subItem.icon className="h-4 w-4" />
+                <span className="flex-1">{subItem.label}</span>
+                {subItem.shortcut && (
+                  <span className="text-[11px] text-muted-foreground">{subItem.shortcut}</span>
+                )}
+              </DropdownMenuItem>
+            )
+          }
           return (
             <DropdownMenuItem key={subItem.label} asChild>
               <NavLink to={subItem.to} className="flex items-center gap-2 cursor-pointer">
@@ -339,11 +193,163 @@ function NavDropdown({ item, isAdmin }: { item: NavDropdownItem; isAdmin: boolea
 export default function TopNavbar() {
   const { logout, user } = useAuth()
   const isAdmin = user?.is_superuser || user?.roles?.includes('admin') || false
+  const { resolvedTheme, setTheme } = useTheme()
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+
+  const navigationStructure: NavItem[] = [
+    // 1. Company
+    {
+      type: 'dropdown',
+      icon: Building2,
+      label: 'Company',
+      requiresAdmin: true,
+      items: [
+        { type: 'action', icon: Search, label: 'Search', shortcut: 'Ctrl+K', onClick: () => setSearchOpen(true) },
+        { type: 'separator' },
+        { type: 'item', to: '/settings', icon: Building2, label: 'My Company' },
+        { type: 'item', to: '/users', icon: Users, label: 'Users' },
+        { type: 'item', to: '/admin', icon: Cog, label: 'Settings' },
+        { type: 'item', to: '/uom', icon: Ruler, label: 'Units of Measure', requiresAdmin: true },
+        { type: 'separator' },
+        { type: 'item', to: '/admin/user-audit', icon: FileText, label: 'Audit Reports', requiresAdmin: true },
+        { type: 'separator' },
+        {
+          type: 'action',
+          icon: resolvedTheme === 'dark' ? Sun : Moon,
+          label: resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode',
+          onClick: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'),
+        },
+        { type: 'action', icon: Keyboard, label: 'Keyboard shortcuts', shortcut: '?', onClick: () => setShortcutsOpen(true) },
+      ],
+    },
+    // 2. Customers
+    {
+      type: 'dropdown',
+      icon: Users,
+      label: 'Customers',
+      items: [
+        { type: 'item', to: '/customers', icon: Users, label: 'Customer Center' },
+        { type: 'separator' },
+        { type: 'item', to: '/estimates', icon: FileText, label: 'Estimates' },
+        { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
+        { type: 'separator' },
+        { type: 'item', to: '/customers/open-orders', icon: ShoppingCart, label: 'Sales Orders' },
+        { type: 'separator' },
+        { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
+      ],
+    },
+    // 3. Vendors
+    {
+      type: 'dropdown',
+      icon: Truck,
+      label: 'Vendors',
+      items: [
+        { type: 'item', to: '/vendors', icon: Building2, label: 'Vendor Center' },
+        { type: 'separator' },
+        { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
+        { type: 'separator' },
+        { type: 'item', to: '/vendors/open-orders', icon: PackageCheck, label: 'Purchase Orders' },
+        { type: 'separator' },
+        { type: 'item', to: '/cost-lists', icon: DollarSign, label: 'Cost Lists' },
+      ],
+    },
+    // 4. Items
+    {
+      type: 'dropdown',
+      icon: Package,
+      label: 'Items',
+      items: [
+        { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
+        { type: 'separator' },
+        { type: 'item', to: '/items/request', icon: Plus, label: 'New Item Request' },
+        { type: 'item', to: '/items/workbench', icon: ClipboardList, label: 'Item Setup' },
+        { type: 'separator' },
+        { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
+      ],
+    },
+    // 5. Warehouse
+    {
+      type: 'dropdown',
+      icon: Warehouse,
+      label: 'Warehouse',
+      items: [
+        { type: 'item', to: '/shipping', icon: Truck, label: 'Shipping' },
+        { type: 'item', to: '/warehouse/scanner', icon: ScanLine, label: 'Scanner' },
+        { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
+        { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },
+        { type: 'separator' },
+        { type: 'item', to: '/warehouse/locations', icon: MapPin, label: 'Locations & Lots' },
+        { type: 'item', to: '/logistics', icon: Navigation, label: 'Logistics' },
+        { type: 'item', to: '/logistics/manifest', icon: Truck, label: 'Driver Manifest' },
+        { type: 'item', to: '/trucks', icon: Truck, label: 'Trucks' },
+      ],
+    },
+    // 6. Accounting
+    {
+      type: 'dropdown',
+      icon: DollarSign,
+      label: 'Accounting',
+      items: [
+        { type: 'item', to: '/chart-of-accounts', icon: BookUser, label: 'Chart of Accounts' },
+        { type: 'item', to: '/journal-entries', icon: FileSpreadsheet, label: 'Journal Entries' },
+        { type: 'separator' },
+        { type: 'item', to: '/invoices', icon: FileText, label: 'Invoices' },
+        { type: 'item', to: '/receive-payment', icon: DollarSign, label: 'Receive Payments' },
+        { type: 'separator' },
+        { type: 'item', to: '/checks', icon: PenLine, label: 'Write Checks' },
+        { type: 'item', to: '/other-names', icon: ContactRound, label: 'Other Names' },
+      ],
+    },
+    // 7. Reports
+    {
+      type: 'dropdown',
+      icon: BarChart3,
+      label: 'Reports',
+      items: [
+        { type: 'item', to: '/reports', icon: BarChart3, label: 'All Reports' },
+        { type: 'item', to: '/reports/item-quick-report', icon: Package, label: 'Item Quick Report' },
+        { type: 'separator' },
+        {
+          type: 'submenu',
+          icon: Boxes,
+          label: 'Inventory',
+          items: [
+            { type: 'item', to: '/reports/stock-status', icon: Package, label: 'Stock Status by Item' },
+            { type: 'item', to: '/reports/inventory-valuation', icon: DollarSign, label: 'Inventory Valuation' },
+          ],
+        },
+      ],
+    },
+    // 8. Tools
+    {
+      type: 'dropdown',
+      icon: Wrench,
+      label: 'Tools',
+      items: [
+        { type: 'item', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+        { type: 'separator' },
+        { type: 'item', to: '/pipeline', icon: GitBranchPlus, label: 'Pipeline' },
+        { type: 'item', to: '/scheduler', icon: Calendar, label: 'Schedulizer' },
+        { type: 'item', to: '/priority-list', icon: Scale, label: 'Priority Lists' },
+        { type: 'item', to: '/product-cards', icon: DollarSign, label: 'Product Cards' },
+        { type: 'item', to: '/fixed-assets', icon: Building2, label: 'Fixed Asset Tracker' },
+      ],
+    },
+    // 9. Design
+    {
+      type: 'dropdown',
+      icon: Palette,
+      label: 'Design',
+      items: [
+        { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Requests' },
+        { type: 'item', to: '/design-workbench', icon: Palette, label: 'Design Workbench' },
+      ],
+    },
+  ]
 
   // Inbox badge: notifications + approvals + DMs
   const { data: notifData } = useNotifications()
@@ -420,7 +426,7 @@ export default function TopNavbar() {
 
       {/* Navigation */}
       <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 scrollbar-hide">
-        {NAVIGATION_STRUCTURE.map((item) => {
+        {navigationStructure.map((item) => {
           // Skip admin-only items if not admin
           if (item.type === 'dropdown' && item.requiresAdmin && !isAdmin) {
             return null
@@ -430,7 +436,6 @@ export default function TopNavbar() {
             return <NavDropdown key={item.label} item={item} isAdmin={isAdmin} />
           }
 
-          const isInbox = item.to === '/notifications'
           return (
             <NavLink
               key={item.to}
@@ -446,40 +451,33 @@ export default function TopNavbar() {
             >
               <item.icon className="h-4 w-4" />
               <span className="hidden lg:inline">{item.label}</span>
-              {isInbox && inboxBadge > 0 && (
-                <span className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#f97316' }}>
-                  {inboxBadge > 99 ? '99+' : inboxBadge}
-                </span>
-              )}
             </NavLink>
           )
         })}
       </nav>
 
-      {/* Right side - Search, Theme Toggle, and Logout */}
+      {/* Right side - Inbox and Logout */}
       <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={() => setSearchOpen(true)}
-          title="Search (Ctrl+K)"
+        <NavLink
+          to="/notifications"
+          className={({ isActive }) =>
+            cn(
+              'relative flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            )
+          }
+          title="Inbox"
         >
-          <Search className="h-4 w-4" />
-          <span className="hidden sm:inline text-xs text-muted-foreground">Ctrl+K</span>
-        </Button>
-
-        <ThemeToggle />
-
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onClick={() => setShortcutsOpen(true)}
-          title="Keyboard shortcuts (?)"
-        >
-          <Keyboard className="h-4 w-4" />
-        </Button>
+          <Mail className="h-4 w-4" />
+          <span className="hidden lg:inline">Inbox</span>
+          {inboxBadge > 0 && (
+            <span className="flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full text-[10px] font-bold text-white" style={{ background: '#f97316' }}>
+              {inboxBadge > 99 ? '99+' : inboxBadge}
+            </span>
+          )}
+        </NavLink>
 
         <Button
           variant="ghost"

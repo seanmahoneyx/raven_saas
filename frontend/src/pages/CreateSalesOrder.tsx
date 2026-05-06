@@ -398,7 +398,7 @@ export default function CreateSalesOrder() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1280px] mx-auto px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+      <div className={`max-w-[1280px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -481,8 +481,8 @@ export default function CreateSalesOrder() {
 
           {/* ============ UNIFIED CARD ============ */}
           <div
-            className="rounded-[14px] border overflow-hidden animate-in delay-2"
-            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+            className="rounded-[14px] border animate-in delay-2"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}
           >
             {/* Card header */}
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>

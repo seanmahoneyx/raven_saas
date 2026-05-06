@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { useDeleteLocation } from '@/api/parties'
+import { KpiGrid, KpiCard, TabStrip } from '@/components/page'
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -84,6 +85,9 @@ export interface PartyDetailLayoutProps {
   /* locations */
   locations: Location[]
 
+  /* optional content rendered above the locations table (e.g. customer defaults editor) */
+  locationsTabPrefix?: ReactNode
+
   /* contacts */
   contacts: Contact[]
 
@@ -130,6 +134,7 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
     ordersTabContent,
     extraTabContent,
     locations,
+    locationsTabPrefix,
     contacts,
     attachments,
     onUploadFile,
@@ -342,96 +347,27 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
           </div>
         )}
 
-        {/* KPI Cards */}
-        {isMobile ? (
-          <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory -mx-4 px-4 mb-5 animate-in delay-2">
+        <div className="mb-6 animate-in delay-2">
+          <KpiGrid columns={6}>
             {kpiItems.map((kpi, idx) => (
-              <button
+              <KpiCard
                 key={idx}
+                label={kpi.label}
+                value={kpi.mono ? <span className="font-mono">{kpi.value}</span> : kpi.value}
+                tone={kpi.danger ? 'negative' : 'default'}
                 onClick={kpi.onClick}
-                className="snap-start flex-shrink-0 text-left cursor-pointer transition-colors rounded-xl p-4"
-                style={{
-                  minWidth: 130,
-                  border: '1px solid var(--so-border)',
-                  background: 'var(--so-surface)',
-                }}
-              >
-                <p className="text-[10px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</p>
-                <p className={`text-base font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>
-                  {kpi.value}
-                </p>
-              </button>
+              />
             ))}
-          </div>
-        ) : (
-          <div
-            className="rounded-[14px] mb-6 animate-in delay-2 overflow-hidden"
-            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
-          >
-            <div className="grid grid-cols-3 md:grid-cols-6 divide-x divide-y md:divide-y-0" style={{ borderColor: 'var(--so-border-light)' }}>
-              {kpiItems.map((kpi, idx) => (
-                <button
-                  key={idx}
-                  onClick={kpi.onClick}
-                  className="p-5 text-left cursor-pointer transition-colors"
-                  style={{ borderColor: 'var(--so-border-light)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-bg)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <p className="text-[11px] font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</p>
-                  <p className={`text-lg font-bold ${kpi.mono ? 'font-mono' : ''}`} style={{ color: kpi.danger ? 'var(--so-danger-text)' : 'var(--so-text-primary)' }}>
-                    {kpi.value}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+          </KpiGrid>
+        </div>
 
-        {/* Tabs */}
-        {isMobile ? (
-          <div className="flex overflow-x-auto gap-2 -mx-4 px-4 py-2 mb-4 animate-in delay-3">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex-shrink-0 cursor-pointer transition-all"
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: 9999,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  whiteSpace: 'nowrap',
-                  background: activeTab === tab.id ? 'var(--so-accent)' : 'var(--so-surface)',
-                  color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
-                  border: activeTab === tab.id ? 'none' : '1px solid var(--so-border)',
-                  boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                }}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5"
-               style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-4 py-2 text-[13px] font-medium rounded-lg transition-all cursor-pointer"
-                style={{
-                  background: activeTab === tab.id ? 'var(--so-accent)' : 'transparent',
-                  color: activeTab === tab.id ? 'white' : 'var(--so-text-tertiary)',
-                  boxShadow: activeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
-                }}
-              >
-                <tab.icon className="h-3.5 w-3.5" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="mb-6 animate-in delay-3">
+          <TabStrip
+            tabs={tabs.map((t) => ({ id: t.id, label: t.label, icon: t.icon as any }))}
+            active={activeTab}
+            onChange={setActiveTab}
+          />
+        </div>
 
         {/* ============ Timeline Tab ============ */}
         {activeTab === 'timeline' && (
@@ -619,6 +555,8 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
 
         {/* ============ Locations Tab ============ */}
         {activeTab === 'locations' && (
+          <>
+          {locationsTabPrefix}
           <div
             className="rounded-[14px] animate-in delay-3"
             style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
@@ -751,6 +689,7 @@ export function PartyDetailLayout(props: PartyDetailLayoutProps) {
               )}
             </div>
           </div>
+          </>
         )}
 
         {/* ============ Documents Tab ============ */}

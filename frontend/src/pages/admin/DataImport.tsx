@@ -125,7 +125,7 @@ export default function DataImport() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Data Import</h1>
           <p className="text-sm text-slate-400 mt-1">Upload CSV files to bulk-import records into the system.</p>
@@ -255,7 +255,7 @@ export default function DataImport() {
             <h2 className="text-lg font-semibold text-white mb-4">
               {report.mode === 'dry_run' ? 'Dry Run Results' : 'Import Results'}
             </h2>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-slate-800 rounded-lg p-4 text-center">
                 <p className="text-2xl font-bold text-white">{report.total}</p>
                 <p className="text-xs text-slate-400 mt-1">Total Rows</p>

@@ -233,7 +233,7 @@ export default function DesignRequestDetail() {
   if (isLoading) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
           <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
         </div>
       </div>
@@ -243,7 +243,7 @@ export default function DesignRequestDetail() {
   if (!designRequest) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
           <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>Design request not found</div>
         </div>
       </div>
@@ -254,7 +254,7 @@ export default function DesignRequestDetail() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -272,7 +272,7 @@ export default function DesignRequestDetail() {
         </div>
 
         {/* Title Row */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-7 animate-in delay-1">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold font-mono" style={{ letterSpacing: '-0.03em' }}>{designRequest.file_number}</h1>
@@ -338,7 +338,7 @@ export default function DesignRequestDetail() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0" data-print-hide>
+          <div className="flex flex-wrap items-center gap-2" data-print-hide>
             {isEditing ? (
               <>
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>

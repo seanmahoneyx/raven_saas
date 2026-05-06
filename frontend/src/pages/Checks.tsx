@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
 import {
@@ -168,23 +169,14 @@ export default function Checks() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Checks</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Write and manage checks
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/checks/new')}>
-              <Plus className="h-3.5 w-3.5" />
-              Write Check
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Checks"
+          description="Write and manage checks"
+          primary={{ label: 'Write Check', icon: Plus, onClick: () => navigate('/checks/new') }}
+        />
 
         {/* DataTable Card */}
         <div className="rounded-[14px] overflow-hidden animate-in delay-2"

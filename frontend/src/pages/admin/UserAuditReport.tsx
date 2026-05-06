@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 const ACTION_STYLES: Record<string, { bg: string; color: string }> = {
   Created: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)' },
@@ -54,15 +55,12 @@ export default function UserAuditReport() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1200px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Header */}
-        <div className="mb-6 animate-in">
-          <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>User Audit Report</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--so-text-secondary)' }}>
-            Track all changes made by users across the system
-          </p>
-        </div>
+        <PageHeader
+          title="User Audit Report"
+          description="Track all changes made by users across the system"
+        />
 
         {/* Filters */}
         <div className="rounded-[14px] border overflow-hidden mb-6 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
@@ -70,7 +68,7 @@ export default function UserAuditReport() {
             <span className="text-sm font-semibold">Filters</span>
           </div>
           <div className="px-6 py-4">
-            <div className="grid grid-cols-5 gap-4 mb-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-3">
               <div>
                 <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>User</div>
                 <Select value={userId} onValueChange={setUserId}>

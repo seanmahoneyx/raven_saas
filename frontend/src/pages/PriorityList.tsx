@@ -63,10 +63,10 @@ export default function PriorityList() {
   return (
     <ErrorBoundary>
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+        <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
           {/* Header */}
-          <div className="flex items-center justify-between mb-7 animate-in">
-            <div>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-7 animate-in">
+            <div className="min-w-0">
               {initialVendorId && (
                 <button
                   className={outlineBtnClass}
@@ -86,7 +86,7 @@ export default function PriorityList() {
             </div>
 
             {/* Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="px-4 py-2 rounded-md text-[13px] font-medium text-center"
                 style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-tertiary)' }}>
                 From {format(new Date(startDate + 'T00:00:00'), 'MMM d, yyyy')}

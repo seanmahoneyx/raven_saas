@@ -99,7 +99,7 @@ export default function ContactDetail() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[720px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[720px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -116,11 +116,11 @@ export default function ContactDetail() {
         </div>
 
         {/* Title */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-7 animate-in delay-1">
           <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
             {isNew ? 'New Contact' : `${existing?.first_name || ''} ${existing?.last_name || ''}`}
           </h1>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {!isNew && (
               <button
                 className={outlineBtnClass}

@@ -120,8 +120,8 @@ export default function AgingReports() {
   }
 
   return (
-    <div className="p-8 space-y-4">
-      <div className="flex items-center justify-between" data-print-hide>
+    <div className="p-4 md:p-8 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3" data-print-hide>
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/reports')}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Reports

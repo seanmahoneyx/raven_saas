@@ -198,10 +198,21 @@ export type LifecycleStatus = 'draft' | 'pending_design' | 'in_design' | 'design
 
 export type FulfillmentMethod = 'stock' | 'direct' | 'crossdock'
 
+export interface ItemExtraInfoLine {
+  id: number
+  type: '' | 'gap_top' | 'gap_bot' | 'score' | 'handhole' | 'wra' | 'perforation' | 'user_defined'
+  value: string
+  qty: string
+  hh_type: string
+  location: string
+  label: string
+}
+
 export interface Item {
   id: number
   sku: string
   name: string
+  secondary_ident: string
   division: DivisionType
   revision: number | null
   description: string
@@ -226,6 +237,7 @@ export interface Item {
   item_type: StockingType
   is_active: boolean
   attachment: string | null
+  extra_info_lines: ItemExtraInfoLine[]
   // Lifecycle
   lifecycle_status: LifecycleStatus
   revision_reason?: string
@@ -322,6 +334,16 @@ export interface CostListLine {
   cost_list: number
   min_quantity: number
   unit_cost: string
+}
+
+export interface CostListInput {
+  vendor: number
+  item: number
+  begin_date: string
+  end_date?: string | null
+  is_active?: boolean
+  notes?: string
+  lines?: { min_quantity: number; unit_cost: string }[]
 }
 
 // Corrugated Feature types

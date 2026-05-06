@@ -9,6 +9,7 @@ import {
   Truck,
   FileText,
   ScrollText,
+  ShoppingCart,
   DollarSign,
   BookUser,
   FileSpreadsheet,
@@ -35,10 +36,10 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
-  Eye,
+  PackageCheck,
   Ruler,
-  Calculator,
   Warehouse,
+  Wrench,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/components/theme-provider'
@@ -63,13 +64,11 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     label: 'Company',
     icon: Building2,
     items: [
-      { icon: LayoutDashboard, label: 'Company Snapshot', to: '/' },
-      { icon: Users, label: 'Users', to: '/users' },
       { icon: Building2, label: 'My Company', to: '/settings' },
-      { icon: Calculator, label: 'Accounting Settings', to: '/accounting-settings' },
-      { icon: Building2, label: 'Fixed Assets', to: '/fixed-assets' },
-      { icon: FileText, label: 'User Audit Report', to: '/admin/user-audit' },
+      { icon: Users, label: 'Users', to: '/users' },
       { icon: Cog, label: 'Settings', to: '/admin' },
+      { icon: Ruler, label: 'Units of Measure', to: '/uom' },
+      { icon: FileText, label: 'Audit Reports', to: '/admin/user-audit' },
     ],
   },
   {
@@ -77,11 +76,10 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     icon: Users,
     items: [
       { icon: Users, label: 'Customer Center', to: '/customers' },
-      { icon: Eye, label: 'Sales Orders', to: '/customers/open-orders' },
       { icon: FileText, label: 'Estimates', to: '/estimates' },
       { icon: ScrollText, label: 'Contracts', to: '/contracts' },
+      { icon: ShoppingCart, label: 'Sales Orders', to: '/customers/open-orders' },
       { icon: DollarSign, label: 'Price Lists', to: '/price-lists' },
-      { icon: GitBranchPlus, label: 'Sales Pipeline', to: '/pipeline' },
     ],
   },
   {
@@ -89,10 +87,9 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     icon: Truck,
     items: [
       { icon: Building2, label: 'Vendor Center', to: '/vendors' },
-      { icon: Eye, label: 'Purchase Orders', to: '/vendors/open-orders' },
       { icon: FileText, label: 'RFQs', to: '/rfqs' },
-      { icon: Scale, label: 'Priority Lists', to: '/priority-list' },
-      { icon: Truck, label: 'Trucks', to: '/trucks' },
+      { icon: PackageCheck, label: 'Purchase Orders', to: '/vendors/open-orders' },
+      { icon: DollarSign, label: 'Cost Lists', to: '/cost-lists' },
     ],
   },
   {
@@ -100,11 +97,9 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     icon: Package,
     items: [
       { icon: Package, label: 'Item Center', to: '/items' },
-      { icon: DollarSign, label: 'Product Cards', to: '/product-cards' },
+      { icon: FileText, label: 'New Item Request', to: '/items/request' },
+      { icon: ClipboardList, label: 'Item Setup', to: '/items/workbench' },
       { icon: Boxes, label: 'Inventory', to: '/inventory' },
-      { icon: Ruler, label: 'Units of Measure', to: '/uom' },
-      { icon: FileText, label: 'Request New Item', to: '/items/request' },
-      { icon: ClipboardList, label: 'Item Workbench', to: '/items/workbench' },
     ],
   },
   {
@@ -130,6 +125,7 @@ const DRAWER_SECTIONS: DrawerSection[] = [
       { icon: MapPin, label: 'Locations & Lots', to: '/warehouse/locations' },
       { icon: Navigation, label: 'Logistics', to: '/logistics' },
       { icon: Truck, label: 'Driver Manifest', to: '/logistics/manifest' },
+      { icon: Truck, label: 'Trucks', to: '/trucks' },
     ],
   },
   {
@@ -144,10 +140,21 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     ],
   },
   {
+    label: 'Tools',
+    icon: Wrench,
+    items: [
+      { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
+      { icon: GitBranchPlus, label: 'Pipeline', to: '/pipeline' },
+      { icon: Calendar, label: 'Schedulizer', to: '/scheduler' },
+      { icon: Scale, label: 'Priority Lists', to: '/priority-list' },
+      { icon: DollarSign, label: 'Product Cards', to: '/product-cards' },
+      { icon: Building2, label: 'Fixed Asset Tracker', to: '/fixed-assets' },
+    ],
+  },
+  {
     label: 'More',
     icon: Cog,
     items: [
-      { icon: Calendar, label: 'Scheduler', to: '/scheduler' },
       { icon: FileText, label: 'Design Requests', to: '/design-requests' },
       { icon: Palette, label: 'Design Workbench', to: '/design-workbench' },
       { icon: CheckSquare, label: 'Approvals', to: '/approvals' },

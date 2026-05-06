@@ -14,8 +14,8 @@ import { TruckDialog } from '@/components/parties/TruckDialog'
 import type { Truck } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
 
 export default function Trucks() {
   usePageTitle('Trucks')
@@ -106,31 +106,20 @@ export default function Trucks() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Trucks</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Manage trucks and fleet</p>
-          </div>
-          <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => {
-            setEditingTruck(null)
-            setTruckDialogOpen(true)
-          }}>
-            <Plus className="h-3.5 w-3.5" /> Add Truck
-          </button>
-        </div>
+        <PageHeader
+          title="Trucks"
+          description="Manage trucks and fleet"
+          primary={{ label: 'Add Truck', icon: Plus, onClick: () => { setEditingTruck(null); setTruckDialogOpen(true) } }}
+        />
 
-        {/* KPI Summary */}
-        <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-3">
+        <div className="mb-5 animate-in delay-1">
+          <KpiGrid columns={3}>
             {summaryKPIs.map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}>
-                <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
-              </div>
+              <KpiCard key={idx} label={kpi.label} value={<span className="font-mono">{kpi.value}</span>} />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
         {/* Content */}

@@ -107,17 +107,17 @@ export default function SearchDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
         {/* Search Input */}
-        <div className="flex items-center border-b px-3">
+        <div className="flex items-center border-b pl-3 pr-12 pt-4 pb-2">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
             placeholder="Search items, customers, orders, invoices..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-11"
+            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
             autoFocus
           />
-          {isLoading && <Loader2 className="h-4 w-4 animate-spin opacity-50" />}
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin opacity-50 mr-1" />}
         </div>
 
         {/* Results */}

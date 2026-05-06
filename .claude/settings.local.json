@@ -139,7 +139,8 @@
       "Bash(tee /tmp/tsc_errors.txt)",
       "Bash(tee /tmp/tsc_errors2.txt)",
       "Read(//tmp/**)",
-      "Read(//c/Users/Sean/AppData/Local/Temp/claude/C--Users-Sean-raven-saas/62a06f0b-9b14-4048-be77-93c2c0ca59b2/tasks/**)"
+      "Read(//c/Users/Sean/AppData/Local/Temp/claude/C--Users-Sean-raven-saas/62a06f0b-9b14-4048-be77-93c2c0ca59b2/tasks/**)",
+      "Bash(npm *)"
     ]
   }
 }

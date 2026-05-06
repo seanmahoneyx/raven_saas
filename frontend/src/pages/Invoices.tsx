@@ -17,7 +17,7 @@ import { format } from 'date-fns'
 type Tab = 'invoices' | 'payments'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { InvoiceCard } from '@/components/invoices/InvoiceCard'
@@ -266,18 +266,20 @@ export default function Invoices() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Invoices</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage invoices and payments
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="Invoices"
+          description="Manage invoices and payments"
+          primary={{
+            label: `New ${activeTab === 'invoices' ? 'Invoice' : 'Payment'}`,
+            icon: Plus,
+            onClick: () => navigate(activeTab === 'invoices' ? '/invoices/new' : '/receive-payment'),
+          }}
+          trailing={
             <ExportButton
+              iconOnly
               data={(activeTab === 'invoices' ? (invoicesData?.results ?? []) : (paymentsData?.results ?? [])) as unknown as Record<string, unknown>[]}
               filename={activeTab === 'invoices' ? 'invoices' : 'payments'}
               columns={activeTab === 'invoices' ? [
@@ -291,17 +293,13 @@ export default function Invoices() {
                 { key: 'balance_due', header: 'Balance Due' },
               ] : undefined}
             />
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate(activeTab === 'invoices' ? '/invoices/new' : '/receive-payment')}>
-              <Plus className="h-3.5 w-3.5" />
-              New {activeTab === 'invoices' ? 'Invoice' : 'Payment'}
-            </button>
-          </div>
-        </div>
+          }
+        />
 
         {/* KPI Summary Cards */}
         <div className="rounded-[14px] mb-6 animate-in delay-1 overflow-hidden"
           style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-          <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-5">
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                 Receivable Balance

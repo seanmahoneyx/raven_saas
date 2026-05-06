@@ -85,7 +85,7 @@ function ItemWorkbenchCard({ item }: { item: Item }) {
         <button
           className={outlineBtnClass}
           style={outlineBtnStyle}
-          onClick={() => navigate(`/items/${item.id}`)}
+          onClick={() => navigate(`/items/workbench/${item.id}`)}
         >
           Open
         </button>
@@ -130,7 +130,7 @@ export default function ItemSetupWorkbench() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
         <div className="mb-8 animate-in">

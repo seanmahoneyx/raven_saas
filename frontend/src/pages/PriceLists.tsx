@@ -13,6 +13,7 @@ import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } f
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 export default function PriceLists() {
   usePageTitle('Price Lists')
@@ -165,29 +166,18 @@ export default function PriceLists() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Price Lists</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage customer pricing with quantity break tiers
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/price-lists/new')}>
-              <Plus className="h-4 w-4" />
-              New Price List
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
-              <Download className="h-4 w-4" />
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
-              <Printer className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Price Lists"
+          description="Manage customer pricing with quantity break tiers"
+          primary={{ label: 'New Price List', icon: Plus, onClick: () => navigate('/price-lists/new') }}
+          actions={[
+            { label: 'Export CSV', icon: Download, onClick: () => setExportFilterOpen(true) },
+            { label: 'Print', icon: Printer, onClick: () => setPrintFilterOpen(true) },
+          ]}
+        />
 
         {/* KPI Summary Cards */}
         <div className="rounded-[14px] mb-6 overflow-hidden animate-in delay-1"

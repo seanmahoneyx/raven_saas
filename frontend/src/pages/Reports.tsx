@@ -15,6 +15,7 @@ import {
 import { format } from 'date-fns'
 import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { FolderTabs } from '@/components/ui/folder-tabs'
+import { PageHeader } from '@/components/page'
 
 type Tab = 'reports' | 'history' | 'schedules'
 
@@ -122,14 +123,9 @@ export default function Reports() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Reports</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Run and schedule business reports</p>
-          </div>
-        </div>
+        <PageHeader title="Reports" description="Run and schedule business reports" />
 
         {/* Tabs */}
         <div className="mb-5 animate-in delay-1">

@@ -376,8 +376,8 @@ export default function CycleCounts() {
 
   // List view
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Cycle Counts</h1>
           <p className="text-muted-foreground mt-1">Inventory audit sessions</p>

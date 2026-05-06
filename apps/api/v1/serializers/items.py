@@ -220,7 +220,7 @@ class ItemSerializer(TenantModelSerializer):
     class Meta:
         model = Item
         fields = [
-            'id', 'sku', 'name', 'division', 'revision',
+            'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
@@ -230,7 +230,7 @@ class ItemSerializer(TenantModelSerializer):
             'item_type', 'is_active', 'attachment',
             'lifecycle_status', 'revision_reason', 'revision_date',
             'revision_changed_by', 'revision_changed_by_name',
-            'product_card_notes',
+            'product_card_notes', 'extra_info_lines',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at', 'revision_date', 'revision_changed_by', 'revision_changed_by_name']
@@ -259,7 +259,7 @@ class ItemDetailSerializer(TenantModelSerializer):
     class Meta:
         model = Item
         fields = [
-            'id', 'sku', 'name', 'division', 'revision',
+            'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
@@ -269,7 +269,7 @@ class ItemDetailSerializer(TenantModelSerializer):
             'item_type', 'is_active', 'attachment',
             'lifecycle_status', 'revision_reason', 'revision_date',
             'revision_changed_by', 'revision_changed_by_name',
-            'product_card_notes',
+            'product_card_notes', 'extra_info_lines',
             'uom_conversions', 'vendors',
             'box_type',
             'corrugated_details', 'dimensions', 'packaging_details',
@@ -427,7 +427,7 @@ class CorrugatedItemSerializer(TenantModelSerializer):
     class Meta:
         model = CorrugatedItem
         fields = [
-            'id', 'sku', 'name', 'division', 'revision',
+            'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
@@ -438,7 +438,7 @@ class CorrugatedItemSerializer(TenantModelSerializer):
             # Unitizing
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
-            'item_type', 'is_active', 'attachment',
+            'item_type', 'is_active', 'attachment', 'extra_info_lines',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at', 'division']
@@ -469,7 +469,7 @@ class DCItemSerializer(TenantModelSerializer):
     class Meta:
         model = DCItem
         fields = [
-            'id', 'sku', 'name', 'division', 'revision',
+            'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
@@ -482,7 +482,7 @@ class DCItemSerializer(TenantModelSerializer):
             # Unitizing
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
-            'item_type', 'is_active', 'attachment',
+            'item_type', 'is_active', 'attachment', 'extra_info_lines',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at', 'division']
@@ -507,7 +507,7 @@ class LWHBoxSerializer(TenantModelSerializer):
     item_features = ItemFeatureSerializer(many=True, read_only=True)
 
     base_fields = [
-        'id', 'sku', 'name', 'division', 'revision',
+        'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
         'description', 'purch_desc', 'sell_desc',
         'base_uom', 'base_uom_code', 'base_uom_name',
         'customer', 'customer_code', 'customer_name',
@@ -520,7 +520,7 @@ class LWHBoxSerializer(TenantModelSerializer):
         # Unitizing
         'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
         'unit_height', 'pallet_height', 'pallet_footprint',
-        'item_type', 'is_active', 'attachment',
+        'item_type', 'is_active', 'attachment', 'extra_info_lines',
         'created_at', 'updated_at',
     ]
 
@@ -612,7 +612,7 @@ class PackagingItemSerializer(TenantModelSerializer):
     class Meta:
         model = PackagingItem
         fields = [
-            'id', 'sku', 'name', 'division', 'revision',
+            'id', 'sku', 'name', 'secondary_ident', 'division', 'revision',
             'description', 'purch_desc', 'sell_desc',
             'base_uom', 'base_uom_code', 'base_uom_name',
             'customer', 'customer_code', 'customer_name',
@@ -636,7 +636,7 @@ class PackagingItemSerializer(TenantModelSerializer):
             # Unitizing
             'units_per_layer', 'layers_per_pallet', 'units_per_pallet',
             'unit_height', 'pallet_height', 'pallet_footprint',
-            'item_type', 'is_active', 'attachment',
+            'item_type', 'is_active', 'attachment', 'extra_info_lines',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at', 'division']

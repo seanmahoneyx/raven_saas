@@ -16,6 +16,7 @@ import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 interface LineFormData {
@@ -127,34 +128,35 @@ export default function CreateContract() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-7 animate-in">
-          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Contract</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Set up a blanket contract with a customer
-            </p>
-          </div>
-        </div>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
+        <PageHeader
+          title="Create New Contract"
+          description="Set up a blanket contract with a customer"
+          breadcrumb={[{ label: 'Contracts', to: '/contracts' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Contract Details */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}>
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Contract Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
                   <SearchableCombobox
                     entityType="customer"
                     value={formData.customer ? Number(formData.customer) : null}
-                    onChange={(id) => setFormData((prev) => ({ ...prev, customer: id ? String(id) : '', ship_to: '' }))}
+                    onChange={(id) => {
+                      const idStr = id ? String(id) : ''
+                      const cust = customersData?.results?.find((c) => String(c.id) === idStr)
+                      setFormData((prev) => ({
+                        ...prev,
+                        customer: idStr,
+                        ship_to: cust?.default_ship_to ? String(cust.default_ship_to) : '',
+                      }))
+                    }}
                     placeholder="Select customer..."
                     allowClear
                   />
@@ -173,7 +175,7 @@ export default function CreateContract() {
               <span className="text-sm font-semibold">Dates</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Issue Date *</Label>
                   <Input type="date" value={formData.issue_date} onChange={(e) => update('issue_date', e.target.value)} required style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />

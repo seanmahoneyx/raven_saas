@@ -228,6 +228,16 @@ class Item(TenantMixin, TimestampMixin):
         max_length=255,
         help_text="Item name"
     )
+    secondary_ident = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Optional secondary identifier (customer part #, alt name, etc.)"
+    )
+    extra_info_lines = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Structured per-item complications (handhole, score, perforation, WRA, etc.)"
+    )
     division = models.CharField(
         max_length=20,
         choices=DIVISION_TYPES,

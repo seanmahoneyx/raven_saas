@@ -13,6 +13,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { PRIORITY_COLORS } from '@/lib/utils'
 
 type HubTab = 'all' | 'mentions' | 'messages' | 'tasks' | 'approvals'
@@ -233,17 +234,13 @@ export default function NotificationHub() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Notifications</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Messages, tasks, and approvals across all transactions
-            </p>
-          </div>
-          {unreadCount > 0 && (
+        <PageHeader
+          title="Notifications"
+          description="Messages, tasks, and approvals across all transactions"
+          trailing={unreadCount > 0 ? (
             <button
               className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-lg hover:opacity-80"
               style={{ color: 'var(--so-accent)' }}
@@ -252,8 +249,8 @@ export default function NotificationHub() {
               <Check className="h-3.5 w-3.5" />
               Mark all read ({unreadCount})
             </button>
-          )}
-        </div>
+          ) : undefined}
+        />
 
         {/* Tabs */}
         <div className="mb-5 animate-in delay-1">

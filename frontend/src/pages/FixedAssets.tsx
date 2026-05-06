@@ -22,6 +22,7 @@ import { DEPRECIATION_METHODS } from '@/constants/assets'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 const methodLabel = (method: string) =>
   DEPRECIATION_METHODS.find(m => m.value === method)?.label ?? method
@@ -271,31 +272,20 @@ export default function FixedAssets() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>Fixed Assets</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage fixed assets, categories, and depreciation
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {activeTab === 'assets' && (
-              <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/fixed-assets/new')}>
-                <Plus className="h-4 w-4" />
-                Add Asset
-              </button>
-            )}
-            {activeTab === 'categories' && (
-              <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleOpenNewCategory}>
-                <Plus className="h-4 w-4" />
-                New Category
-              </button>
-            )}
-          </div>
-        </div>
+        <PageHeader
+          title="Fixed Assets"
+          description="Manage fixed assets, categories, and depreciation"
+          primary={
+            activeTab === 'assets'
+              ? { label: 'Add Asset', icon: Plus, onClick: () => navigate('/fixed-assets/new') }
+              : activeTab === 'categories'
+                ? { label: 'New Category', icon: Plus, onClick: handleOpenNewCategory }
+                : undefined
+          }
+        />
 
         {/* Tab Bar */}
         <div className="mb-6 animate-in">
@@ -316,7 +306,7 @@ export default function FixedAssets() {
             {/* KPI Summary */}
             <div className="rounded-[14px] mb-6 overflow-hidden animate-in delay-1"
               style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-              <div className="grid grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+              <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
                 <div className="px-6 py-5">
                   <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                     Total Assets

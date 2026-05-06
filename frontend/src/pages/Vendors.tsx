@@ -18,7 +18,7 @@ import { VendorDialog } from '@/components/parties/VendorDialog'
 import type { Vendor } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
-import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { VendorCard } from '@/components/parties/VendorCard'
@@ -348,27 +348,18 @@ export default function Vendors() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Vendor Center</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Manage vendor relationships</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/vendors/new')}>
-              <Plus className="h-4 w-4" />
-              Add Vendor
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
-              <Download className="h-4 w-4" />
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
-              <Printer className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Vendor Center"
+          description="Manage vendor relationships"
+          primary={{ label: 'Add Vendor', icon: Plus, onClick: () => navigate('/vendors/new') }}
+          actions={[
+            { label: 'Export CSV', icon: Download, onClick: () => setExportFilterOpen(true) },
+            { label: 'Print', icon: Printer, onClick: () => setPrintFilterOpen(true) },
+          ]}
+        />
 
         {/* DataTable card */}
         <div

@@ -100,7 +100,7 @@ export default function UsersPage() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-7 animate-in">

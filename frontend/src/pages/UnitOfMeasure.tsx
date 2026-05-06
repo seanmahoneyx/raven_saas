@@ -15,7 +15,7 @@ import { useUnitsOfMeasure } from '@/api/items'
 import { UOMDialog } from '@/components/items/UOMDialog'
 import type { UnitOfMeasure } from '@/types/api'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 export default function UnitOfMeasurePage() {
   usePageTitle('Units of Measure')
@@ -81,26 +81,14 @@ export default function UnitOfMeasurePage() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Units of Measure</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage units of measure for items
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => {
-              setEditingUOM(null)
-              setUomDialogOpen(true)
-            }}>
-              <Plus className="h-4 w-4" />
-              Add UOM
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Units of Measure"
+          description="Manage units of measure for items"
+          primary={{ label: 'Add UOM', icon: Plus, onClick: () => { setEditingUOM(null); setUomDialogOpen(true) } }}
+        />
 
         {/* UOM DataTable */}
         <div className="rounded-[14px] border overflow-hidden animate-in delay-2"

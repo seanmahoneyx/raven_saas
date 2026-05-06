@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 const PAYMENT_TERMS = [
   { value: 'NET15', label: 'Net 15' },
@@ -84,29 +85,13 @@ export default function CreateVendor() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 animate-in">
-          <button
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
-            style={{ color: 'var(--so-text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Vendors
-          </button>
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Create New Vendor</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Add a new vendor/supplier to your system</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Create New Vendor"
+          description="Add a new vendor/supplier to your system"
+          breadcrumb={[{ label: 'Vendors', to: '/vendors' }, { label: 'New' }]}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* ── Company Info ── */}
@@ -115,7 +100,7 @@ export default function CreateVendor() {
               <span className="text-sm font-semibold">Company Information</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="code" className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor Code *</Label>
                   <Input

@@ -8,6 +8,7 @@ import { FolderTabs } from '@/components/ui/folder-tabs'
 import { useWarehouseLocations, useLots } from '@/api/warehouse'
 import type { WarehouseLocation, Lot } from '@/api/warehouse'
 import { format, isPast, parseISO } from 'date-fns'
+import { PageHeader } from '@/components/page'
 
 function toTitleCase(str: string): string {
   return str
@@ -189,19 +190,12 @@ export default function WarehouseLocations() {
 
   return (
     <div className="raven-page">
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16">
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
-              Warehouse Locations &amp; Lots
-            </h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              Manage storage locations and lot tracking
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Warehouse Locations & Lots"
+          description="Manage storage locations and lot tracking"
+        />
 
         {/* Tabs */}
         <div className="mb-5 animate-in delay-1">

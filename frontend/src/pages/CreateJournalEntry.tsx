@@ -17,6 +17,7 @@ import { useCreateJournalEntry } from '@/api/accounting'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader } from '@/components/page'
 
 interface LineForm {
   account: string
@@ -112,17 +113,12 @@ export default function CreateJournalEntry() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-7 animate-in">
-          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate('/journal-entries')}>
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>New Journal Entry</h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Create a manual journal entry</p>
-          </div>
-        </div>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
+        <PageHeader
+          title="New Journal Entry"
+          description="Create a manual journal entry"
+          breadcrumb={[{ label: 'Journal Entries', to: '/journal-entries' }, { label: 'New' }]}
+        />
 
         <div className="space-y-5">
           {/* Entry Details */}
@@ -131,7 +127,7 @@ export default function CreateJournalEntry() {
               <span className="text-sm font-semibold">Entry Details</span>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={labelStyle}>Date *</Label>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required style={inputStyle} />

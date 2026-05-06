@@ -14,6 +14,7 @@ import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } f
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
 
 const openStatuses: OrderStatus[] = ['draft', 'confirmed', 'scheduled', 'picking', 'shipped', 'crossdock']
 
@@ -241,36 +242,24 @@ export default function OpenSalesOrders() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1280px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1280px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-7 animate-in">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>Sales Orders</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className={primaryBtnClass} style={primaryBtnStyle} onClick={() => navigate('/orders/sales/new')}>
-              <Plus className="h-4 w-4" /> Create Sales Order
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setExportFilterOpen(true)} title="Export CSV">
-              <Download className="h-4 w-4" />
-            </button>
-            <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setPrintFilterOpen(true)} title="Print">
-              <Printer className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Sales Orders"
+          primary={{ label: 'Create Sales Order', icon: Plus, onClick: () => navigate('/orders/sales/new') }}
+          actions={[
+            { label: 'Export CSV', icon: Download, onClick: () => setExportFilterOpen(true) },
+            { label: 'Print', icon: Printer, onClick: () => setPrintFilterOpen(true) },
+          ]}
+        />
 
-        {/* KPI Summary */}
-        <div className="rounded-[14px] border overflow-hidden mb-5 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-          <div className="grid grid-cols-4">
+        <div className="mb-5 animate-in delay-1">
+          <KpiGrid columns={4}>
             {summaryKPIs.map((kpi, idx) => (
-              <div key={idx} className="px-5 py-4" style={{ borderRight: idx < 3 ? '1px solid var(--so-border-light)' : 'none' }}>
-                <div className="text-[11px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{kpi.label}</div>
-                <div className="text-xl font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>{kpi.value}</div>
-              </div>
+              <KpiCard key={idx} label={kpi.label} value={<span className="font-mono">{kpi.value}</span>} />
             ))}
-          </div>
+          </KpiGrid>
         </div>
 
         {/* Filters */}

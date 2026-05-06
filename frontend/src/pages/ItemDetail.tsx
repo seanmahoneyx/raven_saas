@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView, useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Save, X, Paperclip, Search, DollarSign, Star } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Paperclip, Search, DollarSign, Star } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import { useParties } from '@/api/parties'
 import { useCostLists, useCreateCostList } from '@/api/costLists'
 import type { SimilarItemEntry } from '@/api/items'
 import { ItemHistoryTab } from '@/components/items/ItemHistoryTab'
+import ItemFormShell from '@/components/items/ItemFormShell'
 import { ProductCardTab } from '@/components/items/ProductCardTab'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import type { ItemVendor } from '@/types/api'
@@ -110,52 +111,6 @@ export default function ItemDetail() {
       setActiveTab('product-card')
     }
   }, [searchParams])
-  const [formData, setFormData] = useState({
-    is_active: 'true',
-    name: '',
-    description: '',
-    division: 'corrugated',
-    purch_desc: '',
-    sell_desc: '',
-    item_type: 'inventory',
-    reorder_point: '',
-    min_stock: '',
-    safety_stock: '',
-    parent: '',
-    customer: '__none__',
-    base_uom: '',
-    units_per_layer: '',
-    units_per_pallet: '',
-    unit_height: '',
-    pallet_height: '',
-    pallet_footprint: '',
-  })
-
-  useEffect(() => {
-    if (isEditing && item) {
-      setFormData({
-        is_active: String(item.is_active),
-        name: item.name,
-        description: item.description || '',
-        division: item.division || 'corrugated',
-        purch_desc: item.purch_desc || '',
-        sell_desc: item.sell_desc || '',
-        item_type: item.item_type,
-        reorder_point: item.reorder_point !== null ? String(item.reorder_point) : '',
-        min_stock: item.min_stock !== null ? String(item.min_stock) : '',
-        safety_stock: item.safety_stock !== null ? String(item.safety_stock) : '',
-        parent: item.parent ? String(item.parent) : '',
-        customer: item.customer ? String(item.customer) : '__none__',
-        base_uom: String(item.base_uom),
-        units_per_layer: item.units_per_layer != null ? String(item.units_per_layer) : '',
-        units_per_pallet: item.units_per_pallet != null ? String(item.units_per_pallet) : '',
-        unit_height: item.unit_height || '',
-        pallet_height: item.pallet_height || '',
-        pallet_footprint: item.pallet_footprint || '',
-      })
-    }
-  }, [isEditing, item])
-
   const handleDuplicate = () => {
     if (!itemId) return
     duplicateItem.mutate(itemId, {
@@ -165,64 +120,10 @@ export default function ItemDetail() {
     })
   }
 
-  const handleSave = async () => {
-    if (!item) return
-    try {
-      await updateItem.mutateAsync({
-        id: item.id,
-        is_active: formData.is_active === 'true',
-        name: formData.name,
-        description: formData.description,
-        division: formData.division as any,
-        purch_desc: formData.purch_desc,
-        sell_desc: formData.sell_desc,
-        item_type: formData.item_type as any,
-        reorder_point: formData.reorder_point ? parseInt(formData.reorder_point, 10) : null,
-        min_stock: formData.min_stock ? parseInt(formData.min_stock, 10) : null,
-        safety_stock: formData.safety_stock ? parseInt(formData.safety_stock, 10) : null,
-        parent: formData.parent ? parseInt(formData.parent, 10) : null,
-        customer: formData.customer && formData.customer !== '__none__' ? parseInt(formData.customer, 10) : null,
-        base_uom: parseInt(formData.base_uom, 10),
-        units_per_layer: formData.units_per_layer ? parseInt(formData.units_per_layer, 10) : null,
-        units_per_pallet: formData.units_per_pallet ? parseInt(formData.units_per_pallet, 10) : null,
-        unit_height: formData.unit_height || null,
-        pallet_height: formData.pallet_height || null,
-        pallet_footprint: formData.pallet_footprint || '',
-      })
-      setIsEditing(false)
-    } catch (error) {
-      console.error('Failed to save item:', error)
-    }
-  }
-
-  const handleCancel = () => {
-    setIsEditing(false)
-    setFormData({
-      is_active: 'true',
-      name: '',
-      description: '',
-      division: 'corrugated',
-      purch_desc: '',
-      sell_desc: '',
-      item_type: 'inventory',
-      reorder_point: '',
-      min_stock: '',
-      safety_stock: '',
-      parent: '',
-      customer: '__none__',
-      base_uom: '',
-      units_per_layer: '',
-      units_per_pallet: '',
-      unit_height: '',
-      pallet_height: '',
-      pallet_footprint: '',
-    })
-  }
-
   if (isLoading) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
         </div>
       </div>
@@ -232,7 +133,7 @@ export default function ItemDetail() {
   if (!item) {
     return (
       <div className="raven-page" style={{ minHeight: '100vh' }}>
-        <div className="max-w-[1080px] mx-auto px-8 py-7">
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Item not found</div>
         </div>
       </div>
@@ -254,106 +155,19 @@ export default function ItemDetail() {
   /* -- Detail grid data ----------------------------------------- */
   const inputStyle = { borderColor: 'var(--so-border)', background: 'var(--so-surface)' }
 
-  const detailItems = isEditing
-    ? [
-        { label: 'Name', value: formData.name, empty: !formData.name, editable: true, editNode: (
-          <Input
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Item name"
-            className="h-9 text-sm border rounded-md px-2"
-            style={inputStyle}
-          />
-        )},
-        { label: 'Division', value: formData.division, empty: !formData.division, editable: true, editNode: (
-          <Select
-            value={formData.division}
-            onValueChange={(v) => setFormData({ ...formData, division: v })}
-          >
-            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="corrugated">Corrugated</SelectItem>
-              <SelectItem value="packaging">Packaging</SelectItem>
-              <SelectItem value="tooling">Tooling</SelectItem>
-              <SelectItem value="janitorial">Janitorial</SelectItem>
-              <SelectItem value="misc">Misc</SelectItem>
-            </SelectContent>
-          </Select>
-        )},
-        { label: 'Item Type', value: formData.item_type, empty: false, editable: true, editNode: (
-          <Select
-            value={formData.item_type}
-            onValueChange={(v) => setFormData({ ...formData, item_type: v })}
-          >
-            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inventory">Inventory</SelectItem>
-              <SelectItem value="crossdock">Crossdock</SelectItem>
-              <SelectItem value="non_stockable">Non-Stockable</SelectItem>
-              <SelectItem value="other_charge">Other Charge</SelectItem>
-            </SelectContent>
-          </Select>
-        )},
-        { label: 'Customer', value: formData.customer, empty: !formData.customer, editable: true, editNode: (
-          <Select
-            value={formData.customer}
-            onValueChange={(v) => setFormData({ ...formData, customer: v })}
-          >
-            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
-              <SelectValue placeholder="Stock Item" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Stock Item</SelectItem>
-              {customerList.map((c) => (
-                <SelectItem key={c.id} value={String(c.id)}>{c.display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )},
-        { label: 'Base UoM', value: formData.base_uom, empty: !formData.base_uom, editable: true, editNode: (
-          <Select
-            value={formData.base_uom}
-            onValueChange={(v) => setFormData({ ...formData, base_uom: v })}
-          >
-            <SelectTrigger className="h-9 text-sm border rounded-md" style={inputStyle}>
-              <SelectValue placeholder="Select UoM" />
-            </SelectTrigger>
-            <SelectContent>
-              {uomList.map((u: any) => (
-                <SelectItem key={u.id} value={String(u.id)}>{u.code} - {u.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )},
-        { label: 'Parent Item (ID)', value: formData.parent, empty: !formData.parent, editable: true, editNode: (
-          <Input
-            type="number"
-            value={formData.parent}
-            onChange={(e) => setFormData({ ...formData, parent: e.target.value })}
-            placeholder="Parent item ID"
-            min="1"
-            className="h-9 text-sm border rounded-md px-2"
-            style={inputStyle}
-          />
-        )},
-      ]
-    : [
-        { label: 'Name', value: item.name || '-', empty: !item.name },
-        { label: 'Division', value: item.division ? item.division.charAt(0).toUpperCase() + item.division.slice(1) : '-', empty: !item.division },
-        { label: 'Item Type', value: { inventory: 'Inventory', crossdock: 'Crossdock', non_stockable: 'Non-Stockable', other_charge: 'Other Charge' }[item.item_type] || item.item_type, empty: false },
-        { label: 'Customer', value: item.customer_name || 'Stock Item', empty: !item.customer },
-        { label: 'Base UoM', value: item.base_uom_code || '-', empty: !item.base_uom_code },
-        { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
-      ]
+  const detailItems = [
+    { label: 'Name', value: item.name || '-', empty: !item.name },
+    { label: 'Division', value: item.division ? item.division.charAt(0).toUpperCase() + item.division.slice(1) : '-', empty: !item.division },
+    { label: 'Item Type', value: { inventory: 'Inventory', crossdock: 'Crossdock', non_stockable: 'Non-Stockable', other_charge: 'Other Charge' }[item.item_type] || item.item_type, empty: false },
+    { label: 'Customer', value: item.customer_name || 'Stock Item', empty: !item.customer },
+    { label: 'Base UoM', value: item.base_uom_code || '-', empty: !item.base_uom_code },
+    { label: 'Parent Item', value: item.parent ? (item.parent_sku || `Item #${item.parent}`) : '-', empty: !item.parent, isParentLink: !!item.parent },
+  ]
 
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className="max-w-[1080px] mx-auto px-8 py-7 pb-16" data-print-hide>
+      <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16" data-print-hide>
 
         {/* -- Breadcrumb ---------------------------------------- */}
         <div className="flex items-center gap-2 mb-5 animate-in">
@@ -372,7 +186,7 @@ export default function ItemDetail() {
         </div>
 
         {/* -- Title row ----------------------------------------- */}
-        <div className="flex items-start justify-between gap-4 mb-7 animate-in delay-1">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-7 animate-in delay-1">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold font-mono" style={{ letterSpacing: '-0.03em' }}>{item.sku}</h1>
@@ -394,44 +208,15 @@ export default function ItemDetail() {
                   }}
                 />
               </button>
-              {isEditing ? (
-                <Select
-                  value={formData.is_active}
-                  onValueChange={(v) => setFormData({ ...formData, is_active: v })}
-                >
-                  <SelectTrigger
-                    className="h-8 text-sm border rounded-md w-[120px]"
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Active</SelectItem>
-                    <SelectItem value="false">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                getStatusBadge(statusKey)
-              )}
-              {!isEditing && getItemTypeBadge(item.item_type)}
+              {getStatusBadge(statusKey)}
+              {getItemTypeBadge(item.item_type)}
             </div>
             <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>{item.name}</div>
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            {isEditing ? (
-              <>
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleCancel}>
-                  <X className="h-3.5 w-3.5" />
-                  Cancel
-                </button>
-                <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSave} disabled={updateItem.isPending}>
-                  <Save className="h-3.5 w-3.5" />
-                  {updateItem.isPending ? 'Saving...' : 'Save'}
-                </button>
-              </>
-            ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            {!isEditing && (
               <>
                 <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setIsEditing(true)}>
                   <Pencil className="h-3.5 w-3.5" />
@@ -469,7 +254,7 @@ export default function ItemDetail() {
 
         {/* -- Lifecycle Banner ---------------------------------- */}
         {item.lifecycle_status && item.lifecycle_status !== 'active' && (
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-6 py-4 flex items-center justify-between"
+          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-3"
             style={{
               background: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.06)' : 'rgba(59,130,246,0.06)',
               borderColor: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
@@ -486,7 +271,7 @@ export default function ItemDetail() {
                 This item is not yet active and cannot be used in orders.
               </span>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
               {item.lifecycle_status === 'draft' && (
                 <>
                   {item.division === 'corrugated' && (
@@ -597,7 +382,7 @@ export default function ItemDetail() {
         )}
 
         {/* -- Tabs --------------------------------------------- */}
-        <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5"
+        <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5 overflow-x-auto"
              style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
           {tabs.map((tab) => (
             <button
@@ -617,7 +402,16 @@ export default function ItemDetail() {
         </div>
 
         {/* -- Details Tab Content ------------------------------- */}
-        {activeTab === 'details' && (
+        {activeTab === 'details' && isEditing && (
+          <ItemFormShell
+            mode="edit"
+            initialItem={item}
+            noPageChrome
+            onCancel={() => setIsEditing(false)}
+            onSuccess={() => setIsEditing(false)}
+          />
+        )}
+        {activeTab === 'details' && !isEditing && (
           <>
             {/* Item Details Card */}
             <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
@@ -627,22 +421,20 @@ export default function ItemDetail() {
               </div>
 
               {/* Detail grid: 4 columns */}
-              <div className="grid grid-cols-4">
+              <div className="grid grid-cols-2 md:grid-cols-4">
                 {detailItems.map((di, idx) => (
                   <div
                     key={idx}
                     className="px-5 py-4"
                     style={{
-                      borderRight: (idx + 1) % 4 !== 0 ? '1px solid var(--so-border-light)' : 'none',
-                      borderBottom: idx < 4 ? '1px solid var(--so-border-light)' : 'none',
+                      borderRight: '1px solid var(--so-border-light)',
+                      borderBottom: '1px solid var(--so-border-light)',
                     }}
                   >
                     <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                       {di.label}
                     </div>
-                    {'editable' in di && di.editable && 'editNode' in di ? (
-                      (di as { editNode: React.ReactNode }).editNode
-                    ) : 'isParentLink' in di && di.isParentLink ? (
+                    {'isParentLink' in di && di.isParentLink ? (
                       <button
                         onClick={() => navigate(`/items/${item.parent}`)}
                         className="text-sm font-medium transition-colors cursor-pointer"
@@ -701,73 +493,6 @@ export default function ItemDetail() {
               )}
 
               {/* Unitizing / Pallet fields (edit mode) */}
-              {isEditing && (
-                <div style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                  <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                    <span className="text-[13px] font-semibold tracking-wide uppercase" style={{ color: 'var(--so-text-secondary)' }}>Unitizing / Pallet</span>
-                  </div>
-                  <div className="grid grid-cols-5">
-                    {[
-                      { field: 'units_per_layer' as const, label: 'Units / Bundle' },
-                      { field: 'units_per_pallet' as const, label: 'Units / Pallet' },
-                      { field: 'unit_height' as const, label: 'Unit Height' },
-                      { field: 'pallet_height' as const, label: 'Pallet Height' },
-                      { field: 'pallet_footprint' as const, label: 'Pallet Footprint' },
-                    ].map((f, idx) => (
-                      <div key={f.field} className="px-5 py-4" style={{ borderRight: idx < 4 ? '1px solid var(--so-border-light)' : 'none' }}>
-                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>{f.label}</div>
-                        <Input
-                          value={formData[f.field]}
-                          onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
-                          placeholder="-"
-                          className="h-9 text-sm border rounded-md px-2"
-                          style={inputStyle}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Description fields (edit mode) */}
-              {isEditing && (
-                <>
-                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Description</Label>
-                    <Textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="General description..."
-                      rows={2}
-                      className="text-sm border rounded-md px-2"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Purchase Description</Label>
-                    <Textarea
-                      value={formData.purch_desc}
-                      onChange={(e) => setFormData({ ...formData, purch_desc: e.target.value })}
-                      placeholder="Description for purchase orders..."
-                      rows={2}
-                      className="text-sm border rounded-md px-2"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div className="px-5 py-4" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                    <Label className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5 block" style={{ color: 'var(--so-text-tertiary)' }}>Sales Description</Label>
-                    <Textarea
-                      value={formData.sell_desc}
-                      onChange={(e) => setFormData({ ...formData, sell_desc: e.target.value })}
-                      placeholder="Description for sales orders..."
-                      rows={2}
-                      className="text-sm border rounded-md px-2"
-                      style={inputStyle}
-                    />
-                  </div>
-                </>
-              )}
-
             </div>
 
             {/* Board Specifications (view only, corrugated) */}
@@ -776,7 +501,7 @@ export default function ItemDetail() {
                 <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                   <span className="text-sm font-semibold">Board Specifications</span>
                 </div>
-                <div className="grid grid-cols-4 gap-0">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
                   {[
                     { label: 'Box Type', value: item.box_type ? item.box_type.toUpperCase().replace(/^DC$/, 'D/C') : null },
                     { label: 'Test (ECT)', value: item.corrugated_details.test ? item.corrugated_details.test.toUpperCase() : null },
@@ -799,7 +524,7 @@ export default function ItemDetail() {
                   <span className="text-sm font-semibold">Dimensions</span>
                 </div>
                 {item.box_type === 'dc' ? (
-                  <div className="grid grid-cols-3 gap-0">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-0">
                     <div className="px-5 py-4" style={{ borderRight: '1px solid var(--so-border-light)' }}>
                       <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>Blank Size (L × W)</div>
                       <div className="text-sm font-medium font-mono" style={{ color: item.dimensions.blank_length ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)' }}>
@@ -824,7 +549,7 @@ export default function ItemDetail() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-0">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
                     {(() => {
                       const d = item.dimensions!
                       const fields: { label: string; value: string | number | null | undefined }[] = [
@@ -850,7 +575,7 @@ export default function ItemDetail() {
                 <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                   <span className="text-sm font-semibold">Print Information</span>
                 </div>
-                <div className="grid grid-cols-4 gap-0">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
                   {[
                     { label: 'Printed', value: 'Yes' },
                     { label: 'Panels Printed', value: item.corrugated_details.panels_printed != null ? String(item.corrugated_details.panels_printed) : null },
@@ -880,7 +605,7 @@ export default function ItemDetail() {
                 <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                   <span className="text-sm font-semibold">Packaging Specifications</span>
                 </div>
-                <div className="grid grid-cols-4 gap-0">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-0">
                   {Object.entries(item.packaging_details)
                     .filter(([, v]) => v != null && v !== '' && v !== false)
                     .map(([key, value], i) => (
@@ -903,7 +628,7 @@ export default function ItemDetail() {
                 <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                   <span className="text-sm font-semibold">Unitizing / Pallet</span>
                 </div>
-                <div className="grid grid-cols-5 gap-0">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-0">
                   {[
                     { label: 'Units / Bundle', value: item.units_per_layer != null ? String(item.units_per_layer) : null },
                     { label: 'Units / Pallet', value: item.units_per_pallet != null ? String(item.units_per_pallet) : null },
@@ -928,36 +653,7 @@ export default function ItemDetail() {
                   <span className="text-sm font-semibold">Reorder Settings</span>
                 </div>
 
-                {isEditing ? (
-                  <div className="grid grid-cols-3">
-                    {[
-                      { field: 'reorder_point' as const, label: 'Reorder Point', hint: 'Alert when on-hand reaches this level', value: formData.reorder_point },
-                      { field: 'min_stock' as const, label: 'Min Stock', hint: 'Minimum acceptable stock level', value: formData.min_stock },
-                      { field: 'safety_stock' as const, label: 'Safety Stock', hint: 'Buffer above min stock', value: formData.safety_stock },
-                    ].map((f, idx) => (
-                      <div
-                        key={f.field}
-                        className="px-5 py-4"
-                        style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
-                      >
-                        <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                          {f.label}
-                        </div>
-                        <Input
-                          type="number"
-                          value={f.value}
-                          onChange={(e) => setFormData({ ...formData, [f.field]: e.target.value })}
-                          placeholder={f.hint}
-                          min="0"
-                          className="h-9 text-sm border rounded-md px-2 mb-1.5"
-                          style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                        />
-                        <p className="text-[11.5px]" style={{ color: 'var(--so-text-tertiary)' }}>{f.hint}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3">
                     {[
                       { label: 'Reorder Point', value: item.reorder_point, hint: 'Alert when on-hand reaches this level' },
                       { label: 'Min Stock', value: item.min_stock, hint: 'Minimum acceptable stock level' },
@@ -966,7 +662,7 @@ export default function ItemDetail() {
                       <div
                         key={s.label}
                         className="px-5 py-4"
-                        style={{ borderRight: idx < 2 ? '1px solid var(--so-border-light)' : 'none' }}
+                        style={{ borderRight: '1px solid var(--so-border-light)' }}
                       >
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                           {s.label}
@@ -978,7 +674,6 @@ export default function ItemDetail() {
                       </div>
                     ))}
                   </div>
-                )}
               </div>
             )}
           </>
@@ -1103,7 +798,7 @@ export default function ItemDetail() {
                 {/* Quick Add Vendor */}
                 {addVendorOpen && (
                   <div className="rounded-lg border p-4 mb-4" style={{ borderColor: 'var(--so-border)', background: 'var(--so-bg)' }}>
-                    <div className="grid grid-cols-4 gap-3 mb-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Vendor *</div>
                         <Select value={addVendorForm.vendor} onValueChange={(v) => setAddVendorForm({ ...addVendorForm, vendor: v })}>
@@ -1197,7 +892,7 @@ export default function ItemDetail() {
                     <div className="text-sm font-medium mb-3" style={{ color: 'var(--so-text-primary)' }}>
                       Create a cost list for <span className="font-semibold">{costListPrompt.vendorName}</span>?
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Unit Cost *</div>
                         <Input
