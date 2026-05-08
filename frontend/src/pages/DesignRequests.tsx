@@ -36,6 +36,8 @@ import {
   useDeleteDesignRequest,
   useUpdateDesignRequest,
   usePromoteDesign,
+  useCheckoutDesign,
+  useReleaseDesign,
 } from '@/api/design'
 import { useUnitsOfMeasure } from '@/api/items'
 import { DesignRequestDialog } from '@/components/design/DesignRequestDialog'
@@ -44,9 +46,12 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { useAuth } from '@/hooks/useAuth'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+
+type DesignTab = 'pending' | 'my-work' | 'all'
 
 // Promote dialog sub-component
 function PromoteDialog({
@@ -130,7 +135,9 @@ function PromoteDialog({
 export default function DesignRequests() {
   usePageTitle('Design Requests')
   const navigate = useNavigate()
+  const { user } = useAuth()
 
+  const [activeTab, setActiveTab] = useState<DesignTab>('pending')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingRequest, setEditingRequest] = useState<DesignRequest | null>(null)
   const [promoteDialogOpen, setPromoteDialogOpen] = useState(false)
@@ -147,12 +154,23 @@ export default function DesignRequests() {
   const { data: requestsData, isLoading } = useDesignRequests()
   const deleteRequest = useDeleteDesignRequest()
   const updateRequest = useUpdateDesignRequest()
+  const checkoutDesign = useCheckoutDesign()
+  const releaseDesign = useReleaseDesign()
   const { data: settingsData } = useSettings()
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
 
   const designRequests = requestsData?.results ?? []
+
+  const pendingCount = useMemo(() => designRequests.filter(dr => dr.status === 'pending').length, [designRequests])
+  const myWorkCount = useMemo(() => designRequests.filter(dr => user?.id != null && dr.checked_out_by === user.id).length, [designRequests, user])
+
+  const tabs: { key: DesignTab; label: string; count: number }[] = [
+    { key: 'pending', label: 'Pending', count: pendingCount },
+    { key: 'my-work', label: 'My Work', count: myWorkCount },
+    { key: 'all', label: 'All', count: designRequests.length },
+  ]
 
   const customerOptions = useMemo(() => {
     const names = new Set(designRequests.map(dr => dr.customer_name).filter((n): n is string => Boolean(n)))
@@ -161,6 +179,10 @@ export default function DesignRequests() {
 
   const filteredDesignRequests = useMemo(() => {
     return designRequests.filter(dr => {
+      // Tab filter
+      if (activeTab === 'pending' && dr.status !== 'pending') return false
+      if (activeTab === 'my-work' && (user?.id == null || dr.checked_out_by !== user.id)) return false
+
       if (searchTerm && !(dr.ident || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
           !(dr.file_number || '').toLowerCase().includes(searchTerm.toLowerCase())) {
         return false
@@ -179,7 +201,7 @@ export default function DesignRequests() {
       }
       return true
     })
-  }, [designRequests, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
+  }, [designRequests, activeTab, user, searchTerm, selectedCustomer, selectedStatus, dateFrom, dateTo])
 
   const handleEditRequest = (dr: DesignRequest) => {
     setEditingRequest(dr)
@@ -215,6 +237,39 @@ export default function DesignRequests() {
         cell: ({ row }) => (
           <span className="font-medium font-mono" style={{ color: 'var(--so-text-primary)' }}>{row.getValue('file_number')}</span>
         ),
+      },
+      {
+        id: 'checkout_actions',
+        header: '',
+        cell: ({ row }) => {
+          const dr = row.original
+          const isCheckedOutByMe = user?.id != null && dr.checked_out_by === user.id
+          if (dr.status === 'pending' && !dr.checked_out_by) {
+            return (
+              <button
+                className={primaryBtnClass}
+                style={checkoutDesign.isPending ? { ...primaryBtnStyle, opacity: 0.6 } : primaryBtnStyle}
+                onClick={(e) => { e.stopPropagation(); checkoutDesign.mutate(dr.id) }}
+                disabled={checkoutDesign.isPending}
+              >
+                Check Out
+              </button>
+            )
+          }
+          if (isCheckedOutByMe) {
+            return (
+              <button
+                className={outlineBtnClass}
+                style={releaseDesign.isPending ? { ...outlineBtnStyle, opacity: 0.6 } : outlineBtnStyle}
+                onClick={(e) => { e.stopPropagation(); releaseDesign.mutate(dr.id) }}
+                disabled={releaseDesign.isPending}
+              >
+                Release
+              </button>
+            )
+          }
+          return null
+        },
       },
       {
         accessorKey: 'ident',
@@ -354,7 +409,7 @@ export default function DesignRequests() {
         },
       },
     ],
-    [deleteRequest, updateRequest]
+    [deleteRequest, updateRequest, checkoutDesign, releaseDesign, user]
   )
 
   const reportFilterConfig: ReportFilterConfig = {
@@ -447,6 +502,37 @@ export default function DesignRequests() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex flex-wrap items-center gap-1 mb-5 animate-in delay-1">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-all cursor-pointer"
+                style={
+                  isActive
+                    ? { background: 'var(--so-accent)', color: '#fff', border: '1px solid var(--so-accent)' }
+                    : { background: 'transparent', color: 'var(--so-text-secondary)', border: '1px solid var(--so-border)' }
+                }
+              >
+                {tab.label}
+                <span
+                  className="inline-flex items-center justify-center rounded-full text-[11px] font-semibold px-1.5 min-w-[20px] h-4"
+                  style={
+                    isActive
+                      ? { background: 'rgba(255,255,255,0.25)', color: '#fff' }
+                      : { background: 'var(--so-border-light)', color: 'var(--so-text-tertiary)' }
+                  }
+                >
+                  {tab.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
         {/* Filters */}
         <div className="mb-5 animate-in delay-2">
           <div className="py-3">
@@ -523,7 +609,9 @@ export default function DesignRequests() {
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <div className="flex items-center gap-2">
               <Palette className="h-4 w-4" style={{ color: 'var(--so-text-muted)' }} />
-              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>All Design Requests</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {activeTab === 'pending' ? 'Pending Design Requests' : activeTab === 'my-work' ? 'My Work' : 'All Design Requests'}
+            </span>
             </div>
             <span className="text-[12px]" style={{ color: 'var(--so-text-muted)' }}>
               {filteredDesignRequests.length} of {designRequests.length}

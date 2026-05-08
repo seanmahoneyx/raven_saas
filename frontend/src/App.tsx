@@ -27,13 +27,11 @@ import CreateVendor from '@/pages/CreateVendor'
 import DesignRequests from '@/pages/DesignRequests'
 import CreateDesignRequest from '@/pages/CreateDesignRequest'
 import DesignRequestDetail from '@/pages/DesignRequestDetail'
-import DesignWorkbench from '@/pages/DesignWorkbench'
 import ItemDetail from '@/pages/ItemDetail'
 import CustomerDetail from '@/pages/CustomerDetail'
 import VendorDetail from '@/pages/VendorDetail'
 import CreateItem from '@/pages/CreateItem'
 import RequestItem from '@/pages/RequestItem'
-import ItemSetupWorkbench from '@/pages/ItemSetupWorkbench'
 import ItemQuickReport from '@/pages/reports/ItemQuickReport'
 import ReportsDashboard from '@/pages/reports/ReportsDashboard'
 import CannedReport from '@/pages/reports/CannedReport'
@@ -174,7 +172,6 @@ function App() {
                 <Route path="/items" element={<Items />} />
                 <Route path="/items/new" element={<CreateItem />} />
                 <Route path="/items/request" element={<RequestItem />} />
-                <Route path="/items/workbench" element={<ItemSetupWorkbench />} />
                 <Route path="/items/:id" element={<ItemDetail />} />
                 <Route path="/product-cards" element={<ProductCards />} />
                 <Route path="/estimates" element={<Estimates />} />
@@ -220,7 +217,6 @@ function App() {
                 <Route path="/design-requests" element={<DesignRequests />} />
                 <Route path="/design-requests/new" element={<CreateDesignRequest />} />
                 <Route path="/design-requests/:id" element={<DesignRequestDetail />} />
-                <Route path="/design-workbench" element={<DesignWorkbench />} />
                 <Route path="/warehouse/scanner" element={<Scanner />} />
                 <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
                 <Route path="/warehouse/print-labels" element={<PrintLabels />} />

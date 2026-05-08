@@ -269,7 +269,6 @@ export default function TopNavbar() {
         { type: 'item', to: '/items', icon: Package, label: 'Item Center' },
         { type: 'separator' },
         { type: 'item', to: '/items/request', icon: Plus, label: 'New Item Request' },
-        { type: 'item', to: '/items/workbench', icon: ClipboardList, label: 'Item Setup' },
         { type: 'separator' },
         { type: 'item', to: '/inventory', icon: Boxes, label: 'Inventory' },
       ],
@@ -349,7 +348,6 @@ export default function TopNavbar() {
       label: 'Design',
       items: [
         { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Requests' },
-        { type: 'item', to: '/design-workbench', icon: Palette, label: 'Design Workbench' },
       ],
     },
   ]

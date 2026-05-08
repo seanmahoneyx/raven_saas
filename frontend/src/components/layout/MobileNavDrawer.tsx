@@ -98,7 +98,6 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     items: [
       { icon: Package, label: 'Item Center', to: '/items' },
       { icon: FileText, label: 'New Item Request', to: '/items/request' },
-      { icon: ClipboardList, label: 'Item Setup', to: '/items/workbench' },
       { icon: Boxes, label: 'Inventory', to: '/inventory' },
     ],
   },
@@ -156,7 +155,6 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     icon: Cog,
     items: [
       { icon: FileText, label: 'Design Requests', to: '/design-requests' },
-      { icon: Palette, label: 'Design Workbench', to: '/design-workbench' },
       { icon: CheckSquare, label: 'Approvals', to: '/approvals' },
     ],
   },
