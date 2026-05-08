@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useItem, useItemVendors, useDuplicateItem, useUpdateItem, useSimilarItems, useTransitionItem, useBumpRevision, useSetPreferredVendor, useUnitsOfMeasure, useCreateItemVendor } from '@/api/items'
+import { useItem, useItemVendors, useDuplicateItem, useSimilarItems, useTransitionItem, useBumpRevision, useSetPreferredVendor, useCreateItemVendor } from '@/api/items'
 import { useParties } from '@/api/parties'
 import { useCostLists, useCreateCostList } from '@/api/costLists'
 import type { SimilarItemEntry } from '@/api/items'
@@ -40,9 +40,6 @@ const ALL_LIFECYCLE_STATUSES: { value: string; label: string }[] = [
   { value: 'active', label: 'Active' },
 ]
 
-const LIFECYCLE_LABEL: Record<string, string> = Object.fromEntries(
-  ALL_LIFECYCLE_STATUSES.map((s) => [s.value, s.label])
-)
 
 interface LifecycleUser {
   is_superuser: boolean
@@ -102,14 +99,9 @@ export default function ItemDetail() {
   const { data: item, isLoading } = useItem(itemId)
   const { data: vendors } = useItemVendors(itemId)
   const { data: similarItems } = useSimilarItems(itemId)
-  const { data: uomData } = useUnitsOfMeasure()
-  const { data: customersData } = useParties({ party_type: 'CUSTOMER' })
   const { data: vendorPartiesData } = useParties({ party_type: 'VENDOR' })
-  const uomList = uomData?.results ?? []
-  const customerList = customersData?.results ?? []
   const vendorPartyList = vendorPartiesData?.results ?? []
   const duplicateItem = useDuplicateItem()
-  const updateItem = useUpdateItem()
   const transitionItem = useTransitionItem()
   const bumpRevision = useBumpRevision()
   const createItemVendor = useCreateItemVendor(itemId)
@@ -717,7 +709,7 @@ export default function ItemDetail() {
                       { label: 'Reorder Point', value: item.reorder_point, hint: 'Alert when on-hand reaches this level' },
                       { label: 'Min Stock', value: item.min_stock, hint: 'Minimum acceptable stock level' },
                       { label: 'Safety Stock', value: item.safety_stock, hint: 'Buffer above min stock' },
-                    ].map((s, idx) => (
+                    ].map((s) => (
                       <div
                         key={s.label}
                         className="px-5 py-4"

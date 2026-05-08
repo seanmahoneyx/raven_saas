@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, MapPin, UserPlus, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, MapPin, UserPlus, ChevronDown, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'

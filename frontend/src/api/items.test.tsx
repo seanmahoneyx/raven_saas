@@ -63,6 +63,7 @@ const mockItem: Item = {
   id: 1,
   sku: 'ITEM-001',
   name: 'Test Item',
+  secondary_ident: '',
   division: 'misc',
   revision: null,
   description: 'Test description',
@@ -85,6 +86,7 @@ const mockItem: Item = {
   reorder_point: null,
   min_stock: null,
   safety_stock: null,
+  extra_info_lines: [],
   created_at: '2025-01-01T00:00:00Z',
   updated_at: '2025-01-01T00:00:00Z',
 }

@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import { ArrowLeft } from 'lucide-react'
 import { useParties } from '@/api/parties'
 import { useCreateDesignRequest } from '@/api/design'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'

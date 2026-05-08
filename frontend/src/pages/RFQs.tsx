@@ -23,8 +23,7 @@ import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
-import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
+import { PageHeader } from '@/components/page'
 
 export default function RFQs() {
   usePageTitle('RFQs')
