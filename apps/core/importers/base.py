@@ -2,6 +2,9 @@ import csv
 import io
 from django.db import transaction
 
+MAX_CSV_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_CSV_ROWS = 50_000
+
 
 class BaseCsvImporter:
     """
@@ -22,16 +25,26 @@ class BaseCsvImporter:
         """
         Parse uploaded CSV file into list of dicts.
         Handles both InMemoryUploadedFile and regular file objects.
+
+        Raises:
+            ValueError: if the file is not valid UTF-8 or exceeds MAX_CSV_ROWS.
         """
         if hasattr(file, 'read'):
             content = file.read()
             if isinstance(content, bytes):
-                content = content.decode('utf-8-sig')
+                try:
+                    content = content.decode('utf-8-sig')
+                except (UnicodeDecodeError, ValueError):
+                    raise ValueError('File is not valid UTF-8 CSV.')
         else:
             content = file
 
         reader = csv.DictReader(io.StringIO(content))
-        rows = list(reader)
+        rows = []
+        for row in reader:
+            rows.append(row)
+            if len(rows) > MAX_CSV_ROWS:
+                raise ValueError('CSV exceeds 50000 row limit.')
         return rows, reader.fieldnames or []
 
     def check_columns(self, fieldnames):
@@ -77,7 +90,17 @@ class BaseCsvImporter:
                 'errors': [{'row': int, 'message': str}, ...],
             }
         """
-        rows, fieldnames = self.load_csv(file)
+        # load_csv raises ValueError for encoding errors or row-count exceeded
+        try:
+            rows, fieldnames = self.load_csv(file)
+        except ValueError as e:
+            return {
+                'total': 0,
+                'valid': 0,
+                'created': 0,
+                'updated': 0,
+                'errors': [{'row': 0, 'message': str(e)}],
+            }
 
         # Check required columns
         missing = self.check_columns(fieldnames)
@@ -95,41 +118,43 @@ class BaseCsvImporter:
         created_count = 0
         updated_count = 0
 
-        # Wrap entire commit in a transaction that can be rolled back for dry run
-        sid = transaction.savepoint()
-        try:
-            for i, row in enumerate(rows, start=2):  # Row 2 = first data row (1 = header)
-                # Strip whitespace from all values
-                row = {k: (v.strip() if v else '') for k, v in row.items()}
+        # Wrap entire operation in an atomic block so savepoint behaves
+        # correctly regardless of ATOMIC_REQUESTS setting (F5).
+        with transaction.atomic():
+            sid = transaction.savepoint()
+            try:
+                for i, row in enumerate(rows, start=2):  # Row 2 = first data row (1 = header)
+                    # Strip whitespace from all values
+                    row = {k: (v.strip() if v else '') for k, v in row.items()}
 
-                row_errors = self.validate_row(i, row)
-                if row_errors:
-                    for err in row_errors:
-                        errors.append({'row': i, 'message': err})
-                    continue
+                    row_errors = self.validate_row(i, row)
+                    if row_errors:
+                        for err in row_errors:
+                            errors.append({'row': i, 'message': err})
+                        continue
 
-                valid_count += 1
+                    valid_count += 1
 
+                    if commit and not errors:
+                        result = self.process_row(i, row)
+                        if result == 'created':
+                            created_count += 1
+                        elif result == 'updated':
+                            updated_count += 1
+
+                # Run post-processing hook (e.g., bulk JE creation)
                 if commit and not errors:
-                    result = self.process_row(i, row)
-                    if result == 'created':
-                        created_count += 1
-                    elif result == 'updated':
-                        updated_count += 1
+                    self.post_process()
 
-            # Run post-processing hook (e.g., bulk JE creation)
-            if commit and not errors:
-                self.post_process()
+                # If dry run OR there were errors, roll back
+                if not commit or errors:
+                    transaction.savepoint_rollback(sid)
+                else:
+                    transaction.savepoint_commit(sid)
 
-            # If dry run OR there were errors, roll back
-            if not commit or errors:
+            except Exception as e:
                 transaction.savepoint_rollback(sid)
-            else:
-                transaction.savepoint_commit(sid)
-
-        except Exception as e:
-            transaction.savepoint_rollback(sid)
-            errors.append({'row': 0, 'message': f"Unexpected error: {str(e)}"})
+                errors.append({'row': 0, 'message': f"Unexpected error: {str(e)}"})
 
         return {
             'total': len(rows),

@@ -6,6 +6,7 @@ from apps.items.models import Item, UnitOfMeasure
 from apps.warehousing.models import WarehouseLocation, Warehouse
 from apps.accounting.models import Account, JournalEntry, JournalEntryLine
 from .base import BaseCsvImporter
+from ._helpers import int_or_none
 
 
 VALID_LOCATION_TYPES = ['RECEIVING_DOCK', 'STORAGE', 'PICKING', 'PACKING', 'SHIPPING_DOCK', 'SCRAP']
@@ -103,6 +104,8 @@ class PartyImporter(BaseCsvImporter):
                 'display_name': row['Name'],
                 'party_type': row['Type'].upper(),
                 'legal_name': row.get('LegalName', ''),
+                'main_email': row.get('Email', ''),
+                'main_phone': row.get('Phone', ''),
                 'notes': row.get('Notes', ''),
                 'is_active': True,
             },
@@ -152,6 +155,17 @@ class ItemImporter(BaseCsvImporter):
         if division and division not in valid_divisions:
             errors.append(f"Row {row_num}: Invalid Division '{division}'. Must be one of: {', '.join(valid_divisions)}")
 
+        # Validate optional integer fields
+        for field in ('ReorderPoint', 'MinStock'):
+            val = row.get(field, '').strip()
+            if val:
+                try:
+                    parsed = int(val)
+                    if parsed < 0:
+                        errors.append(f"Row {row_num}: {field} must be a non-negative integer.")
+                except (ValueError, TypeError):
+                    errors.append(f"Row {row_num}: {field} '{val}' is not a valid integer.")
+
         return errors
 
     def process_row(self, row_num, row):
@@ -168,6 +182,9 @@ class ItemImporter(BaseCsvImporter):
                 'description': row.get('Description', ''),
                 'purch_desc': row.get('PurchDesc', ''),
                 'sell_desc': row.get('SellDesc', ''),
+                'secondary_ident': row.get('SecondaryIdent', ''),
+                'reorder_point': int_or_none(row.get('ReorderPoint')),
+                'min_stock': int_or_none(row.get('MinStock')),
                 'is_active': True,
                 'item_type': 'inventory',
             },

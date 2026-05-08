@@ -64,7 +64,9 @@ from .views.reporting import (
     IncomeStatementView,
     BalanceSheetView,
     ARAgingView,
+    ARAgingPDFView,
     APAgingView,
+    APAgingPDFView,
     CashFlowStatementView,
     ItemQuickReportView,
     ItemQuickReportPDFView,
@@ -74,6 +76,15 @@ from .views.reporting import (
     SalesCommissionView,
     ContractUtilizationView,
     VendorScorecardView,
+    TrialBalancePDFView,
+    IncomeStatementPDFView,
+    BalanceSheetPDFView,
+    CashFlowStatementPDFView,
+    GrossMarginPDFView,
+    ContractUtilizationPDFView,
+    VendorScorecardPDFView,
+    SalesCommissionPDFView,
+    OrdersVsInventoryPDFView,
 )
 from .views.dashboard import DashboardView
 from .views.pipeline import PipelineView
@@ -99,7 +110,12 @@ from .views.canned_reports import (
     SalesByCustomerView, SalesByItemView, BackorderReportView, OpenOrderDetailView,
     OpenPOReportView, VendorPerformanceView, PurchaseHistoryView,
     InventoryValuationView, StockStatusView, LowStockAlertView, DeadStockView,
-    SalesTaxLiabilityView, GrossMarginReportView,
+    SalesTaxLiabilityView, GrossMarginReportView, GrossMarginDetailPDFView,
+    OpenSalesOrdersPDFView, OpenPurchaseOrdersPDFView,
+    InventoryValuationPDFView, StockStatusPDFView,
+    SalesByCustomerPDFView, SalesByItemPDFView,
+    VendorPerformancePDFView, PurchaseHistoryPDFView, SalesTaxLiabilityPDFView,
+    BackorderReportPDFView, LowStockAlertPDFView, DeadStockPDFView,
 )
 from .views.health import health_check
 from .views.settings import TenantSettingsView
@@ -257,6 +273,7 @@ urlpatterns = [
     path('logistics/runs/<int:run_id>/manifest-pdf/', ManifestPDFView.as_view(), name='run-manifest-pdf'),
 
     # Admin Data Import
+    path('admin/import/<str:import_type>/template/', DataImportView.as_view(), name='data-import-template'),
     path('admin/import/<str:import_type>/', DataImportView.as_view(), name='data-import'),
 
     # Customer Payments - Open Invoices (must come before router.urls)
@@ -267,8 +284,14 @@ urlpatterns = [
     path('reports/income-statement/', IncomeStatementView.as_view(), name='income-statement'),
     path('reports/balance-sheet/', BalanceSheetView.as_view(), name='balance-sheet'),
     path('reports/ar-aging/', ARAgingView.as_view(), name='ar-aging'),
+    path('reports/ar-aging/pdf/', ARAgingPDFView.as_view(), name='ar-aging-pdf'),
     path('reports/ap-aging/', APAgingView.as_view(), name='ap-aging'),
+    path('reports/ap-aging/pdf/', APAgingPDFView.as_view(), name='ap-aging-pdf'),
     path('reports/cash-flow/', CashFlowStatementView.as_view(), name='cash-flow'),
+    path('reports/trial-balance/pdf/', TrialBalancePDFView.as_view(), name='trial-balance-pdf'),
+    path('reports/income-statement/pdf/', IncomeStatementPDFView.as_view(), name='income-statement-pdf'),
+    path('reports/balance-sheet/pdf/', BalanceSheetPDFView.as_view(), name='balance-sheet-pdf'),
+    path('reports/cash-flow/pdf/', CashFlowStatementPDFView.as_view(), name='cash-flow-pdf'),
 
     # Item QuickReport
     path('reports/item-quick-report/<int:item_id>/', ItemQuickReportView.as_view(), name='item-quick-report'),
@@ -284,6 +307,13 @@ urlpatterns = [
     # Contract & Vendor Reports
     path('reports/contract-utilization/', ContractUtilizationView.as_view(), name='contract-utilization'),
     path('reports/vendor-scorecard/', VendorScorecardView.as_view(), name='vendor-scorecard'),
+
+    # PDF endpoints for operational reports
+    path('reports/gross-margin/pdf/', GrossMarginPDFView.as_view(), name='gross-margin-pdf'),
+    path('reports/contract-utilization/pdf/', ContractUtilizationPDFView.as_view(), name='contract-utilization-pdf'),
+    path('reports/vendor-scorecard/pdf/', VendorScorecardPDFView.as_view(), name='vendor-scorecard-pdf'),
+    path('reports/sales-commission/pdf/', SalesCommissionPDFView.as_view(), name='sales-commission-pdf'),
+    path('reports/orders-vs-inventory/pdf/', OrdersVsInventoryPDFView.as_view(), name='orders-vs-inventory-pdf'),
 
     # Inventory reorder alerts
     path('inventory/reorder-alerts/', ReorderAlertsView.as_view(), name='reorder-alerts'),
@@ -330,7 +360,19 @@ urlpatterns = [
     path('reports/sales-by-item/', SalesByItemView.as_view(), name='report-sales-by-item'),
     path('reports/backorders/', BackorderReportView.as_view(), name='report-backorders'),
     path('reports/open-orders/', OpenOrderDetailView.as_view(), name='report-open-orders'),
+    path('reports/open-orders/pdf/', OpenSalesOrdersPDFView.as_view(), name='open-orders-pdf'),
     path('reports/open-pos/', OpenPOReportView.as_view(), name='report-open-pos'),
+    path('reports/open-pos/pdf/', OpenPurchaseOrdersPDFView.as_view(), name='open-pos-pdf'),
+    path('reports/inventory-valuation/pdf/', InventoryValuationPDFView.as_view(), name='inventory-valuation-pdf'),
+    path('reports/stock-status/pdf/', StockStatusPDFView.as_view(), name='stock-status-pdf'),
+    path('reports/sales-by-customer/pdf/', SalesByCustomerPDFView.as_view(), name='sales-by-customer-pdf'),
+    path('reports/sales-by-item/pdf/', SalesByItemPDFView.as_view(), name='sales-by-item-pdf'),
+    path('reports/vendor-performance/pdf/', VendorPerformancePDFView.as_view(), name='vendor-performance-pdf'),
+    path('reports/purchase-history/pdf/', PurchaseHistoryPDFView.as_view(), name='purchase-history-pdf'),
+    path('reports/sales-tax-liability/pdf/', SalesTaxLiabilityPDFView.as_view(), name='sales-tax-liability-pdf'),
+    path('reports/backorders/pdf/', BackorderReportPDFView.as_view(), name='backorders-pdf'),
+    path('reports/low-stock-alert/pdf/', LowStockAlertPDFView.as_view(), name='low-stock-alert-pdf'),
+    path('reports/dead-stock/pdf/', DeadStockPDFView.as_view(), name='dead-stock-pdf'),
     path('reports/vendor-performance/', VendorPerformanceView.as_view(), name='report-vendor-performance'),
     path('reports/purchase-history/', PurchaseHistoryView.as_view(), name='report-purchase-history'),
     path('reports/inventory-valuation/', InventoryValuationView.as_view(), name='report-inventory-valuation'),
@@ -339,6 +381,7 @@ urlpatterns = [
     path('reports/dead-stock/', DeadStockView.as_view(), name='report-dead-stock'),
     path('reports/sales-tax-liability/', SalesTaxLiabilityView.as_view(), name='report-sales-tax-liability'),
     path('reports/gross-margin-detail/', GrossMarginReportView.as_view(), name='report-gross-margin-detail'),
+    path('reports/gross-margin-detail/pdf/', GrossMarginDetailPDFView.as_view(), name='report-gross-margin-detail-pdf'),
 
     # Onboarding wizard
     path('onboarding/status/', OnboardingStatusView.as_view(), name='onboarding-status'),

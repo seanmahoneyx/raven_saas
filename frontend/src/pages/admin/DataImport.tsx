@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Upload, FileCheck, AlertTriangle, CheckCircle2, ArrowLeft, Loader2, FileSpreadsheet } from 'lucide-react'
+import { Upload, FileCheck, AlertTriangle, CheckCircle2, ArrowLeft, Loader2, FileSpreadsheet, Download } from 'lucide-react'
 
 interface ImportError {
   row: number
@@ -31,10 +31,14 @@ interface ImportReport {
 }
 
 const IMPORT_TYPES = [
-  { value: 'locations', label: 'Warehouse Locations', columns: 'Name, Barcode, Warehouse, Type (optional), Zone (optional)' },
-  { value: 'parties', label: 'Customers & Vendors', columns: 'Code, Name, Type, LegalName (opt), Email (opt), Phone (opt), Notes (opt)' },
-  { value: 'items', label: 'Items / Products', columns: 'MSPN, Name, UOM, Description (opt), Division (opt), PurchDesc (opt), SellDesc (opt)' },
-  { value: 'gl-opening-balances', label: 'GL Opening Balances', columns: 'AccountCode, Debit, Credit, Description (optional)' },
+  { value: 'warehouses', label: 'Warehouses', columns: 'Code, Name, IsDefault (opt), PalletCapacity (opt), Notes (opt)' },
+  { value: 'locations', label: 'Warehouse Locations (Bins/Zones)', columns: 'Name, Barcode, Warehouse, Type (opt), Zone (opt)' },
+  { value: 'customers', label: 'Customers', columns: 'Code, Name, PaymentTerms; opt: LegalName, Email, Phone, Notes, CustomerType, TaxCode, ResaleNumber, CreditLimit, ChargeFreight, Address1, Address2, City, State, PostalCode, Country' },
+  { value: 'vendors', label: 'Vendors', columns: 'Code, Name, PaymentTerms; opt: LegalName, Email, Phone, Notes, VendorType, TaxCode, TaxId, CreditLimit, ChargeFreight, Address1, Address2, City, State, PostalCode, Country' },
+  { value: 'parties', label: 'Parties (basic — combined customer/vendor)', columns: 'Code, Name, Type [CUSTOMER|VENDOR|BOTH|OTHER]; opt: LegalName, Email, Phone, Notes' },
+  { value: 'items', label: 'Items / Products', columns: 'SKU, Name, UOM; opt: Description, Division, PurchDesc, SellDesc, SecondaryIdent, ReorderPoint, MinStock' },
+  { value: 'inventory', label: 'Inventory Snapshot (Stock On Hand)', columns: 'SKU, WarehouseCode, OnHand' },
+  { value: 'gl-opening-balances', label: 'GL Opening Balances', columns: 'AccountCode, Debit, Credit; opt: Description' },
 ]
 
 export default function DataImport() {
@@ -113,6 +117,24 @@ export default function DataImport() {
     }
   }
 
+  const downloadTemplate = async () => {
+    if (!importType) return
+    try {
+      const res = await apiClient.get(`/admin/import/${importType}/template/`, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${importType}-template.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Template download failed', err)
+    }
+  }
+
   const reset = () => {
     setFile(null)
     setReport(null)
@@ -180,13 +202,25 @@ export default function DataImport() {
             </div>
           )}
 
-          <Button
-            onClick={() => setStep('upload')}
-            disabled={!importType}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Next: Upload File
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => setStep('upload')}
+              disabled={!importType}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Next: Upload File
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={downloadTemplate}
+              disabled={!importType}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Template
+            </Button>
+          </div>
         </div>
       )}
 
@@ -242,6 +276,16 @@ export default function DataImport() {
             >
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileCheck className="h-4 w-4 mr-2" />}
               Test Import (Dry Run)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={downloadTemplate}
+              disabled={!importType}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Template
             </Button>
           </div>
         </div>
