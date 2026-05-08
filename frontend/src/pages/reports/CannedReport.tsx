@@ -3,19 +3,42 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { apiClient } from '@/api/client'
+import { useCustomers } from '@/api/parties'
+import { useVendors } from '@/api/parties'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ArrowLeft } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import ReportViewer from '@/components/reports/ReportViewer'
 import type { ReportColumn } from '@/components/reports/ReportViewer'
 
+// Filter kinds supported by the per-slug filter bar
+type FilterKind = 'status_so' | 'status_po' | 'customer' | 'vendor' | 'start_date' | 'end_date'
+
 // Report column definitions
-const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns: ReportColumn[]; needsDates: boolean }> = {
+const REPORT_CONFIGS: Record<
+  string,
+  {
+    title: string
+    endpoint: string
+    columns: ReportColumn[]
+    needsDates: boolean
+    pdfEndpoint?: string
+    filters?: FilterKind[]
+  }
+> = {
   'sales-by-customer': {
     title: 'Sales by Customer',
     endpoint: '/reports/sales-by-customer/',
     needsDates: true,
+    pdfEndpoint: '/reports/sales-by-customer/pdf/',
     columns: [
       { key: 'customer_name', header: 'Customer' },
       { key: 'order_count', header: 'Orders', align: 'right', format: 'number' },
@@ -28,6 +51,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Sales by Item',
     endpoint: '/reports/sales-by-item/',
     needsDates: true,
+    pdfEndpoint: '/reports/sales-by-item/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -40,6 +64,8 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Open Order Detail',
     endpoint: '/reports/open-orders/',
     needsDates: false,
+    pdfEndpoint: '/reports/open-orders/pdf/',
+    filters: ['status_so', 'customer', 'start_date', 'end_date'],
     columns: [
       { key: 'order_number', header: 'Order #' },
       { key: 'customer_name', header: 'Customer' },
@@ -54,6 +80,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Backorder Report',
     endpoint: '/reports/backorders/',
     needsDates: false,
+    pdfEndpoint: '/reports/backorders/pdf/',
     columns: [
       { key: 'order_number', header: 'Order #' },
       { key: 'customer_name', header: 'Customer' },
@@ -68,6 +95,8 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Open PO Report',
     endpoint: '/reports/open-pos/',
     needsDates: false,
+    pdfEndpoint: '/reports/open-pos/pdf/',
+    filters: ['status_po', 'vendor', 'start_date', 'end_date'],
     columns: [
       { key: 'po_number', header: 'PO #' },
       { key: 'vendor_name', header: 'Vendor' },
@@ -82,6 +111,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Vendor Performance',
     endpoint: '/reports/vendor-performance/',
     needsDates: true,
+    pdfEndpoint: '/reports/vendor-performance/pdf/',
     columns: [
       { key: 'vendor_name', header: 'Vendor' },
       { key: 'total_orders', header: 'Total Orders', align: 'right', format: 'number', summable: true },
@@ -93,6 +123,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Purchase History',
     endpoint: '/reports/purchase-history/',
     needsDates: true,
+    pdfEndpoint: '/reports/purchase-history/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -105,6 +136,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Inventory Valuation',
     endpoint: '/reports/inventory-valuation/',
     needsDates: false,
+    pdfEndpoint: '/reports/inventory-valuation/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -117,6 +149,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Stock Status',
     endpoint: '/reports/stock-status/',
     needsDates: false,
+    pdfEndpoint: '/reports/stock-status/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -130,6 +163,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Low Stock Alerts',
     endpoint: '/reports/low-stock-alert/',
     needsDates: false,
+    pdfEndpoint: '/reports/low-stock-alert/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -142,6 +176,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Dead Stock',
     endpoint: '/reports/dead-stock/',
     needsDates: false,
+    pdfEndpoint: '/reports/dead-stock/pdf/',
     columns: [
       { key: 'item_sku', header: 'SKU' },
       { key: 'item_name', header: 'Item' },
@@ -154,6 +189,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     title: 'Sales Tax Liability',
     endpoint: '/reports/sales-tax-liability/',
     needsDates: true,
+    pdfEndpoint: '/reports/sales-tax-liability/pdf/',
     columns: [
       { key: 'zone_name', header: 'Tax Zone' },
       { key: 'taxable_amount', header: 'Taxable Amount', align: 'right', format: 'currency', summable: true },
@@ -164,6 +200,7 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
   'gross-margin-detail': {
     title: 'Gross Margin Detail',
     endpoint: '/reports/gross-margin-detail/',
+    pdfEndpoint: '/reports/gross-margin-detail/pdf/',
     needsDates: true,
     columns: [
       { key: 'item_sku', header: 'SKU' },
@@ -176,6 +213,19 @@ const REPORT_CONFIGS: Record<string, { title: string; endpoint: string; columns:
     ],
   },
 }
+
+const SO_STATUS_OPTIONS = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'picking', label: 'Picking' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'complete', label: 'Complete' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
+const PO_STATUS_OPTIONS = SO_STATUS_OPTIONS // same BaseOrder.STATUS_CHOICES
 
 function getDefaultDates() {
   const end = new Date()
@@ -196,24 +246,56 @@ export default function CannedReport() {
   const [startDate, setStartDate] = useState(defaults.start)
   const [endDate, setEndDate] = useState(defaults.end)
 
+  // Per-slug filter state (only consumed when config.filters includes the kind)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterPartyId, setFilterPartyId] = useState<number | null>(null)
+  const [filterPartySearch, setFilterPartySearch] = useState('')
+  const [filterStartDate, setFilterStartDate] = useState('')
+  const [filterEndDate, setFilterEndDate] = useState('')
+
+  // Party lists for open-orders / open-pos selectors
+  const isOpenOrders = slug === 'open-orders'
+  const isOpenPos = slug === 'open-pos'
+  const { data: customersData } = useCustomers(
+    isOpenOrders ? { search: filterPartySearch || undefined } : undefined
+  )
+  const { data: vendorsData } = useVendors(
+    isOpenPos ? { search: filterPartySearch || undefined } : undefined
+  )
+
   usePageTitle(config?.title || 'Report')
 
+  // Build params for the main query
   const params: Record<string, string> = {}
   if (config?.needsDates) {
     params.start_date = startDate
     params.end_date = endDate
   }
+  if (config?.filters) {
+    if (filterStatus) params.status = filterStatus
+    if (filterPartyId != null) {
+      if (isOpenOrders) params.customer = String(filterPartyId)
+      if (isOpenPos) params.vendor = String(filterPartyId)
+    }
+    if (filterStartDate) params.start_date = filterStartDate
+    if (filterEndDate) params.end_date = filterEndDate
+  }
 
   const { data, isLoading } = useQuery({
-    queryKey: ['canned-report', slug, startDate, endDate],
+    queryKey: ['canned-report', slug, params],
     queryFn: () => apiClient.get(config!.endpoint, { params }).then(r => r.data),
     enabled: !!config,
   })
 
   const handleExportCsv = () => {
     const csvParams = new URLSearchParams({ ...params, format: 'csv' })
-    // Use window.open to trigger CSV download
     window.open(`/api/v1${config!.endpoint}?${csvParams.toString()}`, '_blank')
+  }
+
+  const handleDownloadPdf = () => {
+    if (!config?.pdfEndpoint) return
+    const pdfParams = new URLSearchParams(params)
+    window.open(`/api/v1${config.pdfEndpoint}?${pdfParams.toString()}`, '_blank')
   }
 
   if (!config) {
@@ -227,6 +309,8 @@ export default function CannedReport() {
     )
   }
 
+  const hasSlugFilters = !!config.filters?.length
+
   return (
     <div className="p-4 md:p-8 space-y-4">
       <div className="flex items-center gap-4">
@@ -235,6 +319,7 @@ export default function CannedReport() {
         </Button>
       </div>
 
+      {/* Date range filter for reports that use needsDates */}
       {config.needsDates && (
         <div className="flex items-end gap-4">
           <div className="space-y-1">
@@ -248,12 +333,131 @@ export default function CannedReport() {
         </div>
       )}
 
+      {/* Per-slug filter bar for open-orders and open-pos */}
+      {hasSlugFilters && (
+        <div className="flex flex-wrap items-end gap-4">
+          {/* Status filter */}
+          {(config.filters!.includes('status_so') || config.filters!.includes('status_po')) && (
+            <div className="space-y-1">
+              <Label className="text-xs">Status</Label>
+              <Select
+                value={filterStatus || 'all'}
+                onValueChange={(v) => setFilterStatus(v === 'all' ? '' : v)}
+              >
+                <SelectTrigger className="w-44 h-8 text-xs">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {(config.filters!.includes('status_so') ? SO_STATUS_OPTIONS : PO_STATUS_OPTIONS).map(
+                    (opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Customer filter (open-orders) */}
+          {config.filters!.includes('customer') && (
+            <div className="space-y-1">
+              <Label className="text-xs">Customer</Label>
+              <Select
+                value={filterPartyId != null ? String(filterPartyId) : 'all'}
+                onValueChange={(v) => setFilterPartyId(v === 'all' ? null : Number(v))}
+              >
+                <SelectTrigger className="w-52 h-8 text-xs">
+                  <SelectValue placeholder="All Customers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 py-1">
+                    <Input
+                      placeholder="Search..."
+                      value={filterPartySearch}
+                      onChange={(e) => setFilterPartySearch(e.target.value)}
+                      className="h-7 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <SelectItem value="all">All Customers</SelectItem>
+                  {customersData?.results.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.party_display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Vendor filter (open-pos) */}
+          {config.filters!.includes('vendor') && (
+            <div className="space-y-1">
+              <Label className="text-xs">Vendor</Label>
+              <Select
+                value={filterPartyId != null ? String(filterPartyId) : 'all'}
+                onValueChange={(v) => setFilterPartyId(v === 'all' ? null : Number(v))}
+              >
+                <SelectTrigger className="w-52 h-8 text-xs">
+                  <SelectValue placeholder="All Vendors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 py-1">
+                    <Input
+                      placeholder="Search..."
+                      value={filterPartySearch}
+                      onChange={(e) => setFilterPartySearch(e.target.value)}
+                      className="h-7 text-xs"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <SelectItem value="all">All Vendors</SelectItem>
+                  {vendorsData?.results.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.party_display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Date range filters */}
+          {config.filters!.includes('start_date') && (
+            <div className="space-y-1">
+              <Label className="text-xs">From</Label>
+              <Input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-40 h-8"
+              />
+            </div>
+          )}
+          {config.filters!.includes('end_date') && (
+            <div className="space-y-1">
+              <Label className="text-xs">To</Label>
+              <Input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-40 h-8"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       <ReportViewer
         title={config.title}
         columns={config.columns}
         rows={data?.rows || []}
         isLoading={isLoading}
         onExportCsv={handleExportCsv}
+        onDownloadPdf={config.pdfEndpoint ? handleDownloadPdf : undefined}
       />
     </div>
   )

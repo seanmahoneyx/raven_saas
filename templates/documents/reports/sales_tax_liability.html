@@ -1,0 +1,38 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Sales Tax Liability{% endblock %}
+
+{% block report_subtitle %}{{ start_date|date:"M d, Y" }} &ndash; {{ end_date|date:"M d, Y" }} &middot; {{ row_count }} zones{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Tax Zone</th>
+            <th class="right">Taxable Amount</th>
+            <th class="right">Tax Collected</th>
+            <th class="right">Invoices</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.tax_zone_name }}</td>
+            <td class="right">${{ row.taxable_amount|floatformat:2 }}</td>
+            <td class="right">${{ row.tax_collected|floatformat:2 }}</td>
+            <td class="right">{{ row.invoice_count }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No tax collected in this period</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td class="bold">{{ row_count }} zone{{ row_count|pluralize }}</td>
+            <td class="right bold">${{ totals.taxable_amount|floatformat:2 }}</td>
+            <td class="right bold">${{ totals.tax_collected|floatformat:2 }}</td>
+            <td class="right bold">{{ totals.invoice_count }}</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

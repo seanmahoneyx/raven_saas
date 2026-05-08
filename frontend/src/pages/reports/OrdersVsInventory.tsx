@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
@@ -44,6 +44,10 @@ export default function OrdersVsInventory() {
 
   const items = data?.items ?? []
 
+  const handleDownloadPdf = () => {
+    window.open('/api/v1/reports/orders-vs-inventory/pdf/', '_blank')
+  }
+
   const handleExportCsv = () => {
     if (items.length === 0) return
     const headers = ['SKU', 'Item', 'Open SO', 'On Hand', 'Allocated', 'Available', 'On Order', 'Incoming PO', 'Projected', 'Shortage', 'Coverage %', 'Status']
@@ -78,6 +82,9 @@ export default function OrdersVsInventory() {
           </button>
           <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
             <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleDownloadPdf}>
+            <FileText className="h-3.5 w-3.5" /> Download PDF
           </button>
         </div>
       </div>

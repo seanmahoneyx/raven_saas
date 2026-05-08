@@ -667,6 +667,47 @@ from apps.accounting.models import (
 from apps.invoicing.models import Invoice
 
 
+def _make_aging_buckets(interval: int, through: int):
+    """Generate dynamic aging buckets.
+
+    Returns list[dict] with keys: key, label, lo, hi.
+    'lo' and 'hi' are days-overdue boundaries (inclusive).
+    'lo' for current is None (means <=0).
+    'hi' for over is None (means open-ended).
+    """
+    if interval < 1:
+        raise ValueError("interval must be >= 1")
+    if through < interval:
+        raise ValueError("through must be >= interval")
+    buckets = [{"key": "current", "label": "Current", "lo": None, "hi": 0}]
+    start = 1
+    n = 1
+    while start <= through:
+        end = min(start + interval - 1, through)
+        buckets.append({"key": f"b{n}", "label": f"{start}-{end}", "lo": start, "hi": end})
+        start = end + 1
+        n += 1
+    buckets.append({"key": "over", "label": f"Over {through}", "lo": through + 1, "hi": None})
+    return buckets
+
+
+def _assign_bucket(days_overdue: int, buckets: list) -> str:
+    """Return the bucket key for a given days_overdue value."""
+    for b in buckets:
+        if b["lo"] is None:
+            # current bucket: days_overdue <= 0
+            if days_overdue <= b["hi"]:
+                return b["key"]
+        elif b["hi"] is None:
+            # over bucket: days_overdue >= lo
+            if days_overdue >= b["lo"]:
+                return b["key"]
+        else:
+            if b["lo"] <= days_overdue <= b["hi"]:
+                return b["key"]
+    return buckets[-1]["key"]  # fallback to over
+
+
 class FinancialReportService:
     """
     Generates financial statements from GL data.
@@ -998,43 +1039,41 @@ class FinancialReportService:
     # ── A/R Aging ─────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_ar_aging(tenant, as_of_date):
+    def get_ar_aging(tenant, as_of_date, interval=30, through=90, customer_id=None):
         """
-        A/R Aging report.
+        A/R Aging report with configurable buckets and optional customer filter.
 
         Source: Invoice model (not GL).
         Filters: posted/sent/partial/overdue invoices with outstanding balance.
         Buckets by days past due_date.
 
-        Returns:
+        Returns new shape:
         {
             'as_of_date': str,
-            'customers': [
+            'interval': int,
+            'through': int,
+            'filters': {'customer': customer_id or None},
+            'buckets': [{'key': str, 'label': str}, ...],
+            'rows': [
                 {
-                    'customer_id': int,
-                    'customer_name': str,
-                    'current': Decimal,
-                    'days_1_30': Decimal,
-                    'days_31_60': Decimal,
-                    'days_61_90': Decimal,
-                    'days_over_90': Decimal,
-                    'total': Decimal,
-                    'invoices': [...],
+                    'party_id': int,
+                    'party_name': str,
+                    'amounts': [str, ...],   # parallel to buckets
+                    'total': str,
+                    'detail': [
+                        {'id': int, 'number': str, 'date': str, 'due_date': str,
+                         'balance': str, 'days_overdue': int, 'bucket_key': str}
+                    ],
                 },
                 ...
             ],
-            'totals': {
-                'current': Decimal,
-                'days_1_30': Decimal,
-                'days_31_60': Decimal,
-                'days_61_90': Decimal,
-                'days_over_90': Decimal,
-                'total': Decimal,
-            }
+            'totals': {'amounts': [str, ...], 'grand_total': str},
         }
         """
-        # Get all open invoices (posted, sent, partial, overdue)
-        open_invoices = (
+        buckets = _make_aging_buckets(interval, through)
+        bucket_keys = [b["key"] for b in buckets]
+
+        qs = (
             Invoice.objects
             .filter(
                 tenant=tenant,
@@ -1043,93 +1082,91 @@ class FinancialReportService:
             .select_related('customer__party')
             .order_by('customer__party__display_name', 'due_date')
         )
+        if customer_id is not None:
+            qs = qs.filter(customer_id=customer_id)
 
-        # Group by customer and bucket
-        customers = defaultdict(lambda: {
-            'customer_id': None,
-            'customer_name': '',
-            'current': Decimal('0.00'),
-            'days_1_30': Decimal('0.00'),
-            'days_31_60': Decimal('0.00'),
-            'days_61_90': Decimal('0.00'),
-            'days_over_90': Decimal('0.00'),
-            'total': Decimal('0.00'),
-            'invoices': [],
-        })
+        # Group by party
+        party_map = {}  # party_id -> {party_id, party_name, amounts: list, total, detail}
 
-        for inv in open_invoices:
+        for inv in qs:
             balance = inv.total_amount - inv.amount_paid
             if balance <= 0:
                 continue
 
-            cust_id = inv.customer_id
-            cust_name = inv.customer.party.display_name
-
+            pid = inv.customer_id
+            pname = inv.customer.party.display_name
             days_overdue = (as_of_date - inv.due_date).days
+            bucket_key = _assign_bucket(days_overdue, buckets)
 
-            # Determine bucket
-            if days_overdue <= 0:
-                bucket = 'current'
-            elif days_overdue <= 30:
-                bucket = 'days_1_30'
-            elif days_overdue <= 60:
-                bucket = 'days_31_60'
-            elif days_overdue <= 90:
-                bucket = 'days_61_90'
-            else:
-                bucket = 'days_over_90'
-
-            c = customers[cust_id]
-            c['customer_id'] = cust_id
-            c['customer_name'] = cust_name
-            c[bucket] += balance
-            c['total'] += balance
-            c['invoices'].append({
-                'invoice_id': inv.id,
-                'invoice_number': inv.invoice_number,
-                'invoice_date': str(inv.invoice_date),
+            if pid not in party_map:
+                party_map[pid] = {
+                    'party_id': pid,
+                    'party_name': pname,
+                    'amounts': [Decimal('0.00')] * len(buckets),
+                    'total': Decimal('0.00'),
+                    'detail': [],
+                }
+            row = party_map[pid]
+            idx = bucket_keys.index(bucket_key)
+            row['amounts'][idx] += balance
+            row['total'] += balance
+            row['detail'].append({
+                'id': inv.id,
+                'number': inv.invoice_number,
+                'date': str(inv.invoice_date),
                 'due_date': str(inv.due_date),
-                'total_amount': inv.total_amount,
-                'amount_paid': inv.amount_paid,
-                'balance': balance,
+                'balance': f"{balance:.2f}",
                 'days_overdue': max(days_overdue, 0),
-                'bucket': bucket,
+                'bucket_key': bucket_key,
             })
 
-        customer_list = sorted(customers.values(), key=lambda c: c['customer_name'])
+        rows = sorted(party_map.values(), key=lambda r: r['party_name'])
 
-        # Grand totals
-        totals = {
-            'current': sum(c['current'] for c in customer_list),
-            'days_1_30': sum(c['days_1_30'] for c in customer_list),
-            'days_31_60': sum(c['days_31_60'] for c in customer_list),
-            'days_61_90': sum(c['days_61_90'] for c in customer_list),
-            'days_over_90': sum(c['days_over_90'] for c in customer_list),
-            'total': sum(c['total'] for c in customer_list),
-        }
+        # Stringify amounts after accumulation
+        for row in rows:
+            row['amounts'] = [f"{a:.2f}" for a in row['amounts']]
+            row['total'] = f"{row['total']:.2f}"
+
+        # Column-wise totals
+        col_totals = [Decimal('0.00')] * len(buckets)
+        grand_total = Decimal('0.00')
+        for row in rows:
+            for i, amt_str in enumerate(row['amounts']):
+                col_totals[i] += Decimal(amt_str)
+            grand_total += Decimal(row['total'])
 
         return {
             'as_of_date': str(as_of_date),
-            'customers': customer_list,
-            'totals': totals,
+            'interval': interval,
+            'through': through,
+            'filters': {'customer': customer_id},
+            'buckets': [{'key': b['key'], 'label': b['label']} for b in buckets],
+            'rows': rows,
+            'totals': {
+                'amounts': [f"{t:.2f}" for t in col_totals],
+                'grand_total': f"{grand_total:.2f}",
+            },
         }
 
     # ── A/P Aging ─────────────────────────────────────────────────────────
 
     @staticmethod
-    def get_ap_aging(tenant, as_of_date):
+    def get_ap_aging(tenant, as_of_date, interval=30, through=90, vendor_id=None):
         """
-        A/P Aging report.
+        A/P Aging report with configurable buckets and optional vendor filter.
 
         Source: VendorBill model.
         Filters: posted/partial bills with outstanding balance.
         Buckets by days past due_date.
 
-        Returns same structure as AR aging but for vendors.
+        Returns same shape as get_ar_aging but with filters.vendor instead of filters.customer.
         """
         from apps.invoicing.models import VendorBill
 
-        open_bills = (
+        buckets = _make_aging_buckets(interval, through)
+        bucket_keys = [b["key"] for b in buckets]
+
+        qs = (
             VendorBill.objects
             .filter(
                 tenant=tenant,
@@ -1138,73 +1175,70 @@ class FinancialReportService:
             .select_related('vendor__party')
             .order_by('vendor__party__display_name', 'due_date')
         )
+        if vendor_id is not None:
+            qs = qs.filter(vendor_id=vendor_id)
 
-        vendors = defaultdict(lambda: {
-            'vendor_id': None,
-            'vendor_name': '',
-            'current': Decimal('0.00'),
-            'days_1_30': Decimal('0.00'),
-            'days_31_60': Decimal('0.00'),
-            'days_61_90': Decimal('0.00'),
-            'days_over_90': Decimal('0.00'),
-            'total': Decimal('0.00'),
-            'bills': [],
-        })
+        party_map = {}
 
-        for bill in open_bills:
+        for bill in qs:
             balance = bill.total_amount - bill.amount_paid
             if balance <= 0:
                 continue
 
-            vendor_id = bill.vendor_id
-            vendor_name = bill.vendor.party.display_name
-
+            pid = bill.vendor_id
+            pname = bill.vendor.party.display_name
             days_overdue = (as_of_date - bill.due_date).days
+            bucket_key = _assign_bucket(days_overdue, buckets)
 
-            if days_overdue <= 0:
-                bucket = 'current'
-            elif days_overdue <= 30:
-                bucket = 'days_1_30'
-            elif days_overdue <= 60:
-                bucket = 'days_31_60'
-            elif days_overdue <= 90:
-                bucket = 'days_61_90'
-            else:
-                bucket = 'days_over_90'
-
-            v = vendors[vendor_id]
-            v['vendor_id'] = vendor_id
-            v['vendor_name'] = vendor_name
-            v[bucket] += balance
-            v['total'] += balance
-            v['bills'].append({
-                'bill_id': bill.id,
-                'bill_number': bill.bill_number,
-                'vendor_invoice': bill.vendor_invoice_number,
-                'bill_date': str(bill.bill_date),
+            if pid not in party_map:
+                party_map[pid] = {
+                    'party_id': pid,
+                    'party_name': pname,
+                    'amounts': [Decimal('0.00')] * len(buckets),
+                    'total': Decimal('0.00'),
+                    'detail': [],
+                }
+            row = party_map[pid]
+            idx = bucket_keys.index(bucket_key)
+            row['amounts'][idx] += balance
+            row['total'] += balance
+            number = bill.bill_number
+            if bill.vendor_invoice_number:
+                number = f"{bill.bill_number} / {bill.vendor_invoice_number}"
+            row['detail'].append({
+                'id': bill.id,
+                'number': number,
+                'date': str(bill.bill_date),
                 'due_date': str(bill.due_date),
-                'total_amount': bill.total_amount,
-                'amount_paid': bill.amount_paid,
-                'balance': balance,
+                'balance': f"{balance:.2f}",
                 'days_overdue': max(days_overdue, 0),
-                'bucket': bucket,
+                'bucket_key': bucket_key,
             })
 
-        vendor_list = sorted(vendors.values(), key=lambda v: v['vendor_name'])
+        rows = sorted(party_map.values(), key=lambda r: r['party_name'])
 
-        totals = {
-            'current': sum(v['current'] for v in vendor_list),
-            'days_1_30': sum(v['days_1_30'] for v in vendor_list),
-            'days_31_60': sum(v['days_31_60'] for v in vendor_list),
-            'days_61_90': sum(v['days_61_90'] for v in vendor_list),
-            'days_over_90': sum(v['days_over_90'] for v in vendor_list),
-            'total': sum(v['total'] for v in vendor_list),
-        }
+        for row in rows:
+            row['amounts'] = [f"{a:.2f}" for a in row['amounts']]
+            row['total'] = f"{row['total']:.2f}"
+
+        col_totals = [Decimal('0.00')] * len(buckets)
+        grand_total = Decimal('0.00')
+        for row in rows:
+            for i, amt_str in enumerate(row['amounts']):
+                col_totals[i] += Decimal(amt_str)
+            grand_total += Decimal(row['total'])
 
         return {
             'as_of_date': str(as_of_date),
-            'vendors': vendor_list,
-            'totals': totals,
+            'interval': interval,
+            'through': through,
+            'filters': {'vendor': vendor_id},
+            'buckets': [{'key': b['key'], 'label': b['label']} for b in buckets],
+            'rows': rows,
+            'totals': {
+                'amounts': [f"{t:.2f}" for t in col_totals],
+                'grand_total': f"{grand_total:.2f}",
+            },
         }
 
     # ── Cash Flow Statement ───────────────────────────────────────────────
@@ -1757,7 +1791,6 @@ class FinancialReportService:
 
         vendors = Vendor.objects.filter(
             tenant=self.tenant,
-            is_active=True,
         ).select_related('party')
 
         results = []

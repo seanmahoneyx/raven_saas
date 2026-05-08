@@ -82,14 +82,32 @@ def backorder_report(tenant):
     } for line in rows]
 
 
-def open_order_detail(tenant):
-    """All active sales orders sorted by scheduled date."""
+def open_order_detail(tenant, status=None, customer_id=None, start_date=None, end_date=None):
+    """All active sales orders sorted by scheduled date.
+
+    Args:
+        tenant: Tenant instance.
+        status: Single status string (e.g. 'confirmed'). If None, defaults to
+                confirmed/scheduled/picking.
+        customer_id: Optional int to filter by a single customer.
+        start_date: Optional date to filter order_date >= start_date.
+        end_date: Optional date to filter order_date <= end_date.
+    """
     from apps.orders.models import SalesOrder
 
-    orders = SalesOrder.objects.filter(
-        tenant=tenant,
-        status__in=['confirmed', 'scheduled', 'picking'],
-    ).select_related(
+    qs = SalesOrder.objects.filter(tenant=tenant)
+    if status is not None:
+        qs = qs.filter(status=status)
+    else:
+        qs = qs.filter(status__in=['confirmed', 'scheduled', 'picking'])
+    if customer_id is not None:
+        qs = qs.filter(customer_id=customer_id)
+    if start_date is not None:
+        qs = qs.filter(order_date__gte=start_date)
+    if end_date is not None:
+        qs = qs.filter(order_date__lte=end_date)
+
+    orders = qs.select_related(
         'customer',
         'customer__party',
     ).prefetch_related('lines').order_by('scheduled_date', 'order_number')
@@ -107,14 +125,32 @@ def open_order_detail(tenant):
 
 # ==================== PURCHASING REPORTS ====================
 
-def open_po_report(tenant):
-    """List of all incoming stock sorted by expected_date."""
+def open_po_report(tenant, status=None, vendor_id=None, start_date=None, end_date=None):
+    """List of all incoming stock sorted by expected_date.
+
+    Args:
+        tenant: Tenant instance.
+        status: Single status string (e.g. 'confirmed'). If None, defaults to
+                confirmed/scheduled.
+        vendor_id: Optional int to filter by a single vendor.
+        start_date: Optional date to filter order_date >= start_date.
+        end_date: Optional date to filter order_date <= end_date.
+    """
     from apps.orders.models import PurchaseOrder
 
-    orders = PurchaseOrder.objects.filter(
-        tenant=tenant,
-        status__in=['confirmed', 'scheduled'],
-    ).select_related(
+    qs = PurchaseOrder.objects.filter(tenant=tenant)
+    if status is not None:
+        qs = qs.filter(status=status)
+    else:
+        qs = qs.filter(status__in=['confirmed', 'scheduled'])
+    if vendor_id is not None:
+        qs = qs.filter(vendor_id=vendor_id)
+    if start_date is not None:
+        qs = qs.filter(order_date__gte=start_date)
+    if end_date is not None:
+        qs = qs.filter(order_date__lte=end_date)
+
+    orders = qs.select_related(
         'vendor',
         'vendor__party',
     ).prefetch_related('lines').order_by('expected_date', 'po_number')
@@ -383,43 +419,83 @@ def sales_tax_liability(tenant, start_date, end_date):
 
 
 def gross_margin_report(tenant, start_date, end_date):
-    """Sales - COGS for the selected period."""
-    from apps.invoicing.models import Invoice, InvoiceLine
+    """Gross margin per item: revenue (qty*unit_price), avg cost from POs, margin, margin %.
+
+    Returns:
+        {
+            'rows': [
+                {'item_sku', 'item_name', 'qty_sold', 'revenue', 'cogs', 'gross_margin', 'margin_pct'},
+                ...
+            ],
+            'summary': {'total_sales', 'total_cogs', 'gross_margin', 'margin_pct'},
+        }
+    All numeric fields are decimal-strings.
+    """
+    from django.db.models import F, DecimalField
+    from django.db.models.functions import Coalesce
+    from apps.invoicing.models import InvoiceLine
     from apps.orders.models import PurchaseOrderLine
 
-    # Total sales
-    sales = Invoice.objects.filter(
-        tenant=tenant,
-        invoice_date__range=[start_date, end_date],
-        status__in=['posted', 'sent', 'partial', 'paid', 'overdue'],
-    ).aggregate(
-        total_sales=Coalesce(Sum('subtotal'), Decimal('0')),
-        total_tax=Coalesce(Sum('tax_amount'), Decimal('0')),
-    )
-
-    # Estimate COGS from invoice lines * avg purchase cost
-    line_items = InvoiceLine.objects.filter(
+    # Per-item aggregation of revenue and qty sold
+    line_items = list(InvoiceLine.objects.filter(
         invoice__tenant=tenant,
         invoice__invoice_date__range=[start_date, end_date],
         invoice__status__in=['posted', 'sent', 'partial', 'paid', 'overdue'],
-    ).values('item_id').annotate(
-        qty_sold=Sum('quantity'),
-    )
+    ).values(
+        'item_id',
+        item_sku=F('item__sku'),
+        item_name=F('item__name'),
+    ).annotate(
+        qty_sold=Coalesce(Sum('quantity'), Decimal('0'), output_field=DecimalField()),
+        revenue=Coalesce(
+            Sum(F('quantity') * F('unit_price')),
+            Decimal('0'),
+            output_field=DecimalField(),
+        ),
+    ).order_by('-revenue'))
 
+    # Bulk-fetch avg cost per item (avoids N+1)
+    item_ids = [li['item_id'] for li in line_items]
+    cost_map = {
+        c['item_id']: c['avg_cost']
+        for c in PurchaseOrderLine.objects.filter(
+            tenant=tenant, item_id__in=item_ids,
+        ).values('item_id').annotate(
+            avg_cost=Coalesce(Avg('unit_cost'), Decimal('0'), output_field=DecimalField())
+        )
+    }
+
+    rows = []
+    total_revenue = Decimal('0')
     total_cogs = Decimal('0')
     for li in line_items:
-        avg_cost = PurchaseOrderLine.objects.filter(
-            tenant=tenant, item_id=li['item_id'],
-        ).aggregate(avg=Coalesce(Avg('unit_cost'), Decimal('0')))['avg']
-        total_cogs += avg_cost * li['qty_sold']
+        avg_cost = cost_map.get(li['item_id'], Decimal('0'))
+        qty = li['qty_sold']
+        revenue = li['revenue']
+        cogs = avg_cost * qty
+        margin = revenue - cogs
+        margin_pct = (margin / revenue * 100) if revenue > 0 else Decimal('0')
+        total_revenue += revenue
+        total_cogs += cogs
+        rows.append({
+            'item_sku': li['item_sku'],
+            'item_name': li['item_name'],
+            'qty_sold': str(qty),
+            'revenue': str(revenue),
+            'cogs': str(cogs),
+            'gross_margin': str(margin),
+            'margin_pct': str(round(margin_pct, 2)),
+        })
 
-    total_sales = sales['total_sales']
-    margin = total_sales - total_cogs
-    margin_pct = (margin / total_sales * 100) if total_sales > 0 else Decimal('0')
+    total_margin = total_revenue - total_cogs
+    total_margin_pct = (total_margin / total_revenue * 100) if total_revenue > 0 else Decimal('0')
 
     return {
-        'total_sales': str(total_sales),
-        'total_cogs': str(total_cogs),
-        'gross_margin': str(margin),
-        'margin_pct': str(round(margin_pct, 2)),
+        'rows': rows,
+        'summary': {
+            'total_sales': str(total_revenue),
+            'total_cogs': str(total_cogs),
+            'gross_margin': str(total_margin),
+            'margin_pct': str(round(total_margin_pct, 2)),
+        },
     }

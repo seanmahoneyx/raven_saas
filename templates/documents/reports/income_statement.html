@@ -1,0 +1,129 @@
+{% extends "documents/reports/base_financial.html" %}
+
+{% block page_title %}Income Statement{% endblock %}
+{% block title %}Income Statement{% endblock %}
+
+{% block report_subtitle %}For period {{ start_date|date:"M d, Y" }} &ndash; {{ end_date|date:"M d, Y" }}{% endblock %}
+
+{% block report_content %}
+
+{# ── Revenue ── #}
+<div class="section-header">{{ sections.revenue.label }}</div>
+{% for acct in sections.revenue.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total {{ sections.revenue.label }}</td>
+        <td class="acct-amount">{{ sections.revenue.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{# ── Sales Returns & Allowances (Contra Revenue) ── #}
+{% if sections.contra_revenue.accounts %}
+<div class="section-header">{{ sections.contra_revenue.label }}</div>
+{% for acct in sections.contra_revenue.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">({{ acct.balance|floatformat:2 }})</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total {{ sections.contra_revenue.label }}</td>
+        <td class="acct-amount">({{ sections.contra_revenue.total|floatformat:2 }})</td>
+    </tr>
+</table>
+{% endif %}
+
+{# ── Net Revenue ── #}
+<table class="account-table section-total" style="margin-top: 6px;">
+    <tr>
+        <td class="acct-name" style="font-size: 10pt;">Net Revenue</td>
+        <td class="acct-amount" style="font-size: 10pt; border-top: 1px solid #333; padding-top: 4px;">{{ sections.net_revenue|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<tr class="group-spacer"></tr>
+
+{# ── Cost of Goods Sold ── #}
+<div class="section-header">{{ sections.cogs.label }}</div>
+{% for acct in sections.cogs.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total {{ sections.cogs.label }}</td>
+        <td class="acct-amount">{{ sections.cogs.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{# ── Gross Profit ── #}
+<table class="account-table grand-total" style="margin-top: 8px;">
+    <tr>
+        <td class="acct-name" style="color: #15803d;">Gross Profit</td>
+        <td class="acct-amount" style="color: #15803d;">{{ sections.gross_profit|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── Operating Expenses ── #}
+<div class="section-header">{{ sections.operating_expenses.label }}</div>
+{% for acct in sections.operating_expenses.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total {{ sections.operating_expenses.label }}</td>
+        <td class="acct-amount">{{ sections.operating_expenses.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{# ── Other Expenses ── #}
+{% if sections.other_expenses.accounts %}
+<div class="section-header">{{ sections.other_expenses.label }}</div>
+{% for acct in sections.other_expenses.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total {{ sections.other_expenses.label }}</td>
+        <td class="acct-amount">{{ sections.other_expenses.total|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endif %}
+
+<div class="group-spacer"></div>
+
+{# ── Net Income ── #}
+<table class="account-table grand-total">
+    <tr>
+        <td class="acct-name" style="font-size: 11pt;">Net Income</td>
+        <td class="acct-amount" style="font-size: 11pt;">{{ net_income|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{% endblock %}

@@ -18,6 +18,7 @@ interface ReportViewerProps {
   rows: Record<string, any>[]
   isLoading?: boolean
   onExportCsv?: () => void
+  onDownloadPdf?: () => void
 }
 
 function formatValue(value: any, format?: string): string {
@@ -34,7 +35,7 @@ function formatValue(value: any, format?: string): string {
   return String(value)
 }
 
-export default function ReportViewer({ title, columns, rows, isLoading, onExportCsv }: ReportViewerProps) {
+export default function ReportViewer({ title, columns, rows, isLoading, onExportCsv, onDownloadPdf }: ReportViewerProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [filter, setFilter] = useState('')
@@ -114,6 +115,11 @@ export default function ReportViewer({ title, columns, rows, isLoading, onExport
               onChange={(e) => setFilter(e.target.value)}
               className="w-48 h-8"
             />
+            {onDownloadPdf && (
+              <Button variant="outline" size="sm" className="gap-1" onClick={onDownloadPdf}>
+                <FileText className="h-4 w-4" /> Download PDF
+              </Button>
+            )}
             {onExportCsv && (
               <Button variant="outline" size="sm" className="gap-1" onClick={onExportCsv}>
                 <Download className="h-4 w-4" /> CSV

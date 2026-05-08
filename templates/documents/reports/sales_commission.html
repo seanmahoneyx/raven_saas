@@ -1,0 +1,115 @@
+{% extends "documents/reports/base_financial.html" %}
+
+{% block title %}Sales Commission Report{% endblock %}
+
+{% block report_subtitle %}
+    {% if date_from and date_to %}
+        {{ date_from }} &ndash; {{ date_to }}
+    {% elif date_from %}
+        From {{ date_from }}
+    {% elif date_to %}
+        Through {{ date_to }}
+    {% else %}
+        All time
+    {% endif %}
+    &middot; Rate: {{ commission_rate_pct|floatformat:1 }}%
+{% endblock %}
+
+{% block extra_styles %}
+.sc-summary {
+    width: 55%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 9.5pt;
+}
+.sc-summary td {
+    padding: 5px 10px;
+    border: 1px solid #d1d5db;
+}
+.sc-summary .val {
+    text-align: right;
+    font-weight: bold;
+    color: #1e3a8a;
+}
+.sc-rep-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin-top: 8px;
+}
+.sc-rep-table th {
+    background: #1e3a8a;
+    color: white;
+    padding: 5px 7px;
+    text-align: left;
+}
+.sc-rep-table th.r { text-align: right; }
+.sc-rep-table td {
+    padding: 4px 7px;
+    border-bottom: 1px solid #e5e7eb;
+}
+.sc-rep-table td.r { text-align: right; }
+.sc-rep-table tfoot td {
+    font-weight: bold;
+    border-top: 2px solid #1e3a8a;
+    padding: 5px 7px;
+}
+{% endblock %}
+
+{% block report_content %}
+
+<div class="section-header">Summary</div>
+<table class="sc-summary">
+    <tr>
+        <td>Total Invoiced</td>
+        <td class="val">${{ summary.total_invoiced|floatformat:2 }}</td>
+    </tr>
+    <tr>
+        <td>Total Paid</td>
+        <td class="val">${{ summary.total_paid|floatformat:2 }}</td>
+    </tr>
+    <tr>
+        <td>Total Commission</td>
+        <td class="val">${{ summary.total_commission|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="section-header" style="margin-top:16px;">By Sales Rep &mdash; {{ by_rep|length }} rep{{ by_rep|length|pluralize }}</div>
+<table class="sc-rep-table">
+    <thead>
+        <tr>
+            <th style="width:22%;">Rep</th>
+            <th class="r" style="width:10%;">Invoices</th>
+            <th class="r" style="width:18%;">Total Invoiced</th>
+            <th class="r" style="width:18%;">Total Paid</th>
+            <th class="r" style="width:14%;">Comm. Rate</th>
+            <th class="r" style="width:18%;">Comm. Earned</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in by_rep %}
+        <tr>
+            <td class="bold">{{ row.rep_name }}</td>
+            <td class="r">{{ row.invoice_count }}</td>
+            <td class="r">${{ row.total_invoiced|floatformat:2 }}</td>
+            <td class="r">${{ row.total_paid|floatformat:2 }}</td>
+            <td class="r">{{ row.commission_rate_pct|floatformat:1 }}%</td>
+            <td class="r">${{ row.commission_earned|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:14px;color:#999;">No data</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td>{{ by_rep|length }} rep{{ by_rep|length|pluralize }}</td>
+            <td class="r">{{ totals.invoice_count }}</td>
+            <td class="r">${{ summary.total_invoiced|floatformat:2 }}</td>
+            <td class="r">${{ summary.total_paid|floatformat:2 }}</td>
+            <td></td>
+            <td class="r">${{ summary.total_commission|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Stock Status Report{% endblock %}
+
+{% block report_subtitle %}As of {{ as_of_date|date:"M d, Y" }} &middot; {{ row_count }} items{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>SKU</th>
+            <th>Item</th>
+            <th class="right">On Hand</th>
+            <th class="right">Reserved</th>
+            <th class="right">Available</th>
+            <th class="right">On Order</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.item_sku }}</td>
+            <td>{{ row.item_name }}</td>
+            <td class="right">{{ row.qty_on_hand }}</td>
+            <td class="right">{{ row.qty_reserved }}</td>
+            <td class="right">{{ row.qty_available }}</td>
+            <td class="right">{{ row.qty_on_order }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align: center; padding: 20px; color: #999;">No stock on hand</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

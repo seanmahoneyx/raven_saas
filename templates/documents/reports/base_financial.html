@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{% block page_title %}Financial Report{% endblock %}</title>
+    <style>
+        @page {
+            size: letter portrait;
+            margin: 0.5in;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #222;
+            line-height: 1.5;
+        }
+
+        /* Header — table-based for xhtml2pdf compatibility */
+        .report-header {
+            width: 100%;
+            border-bottom: 2px solid #1e40af;
+            padding-bottom: 10px;
+            margin-bottom: 18px;
+        }
+        .report-header table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .report-header td {
+            vertical-align: top;
+            padding: 0;
+        }
+        .company-name {
+            font-size: 15pt;
+            font-weight: bold;
+            color: #1e3a8a;
+            margin-bottom: 3px;
+        }
+        .company-details {
+            font-size: 8pt;
+            color: #555;
+            line-height: 1.5;
+        }
+        .report-title-block {
+            text-align: right;
+        }
+        .report-type {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #1e3a8a;
+            text-transform: uppercase;
+        }
+        .report-subtitle {
+            font-size: 9pt;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        /* Main content area */
+        .statement-body {
+            width: 100%;
+        }
+
+        /* Account rows use a 2-column table: 70% name, 30% amount */
+        .account-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2px;
+        }
+        .account-table td {
+            padding: 2px 4px;
+            vertical-align: top;
+        }
+        .account-table td.acct-name {
+            width: 70%;
+        }
+        .account-table td.acct-amount {
+            width: 30%;
+            text-align: right;
+        }
+
+        /* Section header — uppercase label with bottom border */
+        .section-header {
+            font-size: 9pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #1e3a8a;
+            border-bottom: 1px solid #1e3a8a;
+            padding: 6px 4px 3px 4px;
+            margin-top: 12px;
+            margin-bottom: 4px;
+        }
+
+        /* Individual account row */
+        .account-row {
+            font-size: 9.5pt;
+            color: #333;
+        }
+        .account-row .acct-name {
+            padding-left: 16px;
+        }
+
+        /* Subtotal row — bold, single underline above amount */
+        .section-total {
+            font-weight: bold;
+            font-size: 9.5pt;
+            border-top: 1px solid #333;
+            margin-top: 2px;
+        }
+        .section-total td {
+            padding-top: 4px;
+            padding-bottom: 4px;
+        }
+
+        /* Single underline utility (applied to .acct-amount cell) */
+        .subtotal-line td.acct-amount {
+            border-top: 1px solid #333;
+        }
+
+        /* Grand total — double underline, bold, slightly larger */
+        .grand-total {
+            font-weight: bold;
+            font-size: 10.5pt;
+            margin-top: 4px;
+        }
+        .grand-total td.acct-amount {
+            border-top: 3px double #333;
+            padding-top: 4px;
+        }
+
+        /* Spacer between major groups */
+        .group-spacer {
+            height: 10px;
+        }
+
+        /* Fixed footer */
+        .report-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 7pt;
+            color: #999;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 4px;
+        }
+
+        {% block extra_styles %}{% endblock %}
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="report-header">
+        <table>
+            <tr>
+                <td style="width: 55%;">
+                    <div class="company-name">{{ company.name }}</div>
+                    <div class="company-details">
+                        {% if company.address_line1 %}{{ company.address_line1 }}{% if company.address_line2 %}, {{ company.address_line2 }}{% endif %}<br>{% endif %}
+                        {% if company.city %}{{ company.city }}, {{ company.state }} {{ company.postal_code }}<br>{% endif %}
+                        {% if company.phone %}Tel: {{ company.phone }}{% endif %}
+                        {% if company.email %} | {{ company.email }}{% endif %}
+                    </div>
+                </td>
+                <td style="width: 45%;">
+                    <div class="report-title-block">
+                        <div class="report-type">{% block title %}Financial Report{% endblock %}</div>
+                        <div class="report-subtitle">{% block report_subtitle %}{% endblock %}</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Body -->
+    <div class="statement-body">
+        {% block report_content %}{% endblock %}
+    </div>
+
+    <!-- Footer -->
+    <div class="report-footer">
+        {{ company.name }} &nbsp;|&nbsp; Generated {{ "now"|date:"M d, Y g:i A" }} &nbsp;|&nbsp; Page <pdf:pagenumber> of <pdf:pagecount>
+    </div>
+</body>
+</html>

@@ -651,3 +651,938 @@ class PDFService:
         }
 
         return cls.render_to_pdf('documents/item_quick_report.html', context)
+
+    @classmethod
+    def render_ar_aging(cls, tenant, as_of_date, interval=30, through=90, customer_id=None):
+        """
+        Generate a PDF for the A/R Aging Report.
+
+        Args:
+            tenant: Tenant model instance
+            as_of_date: datetime.date for the as-of date
+            interval: Bucket width in days (default 30)
+            through: Max days before Over bucket (default 90)
+            customer_id: Optional int to filter by a single customer
+
+        Returns:
+            bytes: PDF file content
+        """
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        report_data = FinancialReportService.get_ar_aging(
+            tenant, as_of_date, interval=interval, through=through, customer_id=customer_id,
+        )
+
+        customer_name = None
+        if customer_id is not None:
+            from apps.parties.models import Customer
+            try:
+                customer_name = Customer.objects.select_related('party').get(
+                    tenant=tenant, id=customer_id,
+                ).party.display_name
+            except Customer.DoesNotExist:
+                pass
+
+        buckets = report_data['buckets']
+        rows = report_data['rows']
+        totals = report_data['totals']
+
+        # Pre-zip bucket+amount pairs for template iteration (no index access needed)
+        for row in rows:
+            row['bucket_amounts'] = list(zip(buckets, row['amounts']))
+        totals['bucket_amounts'] = list(zip(buckets, totals['amounts']))
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': report_data['as_of_date'],
+            'interval': report_data['interval'],
+            'through': report_data['through'],
+            'filters': report_data['filters'],
+            'buckets': buckets,
+            'rows': rows,
+            'totals': totals,
+            'include_detail': len(rows) <= 50,
+            'customer_name': customer_name,
+        }
+
+        return cls.render_to_pdf('documents/reports/ar_aging.html', context)
+
+    @classmethod
+    def render_ap_aging(cls, tenant, as_of_date, interval=30, through=90, vendor_id=None):
+        """
+        Generate a PDF for the A/P Aging Report.
+
+        Args:
+            tenant: Tenant model instance
+            as_of_date: datetime.date for the as-of date
+            interval: Bucket width in days (default 30)
+            through: Max days before Over bucket (default 90)
+            vendor_id: Optional int to filter by a single vendor
+
+        Returns:
+            bytes: PDF file content
+        """
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        report_data = FinancialReportService.get_ap_aging(
+            tenant, as_of_date, interval=interval, through=through, vendor_id=vendor_id,
+        )
+
+        vendor_name = None
+        if vendor_id is not None:
+            from apps.parties.models import Vendor
+            try:
+                vendor_name = Vendor.objects.select_related('party').get(
+                    tenant=tenant, id=vendor_id,
+                ).party.display_name
+            except Vendor.DoesNotExist:
+                pass
+
+        buckets = report_data['buckets']
+        rows = report_data['rows']
+        totals = report_data['totals']
+
+        for row in rows:
+            row['bucket_amounts'] = list(zip(buckets, row['amounts']))
+        totals['bucket_amounts'] = list(zip(buckets, totals['amounts']))
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': report_data['as_of_date'],
+            'interval': report_data['interval'],
+            'through': report_data['through'],
+            'filters': report_data['filters'],
+            'buckets': buckets,
+            'rows': rows,
+            'totals': totals,
+            'include_detail': len(rows) <= 50,
+            'vendor_name': vendor_name,
+        }
+
+        return cls.render_to_pdf('documents/reports/ap_aging.html', context)
+
+    @classmethod
+    def render_open_sales_orders(cls, tenant, status=None, customer_id=None,
+                                  start_date=None, end_date=None):
+        """
+        Generate a PDF for the Open Sales Orders report.
+
+        Args:
+            tenant: Tenant model instance
+            status: Optional status filter string
+            customer_id: Optional int to filter by a single customer
+            start_date: Optional order_date lower bound
+            end_date: Optional order_date upper bound
+
+        Returns:
+            bytes: PDF file content
+        """
+        from datetime import date as date_cls
+        from apps.reporting.queries import open_order_detail
+
+        tenant_settings = tenant.settings
+        rows = open_order_detail(
+            tenant, status=status, customer_id=customer_id,
+            start_date=start_date, end_date=end_date,
+        )
+        total_subtotal = sum(float(r.get('subtotal') or 0) for r in rows)
+
+        applied_filters = {}
+        if status:
+            applied_filters['Status'] = status
+        if customer_id is not None:
+            from apps.customers.models import Customer
+            try:
+                cname = Customer.objects.select_related('party').get(
+                    tenant=tenant, id=customer_id,
+                ).party.display_name
+                applied_filters['Customer'] = cname
+            except Customer.DoesNotExist:
+                applied_filters['Customer'] = str(customer_id)
+        if start_date:
+            applied_filters['From'] = str(start_date)
+        if end_date:
+            applied_filters['To'] = str(end_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'rows': rows,
+            'total_count': len(rows),
+            'total_subtotal': total_subtotal,
+            'generated_date': date_cls.today(),
+            'applied_filters': applied_filters,
+        }
+
+        return cls.render_to_pdf('documents/reports/open_sales_orders.html', context)
+
+    @classmethod
+    def render_open_purchase_orders(cls, tenant, status=None, vendor_id=None,
+                                     start_date=None, end_date=None):
+        """
+        Generate a PDF for the Open Purchase Orders report.
+
+        Args:
+            tenant: Tenant model instance
+            status: Optional status filter string
+            vendor_id: Optional int to filter by a single vendor
+            start_date: Optional order_date lower bound
+            end_date: Optional order_date upper bound
+
+        Returns:
+            bytes: PDF file content
+        """
+        from datetime import date as date_cls
+        from apps.reporting.queries import open_po_report
+
+        tenant_settings = tenant.settings
+        rows = open_po_report(
+            tenant, status=status, vendor_id=vendor_id,
+            start_date=start_date, end_date=end_date,
+        )
+        total_subtotal = sum(float(r.get('subtotal') or 0) for r in rows)
+
+        applied_filters = {}
+        if status:
+            applied_filters['Status'] = status
+        if vendor_id is not None:
+            from apps.parties.models import Vendor
+            try:
+                vname = Vendor.objects.select_related('party').get(
+                    tenant=tenant, id=vendor_id,
+                ).party.display_name
+                applied_filters['Vendor'] = vname
+            except Vendor.DoesNotExist:
+                applied_filters['Vendor'] = str(vendor_id)
+        if start_date:
+            applied_filters['From'] = str(start_date)
+        if end_date:
+            applied_filters['To'] = str(end_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'rows': rows,
+            'total_count': len(rows),
+            'total_subtotal': total_subtotal,
+            'generated_date': date_cls.today(),
+            'applied_filters': applied_filters,
+        }
+
+        return cls.render_to_pdf('documents/reports/open_purchase_orders.html', context)
+
+    @classmethod
+    def render_inventory_valuation(cls, tenant):
+        """
+        Generate a PDF for the Inventory Valuation report.
+
+        Args:
+            tenant: Tenant model instance
+
+        Returns:
+            bytes: PDF file content
+        """
+        from datetime import date as date_cls
+        from apps.reporting.queries import inventory_valuation
+
+        tenant_settings = tenant.settings
+        data = inventory_valuation(tenant)  # {'rows': [...], 'grand_total': '...'}
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': date_cls.today(),
+            'rows': data['rows'],
+            'row_count': len(data['rows']),
+            'grand_total': data['grand_total'],
+        }
+
+        return cls.render_to_pdf('documents/reports/inventory_valuation.html', context)
+
+    @classmethod
+    def render_stock_status(cls, tenant):
+        """
+        Generate a PDF for the Stock Status report.
+
+        Args:
+            tenant: Tenant model instance
+
+        Returns:
+            bytes: PDF file content
+        """
+        from datetime import date as date_cls
+        from apps.reporting.queries import stock_status
+
+        tenant_settings = tenant.settings
+        rows = stock_status(tenant)  # plain list of dicts
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': date_cls.today(),
+            'rows': rows,
+            'row_count': len(rows),
+        }
+
+        return cls.render_to_pdf('documents/reports/stock_status.html', context)
+
+    @classmethod
+    def render_sales_by_customer(cls, tenant, start_date, end_date):
+        """
+        Generate a PDF for the Sales by Customer report.
+
+        Args:
+            tenant: Tenant model instance
+            start_date: datetime.date period start
+            end_date: datetime.date period end
+
+        Returns:
+            bytes: PDF file content
+        """
+        from decimal import Decimal
+        from apps.reporting.queries import sales_by_customer
+
+        tenant_settings = tenant.settings
+        rows = sales_by_customer(tenant, start_date, end_date)  # list of dicts with Decimal fields
+
+        total_orders = sum(r['order_count'] for r in rows)
+        total_sales = sum(Decimal(str(r['total_sales'] or 0)) for r in rows)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': rows,
+            'row_count': len(rows),
+            'totals': {
+                'orders': total_orders,
+                'sales': total_sales,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/sales_by_customer.html', context)
+
+    @classmethod
+    def render_sales_by_item(cls, tenant, start_date, end_date):
+        """
+        Generate a PDF for the Sales by Item report.
+
+        Args:
+            tenant: Tenant model instance
+            start_date: datetime.date period start
+            end_date: datetime.date period end
+
+        Returns:
+            bytes: PDF file content
+        """
+        from decimal import Decimal
+        from apps.reporting.queries import sales_by_item
+
+        tenant_settings = tenant.settings
+        rows = sales_by_item(tenant, start_date, end_date)  # list of dicts with Decimal fields
+
+        total_qty = sum(r['qty_sold'] for r in rows)
+        total_revenue = sum(Decimal(str(r['revenue'] or 0)) for r in rows)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': rows,
+            'row_count': len(rows),
+            'totals': {
+                'qty': total_qty,
+                'revenue': total_revenue,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/sales_by_item.html', context)
+
+    @classmethod
+    def render_vendor_performance(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Vendor Performance report."""
+        from decimal import Decimal
+        from datetime import date as date_cls
+        from apps.reporting.queries import vendor_performance
+
+        tenant_settings = tenant.settings
+        rows = vendor_performance(tenant, start_date, end_date)
+
+        total_orders = sum(r['total_orders'] for r in rows)
+        total_late = sum(r['late_orders'] for r in rows)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': rows,
+            'row_count': len(rows),
+            'totals': {
+                'total_orders': total_orders,
+                'late_orders': total_late,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/vendor_performance.html', context)
+
+    @classmethod
+    def render_purchase_history(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Purchase History report."""
+        from decimal import Decimal
+        from apps.reporting.queries import purchase_history
+
+        tenant_settings = tenant.settings
+        rows = purchase_history(tenant, start_date, end_date)
+
+        total_qty = sum(r['total_qty'] for r in rows)
+        total_cost = sum(Decimal(str(r['total_cost'] or 0)) for r in rows)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': rows,
+            'row_count': len(rows),
+            'totals': {
+                'total_qty': total_qty,
+                'total_cost': total_cost,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/purchase_history.html', context)
+
+    @classmethod
+    def render_sales_tax_liability(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Sales Tax Liability report."""
+        from decimal import Decimal
+        from apps.reporting.queries import sales_tax_liability
+
+        tenant_settings = tenant.settings
+        rows = sales_tax_liability(tenant, start_date, end_date)
+
+        total_taxable = sum(Decimal(str(r['taxable_amount'] or 0)) for r in rows)
+        total_tax = sum(Decimal(str(r['tax_collected'] or 0)) for r in rows)
+        total_invoices = sum(r['invoice_count'] for r in rows)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': rows,
+            'row_count': len(rows),
+            'totals': {
+                'taxable_amount': total_taxable,
+                'tax_collected': total_tax,
+                'invoice_count': total_invoices,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/sales_tax_liability.html', context)
+
+    @classmethod
+    def render_backorder_report(cls, tenant):
+        """Generate a PDF for the Backorder Report."""
+        from datetime import date as date_cls
+        from apps.reporting.queries import backorder_report
+
+        tenant_settings = tenant.settings
+        rows = backorder_report(tenant)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': date_cls.today(),
+            'rows': rows,
+            'row_count': len(rows),
+        }
+
+        return cls.render_to_pdf('documents/reports/backorder_report.html', context)
+
+    @classmethod
+    def render_low_stock_alert(cls, tenant):
+        """Generate a PDF for the Low Stock Alert report."""
+        from datetime import date as date_cls
+        from apps.reporting.queries import low_stock_alert
+
+        tenant_settings = tenant.settings
+        rows = low_stock_alert(tenant)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': date_cls.today(),
+            'rows': rows,
+            'row_count': len(rows),
+        }
+
+        return cls.render_to_pdf('documents/reports/low_stock_alert.html', context)
+
+    @classmethod
+    def render_dead_stock(cls, tenant, days=180):
+        """Generate a PDF for the Dead Stock report."""
+        from datetime import date as date_cls
+        from apps.reporting.queries import dead_stock
+
+        tenant_settings = tenant.settings
+        rows = dead_stock(tenant, days)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': date_cls.today(),
+            'days': days,
+            'rows': rows,
+            'row_count': len(rows),
+        }
+
+        return cls.render_to_pdf('documents/reports/dead_stock.html', context)
+
+    # ── Financial Statements ───────────────────────────────────────────────
+
+    @classmethod
+    def render_trial_balance(cls, tenant, as_of_date):
+        """Generate a PDF for the Trial Balance."""
+        from decimal import Decimal
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        accounts = FinancialReportService.get_trial_balance(tenant, as_of_date)
+        total_debits = sum(Decimal(str(a['total_debit'])) for a in accounts)
+        total_credits = sum(Decimal(str(a['total_credit'])) for a in accounts)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': as_of_date,
+            'accounts': accounts,
+            'row_count': len(accounts),
+            'total_debits': total_debits,
+            'total_credits': total_credits,
+        }
+
+        return cls.render_to_pdf('documents/reports/trial_balance.html', context)
+
+    @classmethod
+    def render_income_statement(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Income Statement."""
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        data = FinancialReportService.get_income_statement(tenant, start_date, end_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'sections': data['sections'],
+            'net_income': data['net_income'],
+        }
+
+        return cls.render_to_pdf('documents/reports/income_statement.html', context)
+
+    @classmethod
+    def render_balance_sheet(cls, tenant, as_of_date):
+        """Generate a PDF for the Balance Sheet."""
+        from decimal import Decimal
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        data = FinancialReportService.get_balance_sheet(tenant, as_of_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'as_of_date': as_of_date,
+            'sections': data['sections'],
+            'total_assets': data['total_assets'],
+            'total_liabilities_and_equity': data['total_liabilities_and_equity'],
+            'is_balanced': data['is_balanced'],
+            'variance': data['variance'],
+        }
+
+        return cls.render_to_pdf('documents/reports/balance_sheet.html', context)
+
+    @classmethod
+    def render_cash_flow_statement(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Cash Flow Statement."""
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        data = FinancialReportService.get_cash_flow_statement(tenant, start_date, end_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'beginning_cash_balance': data['beginning_cash_balance'],
+            'sections': data['sections'],
+            'net_change_in_cash': data['net_change_in_cash'],
+            'ending_cash_balance': data['ending_cash_balance'],
+        }
+
+        return cls.render_to_pdf('documents/reports/cash_flow.html', context)
+
+    # ── Operational Reports (Wave 5) ──────────────────────────────────────────
+
+    @classmethod
+    def render_gross_margin(cls, tenant, date_from=None, date_to=None,
+                            customer_id=None, item_id=None):
+        """Generate a PDF for the Gross Margin report."""
+        from decimal import Decimal
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        svc = FinancialReportService(tenant)
+        data = svc.get_gross_margin(
+            date_from=date_from, date_to=date_to,
+            customer_id=customer_id, item_id=item_id,
+        )
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'date_from': data.get('date_from'),
+            'date_to': data.get('date_to'),
+            'summary': data['summary'],
+            'by_customer': data['by_customer'],
+            'by_item': data['by_item'],
+        }
+
+        return cls.render_to_pdf('documents/reports/gross_margin.html', context)
+
+    @classmethod
+    def render_contract_utilization(cls, tenant):
+        """Generate a PDF for the Contract Utilization report."""
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        svc = FinancialReportService(tenant)
+        contracts = svc.get_contract_utilization()
+
+        total_committed = sum(r['total_committed'] for r in contracts)
+        total_released = sum(r['total_released'] for r in contracts)
+        total_remaining = sum(r['total_remaining'] for r in contracts)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'count': len(contracts),
+            'contracts': contracts,
+            'total_committed': total_committed,
+            'total_released': total_released,
+            'total_remaining': total_remaining,
+        }
+
+        return cls.render_to_pdf('documents/reports/contract_utilization.html', context)
+
+    @classmethod
+    def render_vendor_scorecard(cls, tenant, date_from=None, date_to=None):
+        """Generate a PDF for the Vendor Scorecard report."""
+        from decimal import Decimal
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        svc = FinancialReportService(tenant)
+        vendors = svc.get_vendor_scorecard(date_from=date_from, date_to=date_to)
+
+        total_pos = sum(v['total_pos'] for v in vendors)
+        completed_pos = sum(v['completed_pos'] for v in vendors)
+        on_time_count = sum(v['on_time_count'] for v in vendors)
+        late_count = sum(v['late_count'] for v in vendors)
+        total_spend = sum(Decimal(str(v['total_spend'])) for v in vendors)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'date_from': date_from,
+            'date_to': date_to,
+            'count': len(vendors),
+            'vendors': vendors,
+            'totals': {
+                'total_pos': total_pos,
+                'completed_pos': completed_pos,
+                'on_time_count': on_time_count,
+                'late_count': late_count,
+                'total_spend': total_spend,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/vendor_scorecard.html', context)
+
+    @classmethod
+    def render_sales_commission(cls, tenant, date_from=None, date_to=None,
+                                commission_rate=None):
+        """Generate a PDF for the Sales Commission report."""
+        from decimal import Decimal
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        svc = FinancialReportService(tenant)
+        data = svc.get_sales_commission(
+            date_from=date_from, date_to=date_to, commission_rate=commission_rate,
+        )
+
+        # Pre-compute per-rep commission_rate_pct for the template
+        by_rep = data.get('by_rep', [])
+        for rep in by_rep:
+            rep['commission_rate_pct'] = float(rep['commission_rate']) * 100
+
+        total_invoice_count = sum(r['invoice_count'] for r in by_rep)
+        rate_pct = float(data['commission_rate']) * 100
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'date_from': data.get('date_from'),
+            'date_to': data.get('date_to'),
+            'commission_rate': data['commission_rate'],
+            'commission_rate_pct': rate_pct,
+            'summary': data['summary'],
+            'by_rep': by_rep,
+            'totals': {
+                'invoice_count': total_invoice_count,
+            },
+        }
+
+        return cls.render_to_pdf('documents/reports/sales_commission.html', context)
+
+    @classmethod
+    def render_orders_vs_inventory(cls, tenant):
+        """Generate a PDF for the Orders vs Inventory report."""
+        from apps.reporting.services import FinancialReportService
+
+        tenant_settings = tenant.settings
+        svc = FinancialReportService(tenant)
+        items = svc.get_orders_vs_inventory()
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'count': len(items),
+            'items': items,
+        }
+
+        return cls.render_to_pdf('documents/reports/orders_vs_inventory.html', context)
+
+    @classmethod
+    def render_gross_margin_detail(cls, tenant, start_date, end_date):
+        """Generate a PDF for the Gross Margin Detail report."""
+        from apps.reporting.queries import gross_margin_report
+
+        tenant_settings = tenant.settings
+        data = gross_margin_report(tenant, start_date, end_date)
+
+        context = {
+            'company': {
+                'name': tenant_settings.company_name or tenant.name,
+                'address_line1': tenant_settings.address_line1,
+                'address_line2': tenant_settings.address_line2,
+                'city': tenant_settings.city,
+                'state': tenant_settings.state,
+                'postal_code': tenant_settings.postal_code,
+                'phone': tenant_settings.phone,
+                'email': tenant_settings.email,
+            },
+            'start_date': start_date,
+            'end_date': end_date,
+            'rows': data['rows'],
+            'row_count': len(data['rows']),
+            'summary': data['summary'],
+        }
+
+        return cls.render_to_pdf('documents/reports/gross_margin_detail.html', context)

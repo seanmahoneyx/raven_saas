@@ -1,0 +1,36 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Backorder Report{% endblock %}
+
+{% block report_subtitle %}As of {{ as_of_date|date:"M d, Y" }} &middot; {{ row_count }} backorder{{ row_count|pluralize }}{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Order #</th>
+            <th>Customer</th>
+            <th>Due Date</th>
+            <th>SKU</th>
+            <th>Item</th>
+            <th class="right">Qty</th>
+            <th>UOM</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.order_number }}</td>
+            <td>{{ row.customer_name }}</td>
+            <td>{{ row.scheduled_date }}</td>
+            <td class="bold">{{ row.item_sku }}</td>
+            <td>{{ row.item_name }}</td>
+            <td class="right">{{ row.qty_ordered }}</td>
+            <td>{{ row.uom }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 20px; color: #999;">No backorders</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

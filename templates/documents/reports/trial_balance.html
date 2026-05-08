@@ -1,0 +1,42 @@
+{% extends "documents/reports/base_financial.html" %}
+
+{% block page_title %}Trial Balance{% endblock %}
+{% block title %}Trial Balance{% endblock %}
+
+{% block report_subtitle %}As of {{ as_of_date|date:"M d, Y" }} &nbsp;&middot;&nbsp; {{ row_count }} account{{ row_count|pluralize }}{% endblock %}
+
+{% block report_content %}
+<table class="account-table" style="border-collapse: collapse; width: 100%; font-size: 9.5pt;">
+    <thead>
+        <tr style="background: #1e3a8a; color: white;">
+            <th style="padding: 6px 8px; text-align: left; width: 10%;">Code</th>
+            <th style="padding: 6px 8px; text-align: left; width: 40%;">Account</th>
+            <th style="padding: 6px 8px; text-align: left; width: 20%;">Type</th>
+            <th style="padding: 6px 8px; text-align: right; width: 15%;">Debit</th>
+            <th style="padding: 6px 8px; text-align: right; width: 15%;">Credit</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for acct in accounts %}
+        <tr style="{% cycle '' 'background:#f9fafb;' %}">
+            <td style="padding: 4px 8px; border-bottom: 1px solid #e5e7eb;">{{ acct.account_code }}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #e5e7eb;">{{ acct.account_name }}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #e5e7eb; color: #555; font-size: 8.5pt;">{{ acct.account_type }}</td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: 'Courier New', monospace;">
+                {% if acct.total_debit %}{{ acct.total_debit|floatformat:2 }}{% endif %}
+            </td>
+            <td style="padding: 4px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; font-family: 'Courier New', monospace;">
+                {% if acct.total_credit %}{{ acct.total_credit|floatformat:2 }}{% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr style="font-weight: bold; border-top: 2px solid #1e3a8a;">
+            <td colspan="3" style="padding: 6px 8px;">Totals</td>
+            <td style="padding: 6px 8px; text-align: right; font-family: 'Courier New', monospace; border-top: 2px solid #1e3a8a;">{{ total_debits|floatformat:2 }}</td>
+            <td style="padding: 6px 8px; text-align: right; font-family: 'Courier New', monospace; border-top: 2px solid #1e3a8a;">{{ total_credits|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
@@ -152,6 +152,27 @@ export default function FinancialStatements() {
   const [cfEndDate, setCfEndDate] = useState(today())
   const { data: cfData, isLoading: cfLoading } = useCashFlowStatement(cfStartDate, cfEndDate)
 
+  const handleDownloadPdf = () => {
+    const params = new URLSearchParams()
+    let path = ''
+    if (activeTab === 'trial-balance') {
+      path = '/api/v1/reports/trial-balance/pdf/'
+      params.set('date', tbDate)
+    } else if (activeTab === 'income-statement') {
+      path = '/api/v1/reports/income-statement/pdf/'
+      params.set('start', isStartDate)
+      params.set('end', isEndDate)
+    } else if (activeTab === 'balance-sheet') {
+      path = '/api/v1/reports/balance-sheet/pdf/'
+      params.set('date', bsDate)
+    } else if (activeTab === 'cash-flow') {
+      path = '/api/v1/reports/cash-flow/pdf/'
+      params.set('start', cfStartDate)
+      params.set('end', cfEndDate)
+    }
+    window.open(`${path}?${params.toString()}`, '_blank')
+  }
+
   const handleExportCsv = () => {
     if (activeTab === 'cash-flow') {
       toast.info('Use Print for Cash Flow export')
@@ -209,6 +230,9 @@ export default function FinancialStatements() {
           </button>
           <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
             <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleDownloadPdf}>
+            <FileText className="h-3.5 w-3.5" /> Download PDF
           </button>
         </div>
       </div>

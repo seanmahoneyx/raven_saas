@@ -123,7 +123,10 @@ function NavDropdown({ item, isAdmin }: { item: NavDropdownItem; isAdmin: boolea
         <button
           className={cn(
             'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors',
-            'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+            'data-[state=open]:outline data-[state=open]:outline-2 data-[state=open]:outline-offset-2',
+            'data-[state=open]:outline-[hsl(245_58%_51%)]',
+            'dark:data-[state=open]:outline-[hsl(187_100%_50%)] dark:data-[state=open]:shadow-[0_0_8px_hsl(187_100%_50%/0.2)]'
           )}
         >
           <item.icon className="h-4 w-4" />

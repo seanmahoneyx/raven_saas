@@ -8,6 +8,7 @@ interface User {
   roles: string[]
   permissions: string[]
   is_superuser: boolean
+  is_staff: boolean
 }
 
 interface AuthContextType {

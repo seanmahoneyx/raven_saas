@@ -1,0 +1,97 @@
+{% extends "documents/reports/base_financial.html" %}
+
+{% block page_title %}Balance Sheet{% endblock %}
+{% block title %}Balance Sheet{% endblock %}
+
+{% block report_subtitle %}As of {{ as_of_date|date:"M d, Y" }}{% endblock %}
+
+{% block report_content %}
+
+{# ── ASSETS ── #}
+<div class="section-header">Assets</div>
+{% for acct in sections.assets.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+{% if sections.assets.contra_accounts %}
+{% for acct in sections.assets.contra_accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name" style="padding-left: 16px; color: #555;">(contra) {{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount" style="color: #555;">({{ acct.balance|floatformat:2 }})</td>
+    </tr>
+</table>
+{% endfor %}
+{% endif %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total Assets</td>
+        <td class="acct-amount">{{ sections.assets.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── LIABILITIES ── #}
+<div class="section-header">Liabilities</div>
+{% for acct in sections.liabilities.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total Liabilities</td>
+        <td class="acct-amount">{{ sections.liabilities.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── EQUITY ── #}
+<div class="section-header">Equity</div>
+{% for acct in sections.equity.accounts %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name">{{ acct.account_code }} &nbsp; {{ acct.account_name }}</td>
+        <td class="acct-amount">{{ acct.balance|floatformat:2 }}</td>
+    </tr>
+</table>
+{% endfor %}
+<table class="account-table account-row">
+    <tr>
+        <td class="acct-name" style="padding-left: 16px; font-style: italic;">Retained Earnings</td>
+        <td class="acct-amount" style="font-style: italic;">{{ sections.equity.retained_earnings|floatformat:2 }}</td>
+    </tr>
+</table>
+<table class="account-table section-total subtotal-line">
+    <tr>
+        <td class="acct-name">Total Equity</td>
+        <td class="acct-amount">{{ sections.equity.total|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── Total Liabilities + Equity ── #}
+<table class="account-table grand-total">
+    <tr>
+        <td class="acct-name" style="font-size: 10.5pt;">Total Liabilities &amp; Equity</td>
+        <td class="acct-amount" style="font-size: 10.5pt;">{{ total_liabilities_and_equity|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{% if not is_balanced %}
+<p style="color: #b91c1c; font-size: 8pt; margin-top: 8px;">
+    Note: Balance sheet is out of balance by {{ variance|floatformat:2 }}.
+</p>
+{% endif %}
+
+{% endblock %}

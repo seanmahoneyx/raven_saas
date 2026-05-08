@@ -1,0 +1,43 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Open Purchase Orders{% endblock %}
+
+{% block report_subtitle %}As of {{ generated_date|date:"M d, Y" }}{% if applied_filters %} &middot; {% for label, value in applied_filters.items %}{{ label }}: {{ value }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}{% endif %}{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>PO #</th>
+            <th>Vendor</th>
+            <th>Status</th>
+            <th>Order Date</th>
+            <th>Expected</th>
+            <th class="right">Lines</th>
+            <th class="right">Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.po_number }}</td>
+            <td>{{ row.vendor_name }}</td>
+            <td>{{ row.status }}</td>
+            <td>{{ row.order_date|date:"M d, Y" }}</td>
+            <td>{% if row.expected_date %}{{ row.expected_date|date:"M d, Y" }}{% else %}&mdash;{% endif %}</td>
+            <td class="right">{{ row.num_lines }}</td>
+            <td class="right">${{ row.subtotal|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 20px; color: #999;">No open purchase orders</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td colspan="5" class="bold">{{ total_count }} PO{{ total_count|pluralize }}</td>
+            <td class="right bold">&mdash;</td>
+            <td class="right bold">${{ total_subtotal|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

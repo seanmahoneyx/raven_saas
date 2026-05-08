@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView, useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
-import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Paperclip, Search, DollarSign, Star } from 'lucide-react'
+import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Paperclip, Search, DollarSign, Star, AlertCircle } from 'lucide-react'
+import { getApiErrorMessage } from '@/lib/errors'
+import { useAuth } from '@/hooks/useAuth'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +30,46 @@ import { FileText } from 'lucide-react'
 import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
 
 type Tab = 'details' | 'history' | 'product-card' | 'vendors' | 'similar' | 'attachments' | 'audit'
+
+const ALL_LIFECYCLE_STATUSES: { value: string; label: string }[] = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending_design', label: 'Design Requested' },
+  { value: 'in_design', label: 'In Design' },
+  { value: 'design_complete', label: 'Design Complete' },
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'active', label: 'Active' },
+]
+
+const LIFECYCLE_LABEL: Record<string, string> = Object.fromEntries(
+  ALL_LIFECYCLE_STATUSES.map((s) => [s.value, s.label])
+)
+
+interface LifecycleUser {
+  is_superuser: boolean
+  is_staff: boolean
+  permissions: string[]
+}
+
+function canPerformTransition(current: string, next: string, user: LifecycleUser | null): boolean {
+  if (!user) return false
+  if (user.is_superuser || user.is_staff) return true
+  const perms = user.permissions ?? []
+
+  // Design transitions require can_design_item
+  if (next === 'in_design' || next === 'design_complete') {
+    return perms.includes('items.can_design_item')
+  }
+  // Approval to active requires can_approve_item
+  if (next === 'active') {
+    return perms.includes('items.can_approve_item')
+  }
+  // Rejection from pending_approval back to draft also requires can_approve_item
+  if (current === 'pending_approval' && next === 'draft') {
+    return perms.includes('items.can_approve_item')
+  }
+  // Any authenticated user can submit drafts and request design
+  return true
+}
 
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
@@ -56,6 +98,7 @@ export default function ItemDetail() {
   const navigate = useNavigate()
   const itemId = parseInt(id || '0', 10)
 
+  const { user } = useAuth()
   const { data: item, isLoading } = useItem(itemId)
   const { data: vendors } = useItemVendors(itemId)
   const { data: similarItems } = useSimilarItems(itemId)
@@ -75,6 +118,8 @@ export default function ItemDetail() {
   const costLists = costListsData?.results ?? []
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false)
   const [revisionReason, setRevisionReason] = useState('')
+  const [pendingLifecycle, setPendingLifecycle] = useState<string>('')
+  const [lifecycleError, setLifecycleError] = useState<string>('')
   const [addVendorOpen, setAddVendorOpen] = useState(false)
   const [addVendorForm, setAddVendorForm] = useState({ vendor: '', mpn: '', lead_time_days: '', min_order_qty: '' })
   const [costListPrompt, setCostListPrompt] = useState<{ vendorRecordId: number; vendorName: string } | null>(null)
@@ -252,97 +297,111 @@ export default function ItemDetail() {
           </div>
         </div>
 
-        {/* -- Lifecycle Banner ---------------------------------- */}
-        {item.lifecycle_status && item.lifecycle_status !== 'active' && (
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-4 md:px-6 py-4 flex flex-wrap items-center justify-between gap-3"
-            style={{
-              background: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.06)' : 'rgba(59,130,246,0.06)',
-              borderColor: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.2)' : 'rgba(59,130,246,0.2)',
-            }}>
-            <div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider mr-3"
-                style={{
-                  background: item.lifecycle_status === 'draft' ? 'rgba(168,85,247,0.15)' : 'rgba(59,130,246,0.15)',
-                  color: item.lifecycle_status === 'draft' ? '#a855f7' : '#3b82f6',
-                }}>
-                {{ draft: 'Draft', pending_design: 'Design Requested', in_design: 'In Design', design_complete: 'Design Complete', pending_approval: 'Pending Approval' }[item.lifecycle_status] || item.lifecycle_status}
-              </span>
-              <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                This item is not yet active and cannot be used in orders.
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {item.lifecycle_status === 'draft' && (
-                <>
-                  {item.division === 'corrugated' && (
-                    <button className={outlineBtnClass} style={outlineBtnStyle}
-                      onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_design' })}>
-                      Request Design
+        {/* -- Lifecycle Status (always visible) ---------------- */}
+        {item.lifecycle_status && (() => {
+          const lifecycleStatus = item.lifecycle_status
+          const allowedOptions = ALL_LIFECYCLE_STATUSES.filter(
+            (opt) => opt.value !== lifecycleStatus
+              && canPerformTransition(lifecycleStatus, opt.value, user),
+          )
+          const isActive = lifecycleStatus === 'active'
+          const canChange = allowedOptions.length > 0
+          const handleApply = async () => {
+            if (!pendingLifecycle) return
+            setLifecycleError('')
+            try {
+              await transitionItem.mutateAsync({ id: item.id, lifecycle_status: pendingLifecycle })
+              setPendingLifecycle('')
+            } catch (err) {
+              setLifecycleError(getApiErrorMessage(err, 'Status change failed'))
+            }
+          }
+          return (
+            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+              <div className="px-4 md:px-6 py-4 flex flex-wrap items-center gap-3">
+                <span className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>
+                  Lifecycle
+                </span>
+                {getStatusBadge(lifecycleStatus)}
+                <span className="text-[13px] mr-auto" style={{ color: 'var(--so-text-secondary)' }}>
+                  {isActive
+                    ? 'Active — available for orders'
+                    : 'Not yet active — unavailable for orders'}
+                </span>
+                {canChange && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={pendingLifecycle}
+                      onValueChange={(v) => { setPendingLifecycle(v); setLifecycleError('') }}
+                    >
+                      <SelectTrigger className="h-9 w-[220px] text-[13px]">
+                        <SelectValue placeholder="Change status..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allowedOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button
+                      type="button"
+                      onClick={handleApply}
+                      disabled={!pendingLifecycle || transitionItem.isPending}
+                      className="inline-flex items-center justify-center h-9 px-3.5 rounded-md text-[13px] font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                      style={{ background: 'var(--so-accent)', color: '#fff' }}
+                    >
+                      {transitionItem.isPending ? 'Updating...' : 'Apply'}
                     </button>
-                  )}
-                  <button className={primaryBtnClass} style={primaryBtnStyle}
-                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_approval' })}>
-                    Submit for Approval
-                  </button>
-                </>
-              )}
-              {item.lifecycle_status === 'pending_design' && (
-                <button className={primaryBtnClass} style={primaryBtnStyle}
-                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'in_design' })}>
-                  Claim Design
-                </button>
-              )}
-              {item.lifecycle_status === 'in_design' && (
-                <button className={primaryBtnClass} style={primaryBtnStyle}
-                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'design_complete' })}>
-                  Mark Design Complete
-                </button>
-              )}
-              {item.lifecycle_status === 'design_complete' && (
-                <button className={primaryBtnClass} style={primaryBtnStyle}
-                  onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'pending_approval' })}>
-                  Submit for Approval
-                </button>
-              )}
-              {item.lifecycle_status === 'pending_approval' && (
-                <>
-                  <button className={outlineBtnClass} style={outlineBtnStyle}
-                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'draft' })}>
-                    Reject
-                  </button>
-                  <button className={primaryBtnClass} style={primaryBtnStyle}
-                    onClick={() => transitionItem.mutate({ id: item.id, lifecycle_status: 'active' })}>
-                    Approve
-                  </button>
-                </>
+                  </div>
+                )}
+              </div>
+              {lifecycleError && (
+                <div
+                  className="flex items-start gap-2 px-4 md:px-6 py-2.5 text-[12.5px]"
+                  style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)', borderTop: '1px solid var(--so-border-light)' }}
+                >
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{lifecycleError}</span>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* -- Revision Info (active items) ---------------------- */}
-        {item.lifecycle_status === 'active' && item.revision && item.revision > 0 && (
+        {item.lifecycle_status === 'active' && (
           <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2 px-6 py-3 flex items-center justify-between"
             style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider font-mono"
-                style={{ background: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)' }}>
-                Rev {item.revision}
-              </span>
-              {item.revision_reason && (
+              {item.revision && item.revision > 0 ? (
+                <>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11.5px] font-semibold uppercase tracking-wider font-mono"
+                    style={{ background: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)' }}>
+                    Rev {item.revision}
+                  </span>
+                  {item.revision_reason && (
+                    <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                      {item.revision_reason}
+                    </span>
+                  )}
+                  {item.revision_date && (
+                    <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                      {new Date(item.revision_date).toLocaleDateString()}
+                    </span>
+                  )}
+                </>
+              ) : (
                 <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                  {item.revision_reason}
-                </span>
-              )}
-              {item.revision_date && (
-                <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                  {new Date(item.revision_date).toLocaleDateString()}
+                  No revisions yet — bump when you make a meaningful change
                 </span>
               )}
             </div>
             <button className={outlineBtnClass} style={outlineBtnStyle}
               onClick={() => { setRevisionReason(''); setRevisionDialogOpen(true) }}>
-              Bump Revision
+              {item.revision && item.revision > 0 ? 'Bump Revision' : 'Create First Revision'}
             </button>
           </div>
         )}

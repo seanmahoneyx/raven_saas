@@ -1,0 +1,98 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Gross Margin Detail{% endblock %}
+
+{% block report_subtitle %}{{ start_date|date:"M d, Y" }} &ndash; {{ end_date|date:"M d, Y" }} &middot; {{ row_count }} item{{ row_count|pluralize }}{% endblock %}
+
+{% block extra_styles %}
+.kpi-strip {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+}
+.kpi-strip td {
+    width: 25%;
+    padding: 10px 14px;
+    background: #f0f4ff;
+    border: 1px solid #c7d7f8;
+    text-align: center;
+    vertical-align: middle;
+}
+.kpi-label {
+    font-size: 7.5pt;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 4px;
+}
+.kpi-value {
+    font-size: 13pt;
+    font-weight: bold;
+    color: #1e3a8a;
+}
+{% endblock %}
+
+{% block report_content %}
+
+<!-- KPI Summary Strip -->
+<table class="kpi-strip">
+    <tr>
+        <td>
+            <div class="kpi-label">Total Revenue</div>
+            <div class="kpi-value">${{ summary.total_sales|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Total COGS</div>
+            <div class="kpi-value">${{ summary.total_cogs|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Gross Margin</div>
+            <div class="kpi-value">${{ summary.gross_margin|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Margin %</div>
+            <div class="kpi-value">{{ summary.margin_pct|floatformat:1 }}%</div>
+        </td>
+    </tr>
+</table>
+
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>SKU</th>
+            <th>Item</th>
+            <th class="right">Qty Sold</th>
+            <th class="right">Revenue</th>
+            <th class="right">COGS</th>
+            <th class="right">Gross Margin</th>
+            <th class="right">Margin %</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.item_sku }}</td>
+            <td>{{ row.item_name }}</td>
+            <td class="right">{{ row.qty_sold }}</td>
+            <td class="right">${{ row.revenue|floatformat:2 }}</td>
+            <td class="right">${{ row.cogs|floatformat:2 }}</td>
+            <td class="right">${{ row.gross_margin|floatformat:2 }}</td>
+            <td class="right">{{ row.margin_pct|floatformat:1 }}%</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align: center; padding: 20px; color: #999;">No sales in this period</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td colspan="2" class="bold">{{ row_count }} item{{ row_count|pluralize }}</td>
+            <td class="right bold">&mdash;</td>
+            <td class="right bold">${{ summary.total_sales|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.total_cogs|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.gross_margin|floatformat:2 }}</td>
+            <td class="right bold">{{ summary.margin_pct|floatformat:1 }}%</td>
+        </tr>
+    </tfoot>
+</table>
+
+{% endblock %}

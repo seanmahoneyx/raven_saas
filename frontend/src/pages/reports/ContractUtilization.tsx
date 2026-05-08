@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
@@ -34,6 +34,10 @@ export default function ContractUtilization() {
   const contracts: ContractUtilizationRow[] = data?.contracts
     ? [...data.contracts].sort((a: ContractUtilizationRow, b: ContractUtilizationRow) => b.completion_pct - a.completion_pct)
     : []
+
+  const handleDownloadPdf = () => {
+    window.open('/api/v1/reports/contract-utilization/pdf/', '_blank')
+  }
 
   const handleExportCsv = () => {
     if (contracts.length === 0) return
@@ -67,6 +71,9 @@ export default function ContractUtilization() {
           </button>
           <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
             <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleDownloadPdf}>
+            <FileText className="h-3.5 w-3.5" /> Download PDF
           </button>
         </div>
       </div>

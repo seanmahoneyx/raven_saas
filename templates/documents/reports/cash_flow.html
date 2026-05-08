@@ -1,0 +1,169 @@
+{% extends "documents/reports/base_financial.html" %}
+
+{% block page_title %}Cash Flow Statement{% endblock %}
+{% block title %}Cash Flow Statement{% endblock %}
+
+{% block report_subtitle %}For period {{ start_date }} &ndash; {{ end_date }}{% endblock %}
+
+{% block extra_styles %}
+.cf-details-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0 6px 16px;
+    width: calc(100% - 16px);
+    font-size: 8.5pt;
+    color: #444;
+}
+.cf-details-table th {
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding: 3px 6px;
+    background: #f3f4f6;
+}
+.cf-details-table th.right { text-align: right; }
+.cf-details-table td {
+    padding: 3px 6px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+.cf-details-table td.right { text-align: right; }
+{% endblock %}
+
+{% block report_content %}
+
+{# ── Beginning Cash Balance ── #}
+<table class="account-table" style="margin-bottom: 10px;">
+    <tr>
+        <td class="acct-name" style="font-weight: bold;">Beginning Cash Balance</td>
+        <td class="acct-amount" style="font-weight: bold;">{{ beginning_cash_balance|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{# ── Operating Activities ── #}
+<div class="section-header">{{ sections.operating.label }}</div>
+{% if sections.operating.details %}
+<table class="cf-details-table">
+    <thead>
+        <tr>
+            <th style="width: 12%;">Date</th>
+            <th style="width: 38%;">Description</th>
+            <th style="width: 20%;">Reference</th>
+            <th style="width: 15%;">Account</th>
+            <th class="right" style="width: 15%;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in sections.operating.details %}
+        <tr>
+            <td>{{ d.date }}</td>
+            <td>{{ d.description }}</td>
+            <td>{{ d.reference }}</td>
+            <td>{{ d.account }}</td>
+            <td class="right">{{ d.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="font-size: 8.5pt; color: #888; padding: 4px 16px;">No operating cash movements in this period.</p>
+{% endif %}
+<table class="account-table section-total subtotal-line" style="margin-top: 4px;">
+    <tr>
+        <td class="acct-name">Net Cash from Operating Activities</td>
+        <td class="acct-amount">{{ sections.operating.net|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── Investing Activities ── #}
+<div class="section-header">{{ sections.investing.label }}</div>
+{% if sections.investing.details %}
+<table class="cf-details-table">
+    <thead>
+        <tr>
+            <th style="width: 12%;">Date</th>
+            <th style="width: 38%;">Description</th>
+            <th style="width: 20%;">Reference</th>
+            <th style="width: 15%;">Account</th>
+            <th class="right" style="width: 15%;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in sections.investing.details %}
+        <tr>
+            <td>{{ d.date }}</td>
+            <td>{{ d.description }}</td>
+            <td>{{ d.reference }}</td>
+            <td>{{ d.account }}</td>
+            <td class="right">{{ d.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="font-size: 8.5pt; color: #888; padding: 4px 16px;">No investing cash movements in this period.</p>
+{% endif %}
+<table class="account-table section-total subtotal-line" style="margin-top: 4px;">
+    <tr>
+        <td class="acct-name">Net Cash from Investing Activities</td>
+        <td class="acct-amount">{{ sections.investing.net|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── Financing Activities ── #}
+<div class="section-header">{{ sections.financing.label }}</div>
+{% if sections.financing.details %}
+<table class="cf-details-table">
+    <thead>
+        <tr>
+            <th style="width: 12%;">Date</th>
+            <th style="width: 38%;">Description</th>
+            <th style="width: 20%;">Reference</th>
+            <th style="width: 15%;">Account</th>
+            <th class="right" style="width: 15%;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in sections.financing.details %}
+        <tr>
+            <td>{{ d.date }}</td>
+            <td>{{ d.description }}</td>
+            <td>{{ d.reference }}</td>
+            <td>{{ d.account }}</td>
+            <td class="right">{{ d.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="font-size: 8.5pt; color: #888; padding: 4px 16px;">No financing cash movements in this period.</p>
+{% endif %}
+<table class="account-table section-total subtotal-line" style="margin-top: 4px;">
+    <tr>
+        <td class="acct-name">Net Cash from Financing Activities</td>
+        <td class="acct-amount">{{ sections.financing.net|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="group-spacer"></div>
+
+{# ── Net Change + Ending Balance ── #}
+<table class="account-table section-total subtotal-line" style="margin-top: 8px;">
+    <tr>
+        <td class="acct-name">Net Change in Cash</td>
+        <td class="acct-amount">{{ net_change_in_cash|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<table class="account-table grand-total" style="margin-top: 4px;">
+    <tr>
+        <td class="acct-name" style="font-size: 11pt;">Ending Cash Balance</td>
+        <td class="acct-amount" style="font-size: 11pt;">{{ ending_cash_balance|floatformat:2 }}</td>
+    </tr>
+</table>
+
+{% endblock %}

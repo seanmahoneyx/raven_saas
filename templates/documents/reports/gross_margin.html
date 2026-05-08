@@ -1,0 +1,154 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Gross Margin Report{% endblock %}
+
+{% block report_subtitle %}
+    {% if date_from and date_to %}
+        {{ date_from }} &ndash; {{ date_to }}
+    {% elif date_from %}
+        From {{ date_from }}
+    {% elif date_to %}
+        Through {{ date_to }}
+    {% else %}
+        All time
+    {% endif %}
+{% endblock %}
+
+{% block extra_styles %}
+.kpi-strip {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 18px;
+}
+.kpi-strip td {
+    width: 25%;
+    padding: 10px 14px;
+    background: #f0f4ff;
+    border: 1px solid #c7d7f8;
+    text-align: center;
+    vertical-align: middle;
+}
+.kpi-label {
+    font-size: 7.5pt;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 4px;
+}
+.kpi-value {
+    font-size: 13pt;
+    font-weight: bold;
+    color: #1e3a8a;
+}
+.section-heading {
+    font-size: 9pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #1e40af;
+    border-bottom: 1px solid #1e40af;
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+    margin-top: 16px;
+}
+{% endblock %}
+
+{% block report_content %}
+
+<!-- KPI Summary Strip -->
+<table class="kpi-strip">
+    <tr>
+        <td>
+            <div class="kpi-label">Total Revenue</div>
+            <div class="kpi-value">${{ summary.total_revenue|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Total COGS</div>
+            <div class="kpi-value">${{ summary.total_cogs|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Gross Margin</div>
+            <div class="kpi-value">${{ summary.gross_margin|floatformat:2 }}</div>
+        </td>
+        <td>
+            <div class="kpi-label">Margin %</div>
+            <div class="kpi-value">{{ summary.margin_pct|floatformat:1 }}%</div>
+        </td>
+    </tr>
+</table>
+
+<!-- By Customer -->
+<div class="section-heading">By Customer &mdash; {{ by_customer|length }} customer{{ by_customer|length|pluralize }}</div>
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Customer</th>
+            <th class="right">Revenue</th>
+            <th class="right">COGS</th>
+            <th class="right">Margin</th>
+            <th class="right">Margin %</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in by_customer %}
+        <tr>
+            <td class="bold">{{ row.customer_name }}</td>
+            <td class="right">${{ row.revenue|floatformat:2 }}</td>
+            <td class="right">${{ row.cogs|floatformat:2 }}</td>
+            <td class="right">${{ row.margin|floatformat:2 }}</td>
+            <td class="right">{{ row.margin_pct|floatformat:1 }}%</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;padding:16px;color:#999;">No data</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td class="bold">{{ by_customer|length }} customer{{ by_customer|length|pluralize }}</td>
+            <td class="right bold">${{ summary.total_revenue|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.total_cogs|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.gross_margin|floatformat:2 }}</td>
+            <td class="right bold">{{ summary.margin_pct|floatformat:1 }}%</td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- By Item -->
+<div class="section-heading">By Item &mdash; {{ by_item|length }} item{{ by_item|length|pluralize }}</div>
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>SKU</th>
+            <th>Item</th>
+            <th class="right">Revenue</th>
+            <th class="right">COGS</th>
+            <th class="right">Margin</th>
+            <th class="right">Margin %</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in by_item %}
+        <tr>
+            <td class="bold">{{ row.item_sku }}</td>
+            <td>{{ row.item_name }}</td>
+            <td class="right">${{ row.revenue|floatformat:2 }}</td>
+            <td class="right">${{ row.cogs|floatformat:2 }}</td>
+            <td class="right">${{ row.margin|floatformat:2 }}</td>
+            <td class="right">{{ row.margin_pct|floatformat:1 }}%</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;padding:16px;color:#999;">No data</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td colspan="2" class="bold">{{ by_item|length }} item{{ by_item|length|pluralize }}</td>
+            <td class="right bold">${{ summary.total_revenue|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.total_cogs|floatformat:2 }}</td>
+            <td class="right bold">${{ summary.gross_margin|floatformat:2 }}</td>
+            <td class="right bold">{{ summary.margin_pct|floatformat:1 }}%</td>
+        </tr>
+    </tfoot>
+</table>
+
+{% endblock %}

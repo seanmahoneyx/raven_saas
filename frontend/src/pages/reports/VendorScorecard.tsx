@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft, Printer, Download } from 'lucide-react'
+import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
@@ -38,6 +38,13 @@ export default function VendorScorecard() {
 
   const { data, isLoading } = useVendorScorecardReport({ date_from: dateFrom, date_to: dateTo })
   const vendors: VendorScorecardRow[] = data?.vendors ?? []
+
+  const handleDownloadPdf = () => {
+    const params = new URLSearchParams()
+    if (dateFrom) params.set('date_from', dateFrom)
+    if (dateTo) params.set('date_to', dateTo)
+    window.open(`/api/v1/reports/vendor-scorecard/pdf/?${params.toString()}`, '_blank')
+  }
 
   const handleExportCsv = () => {
     if (vendors.length === 0) return
@@ -70,6 +77,9 @@ export default function VendorScorecard() {
           </button>
           <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleExportCsv}>
             <Download className="h-3.5 w-3.5" /> Export CSV
+          </button>
+          <button className={outlineBtnClass} style={outlineBtnStyle} onClick={handleDownloadPdf}>
+            <FileText className="h-3.5 w-3.5" /> Download PDF
           </button>
         </div>
       </div>

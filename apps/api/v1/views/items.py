@@ -808,17 +808,17 @@ class ItemViewSet(viewsets.ModelViewSet):
         """
         Transition item lifecycle status.
 
-        Valid transitions:
-        - draft → pending_design, pending_approval
-        - pending_design → in_design
-        - in_design → design_complete
-        - design_complete → pending_approval
-        - pending_approval → active, draft (rejection)
+        Any lifecycle status may be selected directly from any other (e.g. draft
+        can move straight to active). The initial activation does NOT create a
+        revision; revisions are reserved for actual changes after the item has
+        been activated and are created via the bump_revision endpoint.
 
         Permissions:
-        - All users can create drafts and submit for design/approval
-        - can_design_item: claim design, mark design complete
-        - can_approve_item: approve to active, reject back to draft
+        - All authenticated users can move items between non-design / non-active
+          states (draft, pending_design, pending_approval).
+        - can_design_item: required to set in_design or design_complete.
+        - can_approve_item: required to set active, or to reject from
+          pending_approval back to draft.
         """
         item = self.get_object()
         new_status = request.data.get('lifecycle_status')
@@ -828,17 +828,18 @@ class ItemViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        VALID_TRANSITIONS = {
-            'draft': ['pending_design', 'pending_approval'],
-            'pending_design': ['in_design', 'draft'],
-            'in_design': ['design_complete', 'draft'],
-            'design_complete': ['pending_approval', 'draft'],
-            'pending_approval': ['active', 'draft'],
+        ALLOWED_STATUSES = {
+            'draft', 'pending_design', 'in_design',
+            'design_complete', 'pending_approval', 'active',
         }
-        allowed = VALID_TRANSITIONS.get(item.lifecycle_status, [])
-        if new_status not in allowed:
+        if new_status not in ALLOWED_STATUSES:
             return Response(
-                {'error': f'Cannot transition from {item.lifecycle_status} to {new_status}. Allowed: {allowed}'},
+                {'error': f'Unknown lifecycle status: {new_status}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if new_status == item.lifecycle_status:
+            return Response(
+                {'error': f'Item is already in status {new_status}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -861,13 +862,6 @@ class ItemViewSet(viewsets.ModelViewSet):
                 )
 
         item.lifecycle_status = new_status
-        # If transitioning to active for the first time, set revision 1
-        if new_status == 'active' and not item.revision:
-            item.revision = 1
-            item.revision_reason = 'Initial release'
-            from django.utils import timezone
-            item.revision_date = timezone.now()
-            item.revision_changed_by = request.user
         item.save()
 
         # If transitioning to pending_design, auto-create a DesignRequest linked to this item

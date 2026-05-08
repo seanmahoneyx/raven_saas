@@ -1,0 +1,50 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Orders vs Inventory{% endblock %}
+
+{% block report_subtitle %}{{ count }} item{{ count|pluralize }} with open demand{% endblock %}
+
+{% block extra_styles %}
+.warning-row td { font-weight: bold; }
+{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>SKU</th>
+            <th>Item</th>
+            <th class="right">Open SO Qty</th>
+            <th class="right">On Hand</th>
+            <th class="right">Allocated</th>
+            <th class="right">Available</th>
+            <th class="right">On Order</th>
+            <th class="right">Incoming PO</th>
+            <th class="right">Projected</th>
+            <th class="right">Shortage</th>
+            <th class="right">Coverage %</th>
+            <th class="center">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in items %}
+        <tr{% if row.status == 'critical' %} class="over-90"{% elif row.status == 'warning' %} class="warning-row"{% endif %}>
+            <td class="bold">{{ row.item_sku }}</td>
+            <td>{{ row.item_name }}</td>
+            <td class="right">{{ row.open_so_qty }}</td>
+            <td class="right">{{ row.on_hand }}</td>
+            <td class="right">{{ row.allocated }}</td>
+            <td class="right">{{ row.available }}</td>
+            <td class="right">{{ row.on_order }}</td>
+            <td class="right">{{ row.incoming_po }}</td>
+            <td class="right">{{ row.projected }}</td>
+            <td class="right">{% if row.shortage > 0 %}{{ row.shortage }}{% else %}&mdash;{% endif %}</td>
+            <td class="right">{{ row.coverage_pct|floatformat:1 }}%</td>
+            <td class="center">{{ row.status|title }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="12" style="text-align:center;padding:16px;color:#999;">No open demand</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

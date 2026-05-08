@@ -1,0 +1,57 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}AP Aging Report{% endblock %}
+
+{% block report_subtitle %}As of {{ as_of_date|date:"M d, Y" }} &middot; Interval {{ interval }}d &middot; Through {{ through }}d{% if filters.vendor %} &middot; Vendor: {{ vendor_name }}{% endif %}{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Vendor</th>
+            {% for bucket in buckets %}
+            <th class="right{% if bucket.key == 'over' %} over-90{% endif %}">{{ bucket.label }}</th>
+            {% endfor %}
+            <th class="right">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.party_name }}</td>
+            {% for bucket, amount in row.bucket_amounts %}
+            <td class="right{% if bucket.key == 'over' %} over-90{% endif %}">${{ amount|floatformat:2 }}</td>
+            {% endfor %}
+            <td class="right bold">${{ row.total|floatformat:2 }}</td>
+        </tr>
+        {% if include_detail %}
+        {% for inv in row.detail %}
+        <tr style="background: #f9fafb;">
+            <td style="padding-left: 24px; color: #666; font-size: 7.5pt;">
+                {{ inv.number }} &mdash; Due {{ inv.due_date|date:"M d, Y" }}
+                {% if inv.days_overdue > 0 %}({{ inv.days_overdue }}d overdue){% endif %}
+            </td>
+            {% for bucket, amount in row.bucket_amounts %}
+            <td class="right{% if bucket.key == 'over' %} over-90{% endif %}" style="color: #666; font-size: 7.5pt;">
+                {% if inv.bucket_key == bucket.key %}${{ inv.balance|floatformat:2 }}{% endif %}
+            </td>
+            {% endfor %}
+            <td class="right" style="color: #666; font-size: 7.5pt;">${{ inv.balance|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% empty %}
+        <tr><td colspan="{{ buckets|length|add:2 }}" style="text-align: center; padding: 20px; color: #999;">No outstanding balances</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td class="bold">Grand Total</td>
+            {% for bucket, amount in totals.bucket_amounts %}
+            <td class="right bold{% if bucket.key == 'over' %} over-90{% endif %}">${{ amount|floatformat:2 }}</td>
+            {% endfor %}
+            <td class="right bold">${{ totals.grand_total|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

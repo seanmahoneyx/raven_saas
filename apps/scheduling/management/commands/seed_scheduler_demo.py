@@ -6,15 +6,19 @@ Creates:
 - 3 Trucks for delivery scheduling
 - 5 Vendors with parties and locations
 - 5 Customers with parties and locations
-- 5 Items with UOMs
-- 10 Purchase Orders (unscheduled)
-- 10 Sales Orders (unscheduled)
+- 12 Items with varied lifecycle_status (draft -> active)
+- 20 Purchase Orders across the full STATUS_CHOICES set,
+  with a chunk scheduled across the 8-week Mon-Fri grid
+- 20 Sales Orders across the full STATUS_CHOICES set,
+  with a chunk scheduled across the 8-week Mon-Fri grid
+  (some flagged is_pickup=True for the Pick Up row)
 
 Usage:
     python manage.py seed_scheduler_demo
     python manage.py seed_scheduler_demo --clear  # Clear existing demo data first
 """
 from decimal import Decimal
+from datetime import date, timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 from apps.tenants.models import Tenant
@@ -24,7 +28,6 @@ from apps.orders.models import PurchaseOrder, PurchaseOrderLine, SalesOrder, Sal
 from shared.managers import set_current_tenant
 
 
-# Demo data definitions
 VENDORS = [
     ('ACME', 'Acme Produce Co.', 'Chicago', 'IL'),
     ('FRESH', 'Fresh Farms LLC', 'Miami', 'FL'),
@@ -47,17 +50,42 @@ TRUCKS = [
     ('Truck 3 - Long Haul', 'GHI-9012', 52),
 ]
 
+# (sku, name, description, lifecycle_status)
 ITEMS = [
-    ('APPLE-FJ', 'Fuji Apples', 'Premium grade Fuji apples'),
-    ('BANANA-OR', 'Organic Bananas', 'Fair trade organic bananas'),
-    ('ORANGE-NV', 'Navel Oranges', 'California navel oranges'),
-    ('GRAPE-RD', 'Red Grapes', 'Seedless red grapes'),
-    ('LEMON-MR', 'Meyer Lemons', 'Meyer lemons from California'),
+    ('APPLE-FJ', 'Fuji Apples', 'Premium grade Fuji apples', 'active'),
+    ('BANANA-OR', 'Organic Bananas', 'Fair trade organic bananas', 'active'),
+    ('ORANGE-NV', 'Navel Oranges', 'California navel oranges', 'active'),
+    ('GRAPE-RD', 'Red Grapes', 'Seedless red grapes', 'active'),
+    ('LEMON-MR', 'Meyer Lemons', 'Meyer lemons from California', 'active'),
+    ('BERRY-ST', 'Strawberry Flat', 'Driscoll strawberry flat', 'active'),
+    ('PEAR-BT', 'Bartlett Pears', 'Bartlett pears (case)', 'pending_approval'),
+    ('AVOCADO-HS', 'Hass Avocados', 'Mexican Hass avocados', 'design_complete'),
+    ('PEACH-WH', 'White Peaches', 'White peach (currently in design)', 'in_design'),
+    ('MANGO-AT', 'Ataulfo Mangos', 'Honey mango (design requested)', 'pending_design'),
+    ('PINE-GS', 'Golden Pineapple', 'Golden Sweet pineapple (draft)', 'draft'),
+    ('KIWI-GR', 'Green Kiwifruit', 'Zespri green kiwi (draft)', 'draft'),
 ]
 
 
+def next_business_day(d):
+    """Roll a date forward to the next Mon-Fri (skip Sat/Sun)."""
+    while d.weekday() >= 5:  # 5=Sat, 6=Sun
+        d += timedelta(days=1)
+    return d
+
+
+def business_offset(today, day_offset):
+    """
+    Return today + day_offset, snapped to the next Mon-Fri.
+
+    The schedulizer only renders Mon-Fri cells, so we coerce
+    weekend dates onto Monday for visibility.
+    """
+    return next_business_day(today + timedelta(days=day_offset))
+
+
 class Command(BaseCommand):
-    help = 'Seed demo data for Scheduler testing (trucks, parties, orders)'
+    help = 'Seed demo data for Scheduler testing (trucks, parties, items, orders)'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -75,7 +103,6 @@ class Command(BaseCommand):
             )
             return
 
-        # Set current tenant for TenantManager to work properly
         set_current_tenant(tenant)
 
         self.stdout.write(f'Seeding scheduler demo data for tenant: {tenant.name}')
@@ -83,50 +110,76 @@ class Command(BaseCommand):
         if options['clear']:
             self.clear_demo_data(tenant)
 
-        # Create trucks
         trucks = self.create_trucks(tenant)
-
-        # Ensure UOMs exist
         uom_each = self.ensure_uom(tenant)
-
-        # Create items
         items = self.create_items(tenant, uom_each)
-
-        # Create vendors and their parties/locations
         vendors = self.create_vendors(tenant)
-
-        # Create customers and their parties/locations
         customers = self.create_customers(tenant)
-
-        # Get our warehouse location
         warehouse = self.ensure_warehouse(tenant)
 
-        # Create purchase orders
-        self.create_purchase_orders(tenant, vendors, items, uom_each, warehouse)
-
-        # Create sales orders
-        self.create_sales_orders(tenant, customers, items, uom_each, warehouse)
+        po_count = self.create_purchase_orders(tenant, vendors, items, uom_each, warehouse, trucks)
+        so_count = self.create_sales_orders(tenant, customers, items, uom_each, warehouse, trucks)
 
         self.stdout.write(self.style.SUCCESS('\nDemo data seeded successfully!'))
         self.stdout.write(f'  - {len(trucks)} trucks')
         self.stdout.write(f'  - {len(vendors)} vendors')
         self.stdout.write(f'  - {len(customers)} customers')
-        self.stdout.write(f'  - {len(items)} items')
-        self.stdout.write(f'  - 10 purchase orders (unscheduled)')
-        self.stdout.write(f'  - 10 sales orders (unscheduled)')
+        self.stdout.write(f'  - {len(items)} items (varied lifecycle_status)')
+        self.stdout.write(f'  - {po_count} purchase orders (varied status, scheduling)')
+        self.stdout.write(f'  - {so_count} sales orders (varied status, scheduling)')
 
     def clear_demo_data(self, tenant):
-        """Clear demo orders (POs and SOs starting with DEMO)."""
+        """
+        Clear demo orders (POs and SOs starting with DEMO-).
+
+        Several downstream models PROTECT references to orders
+        (Invoice, ShipmentLine, Payment, VendorBill, BillPayment),
+        so we tear those down first in dependency order before
+        the SalesOrder/PurchaseOrder rows can be deleted.
+        """
+        from apps.invoicing.models import Invoice, Payment, VendorBill, BillPayment
+        from apps.shipping.models import ShipmentLine
+
         self.stdout.write('Clearing existing demo data...')
 
-        # Delete demo sales orders
+        demo_so_filter = {'tenant': tenant, 'sales_order__order_number__startswith': 'DEMO-SO-'}
+        demo_po_filter = {'tenant': tenant, 'bill__purchase_order__po_number__startswith': 'DEMO-PO-'}
+
+        # SO-side dependents: Payment (PROTECT) -> Invoice (PROTECT) -> SO,
+        # ShipmentLine (PROTECT) -> SO.
+        pay_deleted, _ = Payment.objects.filter(
+            tenant=tenant,
+            invoice__sales_order__order_number__startswith='DEMO-SO-'
+        ).delete()
+        if pay_deleted:
+            self.stdout.write(f'  Deleted {pay_deleted} customer payments')
+
+        inv_deleted, _ = Invoice.objects.filter(**demo_so_filter).delete()
+        if inv_deleted:
+            self.stdout.write(f'  Deleted {inv_deleted} invoice rows (incl. lines)')
+
+        ship_line_deleted, _ = ShipmentLine.objects.filter(**demo_so_filter).delete()
+        if ship_line_deleted:
+            self.stdout.write(f'  Deleted {ship_line_deleted} shipment lines')
+
+        # PO-side dependents: BillPayment (PROTECT) -> VendorBill (PROTECT) -> PO.
+        bill_pay_deleted, _ = BillPayment.objects.filter(**demo_po_filter).delete()
+        if bill_pay_deleted:
+            self.stdout.write(f'  Deleted {bill_pay_deleted} vendor bill payments')
+
+        vbill_deleted, _ = VendorBill.objects.filter(
+            tenant=tenant,
+            purchase_order__po_number__startswith='DEMO-PO-'
+        ).delete()
+        if vbill_deleted:
+            self.stdout.write(f'  Deleted {vbill_deleted} vendor bill rows (incl. lines)')
+
         so_deleted, _ = SalesOrder.objects.filter(
             tenant=tenant,
             order_number__startswith='DEMO-SO-'
         ).delete()
         self.stdout.write(f'  Deleted {so_deleted} sales orders')
 
-        # Delete demo purchase orders
         po_deleted, _ = PurchaseOrder.objects.filter(
             tenant=tenant,
             po_number__startswith='DEMO-PO-'
@@ -154,7 +207,7 @@ class Command(BaseCommand):
 
     def ensure_uom(self, tenant):
         """Ensure base UOM exists."""
-        uom, created = UnitOfMeasure.objects.get_or_create(
+        uom, _ = UnitOfMeasure.objects.get_or_create(
             tenant=tenant,
             code='ea',
             defaults={
@@ -166,10 +219,10 @@ class Command(BaseCommand):
         return uom
 
     def create_items(self, tenant, uom_each):
-        """Create demo items."""
+        """Create demo items with varied lifecycle_status."""
         self.stdout.write('\nCreating items...')
         items = []
-        for sku, name, desc in ITEMS:
+        for sku, name, desc, lifecycle_status in ITEMS:
             item, created = Item.objects.get_or_create(
                 tenant=tenant,
                 sku=sku,
@@ -177,12 +230,20 @@ class Command(BaseCommand):
                     'name': name,
                     'description': desc,
                     'base_uom': uom_each,
-                    'is_inventory': True,
+                    'item_type': 'inventory',
                     'is_active': True,
+                    'lifecycle_status': lifecycle_status,
                 }
             )
-            status = 'Created' if created else 'Exists'
-            self.stdout.write(f'  {status}: {sku}')
+            # If item already existed, refresh its lifecycle_status so re-runs
+            # pick up new status assignments without manual cleanup.
+            if not created and item.lifecycle_status != lifecycle_status:
+                item.lifecycle_status = lifecycle_status
+                item.save(update_fields=['lifecycle_status'])
+                action = 'Updated'
+            else:
+                action = 'Created' if created else 'Exists'
+            self.stdout.write(f'  {action}: {sku} [{lifecycle_status}]')
             items.append(item)
         return items
 
@@ -191,7 +252,6 @@ class Command(BaseCommand):
         self.stdout.write('\nCreating vendors...')
         vendors = []
         for code, name, city, state in VENDORS:
-            # Create or get party
             party, party_created = Party.objects.get_or_create(
                 tenant=tenant,
                 code=code,
@@ -203,8 +263,7 @@ class Command(BaseCommand):
                 }
             )
 
-            # Create or get vendor record
-            vendor, vendor_created = Vendor.objects.get_or_create(
+            vendor, _ = Vendor.objects.get_or_create(
                 tenant=tenant,
                 party=party,
                 defaults={
@@ -212,7 +271,6 @@ class Command(BaseCommand):
                 }
             )
 
-            # Create location if party was just created
             if party_created:
                 Location.objects.create(
                     tenant=tenant,
@@ -238,7 +296,6 @@ class Command(BaseCommand):
         self.stdout.write('\nCreating customers...')
         customers = []
         for code, name, city, state in CUSTOMERS:
-            # Create or get party
             party, party_created = Party.objects.get_or_create(
                 tenant=tenant,
                 code=code,
@@ -250,7 +307,6 @@ class Command(BaseCommand):
                 }
             )
 
-            # Create location if party was just created
             location = None
             if party_created:
                 location = Location.objects.create(
@@ -269,8 +325,7 @@ class Command(BaseCommand):
             else:
                 location = party.locations.filter(is_active=True).first()
 
-            # Create or get customer record
-            customer, customer_created = Customer.objects.get_or_create(
+            customer, _ = Customer.objects.get_or_create(
                 tenant=tenant,
                 party=party,
                 defaults={
@@ -286,7 +341,6 @@ class Command(BaseCommand):
 
     def ensure_warehouse(self, tenant):
         """Create or get our warehouse location."""
-        # Create a warehouse party
         party, _ = Party.objects.get_or_create(
             tenant=tenant,
             code='OUR-WH',
@@ -315,46 +369,73 @@ class Command(BaseCommand):
         )
         return location
 
-    def create_purchase_orders(self, tenant, vendors, items, uom, warehouse):
-        """Create 10 unscheduled purchase orders."""
+    def create_purchase_orders(self, tenant, vendors, items, uom, warehouse, trucks):
+        """
+        Create purchase orders covering all BaseOrder.STATUS_CHOICES values
+        plus a mix of scheduled and unscheduled rows.
+
+        Each tuple is:
+          (vendor_idx, day_offset_or_None, truck_idx_or_None,
+           priority, num_lines, status, notes)
+
+        day_offset is relative to today() and snapped to the next weekday;
+        None leaves the order unscheduled (shows in the unscheduled bin).
+        """
         self.stdout.write('\nCreating purchase orders...')
+        today = timezone.now().date()
 
         po_configs = [
-            # (vendor_idx, priority, num_lines, status, notes)
-            (0, 2, 3, 'confirmed', 'Urgent - customer waiting'),
-            (1, 5, 2, 'confirmed', ''),
-            (2, 3, 4, 'confirmed', 'Call before delivery'),
-            (3, 5, 1, 'draft', ''),
-            (4, 4, 2, 'confirmed', 'Dock 3 only'),
-            (0, 5, 3, 'confirmed', ''),
-            (1, 1, 2, 'confirmed', 'RUSH - Hot load'),
-            (2, 5, 1, 'draft', ''),
-            (3, 3, 2, 'confirmed', 'AM delivery required'),
-            (4, 5, 3, 'confirmed', ''),
+            # --- unscheduled bin: all the early-lifecycle states ---
+            (3, None, None, 5, 1, 'draft',            ''),
+            (0, None, None, 4, 2, 'draft',            'Quote pending'),
+            (2, None, None, 5, 1, 'pending_approval', 'Awaiting purchasing mgr sign-off'),
+            (4, None, None, 3, 2, 'pending_approval', ''),
+            (1, None, None, 5, 2, 'confirmed',        'Vendor confirmed - awaiting schedule'),
+            (0, None, None, 5, 3, 'confirmed',        ''),
+            # --- past dates: shipped / received / complete ---
+            (2, -10, 2, 3, 4, 'complete',           'Closed out'),
+            (1,  -7, 1, 5, 2, 'partially_received', 'Backorder on line 2'),
+            (4,  -5, 0, 4, 2, 'shipped',            'Vendor shipped FedEx'),
+            (3,  -3, 1, 5, 2, 'cancelled',          'Vendor out of stock'),
+            # --- this week / near future: scheduled and picking ---
+            (0,  -1, 0, 2, 3, 'scheduled',          'Urgent - customer waiting'),
+            (1,   0, 1, 1, 2, 'scheduled',          'RUSH - Hot load'),
+            (2,   1, 2, 3, 4, 'picking',            'Call before delivery'),
+            (4,   2, 0, 4, 2, 'scheduled',          'Dock 3 only'),
+            (0,   3, 1, 5, 3, 'scheduled',          ''),
+            (3,   4, 2, 3, 2, 'crossdock',          'Crossdock to METRO load'),
+            # --- next week and beyond ---
+            (1,   7, 0, 5, 2, 'confirmed',          'AM delivery required'),
+            (2,  10, 1, 4, 3, 'scheduled',          ''),
+            (3,  14, 2, 3, 2, 'scheduled',          'Reserved for monthly buy'),
+            (4,  21, 0, 5, 1, 'confirmed',          'Long lead time order'),
         ]
 
-        for i, (vendor_idx, priority, num_lines, status, notes) in enumerate(po_configs, 1):
+        created_count = 0
+        for i, (vendor_idx, day_offset, truck_idx, priority, num_lines, status, notes) in enumerate(po_configs, 1):
             po_number = f'DEMO-PO-{i:03d}'
 
-            # Skip if already exists
             if PurchaseOrder.objects.filter(tenant=tenant, po_number=po_number).exists():
                 self.stdout.write(f'  Exists: {po_number}')
                 continue
 
             vendor = vendors[vendor_idx]
+            scheduled_date = business_offset(today, day_offset) if day_offset is not None else None
+            scheduled_truck = trucks[truck_idx] if truck_idx is not None else None
 
             po = PurchaseOrder.objects.create(
                 tenant=tenant,
                 vendor=vendor,
                 po_number=po_number,
-                order_date=timezone.now().date(),
+                order_date=today,
                 ship_to=warehouse,
                 status=status,
                 priority=priority,
                 notes=notes,
+                scheduled_date=scheduled_date,
+                scheduled_truck=scheduled_truck,
             )
 
-            # Create lines
             for line_num in range(1, num_lines + 1):
                 item = items[(i + line_num) % len(items)]
                 qty = (line_num * 10) + (i * 5)
@@ -369,30 +450,58 @@ class Command(BaseCommand):
                     unit_cost=Decimal('2.50'),
                 )
 
-            self.stdout.write(self.style.SUCCESS(f'  Created: {po_number} ({vendor.party.display_name})'))
+            sched_str = f' @ {scheduled_date} on {scheduled_truck.name}' if scheduled_date else ' (unscheduled)'
+            self.stdout.write(self.style.SUCCESS(
+                f'  Created: {po_number} [{status}]{sched_str} - {vendor.party.display_name}'
+            ))
+            created_count += 1
 
-    def create_sales_orders(self, tenant, customers, items, uom, warehouse):
-        """Create 10 unscheduled sales orders."""
+        return created_count
+
+    def create_sales_orders(self, tenant, customers, items, uom, warehouse, trucks):
+        """
+        Create sales orders covering all BaseOrder.STATUS_CHOICES values
+        plus a mix of scheduled, unscheduled, and pickup rows.
+
+        Each tuple is:
+          (customer_idx, day_offset_or_None, truck_idx_or_None,
+           priority, num_lines, status, is_pickup, notes)
+        """
         self.stdout.write('\nCreating sales orders...')
+        today = timezone.now().date()
 
         so_configs = [
-            # (customer_idx, priority, num_lines, status, notes)
-            (0, 3, 2, 'confirmed', ''),
-            (1, 1, 3, 'confirmed', 'URGENT - Same day'),
-            (2, 5, 2, 'confirmed', ''),
-            (3, 4, 1, 'confirmed', 'Call 30min before'),
-            (4, 5, 4, 'draft', ''),
-            (0, 2, 2, 'confirmed', 'Back door delivery'),
-            (1, 5, 1, 'confirmed', ''),
-            (2, 3, 3, 'confirmed', 'Signature required'),
-            (3, 5, 2, 'confirmed', ''),
-            (4, 4, 2, 'confirmed', 'Liftgate needed'),
+            # --- unscheduled bin ---
+            (4, None, None, 5, 4, 'draft',            False, ''),
+            (1, None, None, 3, 2, 'draft',            False, 'Quote in progress'),
+            (3, None, None, 5, 2, 'pending_approval', False, 'Credit hold review'),
+            (0, None, None, 3, 2, 'confirmed',        False, ''),
+            (2, None, None, 4, 1, 'confirmed',        False, 'Awaiting routing'),
+            # --- pickup row (is_pickup=True) ---
+            (1,  0, None, 2, 1, 'scheduled',          True,  'Customer pickup at 10am'),
+            (3,  1, None, 4, 2, 'scheduled',          True,  'Will-call - back dock'),
+            # --- past dates: shipped / complete / cancelled ---
+            (0, -12, 2, 3, 3, 'complete',           False, 'Delivered, signed POD'),
+            (2,  -8, 1, 5, 2, 'shipped',            False, 'In transit'),
+            (4,  -5, 0, 4, 2, 'partially_received', False, 'Customer short - line 1 backordered'),
+            (1,  -2, 1, 5, 1, 'cancelled',          False, 'Customer cancelled - duplicate'),
+            # --- this week / near future ---
+            (0, -1, 0, 3, 2, 'picking',            False, 'In pick'),
+            (1,  0, 1, 1, 3, 'scheduled',          False, 'URGENT - same day'),
+            (2,  1, 2, 5, 2, 'scheduled',          False, ''),
+            (3,  2, 0, 4, 1, 'scheduled',          False, 'Call 30min before'),
+            (4,  3, 1, 5, 2, 'scheduled',          False, 'Liftgate needed'),
+            (0,  4, 2, 2, 2, 'crossdock',          False, 'Crossdock from PRIME PO'),
+            # --- next week and beyond ---
+            (2,  7, 0, 3, 3, 'confirmed',          False, 'Signature required'),
+            (3, 10, 1, 5, 2, 'scheduled',          False, ''),
+            (4, 17, 2, 4, 2, 'confirmed',          False, 'Monthly standing order'),
         ]
 
-        for i, (cust_idx, priority, num_lines, status, notes) in enumerate(so_configs, 1):
+        created_count = 0
+        for i, (cust_idx, day_offset, truck_idx, priority, num_lines, status, is_pickup, notes) in enumerate(so_configs, 1):
             order_number = f'DEMO-SO-{i:03d}'
 
-            # Skip if already exists
             if SalesOrder.objects.filter(tenant=tenant, order_number=order_number).exists():
                 self.stdout.write(f'  Exists: {order_number}')
                 continue
@@ -404,18 +513,23 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(f'  Skipped: {order_number} (no ship_to location)'))
                 continue
 
+            scheduled_date = business_offset(today, day_offset) if day_offset is not None else None
+            scheduled_truck = trucks[truck_idx] if truck_idx is not None else None
+
             so = SalesOrder.objects.create(
                 tenant=tenant,
                 customer=customer,
                 order_number=order_number,
-                order_date=timezone.now().date(),
+                order_date=today,
                 ship_to=ship_to,
                 status=status,
                 priority=priority,
                 notes=notes,
+                is_pickup=is_pickup,
+                scheduled_date=scheduled_date,
+                scheduled_truck=scheduled_truck,
             )
 
-            # Create lines
             for line_num in range(1, num_lines + 1):
                 item = items[(i + line_num + 2) % len(items)]
                 qty = (line_num * 8) + (i * 3)
@@ -430,4 +544,14 @@ class Command(BaseCommand):
                     unit_price=Decimal('4.99'),
                 )
 
-            self.stdout.write(self.style.SUCCESS(f'  Created: {order_number} ({customer.party.display_name})'))
+            if scheduled_date:
+                truck_name = scheduled_truck.name if scheduled_truck else 'Pickup'
+                sched_str = f' @ {scheduled_date} on {truck_name}'
+            else:
+                sched_str = ' (unscheduled)'
+            self.stdout.write(self.style.SUCCESS(
+                f'  Created: {order_number} [{status}]{sched_str} - {customer.party.display_name}'
+            ))
+            created_count += 1
+
+        return created_count

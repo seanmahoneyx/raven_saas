@@ -1,0 +1,49 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Contract Utilization{% endblock %}
+
+{% block report_subtitle %}{{ count }} active contract{{ count|pluralize }}{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Contract #</th>
+            <th>Blanket PO</th>
+            <th>Customer</th>
+            <th class="center">Status</th>
+            <th class="right">Committed</th>
+            <th class="right">Released</th>
+            <th class="right">Remaining</th>
+            <th class="right">% Complete</th>
+            <th class="center">At Risk</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in contracts %}
+        <tr{% if row.at_risk %} class="over-90"{% endif %}>
+            <td class="bold">{{ row.contract_number }}</td>
+            <td>{{ row.blanket_po|default:"&mdash;" }}</td>
+            <td>{{ row.customer_name }}</td>
+            <td class="center">{{ row.status|title }}</td>
+            <td class="right">{{ row.total_committed }}</td>
+            <td class="right">{{ row.total_released }}</td>
+            <td class="right">{{ row.total_remaining }}</td>
+            <td class="right">{{ row.completion_pct|floatformat:1 }}%</td>
+            <td class="center">{% if row.at_risk %}Yes{% else %}&mdash;{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" style="text-align:center;padding:16px;color:#999;">No contracts found</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td colspan="4" class="bold">{{ count }} contract{{ count|pluralize }}</td>
+            <td class="right bold">{{ total_committed }}</td>
+            <td class="right bold">{{ total_released }}</td>
+            <td class="right bold">{{ total_remaining }}</td>
+            <td colspan="2"></td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

@@ -202,9 +202,13 @@ from apps.api.v1.serializers.reporting import (
 class FinancialReportPermission(IsAuthenticated):
     """
     Permission check for financial reports.
-    Requires authenticated user. In production, add view_financials permission check.
+    Requires authenticated staff or superuser.
     """
-    pass
+    def has_permission(self, request, view):
+        if not super().has_permission(request, view):
+            return False
+        u = request.user
+        return bool(u and (u.is_superuser or u.is_staff))
 
 
 class TrialBalanceView(APIView):
@@ -327,34 +331,89 @@ class BalanceSheetView(APIView):
         return Response(result)
 
 
+def _parse_aging_params(request):
+    """Parse shared aging query params: date, interval, through, and optionally customer/vendor.
+
+    Returns (as_of_date, interval, through, party_id, error_response).
+    error_response is non-None only when validation fails.
+    """
+    as_of = request.query_params.get('date')
+    if as_of:
+        try:
+            as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+        except ValueError:
+            return None, None, None, None, Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    else:
+        as_of_date = date.today()
+
+    try:
+        interval = int(request.query_params.get('interval', 30))
+        through = int(request.query_params.get('through', 90))
+    except ValueError:
+        return None, None, None, None, Response(
+            {'error': 'interval and through must be integers.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not (1 <= interval <= 365):
+        return None, None, None, None, Response(
+            {'error': 'interval must be between 1 and 365.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if not (interval <= through <= 3650):
+        return None, None, None, None, Response(
+            {'error': 'through must be between interval and 3650.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    party_raw = request.query_params.get('customer') or request.query_params.get('vendor')
+    party_id = None
+    if party_raw is not None:
+        try:
+            party_id = int(party_raw)
+        except ValueError:
+            return None, None, None, None, Response(
+                {'error': 'customer/vendor must be an integer id.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    return as_of_date, interval, through, party_id, None
+
+
 class ARAgingView(APIView):
-    """GET /api/v1/reports/ar-aging/?date=YYYY-MM-DD"""
+    """GET /api/v1/reports/ar-aging/?date=YYYY-MM-DD&interval=30&through=90&customer=<id>"""
     permission_classes = [FinancialReportPermission]
 
     @extend_schema(
         tags=['financial-reports'],
         summary='Generate A/R Aging Report',
-        parameters=[{
-            'name': 'date', 'in': 'query', 'required': False,
-            'schema': {'type': 'string', 'format': 'date'},
-            'description': 'As-of date (defaults to today)',
-        }],
+        parameters=[
+            {'name': 'date', 'in': 'query', 'required': False,
+             'schema': {'type': 'string', 'format': 'date'},
+             'description': 'As-of date (defaults to today)'},
+            {'name': 'interval', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 30},
+             'description': 'Bucket width in days (1-365)'},
+            {'name': 'through', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 90},
+             'description': 'Max days before Over bucket (interval-3650)'},
+            {'name': 'customer', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer'},
+             'description': 'Filter by customer id'},
+        ],
         responses={200: ARAgingSerializer}
     )
     def get(self, request):
-        as_of = request.query_params.get('date')
-        if as_of:
-            try:
-                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
-            except ValueError:
-                return Response(
-                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        else:
-            as_of_date = date.today()
-
-        result = FinancialReportService.get_ar_aging(request.tenant, as_of_date)
+        as_of_date, interval, through, customer_id, err = _parse_aging_params(request)
+        if err:
+            return err
+        result = FinancialReportService.get_ar_aging(
+            request.tenant, as_of_date, interval=interval, through=through,
+            customer_id=customer_id,
+        )
         return Response(result)
 
 
@@ -447,19 +506,11 @@ class ItemQuickReportPDFView(APIView):
         return response
 
 
-class APAgingView(APIView):
-    """GET /api/v1/reports/ap-aging/?date=YYYY-MM-DD"""
+class TrialBalancePDFView(APIView):
+    """GET /api/v1/reports/trial-balance/pdf/?date=YYYY-MM-DD"""
     permission_classes = [FinancialReportPermission]
 
-    @extend_schema(
-        tags=['financial-reports'],
-        summary='Generate A/P Aging Report',
-        parameters=[{
-            'name': 'date', 'in': 'query', 'required': False,
-            'schema': {'type': 'string', 'format': 'date'},
-            'description': 'As-of date (defaults to today)',
-        }],
-    )
+    @extend_schema(tags=['financial-reports'], summary='Download Trial Balance PDF')
     def get(self, request):
         as_of = request.query_params.get('date')
         if as_of:
@@ -473,8 +524,227 @@ class APAgingView(APIView):
         else:
             as_of_date = date.today()
 
-        result = FinancialReportService.get_ap_aging(request.tenant, as_of_date)
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        pdf = PDFService.render_trial_balance(request.tenant, as_of_date)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="trial-balance-{as_of_date.isoformat()}.pdf"'
+        return response
+
+
+class IncomeStatementPDFView(APIView):
+    """GET /api/v1/reports/income-statement/pdf/?start=YYYY-MM-DD&end=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(tags=['financial-reports'], summary='Download Income Statement PDF')
+    def get(self, request):
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start and end query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'Start date must be before end date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        pdf = PDFService.render_income_statement(request.tenant, start_date, end_date)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'inline; filename="income-statement-{start_date.isoformat()}-{end_date.isoformat()}.pdf"'
+        )
+        return response
+
+
+class BalanceSheetPDFView(APIView):
+    """GET /api/v1/reports/balance-sheet/pdf/?date=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(tags=['financial-reports'], summary='Download Balance Sheet PDF')
+    def get(self, request):
+        as_of = request.query_params.get('date')
+        if as_of:
+            try:
+                as_of_date = datetime.strptime(as_of, '%Y-%m-%d').date()
+            except ValueError:
+                return Response(
+                    {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            as_of_date = date.today()
+
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        pdf = PDFService.render_balance_sheet(request.tenant, as_of_date)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="balance-sheet-{as_of_date.isoformat()}.pdf"'
+        return response
+
+
+class CashFlowStatementPDFView(APIView):
+    """GET /api/v1/reports/cash-flow/pdf/?start=YYYY-MM-DD&end=YYYY-MM-DD"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(tags=['financial-reports'], summary='Download Cash Flow Statement PDF')
+    def get(self, request):
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+
+        if not start or not end:
+            return Response(
+                {'error': 'Both start and end query parameters are required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = datetime.strptime(start, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if start_date > end_date:
+            return Response(
+                {'error': 'Start date must be before end date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        pdf = PDFService.render_cash_flow_statement(request.tenant, start_date, end_date)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = (
+            f'inline; filename="cash-flow-{start_date.isoformat()}-{end_date.isoformat()}.pdf"'
+        )
+        return response
+
+
+class APAgingView(APIView):
+    """GET /api/v1/reports/ap-aging/?date=YYYY-MM-DD&interval=30&through=90&vendor=<id>"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Generate A/P Aging Report',
+        parameters=[
+            {'name': 'date', 'in': 'query', 'required': False,
+             'schema': {'type': 'string', 'format': 'date'},
+             'description': 'As-of date (defaults to today)'},
+            {'name': 'interval', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 30},
+             'description': 'Bucket width in days (1-365)'},
+            {'name': 'through', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 90},
+             'description': 'Max days before Over bucket (interval-3650)'},
+            {'name': 'vendor', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer'},
+             'description': 'Filter by vendor id'},
+        ],
+    )
+    def get(self, request):
+        as_of_date, interval, through, vendor_id, err = _parse_aging_params(request)
+        if err:
+            return err
+        result = FinancialReportService.get_ap_aging(
+            request.tenant, as_of_date, interval=interval, through=through,
+            vendor_id=vendor_id,
+        )
         return Response(result)
+
+
+class ARAgingPDFView(APIView):
+    """GET /api/v1/reports/ar-aging/pdf/?date=YYYY-MM-DD&interval=30&through=90&customer=<id>"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Download A/R Aging Report as PDF',
+        parameters=[
+            {'name': 'date', 'in': 'query', 'required': False,
+             'schema': {'type': 'string', 'format': 'date'},
+             'description': 'As-of date (defaults to today)'},
+            {'name': 'interval', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 30}},
+            {'name': 'through', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 90}},
+            {'name': 'customer', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer'}},
+        ],
+    )
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        as_of_date, interval, through, customer_id, err = _parse_aging_params(request)
+        if err:
+            return err
+
+        pdf_bytes = PDFService.render_ar_aging(
+            request.tenant, as_of_date, interval=interval, through=through,
+            customer_id=customer_id,
+        )
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="ar-aging-{as_of_date}.pdf"'
+        return response
+
+
+class APAgingPDFView(APIView):
+    """GET /api/v1/reports/ap-aging/pdf/?date=YYYY-MM-DD&interval=30&through=90&vendor=<id>"""
+    permission_classes = [FinancialReportPermission]
+
+    @extend_schema(
+        tags=['financial-reports'],
+        summary='Download A/P Aging Report as PDF',
+        parameters=[
+            {'name': 'date', 'in': 'query', 'required': False,
+             'schema': {'type': 'string', 'format': 'date'},
+             'description': 'As-of date (defaults to today)'},
+            {'name': 'interval', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 30}},
+            {'name': 'through', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer', 'default': 90}},
+            {'name': 'vendor', 'in': 'query', 'required': False,
+             'schema': {'type': 'integer'}},
+        ],
+    )
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        as_of_date, interval, through, vendor_id, err = _parse_aging_params(request)
+        if err:
+            return err
+
+        pdf_bytes = PDFService.render_ap_aging(
+            request.tenant, as_of_date, interval=interval, through=through,
+            vendor_id=vendor_id,
+        )
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="ap-aging-{as_of_date}.pdf"'
+        return response
 
 
 class CashFlowStatementView(APIView):
@@ -621,3 +891,118 @@ class VendorScorecardView(APIView):
         date_to = request.query_params.get('date_to')
         data = svc.get_vendor_scorecard(date_from=date_from, date_to=date_to)
         return Response({'count': len(data), 'vendors': data})
+
+
+class GrossMarginPDFView(APIView):
+    """GET /api/v1/reports/gross-margin/pdf/"""
+
+    @extend_schema(tags=['reports'], summary='Download Gross Margin PDF')
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        customer_id = request.query_params.get('customer')
+        item_id = request.query_params.get('item')
+
+        pdf = PDFService.render_gross_margin(
+            request.tenant,
+            date_from=date_from,
+            date_to=date_to,
+            customer_id=int(customer_id) if customer_id else None,
+            item_id=int(item_id) if item_id else None,
+        )
+
+        from_part = date_from or 'all'
+        to_part = date_to or 'time'
+        filename = f'gross-margin-{from_part}-{to_part}.pdf'
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+
+class ContractUtilizationPDFView(APIView):
+    """GET /api/v1/reports/contract-utilization/pdf/"""
+
+    @extend_schema(tags=['reports'], summary='Download Contract Utilization PDF')
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+        from datetime import date
+
+        pdf = PDFService.render_contract_utilization(request.tenant)
+        today = date.today().isoformat()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="contract-utilization-{today}.pdf"'
+        return response
+
+
+class VendorScorecardPDFView(APIView):
+    """GET /api/v1/reports/vendor-scorecard/pdf/"""
+
+    @extend_schema(tags=['reports'], summary='Download Vendor Scorecard PDF')
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+        from datetime import date
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+
+        pdf = PDFService.render_vendor_scorecard(
+            request.tenant,
+            date_from=date_from,
+            date_to=date_to,
+        )
+
+        from_part = date_from or date.today().isoformat()
+        to_part = date_to or date.today().isoformat()
+        filename = f'vendor-scorecard-{from_part}-{to_part}.pdf'
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+
+class SalesCommissionPDFView(APIView):
+    """GET /api/v1/reports/sales-commission/pdf/"""
+
+    @extend_schema(tags=['reports'], summary='Download Sales Commission PDF')
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+        from datetime import date
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        commission_rate = request.query_params.get('commission_rate')
+
+        pdf = PDFService.render_sales_commission(
+            request.tenant,
+            date_from=date_from,
+            date_to=date_to,
+            commission_rate=float(commission_rate) if commission_rate else None,
+        )
+
+        from_part = date_from or date.today().isoformat()
+        to_part = date_to or date.today().isoformat()
+        filename = f'sales-commission-{from_part}-{to_part}.pdf'
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+
+class OrdersVsInventoryPDFView(APIView):
+    """GET /api/v1/reports/orders-vs-inventory/pdf/"""
+
+    @extend_schema(tags=['reports'], summary='Download Orders vs Inventory PDF')
+    def get(self, request):
+        from apps.documents.pdf import PDFService
+        from django.http import HttpResponse
+        from datetime import date
+
+        pdf = PDFService.render_orders_vs_inventory(request.tenant)
+        today = date.today().isoformat()
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="orders-vs-inventory-{today}.pdf"'
+        return response

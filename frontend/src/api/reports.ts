@@ -471,49 +471,77 @@ export function useBalanceSheet(date?: string) {
   })
 }
 
-export interface AgingRow {
+export interface AgingBucket {
+  key: string
+  label: string
+}
+
+export interface AgingDetailRow {
+  id: number
+  number: string
+  date: string
+  due_date: string
+  balance: string
+  days_overdue: number
+  bucket_key: string
+}
+
+export interface AgingPartyRow {
   party_id: number
   party_name: string
-  current: string
-  days_1_30: string
-  days_31_60: string
-  days_61_90: string
-  over_90: string
+  amounts: string[]
   total: string
+  detail: AgingDetailRow[]
 }
 
 export interface AgingReport {
   as_of_date: string
-  rows: AgingRow[]
+  interval: number
+  through: number
+  filters: { customer?: number | null; vendor?: number | null }
+  buckets: AgingBucket[]
+  rows: AgingPartyRow[]
   totals: {
-    current: string
-    days_1_30: string
-    days_31_60: string
-    days_61_90: string
-    over_90: string
-    total: string
+    amounts: string[]
+    grand_total: string
   }
 }
 
-export function useARAgingReport(date?: string) {
+export function useARAgingReport(params: {
+  date?: string
+  interval?: number
+  through?: number
+  customer?: number | null
+}) {
   return useQuery({
-    queryKey: ['ar-aging', date],
+    queryKey: ['ar-aging', params],
     queryFn: async () => {
-      const params: Record<string, string> = {}
-      if (date) params.date = date
-      const { data } = await api.get<AgingReport>('/reports/ar-aging/', { params })
+      const p: Record<string, string | number> = {}
+      if (params.date) p.date = params.date
+      if (params.interval != null) p.interval = params.interval
+      if (params.through != null) p.through = params.through
+      if (params.customer != null) p.customer = params.customer
+      const { data } = await api.get<AgingReport>('/reports/ar-aging/', { params: p })
       return data
     },
   })
 }
 
-export function useAPAgingReport(date?: string) {
+export function useAPAgingReport(params: {
+  date?: string
+  interval?: number
+  through?: number
+  vendor?: number | null
+}) {
   return useQuery({
-    queryKey: ['ap-aging', date],
+    queryKey: ['ap-aging', params],
     queryFn: async () => {
-      const params: Record<string, string> = {}
-      if (date) params.date = date
-      const { data } = await api.get<AgingReport>('/reports/ap-aging/', { params })
+      const p: Record<string, string | number> = {}
+      if (params.date) p.date = params.date
+      if (params.interval != null) p.interval = params.interval
+      if (params.through != null) p.through = params.through
+      if (params.vendor != null) p.vendor = params.vendor
+      const { data } = await api.get<AgingReport>('/reports/ap-aging/', { params: p })
       return data
     },
   })

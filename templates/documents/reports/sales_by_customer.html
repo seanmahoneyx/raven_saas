@@ -1,0 +1,35 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Sales by Customer{% endblock %}
+
+{% block report_subtitle %}{{ start_date|date:"M d, Y" }} &ndash; {{ end_date|date:"M d, Y" }} &middot; {{ row_count }} customers{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Customer</th>
+            <th class="right">Orders</th>
+            <th class="right">Total Sales</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{% if row.customer_name %}{{ row.customer_name }}{% elif row.customer_code %}{{ row.customer_code }}{% else %}&mdash;{% endif %}</td>
+            <td class="right">{{ row.order_count }}</td>
+            <td class="right">${{ row.total_sales|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" style="text-align: center; padding: 20px; color: #999;">No sales in this period</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td class="bold">{{ row_count }} customer{{ row_count|pluralize }}</td>
+            <td class="right bold">{{ totals.orders }}</td>
+            <td class="right bold">${{ totals.sales|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}

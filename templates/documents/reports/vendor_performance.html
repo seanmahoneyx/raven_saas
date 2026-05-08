@@ -1,0 +1,38 @@
+{% extends "documents/base_report.html" %}
+
+{% block title %}Vendor Performance{% endblock %}
+
+{% block report_subtitle %}{{ start_date|date:"M d, Y" }} &ndash; {{ end_date|date:"M d, Y" }} &middot; {{ row_count }} vendors{% endblock %}
+
+{% block report_content %}
+<table class="report-table">
+    <thead>
+        <tr>
+            <th>Vendor</th>
+            <th class="right">Total Orders</th>
+            <th class="right">Late</th>
+            <th class="right">On-Time %</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bold">{{ row.vendor_name }}</td>
+            <td class="right">{{ row.total_orders }}</td>
+            <td class="right">{{ row.late_orders }}</td>
+            <td class="right">{{ row.on_time_pct }}%</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" style="text-align: center; padding: 20px; color: #999;">No completed orders in this period</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr class="total-row">
+            <td class="bold">{{ row_count }} vendor{{ row_count|pluralize }}</td>
+            <td class="right bold">{{ totals.total_orders }}</td>
+            <td class="right bold">{{ totals.late_orders }}</td>
+            <td class="right">&mdash;</td>
+        </tr>
+    </tfoot>
+</table>
+{% endblock %}
