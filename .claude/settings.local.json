@@ -140,7 +140,28 @@
       "Bash(tee /tmp/tsc_errors2.txt)",
       "Read(//tmp/**)",
       "Read(//c/Users/Sean/AppData/Local/Temp/claude/C--Users-Sean-raven-saas/62a06f0b-9b14-4048-be77-93c2c0ca59b2/tasks/**)",
-      "Bash(npm *)"
+      "Bash(npm *)",
+      "Bash(Select-String -Pattern \"AgingReports|CannedReport|ReportViewer\")",
+      "mcp__plugin_oh-my-claudecode_t__state_list_active",
+      "mcp__plugin_oh-my-claudecode_t__state_write",
+      "mcp__plugin_oh-my-claudecode_t__state_clear",
+      "Bash(Select-String -Pattern \"FinancialStatements\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\Sean\\\\raven_saas\\\\apps\\\\documents\\\\pdf.py\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(tail -100 logs/runserver.log)",
+      "Bash(tail -100 logs/django.log)",
+      "PowerShell(Get-Process *)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Sean\\\\raven_saas\\\\apps\\\\core\\\\importers\\\\tests\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"done\")",
+      "PowerShell(New-Item *)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Set-Location C:\\\\Users\\\\Sean\\\\raven_saas\\\\frontend; $result = npx tsc --noEmit 2>&1 | Out-String; Write-Host \"EXIT: $LASTEXITCODE\"; Write-Host $result)",
+      "PowerShell(npm run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Sean\\\\raven_saas\\\\frontend\\\\src\" -Filter \"page*\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(Push-Location frontend; npx tsc --noEmit 2>&1 | Select-Object -Last 5; $code = $LASTEXITCODE; Pop-Location; \"exit=$code\")"
     ]
   }
 }
