@@ -131,7 +131,9 @@ export default function DataImport() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
+      const message = getApiErrorMessage(err, 'Template download failed.')
       console.error('Template download failed', err)
+      alert(message)
     }
   }
 

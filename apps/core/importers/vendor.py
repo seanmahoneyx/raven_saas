@@ -1,11 +1,17 @@
 """
 Vendor importer — creates/updates Party + Vendor + Location records from CSV.
 """
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
-from apps.parties.models import Party, Vendor, Location
+from apps.parties.models import Party, Vendor
 from .base import BaseCsvImporter
-from ._helpers import parse_bool_default_true
+from ._helpers import (
+    parse_bool_default_true,
+    validate_party_basics,
+    validate_credit_limit,
+    validate_address_completeness,
+    upsert_party_address,
+)
 
 
 class VendorImporter(BaseCsvImporter):
@@ -23,13 +29,7 @@ class VendorImporter(BaseCsvImporter):
 
     def validate_row(self, row_num, row):
         errors = []
-
-        if not row.get('Code'):
-            errors.append(f"Row {row_num}: Code is required.")
-        if not row.get('Name'):
-            errors.append(f"Row {row_num}: Name is required.")
-        if not row.get('PaymentTerms'):
-            errors.append(f"Row {row_num}: PaymentTerms is required.")
+        validate_party_basics(row, row_num, errors)
 
         vendor_type = row.get('VendorType', '').strip().upper()
         if vendor_type and vendor_type not in self._VALID_VENDOR_TYPES:
@@ -38,23 +38,8 @@ class VendorImporter(BaseCsvImporter):
                 f"Must be one of: {', '.join(self._VALID_VENDOR_TYPES)}"
             )
 
-        credit_limit = row.get('CreditLimit', '').strip()
-        if credit_limit:
-            try:
-                val = Decimal(credit_limit)
-                if val < 0:
-                    errors.append(f"Row {row_num}: CreditLimit must be >= 0.")
-            except InvalidOperation:
-                errors.append(f"Row {row_num}: CreditLimit '{credit_limit}' is not a valid decimal.")
-
-        if row.get('Address1'):
-            if not row.get('City'):
-                errors.append(f"Row {row_num}: City is required when Address1 is provided.")
-            if not row.get('State'):
-                errors.append(f"Row {row_num}: State is required when Address1 is provided.")
-            if not row.get('PostalCode'):
-                errors.append(f"Row {row_num}: PostalCode is required when Address1 is provided.")
-
+        validate_credit_limit(row, row_num, errors)
+        validate_address_completeness(row, row_num, errors)
         return errors
 
     def process_row(self, row_num, row):
@@ -130,25 +115,6 @@ class VendorImporter(BaseCsvImporter):
             vendor.credit_limit = credit_limit
         vendor.save()
 
-        # Address — only if Address1 provided
-        if row.get('Address1'):
-            Location.objects.update_or_create(
-                tenant=self.tenant,
-                party=party,
-                name='Imported Address',
-                defaults={
-                    'location_type': 'WAREHOUSE',
-                    'address_line1': row['Address1'],
-                    'address_line2': row.get('Address2', ''),
-                    'city': row.get('City', ''),
-                    'state': row.get('State', ''),
-                    'postal_code': row.get('PostalCode', ''),
-                    'country': row.get('Country') or 'USA',
-                    'phone': row.get('Phone', ''),
-                    'email': row.get('Email', ''),
-                    'is_default': True,
-                    'is_active': True,
-                },
-            )
+        upsert_party_address(self.tenant, party, row, location_type='WAREHOUSE')
 
         return 'created' if was_created else 'updated'
