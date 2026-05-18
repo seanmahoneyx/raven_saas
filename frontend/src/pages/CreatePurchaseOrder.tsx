@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
-import { useCreatePurchaseOrder } from '@/api/orders'
+import { useCreatePurchaseOrder, useNextPurchaseOrderNumber } from '@/api/orders'
 import { useCostLookup } from '@/api/costLists'
 import { useVendors, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
@@ -56,6 +56,7 @@ export default function CreatePurchaseOrder() {
   const copyData = (location.state as any)?.copyFrom
   usePageTitle(copyData ? 'Copy Purchase Order' : 'Create Purchase Order')
   const createOrder = useCreatePurchaseOrder()
+  const { data: nextPONumber } = useNextPurchaseOrderNumber()
 
   const { data: vendorsData } = useVendors()
   const { data: locationsData } = useLocations()
@@ -244,6 +245,11 @@ export default function CreatePurchaseOrder() {
                 </span>
               )}
             </div>
+            {!copyData && (
+              <div className="mt-1 font-mono text-[13px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {nextPONumber ?? '…'}
+              </div>
+            )}
           </div>
         </div>
 

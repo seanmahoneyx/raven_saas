@@ -14,7 +14,7 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
-import { useCreateRFQ } from '@/api/rfqs'
+import { useCreateRFQ, useNextRFQNumber } from '@/api/rfqs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
@@ -32,6 +32,7 @@ export default function CreateRFQ() {
   usePageTitle('Create RFQ')
   const navigate = useNavigate()
   const createRFQ = useCreateRFQ()
+  const { data: nextRFQNumber } = useNextRFQNumber()
 
   const { data: locationsData } = useLocations()
   const { data: itemsData } = useItems()
@@ -39,7 +40,6 @@ export default function CreateRFQ() {
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    rfq_number: '',
     status: 'DRAFT',
     vendor: '',
     date: new Date().toISOString().split('T')[0],
@@ -99,7 +99,6 @@ export default function CreateRFQ() {
 
     try {
       await createRFQ.mutateAsync({
-        rfq_number: formData.rfq_number || undefined,
         status: formData.status as import('@/types/api').RFQStatus,
         vendor: Number(formData.vendor),
         date: formData.date,
@@ -127,8 +126,12 @@ export default function CreateRFQ() {
       <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7 pb-16">
         <PageHeader
           title="Create New RFQ"
-          description="Request for Quote from a vendor"
           breadcrumb={[{ label: 'RFQs', to: '/rfqs' }, { label: 'New' }]}
+          meta={
+            <span className="font-mono text-[13px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {nextRFQNumber ?? '…'}
+            </span>
+          }
         />
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -138,21 +141,15 @@ export default function CreateRFQ() {
               <span className="text-sm font-semibold">RFQ Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor *</Label>
-                  <SearchableCombobox
-                    entityType="vendor"
-                    value={formData.vendor ? Number(formData.vendor) : null}
-                    onChange={(id) => update('vendor', id ? String(id) : '')}
-                    placeholder="Select vendor..."
-                    allowClear
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>RFQ Number</Label>
-                  <Input value={formData.rfq_number} onChange={(e) => update('rfq_number', e.target.value)} placeholder="Auto-generated if blank" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Vendor *</Label>
+                <SearchableCombobox
+                  entityType="vendor"
+                  value={formData.vendor ? Number(formData.vendor) : null}
+                  onChange={(id) => update('vendor', id ? String(id) : '')}
+                  placeholder="Select vendor..."
+                  allowClear
+                />
               </div>
             </div>
           </div>

@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCreatePurchaseOrder, useUpdatePurchaseOrder } from '@/api/orders'
+import { useCreatePurchaseOrder, useUpdatePurchaseOrder, useNextPurchaseOrderNumber } from '@/api/orders'
 import { useVendors, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import type { PurchaseOrder, OrderStatus } from '@/types/api'
@@ -48,6 +48,7 @@ const ORDER_STATUSES = [
 ]
 
 export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: PurchaseOrderDialogProps) {
+  const { data: nextPONumber } = useNextPurchaseOrderNumber()
   const [formData, setFormData] = useState({
     po_number: '',
     status: 'draft' as OrderStatus,
@@ -189,21 +190,23 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Purchase Order' : 'New Purchase Order'}</DialogTitle>
+          {!isEditing && (
+            <div className="font-mono text-[13px] font-semibold pt-1" style={{ color: 'var(--so-text-primary)' }}>
+              {nextPONumber ?? '…'}
+            </div>
+          )}
+          {isEditing && (
+            <div className="text-[13px] pt-1">
+              <span className="font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {formData.po_number}
+              </span>
+            </div>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* Header Section */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="po_number">PO Number</Label>
-                <Input
-                  id="po_number"
-                  value={formData.po_number}
-                  onChange={(e) => setFormData({ ...formData, po_number: e.target.value })}
-                  placeholder="Auto-generated"
-                  className="font-mono"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select

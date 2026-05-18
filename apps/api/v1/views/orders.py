@@ -183,6 +183,20 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
         serializer = PurchaseOrderListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
+    @extend_schema(
+        tags=['orders'],
+        summary='Preview the next auto-generated PO number',
+        responses={200: inline_serializer(
+            name='NextPONumberResponse',
+            fields={'next_number': drf_serializers.CharField()},
+        )},
+    )
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Return the next PO number that would be assigned for this tenant."""
+        from apps.orders.services import _generate_po_number
+        return Response({'next_number': _generate_po_number(request.tenant)})
+
 
 @extend_schema_view(
     list=extend_schema(tags=['orders'], summary='List all sales orders'),
@@ -388,6 +402,20 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'inline; filename="pick-ticket-{order.order_number}.pdf"'
         return response
+
+    @extend_schema(
+        tags=['orders'],
+        summary='Preview the next auto-generated SO number',
+        responses={200: inline_serializer(
+            name='NextSONumberResponse',
+            fields={'next_number': drf_serializers.CharField()},
+        )},
+    )
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Return the next SO number that would be assigned for this tenant."""
+        from apps.orders.services import _generate_so_number
+        return Response({'next_number': _generate_so_number(request.tenant)})
 
 
 @extend_schema_view(
@@ -609,6 +637,20 @@ class EstimateViewSet(PDFActionMixin, viewsets.ModelViewSet):
         estimate.status = 'rejected'
         estimate.save()
         return Response(EstimateSerializer(estimate, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['orders'],
+        summary='Preview the next auto-generated estimate number',
+        responses={200: inline_serializer(
+            name='NextEstimateNumberResponse',
+            fields={'next_number': drf_serializers.CharField()},
+        )},
+    )
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Return the next estimate number that would be assigned for this tenant."""
+        from apps.orders.services import _generate_estimate_number
+        return Response({'next_number': _generate_estimate_number(request.tenant)})
 
 
 @extend_schema_view(
@@ -874,3 +916,17 @@ class RFQViewSet(PDFActionMixin, viewsets.ModelViewSet):
         rfq.status = 'cancelled'
         rfq.save()
         return Response(RFQSerializer(rfq, context={'request': request}).data)
+
+    @extend_schema(
+        tags=['procurement'],
+        summary='Preview the next auto-generated RFQ number',
+        responses={200: inline_serializer(
+            name='NextRFQNumberResponse',
+            fields={'next_number': drf_serializers.CharField()},
+        )},
+    )
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Return the next RFQ number that would be assigned for this tenant."""
+        from apps.orders.services import _generate_rfq_number
+        return Response({'next_number': _generate_rfq_number(request.tenant)})

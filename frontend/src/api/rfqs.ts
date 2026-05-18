@@ -4,6 +4,18 @@ import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
 import type { RFQ, PaginatedResponse, RFQStatus, ApiError } from '@/types/api'
 
+export function useNextRFQNumber() {
+  return useQuery({
+    queryKey: ['rfqs', 'next-number'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_number: string }>('/rfqs/next-number/')
+      return data.next_number
+    },
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
 export function useRFQs(params?: { status?: RFQStatus; vendor?: number }) {
   return useQuery({
     queryKey: ['rfqs', params],

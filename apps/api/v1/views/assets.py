@@ -83,6 +83,27 @@ class FixedAssetViewSet(viewsets.ModelViewSet):
             return FixedAssetListSerializer
         return FixedAssetDetailSerializer
 
+    def perform_create(self, serializer):
+        if not serializer.validated_data.get('asset_number'):
+            from apps.assets.services import _generate_asset_number
+            serializer.save(asset_number=_generate_asset_number(self.request.tenant))
+        else:
+            serializer.save()
+
+    @extend_schema(
+        tags=['assets'],
+        summary='Preview the next auto-generated asset number',
+        responses={200: {
+            'type': 'object',
+            'properties': {'next_number': {'type': 'string'}},
+        }},
+    )
+    @action(detail=False, methods=['get'], url_path='next-number')
+    def next_number(self, request):
+        """Return the next asset number that would be assigned for this tenant."""
+        from apps.assets.services import _generate_asset_number
+        return Response({'next_number': _generate_asset_number(request.tenant)})
+
     @extend_schema(
         tags=['assets'],
         summary='Dispose of a fixed asset',

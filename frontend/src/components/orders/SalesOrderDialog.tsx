@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCreateSalesOrder, useUpdateSalesOrder } from '@/api/orders'
+import { useCreateSalesOrder, useUpdateSalesOrder, useNextSalesOrderNumber } from '@/api/orders'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import type { SalesOrder, OrderStatus } from '@/types/api'
@@ -50,6 +50,7 @@ const ORDER_STATUSES = [
 ]
 
 export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: SalesOrderDialogProps) {
+  const { data: nextSONumber } = useNextSalesOrderNumber()
   const [formData, setFormData] = useState({
     order_number: '',
     status: 'draft' as OrderStatus,
@@ -198,21 +199,23 @@ export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: Sales
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Sales Order' : 'New Sales Order'}</DialogTitle>
+          {!isEditing && (
+            <div className="font-mono text-[13px] font-semibold pt-1" style={{ color: 'var(--so-text-primary)' }}>
+              {nextSONumber ?? '…'}
+            </div>
+          )}
+          {isEditing && (
+            <div className="text-[13px] pt-1">
+              <span className="font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {formData.order_number}
+              </span>
+            </div>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* Header Section */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="order_number">Order Number</Label>
-                <Input
-                  id="order_number"
-                  value={formData.order_number}
-                  onChange={(e) => setFormData({ ...formData, order_number: e.target.value })}
-                  placeholder="Auto-generated"
-                  className="font-mono"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select

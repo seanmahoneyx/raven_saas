@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateSalesOrder } from '@/api/orders'
+import { useCreateSalesOrder, useNextSalesOrderNumber } from '@/api/orders'
 import { useCustomers, useLocations } from '@/api/parties'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
@@ -87,6 +87,7 @@ export default function CreateSalesOrder() {
   const sourceEstimateId = fromEstimate?.id as number | undefined
   usePageTitle(fromEstimate ? 'Convert Estimate to Sales Order' : copyData ? 'Copy Sales Order' : 'New Sales Order')
   const createOrder = useCreateSalesOrder()
+  const { data: nextSONumber } = useNextSalesOrderNumber()
 
   const { data: customersData } = useCustomers()
   const { data: locationsData } = useLocations()
@@ -424,9 +425,24 @@ export default function CreateSalesOrder() {
             <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
               {fromEstimate ? 'Convert Estimate to Sales Order' : copyData ? 'Copy Sales Order' : 'New Sales Order'}
             </h1>
-            <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
-              {selectedCustomer ? selectedCustomer.party_display_name : 'Fill in order details below'}
-            </p>
+            {!copyData && (
+              <div className="mt-1 text-[13px] inline-flex items-center gap-2">
+                <span className="font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                  {nextSONumber ?? '…'}
+                </span>
+                {selectedCustomer && (
+                  <>
+                    <span style={{ color: 'var(--so-border)' }}>·</span>
+                    <span style={{ color: 'var(--so-text-tertiary)' }}>{selectedCustomer.party_display_name}</span>
+                  </>
+                )}
+              </div>
+            )}
+            {copyData && (
+              <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+                {selectedCustomer ? selectedCustomer.party_display_name : 'Fill in order details below'}
+              </p>
+            )}
           </div>
           {!isMobile && (
             <div className="flex items-center gap-2">

@@ -131,32 +131,14 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             'scheduled_truck', 'ship_to', 'notes', 'priority', 'lines',
         ]
 
-    def _generate_po_number(self, tenant):
-        """Generate next PO number for the tenant."""
-        import re
-        from django.db.models import Max
-
-        # Get all PO numbers for this tenant and find the highest numeric value
-        po_numbers = PurchaseOrder.objects.filter(tenant=tenant).values_list('po_number', flat=True)
-        max_num = 0
-        for po_num in po_numbers:
-            # Extract numeric portion (handles both "PO-000001" and "000001" formats)
-            match = re.search(r'(\d+)', po_num or '')
-            if match:
-                num = int(match.group(1))
-                if num > max_num:
-                    max_num = num
-
-        next_num = max_num + 1
-        return f"PO-{str(next_num).zfill(6)}"
-
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
         # Auto-generate PO number if not provided
         if not validated_data.get('po_number'):
+            from apps.orders.services import _generate_po_number
             tenant = self.context['request'].tenant
-            validated_data['po_number'] = self._generate_po_number(tenant)
+            validated_data['po_number'] = _generate_po_number(tenant)
 
         purchase_order = super().create(validated_data)
 
@@ -345,31 +327,14 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             'source_estimate', 'lines',
         ]
 
-    def _generate_order_number(self, tenant):
-        """Generate next order number for the tenant."""
-        import re
-
-        # Get all order numbers for this tenant and find the highest numeric value
-        order_numbers = SalesOrder.objects.filter(tenant=tenant).values_list('order_number', flat=True)
-        max_num = 0
-        for order_num in order_numbers:
-            # Extract numeric portion (handles both "SO-000001" and "000001" formats)
-            match = re.search(r'(\d+)', order_num or '')
-            if match:
-                num = int(match.group(1))
-                if num > max_num:
-                    max_num = num
-
-        next_num = max_num + 1
-        return f"SO-{str(next_num).zfill(6)}"
-
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
         # Auto-generate order number if not provided
         if not validated_data.get('order_number'):
+            from apps.orders.services import _generate_so_number
             tenant = self.context['request'].tenant
-            validated_data['order_number'] = self._generate_order_number(tenant)
+            validated_data['order_number'] = _generate_so_number(tenant)
 
         sales_order = super().create(validated_data)
 
@@ -526,25 +491,13 @@ class EstimateWriteSerializer(TenantModelSerializer):
             'notes', 'terms_and_conditions', 'lines',
         ]
 
-    def _generate_estimate_number(self, tenant):
-        """Generate next estimate number for the tenant."""
-        import re
-        estimate_numbers = Estimate.objects.filter(tenant=tenant).values_list('estimate_number', flat=True)
-        max_num = 0
-        for est_num in estimate_numbers:
-            match = re.search(r'(\d+)', est_num or '')
-            if match:
-                num = int(match.group(1))
-                if num > max_num:
-                    max_num = num
-        return f"EST-{str(max_num + 1).zfill(6)}"
-
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
         if not validated_data.get('estimate_number'):
+            from apps.orders.services import _generate_estimate_number
             tenant = self.context['request'].tenant
-            validated_data['estimate_number'] = self._generate_estimate_number(tenant)
+            validated_data['estimate_number'] = _generate_estimate_number(tenant)
 
         estimate = super().create(validated_data)
 
@@ -687,25 +640,13 @@ class RFQWriteSerializer(TenantModelSerializer):
             'notes', 'lines',
         ]
 
-    def _generate_rfq_number(self, tenant):
-        """Generate next RFQ number for the tenant."""
-        import re
-        rfq_numbers = RFQ.objects.filter(tenant=tenant).values_list('rfq_number', flat=True)
-        max_num = 0
-        for rfq_num in rfq_numbers:
-            match = re.search(r'(\d+)', rfq_num or '')
-            if match:
-                num = int(match.group(1))
-                if num > max_num:
-                    max_num = num
-        return f"RFQ-{str(max_num + 1).zfill(6)}"
-
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
         if not validated_data.get('rfq_number'):
+            from apps.orders.services import _generate_rfq_number
             tenant = self.context['request'].tenant
-            validated_data['rfq_number'] = self._generate_rfq_number(tenant)
+            validated_data['rfq_number'] = _generate_rfq_number(tenant)
 
         rfq = super().create(validated_data)
 

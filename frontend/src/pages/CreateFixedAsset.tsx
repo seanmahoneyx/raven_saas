@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { useCreateFixedAsset } from '@/api/assets'
+import { useCreateFixedAsset, useNextAssetNumber } from '@/api/assets'
 import { useAssetCategories } from '@/api/assets'
 import type { FixedAsset } from '@/api/assets'
 import { DEPRECIATION_METHODS } from '@/constants/assets'
@@ -26,13 +26,13 @@ export default function CreateFixedAsset() {
   const navigate = useNavigate()
   const createAsset = useCreateFixedAsset()
   const isMobile = useIsMobile()
+  const { data: nextAssetNumber } = useNextAssetNumber()
 
   const { data: categoriesData } = useAssetCategories()
   const categories = categoriesData?.results ?? []
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    asset_number: '',
     description: '',
     category: '',
     serial_number: '',
@@ -94,7 +94,6 @@ export default function CreateFixedAsset() {
 
     try {
       const result = await createAsset.mutateAsync({
-        asset_number: formData.asset_number || undefined,
         description: formData.description,
         category: Number(formData.category),
         serial_number: formData.serial_number,
@@ -127,8 +126,12 @@ export default function CreateFixedAsset() {
 
         <PageHeader
           title="Create New Fixed Asset"
-          description="Register a new fixed asset in the asset register"
           breadcrumb={[{ label: 'Fixed Assets', to: '/fixed-assets' }, { label: 'New' }]}
+          meta={
+            <span className="font-mono text-[13px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {nextAssetNumber ?? '…'}
+            </span>
+          }
         />
 
         <form id="create-asset-form" onSubmit={handleSubmit} className="space-y-4">
@@ -139,27 +142,15 @@ export default function CreateFixedAsset() {
               <span className="text-sm font-semibold">Asset Information</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Asset Number</Label>
-                  <Input
-                    value={formData.asset_number}
-                    onChange={(e) => update('asset_number', e.target.value)}
-                    placeholder="Auto-generated"
-                    className="font-mono"
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
-                <div className="col-span-2 space-y-1.5">
-                  <Label style={{ color: 'var(--so-text-secondary)' }}>Description *</Label>
-                  <Input
-                    value={formData.description}
-                    onChange={(e) => update('description', e.target.value)}
-                    placeholder="Asset description"
-                    required
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label style={{ color: 'var(--so-text-secondary)' }}>Description *</Label>
+                <Input
+                  value={formData.description}
+                  onChange={(e) => update('description', e.target.value)}
+                  placeholder="Asset description"
+                  required
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                 <div className="space-y-1.5">

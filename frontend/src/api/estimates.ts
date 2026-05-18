@@ -4,6 +4,18 @@ import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
 import type { Estimate, PaginatedResponse, EstimateStatus, ApiError } from '@/types/api'
 
+export function useNextEstimateNumber() {
+  return useQuery({
+    queryKey: ['estimates', 'next-number'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_number: string }>('/estimates/next-number/')
+      return data.next_number
+    },
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
 export function useEstimates(params?: { status?: EstimateStatus; customer?: number }) {
   return useQuery({
     queryKey: ['estimates', params],

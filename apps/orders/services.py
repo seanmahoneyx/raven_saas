@@ -374,6 +374,38 @@ def _generate_po_number(tenant):
     return f"PO-{str(max_num + 1).zfill(6)}"
 
 
+def _generate_estimate_number(tenant):
+    """Generate the next estimate number for a tenant."""
+    import re
+    from apps.orders.models import Estimate
+
+    estimate_numbers = Estimate.objects.filter(tenant=tenant).values_list('estimate_number', flat=True)
+    max_num = 0
+    for est_num in estimate_numbers:
+        match = re.search(r'(\d+)', est_num or '')
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+    return f"EST-{str(max_num + 1).zfill(6)}"
+
+
+def _generate_rfq_number(tenant):
+    """Generate the next RFQ number for a tenant."""
+    import re
+    from apps.orders.models import RFQ
+
+    rfq_numbers = RFQ.objects.filter(tenant=tenant).values_list('rfq_number', flat=True)
+    max_num = 0
+    for rfq_num in rfq_numbers:
+        match = re.search(r'(\d+)', rfq_num or '')
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+    return f"RFQ-{str(max_num + 1).zfill(6)}"
+
+
 class OrderService:
     """Service for order lifecycle transitions with side effects."""
 

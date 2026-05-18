@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { useCreateEstimate } from '@/api/estimates'
+import { useCreateEstimate, useNextEstimateNumber } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import { Input } from '@/components/ui/input'
@@ -42,6 +42,7 @@ export default function CreateEstimate() {
   usePageTitle('Create Estimate')
   const navigate = useNavigate()
   const createEstimate = useCreateEstimate()
+  const { data: nextEstimateNumber } = useNextEstimateNumber()
 
   const { data: customersData } = useCustomers()
   const { data: locationsData } = useLocations()
@@ -50,7 +51,6 @@ export default function CreateEstimate() {
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    estimate_number: '',
     status: 'draft',
     tax_rate: '0.00',
     customer: '',
@@ -113,7 +113,6 @@ export default function CreateEstimate() {
 
     try {
       await createEstimate.mutateAsync({
-        estimate_number: formData.estimate_number || undefined,
         status: formData.status,
         customer: Number(formData.customer),
         date: formData.date,
@@ -151,8 +150,12 @@ export default function CreateEstimate() {
 
         <PageHeader
           title="Create New Estimate"
-          description="Create a new estimate for a customer"
           breadcrumb={[{ label: 'Estimates', to: '/estimates' }, { label: 'New' }]}
+          meta={
+            <span className="font-mono text-[13px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+              {nextEstimateNumber ?? '…'}
+            </span>
+          }
         />
 
         <form id="create-estimate-form" onSubmit={handleSubmit} className="space-y-4">
@@ -163,18 +166,7 @@ export default function CreateEstimate() {
               <span className="text-sm font-semibold">Estimate Details</span>
             </div>
             <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="estimate_number" style={{ color: 'var(--so-text-secondary)' }}>Estimate Number</Label>
-                  <Input
-                    id="estimate_number"
-                    value={formData.estimate_number}
-                    onChange={(e) => update('estimate_number', e.target.value)}
-                    placeholder="Auto-generated"
-                    className="font-mono"
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="status" style={{ color: 'var(--so-text-secondary)' }}>Status</Label>
                   <Select value={formData.status} onValueChange={(v) => update('status', v)}>

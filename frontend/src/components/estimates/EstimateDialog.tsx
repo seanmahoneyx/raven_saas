@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCreateEstimate, useUpdateEstimate } from '@/api/estimates'
+import { useCreateEstimate, useUpdateEstimate, useNextEstimateNumber } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
 import { useItems, useUnitsOfMeasure } from '@/api/items'
 import type { Estimate, EstimateStatus } from '@/types/api'
@@ -48,6 +48,7 @@ const ESTIMATE_STATUSES = [
 ]
 
 export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: EstimateDialogProps) {
+  const { data: nextEstimateNumber } = useNextEstimateNumber()
   const [formData, setFormData] = useState({
     estimate_number: '',
     status: 'draft' as EstimateStatus,
@@ -208,21 +209,23 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Estimate' : 'New Estimate'}</DialogTitle>
+          {!isEditing && (
+            <div className="font-mono text-[13px] font-semibold pt-1" style={{ color: 'var(--so-text-primary)' }}>
+              {nextEstimateNumber ?? '…'}
+            </div>
+          )}
+          {isEditing && (
+            <div className="text-[13px] pt-1">
+              <span className="font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                {formData.estimate_number}
+              </span>
+            </div>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* Header Section */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="estimate_number">Estimate Number</Label>
-                <Input
-                  id="estimate_number"
-                  value={formData.estimate_number}
-                  onChange={(e) => setFormData({ ...formData, estimate_number: e.target.value })}
-                  placeholder="Auto-generated"
-                  className="font-mono"
-                />
-              </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
                 <Select

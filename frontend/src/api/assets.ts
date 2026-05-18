@@ -136,6 +136,18 @@ export function useUpdateAssetCategory() {
 
 // ==================== Fixed Assets ====================
 
+export function useNextAssetNumber() {
+  return useQuery({
+    queryKey: ['fixed-assets', 'next-number'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_number: string }>('/fixed-assets/next-number/')
+      return data.next_number
+    },
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
 export function useFixedAssets(params?: { status?: string; category?: number }) {
   return useQuery({
     queryKey: ['fixed-assets', params],

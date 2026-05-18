@@ -84,6 +84,7 @@ class FixedAssetListSerializer(TenantModelSerializer):
 
 class FixedAssetDetailSerializer(TenantModelSerializer):
     """Full serializer for FixedAsset detail views."""
+    asset_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True, allow_null=True)
     custodian_name = serializers.SerializerMethodField()

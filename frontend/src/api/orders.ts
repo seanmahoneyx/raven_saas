@@ -4,6 +4,30 @@ import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
 import type { PurchaseOrder, SalesOrder, PaginatedResponse, OrderStatus, ApiError } from '@/types/api'
 
+export function useNextSalesOrderNumber() {
+  return useQuery({
+    queryKey: ['sales-orders', 'next-number'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_number: string }>('/sales-orders/next-number/')
+      return data.next_number
+    },
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
+export function useNextPurchaseOrderNumber() {
+  return useQuery({
+    queryKey: ['purchase-orders', 'next-number'],
+    queryFn: async () => {
+      const { data } = await api.get<{ next_number: string }>('/purchase-orders/next-number/')
+      return data.next_number
+    },
+    staleTime: 0,
+    gcTime: 0,
+  })
+}
+
 // Sales Orders
 export function useSalesOrders(params?: { status?: OrderStatus; customer?: number }) {
   return useQuery({
