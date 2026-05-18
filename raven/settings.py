@@ -369,6 +369,22 @@ def _get_channel_layer_config():
 
 CHANNEL_LAYERS = _get_channel_layer_config()
 
+# Sentry (crash + error monitoring)
+# Dormant unless SENTRY_DSN is set, so the user can flip this on without
+# any code change. Free Developer plan covers small pilots.
+_sentry_dsn = config('SENTRY_DSN', default='')
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.1, cast=float),
+        send_default_pii=False,
+        environment=config('SENTRY_ENVIRONMENT', default='production' if not DEBUG else 'development'),
+    )
+
 # Security Settings (Production)
 # These are disabled in DEBUG mode for local development
 if not DEBUG:
