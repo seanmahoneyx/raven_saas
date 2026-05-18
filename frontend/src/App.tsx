@@ -124,6 +124,15 @@ function OnboardingGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Guard: redirect non-admins away from admin-only routes
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth()
+  if (isLoading) return null
+  const isAdmin = !!(user?.is_superuser || user?.is_staff || user?.roles?.includes('admin'))
+  if (!isAdmin) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
 function App() {
   return (
     <ThemeProvider>
@@ -223,14 +232,14 @@ function App() {
                 <Route path="/warehouse/locations" element={<WarehouseLocations />} />
                 <Route path="/logistics" element={<Logistics />} />
                 <Route path="/logistics/manifest" element={<DriverManifest />} />
-                <Route path="/users" element={<UsersPage />} />
+                <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/accounting-settings" element={<AccountingSettings />} />
                 <Route path="/settings/preferences" element={<Preferences />} />
-                <Route path="/admin" element={<AdminHub />} />
-                <Route path="/admin/import" element={<DataImport />} />
-                <Route path="/admin/tax-zones" element={<TaxZones />} />
-                <Route path="/admin/user-audit" element={<UserAuditReport />} />
+                <Route path="/admin" element={<AdminRoute><AdminHub /></AdminRoute>} />
+                <Route path="/admin/import" element={<AdminRoute><DataImport /></AdminRoute>} />
+                <Route path="/admin/tax-zones" element={<AdminRoute><TaxZones /></AdminRoute>} />
+                <Route path="/admin/user-audit" element={<AdminRoute><UserAuditReport /></AdminRoute>} />
                 <Route path="/fixed-assets" element={<FixedAssets />} />
                 <Route path="/fixed-assets/new" element={<CreateFixedAsset />} />
                 <Route path="/fixed-assets/:id" element={<FixedAssetDetail />} />
