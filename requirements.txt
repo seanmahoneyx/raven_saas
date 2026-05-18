@@ -39,3 +39,10 @@ python-barcode>=0.15,<1.0
 
 # Production ASGI/WSGI server
 gunicorn>=22.0,<24.0
+
+# S3-compatible media storage (DigitalOcean Spaces). Only loaded when
+# USE_SPACES=True in settings; safe to install in dev too.
+django-storages[boto3]>=1.14,<2.0
+
+# Crash / error monitoring (dormant unless SENTRY_DSN env var is set).
+sentry-sdk[django]>=2.18,<3.0

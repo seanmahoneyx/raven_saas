@@ -182,8 +182,38 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (user uploads, generated PDFs)
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# When USE_SPACES=True and the AWS_* env vars are populated, media is stored
+# in a DigitalOcean Spaces (S3-compatible) bucket so attachments survive
+# container redeploys. Otherwise media is written to MEDIA_ROOT on disk.
+USE_SPACES = config('USE_SPACES', default=False, cast=bool)
+
+if USE_SPACES:
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='nyc3')
+    AWS_S3_ENDPOINT_URL = config(
+        'AWS_S3_ENDPOINT_URL',
+        default=f'https://{AWS_S3_REGION_NAME}.digitaloceanspaces.com',
+    )
+    AWS_S3_CUSTOM_DOMAIN = config('AWS_S3_CUSTOM_DOMAIN', default='')
+    AWS_DEFAULT_ACL = config('AWS_DEFAULT_ACL', default='private')
+    AWS_QUERYSTRING_AUTH = config('AWS_QUERYSTRING_AUTH', default=True, cast=bool)
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_LOCATION = config('AWS_LOCATION', default='media')
+
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+    else:
+        MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/{AWS_LOCATION}/'
+
+    STORAGES = {
+        'default': {'BACKEND': 'storages.backends.s3.S3Storage'},
+        'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
+    }
+else:
+    MEDIA_URL = 'media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email (console backend for development, SMTP in production)
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
