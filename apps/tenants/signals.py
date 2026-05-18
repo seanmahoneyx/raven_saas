@@ -35,6 +35,10 @@ def create_tenant_sequences(sender, instance, created, **kwargs):
             ('INV', 'INV-', 1, 6),      # Invoices: INV-000001
             ('BOL', 'BOL-', 1, 6),      # Bills of Lading: BOL-000001
             ('CONTRACT', 'CTR-', 1, 6), # Contracts: CTR-000001
+            ('JE', 'JE-', 1, 6),        # Journal Entries: JE-000001
+            ('EST', 'EST-', 1, 6),      # Estimates: EST-000001
+            ('RFQ', 'RFQ-', 1, 6),      # Request for Quotations: RFQ-000001
+            ('FA', 'FA-', 1, 6),        # Fixed Assets: FA-000001
         ]
 
         for seq_type, prefix, next_val, padding in sequence_configs:

@@ -194,8 +194,8 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Return the next PO number that would be assigned for this tenant."""
-        from apps.orders.services import _generate_po_number
-        return Response({'next_number': _generate_po_number(request.tenant)})
+        from apps.tenants.models import peek_next_sequence_number
+        return Response({'next_number': peek_next_sequence_number(request.tenant, 'PO')})
 
 
 @extend_schema_view(
@@ -414,8 +414,8 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Return the next SO number that would be assigned for this tenant."""
-        from apps.orders.services import _generate_so_number
-        return Response({'next_number': _generate_so_number(request.tenant)})
+        from apps.tenants.models import peek_next_sequence_number
+        return Response({'next_number': peek_next_sequence_number(request.tenant, 'SO')})
 
 
 @extend_schema_view(
@@ -649,8 +649,8 @@ class EstimateViewSet(PDFActionMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Return the next estimate number that would be assigned for this tenant."""
-        from apps.orders.services import _generate_estimate_number
-        return Response({'next_number': _generate_estimate_number(request.tenant)})
+        from apps.tenants.models import peek_next_sequence_number
+        return Response({'next_number': peek_next_sequence_number(request.tenant, 'EST')})
 
 
 @extend_schema_view(
@@ -928,5 +928,5 @@ class RFQViewSet(PDFActionMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Return the next RFQ number that would be assigned for this tenant."""
-        from apps.orders.services import _generate_rfq_number
-        return Response({'next_number': _generate_rfq_number(request.tenant)})
+        from apps.tenants.models import peek_next_sequence_number
+        return Response({'next_number': peek_next_sequence_number(request.tenant, 'RFQ')})

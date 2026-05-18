@@ -200,18 +200,9 @@ def convert_estimate_to_contract(estimate, tenant, user=None):
 
 
 def _generate_so_number(tenant):
-    """Generate the next SO number for a tenant."""
-    from apps.orders.models import SalesOrder
-
-    order_numbers = SalesOrder.objects.filter(tenant=tenant).values_list('order_number', flat=True)
-    max_num = 0
-    for order_num in order_numbers:
-        match = re.search(r'(\d+)', order_num or '')
-        if match:
-            num = int(match.group(1))
-            if num > max_num:
-                max_num = num
-    return f"SO-{str(max_num + 1).zfill(6)}"
+    """Atomically consume the next SO number for a tenant."""
+    from apps.tenants.models import get_next_sequence_number
+    return get_next_sequence_number(tenant, 'SO')
 
 
 def convert_rfq_to_po(rfq, tenant, user=None):
@@ -359,51 +350,21 @@ def convert_rfq_to_price_lists(rfq, customer, tenant, user=None):
 
 
 def _generate_po_number(tenant):
-    """Generate the next PO number for a tenant."""
-    import re
-    from apps.orders.models import PurchaseOrder
-
-    po_numbers = PurchaseOrder.objects.filter(tenant=tenant).values_list('po_number', flat=True)
-    max_num = 0
-    for po_num in po_numbers:
-        match = re.search(r'(\d+)', po_num or '')
-        if match:
-            num = int(match.group(1))
-            if num > max_num:
-                max_num = num
-    return f"PO-{str(max_num + 1).zfill(6)}"
+    """Atomically consume the next PO number for a tenant."""
+    from apps.tenants.models import get_next_sequence_number
+    return get_next_sequence_number(tenant, 'PO')
 
 
 def _generate_estimate_number(tenant):
-    """Generate the next estimate number for a tenant."""
-    import re
-    from apps.orders.models import Estimate
-
-    estimate_numbers = Estimate.objects.filter(tenant=tenant).values_list('estimate_number', flat=True)
-    max_num = 0
-    for est_num in estimate_numbers:
-        match = re.search(r'(\d+)', est_num or '')
-        if match:
-            num = int(match.group(1))
-            if num > max_num:
-                max_num = num
-    return f"EST-{str(max_num + 1).zfill(6)}"
+    """Atomically consume the next estimate number for a tenant."""
+    from apps.tenants.models import get_next_sequence_number
+    return get_next_sequence_number(tenant, 'EST')
 
 
 def _generate_rfq_number(tenant):
-    """Generate the next RFQ number for a tenant."""
-    import re
-    from apps.orders.models import RFQ
-
-    rfq_numbers = RFQ.objects.filter(tenant=tenant).values_list('rfq_number', flat=True)
-    max_num = 0
-    for rfq_num in rfq_numbers:
-        match = re.search(r'(\d+)', rfq_num or '')
-        if match:
-            num = int(match.group(1))
-            if num > max_num:
-                max_num = num
-    return f"RFQ-{str(max_num + 1).zfill(6)}"
+    """Atomically consume the next RFQ number for a tenant."""
+    from apps.tenants.models import get_next_sequence_number
+    return get_next_sequence_number(tenant, 'RFQ')
 
 
 class OrderService:

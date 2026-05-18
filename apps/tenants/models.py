@@ -186,6 +186,9 @@ class TenantSequence(models.Model):
         ('BOL', 'Bill of Lading'),
         ('CONTRACT', 'Contract'),
         ('JE', 'Journal Entry'),
+        ('EST', 'Estimate'),
+        ('RFQ', 'Request for Quotation'),
+        ('FA', 'Fixed Asset'),
     ]
 
     tenant = models.ForeignKey(
@@ -223,18 +226,17 @@ class TenantSequence(models.Model):
 
 def get_next_sequence_number(tenant, sequence_type):
     """
-    Get the next sequential number for a tenant and sequence type.
+    Atomically consume and return the next sequential number for a tenant.
+
+    Uses select_for_update() so concurrent callers cannot collide on the
+    same number. Safe to call from inside or outside a transaction.
 
     Args:
         tenant: Tenant instance
-        sequence_type: One of 'SO', 'PO', 'INV', 'BOL', 'CONTRACT'
+        sequence_type: One of the keys in TenantSequence.SEQUENCE_TYPES
 
     Returns:
         str: Formatted sequence number (e.g., 'SO-000001')
-
-    Example:
-        order_number = get_next_sequence_number(tenant, 'SO')
-        # order_number = 'SO-000001'
     """
     with transaction.atomic():
         seq = TenantSequence.objects.select_for_update().get(
@@ -245,3 +247,15 @@ def get_next_sequence_number(tenant, sequence_type):
         seq.next_value += 1
         seq.save()
         return number
+
+
+def peek_next_sequence_number(tenant, sequence_type):
+    """
+    Read the next sequential number without consuming it.
+
+    Useful for displaying a preview in a Create page. The displayed value
+    is best-effort: if another user submits in between the peek and the
+    eventual write, the saved record will get a later number.
+    """
+    seq = TenantSequence.objects.get(tenant=tenant, sequence_type=sequence_type)
+    return f"{seq.prefix}{str(seq.next_value).zfill(seq.padding)}"

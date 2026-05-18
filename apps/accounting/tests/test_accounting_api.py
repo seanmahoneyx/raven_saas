@@ -9,7 +9,7 @@ from django.db import IntegrityError
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from apps.tenants.models import Tenant, TenantSequence
+from apps.tenants.models import Tenant
 from apps.accounting.models import Account, AccountType, JournalEntry, JournalEntryLine
 from apps.accounting.services import AccountingService, UnbalancedEntryError, PostedEntryError, AccountingError
 from shared.managers import set_current_tenant
@@ -82,14 +82,8 @@ class AccountingTestCase(TestCase):
             is_active=False,
         )
 
-        # Create TenantSequence for journal entry numbering
-        TenantSequence.objects.create(
-            tenant=cls.tenant,
-            sequence_type='JE',
-            prefix='JE-',
-            next_value=1,
-            padding=6,
-        )
+        # TenantSequence rows (including 'JE') are auto-created via post_save signal
+        # when the tenant is created above; no manual creation needed.
 
     def setUp(self):
         self.client = APIClient()

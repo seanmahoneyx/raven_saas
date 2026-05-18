@@ -101,8 +101,8 @@ class FixedAssetViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='next-number')
     def next_number(self, request):
         """Return the next asset number that would be assigned for this tenant."""
-        from apps.assets.services import _generate_asset_number
-        return Response({'next_number': _generate_asset_number(request.tenant)})
+        from apps.tenants.models import peek_next_sequence_number
+        return Response({'next_number': peek_next_sequence_number(request.tenant, 'FA')})
 
     @extend_schema(
         tags=['assets'],
