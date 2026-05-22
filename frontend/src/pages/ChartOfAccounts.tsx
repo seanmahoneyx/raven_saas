@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { BookUser, Printer, Download } from 'lucide-react'
@@ -59,6 +59,16 @@ export default function ChartOfAccounts() {
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
 
   const accounts = accountsData?.results ?? []
 
@@ -144,7 +154,7 @@ export default function ChartOfAccounts() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -25,6 +25,16 @@ export default function JournalEntries() {
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
@@ -77,7 +87,7 @@ export default function JournalEntries() {
         header: 'Memo',
         cell: ({ row }) => {
           const memo = row.getValue('memo') as string
-          return <span style={{ color: 'var(--so-text-secondary)' }}>{memo.length > 60 ? memo.substring(0, 60) + '...' : memo}</span>
+          return <span title={memo} style={{ color: 'var(--so-text-secondary)' }}>{memo.length > 60 ? memo.substring(0, 60) + '...' : memo}</span>
         },
       },
       {
@@ -138,7 +148,7 @@ export default function JournalEntries() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {
@@ -235,7 +245,7 @@ export default function JournalEntries() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
+                    <SelectItem value="standard">Standard</SelectItem>
                     <SelectItem value="adjusting">Adjusting</SelectItem>
                     <SelectItem value="closing">Closing</SelectItem>
                     <SelectItem value="reversing">Reversing</SelectItem>

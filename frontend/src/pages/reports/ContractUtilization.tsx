@@ -10,6 +10,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 import { formatCurrency } from '@/lib/format'
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -28,15 +30,16 @@ function ProgressBar({ pct }: { pct: number }) {
 export default function ContractUtilization() {
   usePageTitle('Contract Utilization')
   const navigate = useNavigate()
-  const { data, isLoading } = useContractUtilizationReport()
+  const { data, isLoading, isError, error, refetch } = useContractUtilizationReport()
 
   // Sort by completion_pct descending
   const contracts: ContractUtilizationRow[] = data?.contracts
     ? [...data.contracts].sort((a: ContractUtilizationRow, b: ContractUtilizationRow) => b.completion_pct - a.completion_pct)
     : []
 
-  const handleDownloadPdf = () => {
-    window.open('/api/v1/reports/contract-utilization/pdf/', '_blank')
+  const handleDownloadPdf = async () => {
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed('/reports/contract-utilization/pdf/', `contract-utilization-${datestamp}.pdf`)
   }
 
   const handleExportCsv = () => {
@@ -85,6 +88,8 @@ export default function ContractUtilization() {
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-64 w-full" />
         </div>
+      ) : isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
       ) : (
         <Card>
           <CardContent className="pt-6">

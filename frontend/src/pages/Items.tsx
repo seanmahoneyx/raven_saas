@@ -17,7 +17,9 @@ import { useItems, useDeleteItem } from '@/api/items'
 import { ItemDialog } from '@/components/items/ItemDialog'
 import type { Item } from '@/types/api'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { getDivisionLabel } from '@/lib/labels'
 
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
@@ -80,7 +82,7 @@ export default function Items() {
       setDeleteDialogOpen(false)
       setPendingDeleteId(null)
     } catch (error) {
-      toast.error('Failed to delete item')
+      toastApiError(error, 'Failed to delete item')
     }
   }
 
@@ -127,21 +129,11 @@ export default function Items() {
       {
         accessorKey: 'division',
         header: 'Division',
-        cell: ({ row }) => {
-          const div = row.getValue('division') as string
-          const labels: Record<string, string> = {
-            corrugated: 'Corrugated',
-            packaging: 'Packaging',
-            tooling: 'Tooling',
-            janitorial: 'Janitorial',
-            misc: 'Misc',
-          }
-          return (
-            <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-              {labels[div] || div}
-            </span>
-          )
-        },
+        cell: ({ row }) => (
+          <span className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+            {getDivisionLabel(row.getValue('division') as string | null)}
+          </span>
+        ),
       },
       {
         accessorKey: 'lifecycle_status',

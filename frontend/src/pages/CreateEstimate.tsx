@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useCreateEstimate, useNextEstimateNumber } from '@/api/estimates'
-import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllCustomers, useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,12 +16,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle, dangerBtnClass, dangerBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
-
-const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const dangerBtnStyle: React.CSSProperties = { background: '#dc2626', border: '1px solid #dc2626' }
+import type { EstimateStatus } from '@/types/api'
 
 const ESTIMATE_STATUSES = [
   { value: 'draft', label: 'Draft' },
@@ -44,10 +42,9 @@ export default function CreateEstimate() {
   const createEstimate = useCreateEstimate()
   const { data: nextEstimateNumber } = useNextEstimateNumber()
 
-  const { data: customersData } = useCustomers()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: customersData } = useAllCustomers()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -64,15 +61,14 @@ export default function CreateEstimate() {
 
   const [lines, setLines] = useState<EstimateLineForm[]>([])
 
-  const customers = customersData?.results ?? []
-  const locations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const customers = customersData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
-  const customerLocations = selectedCustomer
-    ? locations.filter((l) => l.party === selectedCustomer.party)
-    : []
+  // Server-side filter via DRF's filterset_fields ['party', ...] on LocationViewSet.
+  const { data: locationsData } = useAllLocations(selectedCustomer?.party)
+  const customerLocations = selectedCustomer ? locationsData ?? [] : []
 
   const subtotal = lines.reduce((sum, line) => {
     return sum + (Number(line.quantity) || 0) * (parseFloat(line.unit_price) || 0)
@@ -97,7 +93,7 @@ export default function CreateEstimate() {
     newLines[index] = { ...newLines[index], [field]: value }
 
     if (field === 'item' && value) {
-      const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
+      const selectedItem = items.find((i) => String(i.id) === value)
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
         newLines[index].description = selectedItem.sell_desc || selectedItem.name
@@ -113,7 +109,7 @@ export default function CreateEstimate() {
 
     try {
       await createEstimate.mutateAsync({
-        status: formData.status,
+        status: formData.status as EstimateStatus,
         customer: Number(formData.customer),
         date: formData.date,
         expiration_date: formData.expiration_date || null,
@@ -130,7 +126,7 @@ export default function CreateEstimate() {
           uom: Number(line.uom),
           unit_price: line.unit_price,
         })),
-      } as any)
+      })
 
       navigate('/estimates')
     } catch (err: any) {
@@ -189,6 +185,7 @@ export default function CreateEstimate() {
                     type="number"
                     step="0.01"
                     min="0"
+                    max="100"
                     value={formData.tax_rate}
                     onChange={(e) => update('tax_rate', e.target.value)}
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}

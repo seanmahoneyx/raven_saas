@@ -15,10 +15,19 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { useParties } from '@/api/parties'
 import { useCreateDesignRequest } from '@/api/design'
+import type { DesignRequestInput } from '@/types/api'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
+import { getApiErrorMessage } from '@/lib/errors'
 
-const STYLE_OPTIONS = ['RSC', 'DC', 'HSC', 'FOL', 'TELE', 'Other']
+const STYLE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'RSC', label: 'RSC' },
+  { value: 'DC', label: 'DC' },
+  { value: 'HSC', label: 'HSC' },
+  { value: 'FOL', label: 'FOL' },
+  { value: 'TELE', label: 'TELE' },
+  { value: 'OTHER', label: 'Other' },
+]
 
 // ── Fraction ↔ Decimal utilities (nearest 1/16") ──
 function gcd(a: number, b: number): number {
@@ -116,20 +125,22 @@ export default function CreateDesignRequest() {
     e.preventDefault()
     setError('')
 
-    const toDecimalValue = (raw: string) => {
+    const toDecimalString = (raw: string): string | null => {
       if (!raw) return null
       const dec = fractionToDecimal(raw)
-      return dec !== null ? roundTo16th(dec) : null
+      return dec !== null ? String(roundTo16th(dec)) : null
     }
 
-    const payload: Record<string, unknown> = {
+    const payload: DesignRequestInput = {
       ident,
       style,
       status: 'pending',
-      customer: customer ? Number(customer) : null,
-      length: toDecimalValue(length),
-      width: toDecimalValue(width),
-      depth: toDecimalValue(depth),
+      // Omit `customer` entirely when blank to avoid posting null FK (some DRF
+      // serializers reject null even when the field is optional).
+      ...(customer ? { customer: Number(customer) } : {}),
+      length: toDecimalString(length),
+      width: toDecimalString(width),
+      depth: toDecimalString(depth),
       sample_quantity: sampleQuantity ? parseInt(sampleQuantity, 10) : null,
       notes,
       has_ard: needsArd,
@@ -141,16 +152,11 @@ export default function CreateDesignRequest() {
     }
 
     try {
-      await createMutation.mutateAsync(payload as any)
+      await createMutation.mutateAsync(payload)
       navigate('/design-requests')
-    } catch (err: any) {
-      const msg = err?.response?.data
-      if (typeof msg === 'object') {
-        const firstKey = Object.keys(msg)[0]
-        setError(`${firstKey}: ${Array.isArray(msg[firstKey]) ? msg[firstKey][0] : msg[firstKey]}`)
-      } else {
-        setError(String(msg || 'Failed to create design request'))
-      }
+    } catch (err) {
+      // Show inline error block; the underlying mutation also surfaces a toast.
+      setError(getApiErrorMessage(err, 'Failed to create design request'))
     }
   }
 
@@ -195,7 +201,7 @@ export default function CreateDesignRequest() {
                     </SelectTrigger>
                     <SelectContent>
                       {STYLE_OPTIONS.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

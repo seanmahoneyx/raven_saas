@@ -12,6 +12,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 import { formatCurrency } from '@/lib/format'
 
 function today(): string {
@@ -36,14 +38,15 @@ export default function VendorScorecard() {
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgo())
   const [dateTo, setDateTo] = useState(today())
 
-  const { data, isLoading } = useVendorScorecardReport({ date_from: dateFrom, date_to: dateTo })
+  const { data, isLoading, isError, error, refetch } = useVendorScorecardReport({ date_from: dateFrom, date_to: dateTo })
   const vendors: VendorScorecardRow[] = data?.vendors ?? []
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const params = new URLSearchParams()
     if (dateFrom) params.set('date_from', dateFrom)
     if (dateTo) params.set('date_to', dateTo)
-    window.open(`/api/v1/reports/vendor-scorecard/pdf/?${params.toString()}`, '_blank')
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed(`/reports/vendor-scorecard/pdf/?${params.toString()}`, `vendor-scorecard-${datestamp}.pdf`)
   }
 
   const handleExportCsv = () => {
@@ -103,6 +106,8 @@ export default function VendorScorecard() {
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-64 w-full" />
         </div>
+      ) : isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
       ) : (
         <Card>
           <CardContent className="pt-6">

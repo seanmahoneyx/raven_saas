@@ -26,12 +26,14 @@ import {
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder } from '@/api/orders'
 import { useCreateInvoice } from '@/api/invoicing'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
+import { formatPaymentTerms } from '@/lib/payment-terms'
 import { EntryToolbar } from '@/components/common/EntryToolbar'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { DetailCard } from '@/components/common/DetailCard'
@@ -101,11 +103,11 @@ export default function SalesOrderDetail() {
 
   usePageTitle(order ? `Sales Order ${order.order_number}` : 'Sales Order Detail')
 
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const { data: customerContracts } = useContractsByCustomer(order?.customer ?? 0)
 
@@ -230,7 +232,7 @@ export default function SalesOrderDetail() {
 
   const handleSave = async () => {
     if (!order) return
-    const payload: Record<string, unknown> = {
+    const payload = {
       id: order.id,
       status: formData.status,
       customer_po: formData.customer_po,
@@ -247,12 +249,11 @@ export default function SalesOrderDetail() {
       })),
     }
     try {
-      await updateOrder.mutateAsync(payload as Parameters<typeof updateOrder.mutateAsync>[0])
+      await updateOrder.mutateAsync(payload)
       setIsEditing(false)
       toast.success('Sales order updated successfully')
     } catch (error) {
-      console.error('Failed to save sales order:', error)
-      toast.error('Failed to save sales order')
+      toastApiError(error, 'Failed to save sales order')
     }
   }
 
@@ -379,7 +380,7 @@ export default function SalesOrderDetail() {
           { label: 'Order Date', value: format(new Date(order.order_date + 'T00:00:00'), 'MMM d, yyyy') },
           { label: 'Scheduled Date', value: order.scheduled_date ? format(new Date(order.scheduled_date + 'T00:00:00'), 'MMM d, yyyy') : null },
           { label: 'Customer PO', value: order.customer_po || null },
-          { label: 'Terms', value: 'Net 30' },
+          { label: 'Terms', value: formatPaymentTerms((order as unknown as { customer_payment_terms?: string; payment_terms?: string }).customer_payment_terms ?? (order as unknown as { payment_terms?: string }).payment_terms) },
         ]}
         notes={order.notes}
         columns={[
@@ -450,8 +451,7 @@ export default function SalesOrderDetail() {
               onCreateInvoice={async () => {
                 try {
                   const inv = await createInvoice.mutateAsync({
-                    invoice_type: 'AR',
-                    party: order.customer,
+                    customer: order.customer,
                     sales_order: order.id,
                     invoice_date: new Date().toISOString().split('T')[0],
                     due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
@@ -659,7 +659,7 @@ export default function SalesOrderDetail() {
           {isEditing ? (
             isMobile ? (
               <MobileLineItemList
-                lines={linesFormData.map(l => ({ ...l, fulfillment_method: (l as any).fulfillment_method || '' }))}
+                lines={linesFormData.map(l => ({ ...l, fulfillment_method: '' }))}
                 items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
                 uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
                 contracts={activeContracts.map(c => ({ value: c.contract_number, label: c.contract_number }))}
@@ -1019,8 +1019,7 @@ export default function SalesOrderDetail() {
                     setFabOpen(false)
                     try {
                       const inv = await createInvoice.mutateAsync({
-                        invoice_type: 'AR',
-                        party: order.customer,
+                        customer: order.customer,
                         sales_order: order.id,
                         invoice_date: new Date().toISOString().split('T')[0],
                         due_date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],

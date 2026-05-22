@@ -7,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Save, Building2 } from 'lucide-react'
 import { useSettings, useUpdateSettings } from '@/api/settings'
 import { toast } from 'sonner'
+import { getApiErrorMessage, toastApiError } from '@/lib/errors'
+import { Button } from '@/components/ui/button'
 
 const MONTHS = [
   { value: 1, label: 'January' },
@@ -28,7 +30,7 @@ import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 export default function Settings() {
   usePageTitle('My Company')
 
-  const { data: settings, isLoading } = useSettings()
+  const { data: settings, isLoading, isError, error, refetch } = useSettings()
   const updateSettings = useUpdateSettings()
 
   const [formData, setFormData] = useState({
@@ -58,8 +60,7 @@ export default function Settings() {
       await updateSettings.mutateAsync(formData)
       toast.success('Settings saved')
     } catch (error) {
-      toast.error('Failed to save settings')
-      console.error(error)
+      toastApiError(error, 'Failed to save settings')
     }
   }
 
@@ -68,6 +69,26 @@ export default function Settings() {
       <div className="raven-page" style={{ minHeight: '100vh' }}>
         <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading settings...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
+          <div
+            className="rounded-lg border p-8 text-center"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+          >
+            <p className="mb-4" style={{ color: 'var(--so-text-secondary)' }}>
+              Failed to load settings: {getApiErrorMessage(error, 'Unknown error')}
+            </p>
+            <Button variant="outline" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -141,6 +162,7 @@ export default function Settings() {
               <Label htmlFor="company_logo_url" style={{ color: 'var(--so-text-secondary)' }}>Logo URL</Label>
               <Input
                 id="company_logo_url"
+                type="url"
                 value={formData.company_logo_url}
                 onChange={(e) => setFormData({ ...formData, company_logo_url: e.target.value })}
                 placeholder="https://example.com/logo.png"

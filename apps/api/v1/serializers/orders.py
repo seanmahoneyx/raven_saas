@@ -74,6 +74,7 @@ class PurchaseOrderSerializer(TenantModelSerializer):
 class PurchaseOrderDetailSerializer(TenantModelSerializer):
     """Detailed serializer for PurchaseOrder with nested lines."""
     vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    vendor_payment_terms = serializers.CharField(source='vendor.payment_terms', read_only=True, default='')
     ship_to_name = serializers.CharField(source='ship_to.name', read_only=True)
     ship_to_address = serializers.CharField(source='ship_to.full_address', read_only=True)
     vendor_address = serializers.SerializerMethodField()
@@ -87,7 +88,7 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
     class Meta:
         model = PurchaseOrder
         fields = [
-            'id', 'po_number', 'status', 'vendor', 'vendor_name',
+            'id', 'po_number', 'status', 'vendor', 'vendor_name', 'vendor_payment_terms',
             'order_date', 'expected_date', 'scheduled_date',
             'scheduled_truck', 'ship_to', 'ship_to_name', 'ship_to_address',
             'vendor_address',
@@ -256,6 +257,7 @@ class SalesOrderSerializer(TenantModelSerializer):
 class SalesOrderDetailSerializer(TenantModelSerializer):
     """Detailed serializer for SalesOrder with nested lines."""
     customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    customer_payment_terms = serializers.CharField(source='customer.payment_terms', read_only=True, default='')
     ship_to_name = serializers.CharField(source='ship_to.name', read_only=True)
     ship_to_address = serializers.CharField(source='ship_to.full_address', read_only=True)
     bill_to_name = serializers.CharField(source='bill_to.name', read_only=True, allow_null=True)
@@ -271,7 +273,7 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
     class Meta:
         model = SalesOrder
         fields = [
-            'id', 'order_number', 'status', 'customer', 'customer_name',
+            'id', 'order_number', 'status', 'customer', 'customer_name', 'customer_payment_terms',
             'order_date', 'scheduled_date', 'scheduled_truck',
             'ship_to', 'ship_to_name', 'ship_to_address',
             'bill_to', 'bill_to_name', 'bill_to_address',

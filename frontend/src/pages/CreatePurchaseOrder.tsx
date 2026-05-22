@@ -5,8 +5,10 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 import { useCreatePurchaseOrder, useNextPurchaseOrderNumber } from '@/api/orders'
 import { useCostLookup } from '@/api/costLists'
-import { useVendors, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllVendors, useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { toastApiError } from '@/lib/errors'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -20,6 +22,7 @@ import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } fr
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
+import type { OrderStatus, FulfillmentMethod } from '@/types/api'
 import { formatCurrency } from '@/lib/format'
 
 const DEFAULT_FULFILLMENT: Record<string, string> = {
@@ -50,18 +53,43 @@ const ORDER_STATUSES = [
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
+interface CopyFromPurchaseOrderLine {
+  item: string
+  quantity_ordered: string
+  uom: string
+  unit_cost: string
+  notes?: string
+  fulfillment_method?: string
+}
+
+interface CopyFromPurchaseOrder {
+  po_number?: string
+  status?: string
+  vendor?: string
+  ship_to?: string
+  order_date?: string
+  expected_date?: string
+  scheduled_date?: string
+  notes?: string
+  lines?: CopyFromPurchaseOrderLine[]
+}
+
+interface LocationState {
+  copyFrom?: CopyFromPurchaseOrder
+}
+
 export default function CreatePurchaseOrder() {
   const navigate = useNavigate()
   const location = useLocation()
-  const copyData = (location.state as any)?.copyFrom
+  const copyData = (location.state as LocationState | null)?.copyFrom
   usePageTitle(copyData ? 'Copy Purchase Order' : 'Create Purchase Order')
   const createOrder = useCreatePurchaseOrder()
   const { data: nextPONumber } = useNextPurchaseOrderNumber()
 
-  const { data: vendorsData } = useVendors()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: vendorsData } = useAllVendors()
+  const { data: locationsData } = useAllLocations()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const [error, setError] = useState('')
   const [costLookupLine, setCostLookupLine] = useState<number | null>(null)
@@ -79,12 +107,19 @@ export default function CreatePurchaseOrder() {
   })
   const [linesFormData, setLinesFormData] = useState<
     { item: string; quantity_ordered: string; uom: string; unit_cost: string; notes: string; fulfillment_method: string }[]
-  >(copyData?.lines?.map((l: any) => ({ ...l, notes: l.notes || '', fulfillment_method: l.fulfillment_method || '' })) || [])
+  >(copyData?.lines?.map((l) => ({
+    item: l.item,
+    quantity_ordered: l.quantity_ordered,
+    uom: l.uom,
+    unit_cost: l.unit_cost,
+    notes: l.notes || '',
+    fulfillment_method: l.fulfillment_method || '',
+  })) || [])
 
-  const vendors = vendorsData?.results ?? []
-  const locations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const vendors = vendorsData ?? []
+  const locations = locationsData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const warehouseLocations = locations.filter((l) => l.location_type === 'WAREHOUSE')
 
@@ -182,10 +217,22 @@ export default function CreatePurchaseOrder() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (!formData.vendor) {
+      setError('Vendor is required')
+      toast.error('Vendor is required')
+      return
+    }
+    if (!formData.ship_to) {
+      setError('Ship To warehouse is required')
+      toast.error('Ship To warehouse is required')
+      return
+    }
+
     try {
       await createOrder.mutateAsync({
         po_number: formData.po_number || undefined,
-        status: formData.status,
+        status: formData.status as OrderStatus,
         vendor: Number(formData.vendor),
         order_date: formData.order_date,
         expected_date: formData.expected_date || null,
@@ -198,18 +245,12 @@ export default function CreatePurchaseOrder() {
           quantity_ordered: Number(line.quantity_ordered),
           uom: Number(line.uom),
           unit_cost: line.unit_cost,
-          fulfillment_method: line.fulfillment_method || null,
+          fulfillment_method: (line.fulfillment_method || null) as FulfillmentMethod | null,
         })),
-      } as any)
+      })
       navigate('/orders?tab=purchase')
-    } catch (err: any) {
-      const msg = err?.response?.data
-      if (typeof msg === 'object') {
-        const firstKey = Object.keys(msg)[0]
-        setError(`${firstKey}: ${Array.isArray(msg[firstKey]) ? msg[firstKey][0] : msg[firstKey]}`)
-      } else {
-        setError(String(msg || 'Failed to create purchase order'))
-      }
+    } catch (err) {
+      toastApiError(err, 'Failed to create purchase order')
     }
   }
 

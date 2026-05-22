@@ -22,21 +22,12 @@ export function InvoiceCard({ invoice, onClick }: InvoiceCardProps) {
               <span className="font-mono font-semibold text-[15px]" style={{ color: 'var(--so-text-primary)' }}>
                 {invoice.invoice_number}
               </span>
-              <span
-                className="flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
-                style={{
-                  background: 'var(--so-bg)',
-                  border: '1px solid var(--so-border)',
-                  color: 'var(--so-text-secondary)',
-                }}
-              >
-                {invoice.invoice_type === 'AR' ? 'Receivable' : 'Payable'}
-              </span>
+              {/* AR/AP type badge wired in Track C3 */}
             </div>
             {getStatusBadge(invoice.status)}
           </div>
           <div className="text-[13px] mt-1 font-medium truncate" style={{ color: 'var(--so-text-secondary)' }}>
-            {invoice.party_name || '—'}
+            {invoice.customer_name || '—'}
           </div>
         </>
       }

@@ -50,33 +50,36 @@ const adminSections = [
 ]
 
 export default function AdminHub() {
-  usePageTitle('Settings')
+  usePageTitle('Administration')
   const navigate = useNavigate()
 
   return (
     <div className="p-4 md:p-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <h1 className="text-3xl font-bold">Administration</h1>
         <p className="text-muted-foreground mt-1">Manage your company configuration and admin tools.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {adminSections.map((section) => (
-          <Card
+          <button
             key={section.to}
-            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all"
+            type="button"
             onClick={() => navigate(section.to)}
+            className="text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <section.icon className="h-5 w-5 text-muted-foreground" />
-                {section.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>{section.description}</CardDescription>
-            </CardContent>
-          </Card>
+            <Card className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <section.icon className="h-5 w-5 text-muted-foreground" />
+                  {section.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription>{section.description}</CardDescription>
+              </CardContent>
+            </Card>
+          </button>
         ))}
       </div>
     </div>

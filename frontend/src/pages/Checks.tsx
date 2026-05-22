@@ -42,15 +42,23 @@ export default function Checks() {
   const rows: Check[] = useMemo(() => data ?? [], [data])
 
   const handlePrint = async (id: number) => {
-    await printCheck.mutateAsync(id)
+    try {
+      await printCheck.mutateAsync(id)
+    } catch {
+      // Hook surfaces the error toast.
+    }
   }
 
   const handleVoidConfirm = async () => {
     if (!pendingVoidId) return
-    await voidCheck.mutateAsync({ id: pendingVoidId, reason: voidReason })
-    setVoidDialogOpen(false)
-    setPendingVoidId(null)
-    setVoidReason('')
+    try {
+      await voidCheck.mutateAsync({ id: pendingVoidId, reason: voidReason })
+      setVoidDialogOpen(false)
+      setPendingVoidId(null)
+      setVoidReason('')
+    } catch {
+      // Hook surfaces the error toast; keep dialog open so the user can retry.
+    }
   }
 
   const columns: ColumnDef<Check>[] = useMemo(

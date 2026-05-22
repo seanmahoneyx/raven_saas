@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import api from './client'
 import type {
   PriorityListResponse,
@@ -117,10 +118,10 @@ export function useReorderPriorityLines() {
     },
     // No onSuccess invalidation - optimistic update handles UI
     // 30-second refetch interval keeps data in sync
-    onError: () => {
-      // On error, refetch to revert optimistic update
+    onError: (err) => {
+      // On error, refetch to revert optimistic update so the UI snaps back
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
-      toast.error('Failed to reorder lines')
+      toastApiError(err, 'Reorder failed — reverted')
     },
   })
 }
@@ -144,11 +145,11 @@ export function useMovePriorityLine() {
     },
     // No onSuccess invalidation - optimistic update handles UI
     // 30-second refetch interval keeps data in sync
-    onError: () => {
-      // On error, refetch to revert optimistic update
+    onError: (err) => {
+      // On error, refetch to revert optimistic update so the UI snaps back
       queryClient.invalidateQueries({ queryKey: priorityListKeys.all })
       queryClient.invalidateQueries({ queryKey: ['calendar'] })
-      toast.error('Failed to move line')
+      toastApiError(err, 'Move failed — reverted')
     },
   })
 }

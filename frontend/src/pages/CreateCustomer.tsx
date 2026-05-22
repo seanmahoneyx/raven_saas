@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreateParty, useCreateCustomer, useCreateLocation, useUpdateCustomer } from '@/api/parties'
+import { useCreateContact } from '@/api/contacts'
 import { useUsers } from '@/api/users'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -118,6 +119,7 @@ export default function CreateCustomer() {
   const createParty = useCreateParty()
   const createCustomer = useCreateCustomer()
   const createLocation = useCreateLocation()
+  const createContact = useCreateContact()
   const updateCustomer = useUpdateCustomer()
   const { data: users } = useUsers()
 
@@ -155,7 +157,7 @@ export default function CreateCustomer() {
   const [contactsOpen, setContactsOpen] = useState(false)
   const [contactKeyCounter, setContactKeyCounter] = useState(1)
 
-  const isPending = createParty.isPending || createCustomer.isPending || createLocation.isPending
+  const isPending = createParty.isPending || createCustomer.isPending || createLocation.isPending || createContact.isPending
 
   const update = (field: string, value: string | boolean) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -187,6 +189,23 @@ export default function CreateCustomer() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validate inline locations: any row with address data must have a name
+    const invalidLocation = locations.find(
+      (l) => !l.name.trim() && (l.address_line1 || l.city || l.state || l.postal_code || l.phone || l.email),
+    )
+    if (invalidLocation) {
+      toast.error('Each shipping location with any data needs a Name')
+      return
+    }
+    // Validate inline contacts: any row with data must have a name
+    const invalidContact = contacts.find(
+      (c) => !c.name.trim() && (c.phone || c.email),
+    )
+    if (invalidContact) {
+      toast.error('Each contact with any data needs a Name')
+      return
+    }
 
     try {
       // Step 1: Create the Party
@@ -269,20 +288,25 @@ export default function CreateCustomer() {
         } as any).catch(() => {/* best effort */})
       }
 
-      // Step 5: Store contacts in party notes (until Contact model exists)
-      if (contacts.length > 0) {
-        const contactLines = contacts
-          .filter((c) => c.name)
-          .map((c) => `[${CONTACT_ROLES.find((r) => r.value === c.role)?.label || c.role}] ${c.name}${c.phone ? ' | ' + c.phone : ''}${c.email ? ' | ' + c.email : ''}`)
-        if (contactLines.length > 0) {
-          const existingNotes = formData.notes ? formData.notes + '\n\n' : ''
-          const contactBlock = '--- Contacts ---\n' + contactLines.join('\n')
-          // Append contacts to the party notes
-          await createParty.mutateAsync({
-            ...party,
-            notes: existingNotes + contactBlock,
-          } as any).catch(() => {/* best effort */})
-        }
+      // Step 5: Create Contact records for each inline contact
+      // The Contact model has no `role` field, so map the UI role label into `title`.
+      // TODO: if backend Contact gains a structured `role` field, switch from title to role.
+      for (const c of contacts) {
+        if (!c.name.trim()) continue
+        const trimmed = c.name.trim()
+        const spaceIdx = trimmed.indexOf(' ')
+        const first_name = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx)
+        const last_name = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1)
+        const roleLabel = CONTACT_ROLES.find((r) => r.value === c.role)?.label || c.role
+        await createContact.mutateAsync({
+          party: party.id,
+          first_name,
+          last_name,
+          title: roleLabel,
+          email: c.email,
+          phone: c.phone,
+          is_active: true,
+        }).catch(() => {/* best effort — don't block customer creation on a single contact failure */})
       }
 
       toast.success('Customer created successfully')
@@ -491,7 +515,7 @@ export default function CreateCustomer() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Name *</Label>
-                        <Input value={loc.name} onChange={(e) => updateLocation(loc.key, 'name', e.target.value)} placeholder="e.g., Main Warehouse" style={inputStyle} />
+                        <Input required value={loc.name} onChange={(e) => updateLocation(loc.key, 'name', e.target.value)} placeholder="e.g., Main Warehouse" style={inputStyle} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Code</Label>
@@ -510,7 +534,7 @@ export default function CreateCustomer() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Input value={loc.phone} onChange={(e) => updateLocation(loc.key, 'phone', e.target.value)} placeholder="Phone" style={inputStyle} />
-                      <Input value={loc.email} onChange={(e) => updateLocation(loc.key, 'email', e.target.value)} placeholder="Email" style={inputStyle} />
+                      <Input type="email" value={loc.email} onChange={(e) => updateLocation(loc.key, 'email', e.target.value)} placeholder="Email" style={inputStyle} />
                     </div>
                     <div className="flex items-center space-x-2">
                       <Switch checked={loc.is_default} onCheckedChange={(v) => updateLocation(loc.key, 'is_default', v)} />
@@ -566,7 +590,7 @@ export default function CreateCustomer() {
                     <div className="flex-1 grid grid-cols-4 gap-3">
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Name *</Label>
-                        <Input value={contact.name} onChange={(e) => updateContact(contact.key, 'name', e.target.value)} placeholder="Full name" style={inputStyle} />
+                        <Input required value={contact.name} onChange={(e) => updateContact(contact.key, 'name', e.target.value)} placeholder="Full name" style={inputStyle} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Role</Label>
@@ -583,7 +607,7 @@ export default function CreateCustomer() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[12px]" style={labelStyle}>Email</Label>
-                        <Input value={contact.email} onChange={(e) => updateContact(contact.key, 'email', e.target.value)} placeholder="email@company.com" style={inputStyle} />
+                        <Input type="email" value={contact.email} onChange={(e) => updateContact(contact.key, 'email', e.target.value)} placeholder="email@company.com" style={inputStyle} />
                       </div>
                     </div>
                     <button

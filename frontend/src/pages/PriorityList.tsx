@@ -89,7 +89,7 @@ export default function PriorityList() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="px-4 py-2 rounded-md text-[13px] font-medium text-center"
                 style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-tertiary)' }}>
-                From {format(new Date(startDate + 'T00:00:00'), 'MMM d, yyyy')}
+                Showing items from {format(new Date(startDate + 'T00:00:00'), 'MMM d, yyyy')} onward
               </div>
 
               <button

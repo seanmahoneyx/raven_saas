@@ -13,12 +13,14 @@ import FileUpload from '@/components/common/FileUpload'
 import PrintForm from '@/components/common/PrintForm'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { getApiErrorMessage } from '@/lib/errors'
+import { getApiErrorMessage, toastApiError } from '@/lib/errors'
 import api from '@/api/client'
+import { downloadAuthed } from '@/lib/downloads'
 import EmailModal from '@/components/common/EmailModal'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
+import { formatPaymentTerms } from '@/lib/payment-terms'
 
 /* ── Interfaces ────────────────────────────────────────── */
 interface InvoiceLine {
@@ -111,8 +113,8 @@ export default function InvoiceDetailPage() {
       await api.post(`/invoices/${invoiceId}/send/`)
       toast.success('Invoice marked as sent')
       refetch()
-    } catch {
-      toast.error('Failed to send invoice')
+    } catch (err) {
+      toastApiError(err, 'Failed to send invoice')
     }
   }
 
@@ -174,7 +176,7 @@ export default function InvoiceDetailPage() {
           { label: 'Bill To', value: invoice.bill_to_name },
           { label: 'Due Date', value: format(new Date(invoice.due_date + 'T00:00:00'), 'MMM d, yyyy') },
           { label: 'Ship To', value: invoice.ship_to_name },
-          { label: 'Payment Terms', value: invoice.payment_terms },
+          { label: 'Payment Terms', value: formatPaymentTerms(invoice.payment_terms) },
           { label: 'Customer PO', value: invoice.customer_po || null },
           { label: 'Status', value: invoice.is_overdue ? 'OVERDUE' : invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1) },
         ]}
@@ -205,7 +207,7 @@ export default function InvoiceDetailPage() {
         ])}
         totals={[
           { label: 'Subtotal:', value: `${formatCurrency(invoice.subtotal)}` },
-          { label: `Tax (${(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%):`, value: `${formatCurrency(invoice.tax_amount)}` },
+          { label: `Tax (${parseFloat(invoice.tax_rate).toFixed(2)}%):`, value: `${formatCurrency(invoice.tax_amount)}` },
           { label: 'Total:', value: `${formatCurrency(invoice.total_amount)}` },
         ]}
       />
@@ -247,7 +249,7 @@ export default function InvoiceDetailPage() {
             <button
               className={outlineBtnClass}
               style={outlineBtnStyle}
-              onClick={() => window.open(`/api/v1/invoices/${invoiceId}/pdf/`, '_blank')}
+              onClick={() => downloadAuthed(`/invoices/${invoiceId}/pdf/`, `invoice-${invoice.invoice_number}.pdf`)}
             >
               <FileDown className="h-3.5 w-3.5" />
               PDF
@@ -283,7 +285,7 @@ export default function InvoiceDetailPage() {
             {[
               { label: 'Invoice Date', value: format(new Date(invoice.invoice_date + 'T00:00:00'), 'MMM d, yyyy'), empty: false, mono: false },
               { label: 'Due Date', value: format(new Date(invoice.due_date + 'T00:00:00'), 'MMM d, yyyy'), empty: false, mono: false },
-              { label: 'Payment Terms', value: invoice.payment_terms || 'Not set', empty: !invoice.payment_terms, mono: false },
+              { label: 'Payment Terms', value: invoice.payment_terms ? formatPaymentTerms(invoice.payment_terms) : 'Not set', empty: !invoice.payment_terms, mono: false },
               { label: 'Customer PO', value: invoice.customer_po || 'Not set', empty: !invoice.customer_po, mono: true },
             ].map((item, idx) => (
               <div
@@ -414,7 +416,7 @@ export default function InvoiceDetailPage() {
             </div>
             <div className="px-5 py-4">
               <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                Tax ({(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%)
+                Tax ({parseFloat(invoice.tax_rate).toFixed(2)}%)
               </div>
               <div className="text-sm font-bold font-mono" style={{ color: 'var(--so-text-primary)' }}>
                 {formatCurrency(invoice.tax_amount)}
@@ -528,7 +530,7 @@ export default function InvoiceDetailPage() {
                   {parseFloat(invoice.tax_amount) > 0 && (
                     <div className="flex items-center justify-end gap-8 px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                       <span className="text-[13px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>
-                        Tax ({(parseFloat(invoice.tax_rate) * 100).toFixed(1)}%)
+                        Tax ({parseFloat(invoice.tax_rate).toFixed(2)}%)
                       </span>
                       <span className="font-mono text-sm font-semibold w-28 text-right" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(invoice.tax_amount)}</span>
                     </div>

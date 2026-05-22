@@ -12,6 +12,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 import { formatCurrency } from '@/lib/format'
 
 function today(): string {
@@ -39,14 +41,15 @@ export default function SalesCommission() {
     params.commission_rate = parseFloat(commissionRate)
   }
 
-  const { data, isLoading } = useSalesCommissionReport(params)
+  const { data, isLoading, isError, error, refetch } = useSalesCommissionReport(params)
 
-  const handleDownloadPdf = () => {
-    const params = new URLSearchParams()
-    if (dateFrom) params.set('date_from', dateFrom)
-    if (dateTo) params.set('date_to', dateTo)
-    if (commissionRate && !isNaN(parseFloat(commissionRate))) params.set('commission_rate', commissionRate)
-    window.open(`/api/v1/reports/sales-commission/pdf/?${params.toString()}`, '_blank')
+  const handleDownloadPdf = async () => {
+    const qs = new URLSearchParams()
+    if (dateFrom) qs.set('date_from', dateFrom)
+    if (dateTo) qs.set('date_to', dateTo)
+    if (commissionRate && !isNaN(parseFloat(commissionRate))) qs.set('commission_rate', commissionRate)
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed(`/reports/sales-commission/pdf/?${qs.toString()}`, `sales-commission-${datestamp}.pdf`)
   }
 
   const handleExportCsv = () => {
@@ -120,6 +123,8 @@ export default function SalesCommission() {
             <Card key={i}><CardContent className="pt-6"><Skeleton className="h-10 w-full" /></CardContent></Card>
           ))}
         </div>
+      ) : isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
       ) : data ? (
         <>
           <div className="grid gap-4 md:grid-cols-3">

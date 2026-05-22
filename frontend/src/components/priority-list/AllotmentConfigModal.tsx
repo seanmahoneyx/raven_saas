@@ -3,6 +3,7 @@ import { useVendorAllotments, useSetVendorAllotment } from '@/api/priorityList'
 import { useVendors } from '@/api/parties'
 import { BOX_TYPES } from './constants'
 import type { BoxType } from '@/types/api'
+import { toastApiError } from '@/lib/errors'
 
 interface AllotmentConfigModalProps {
   isOpen: boolean
@@ -70,7 +71,7 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
       }
       onClose()
     } catch (error) {
-      console.error('Failed to save allotments:', error)
+      toastApiError(error, 'Failed to save allotments')
     } finally {
       setIsSaving(false)
     }

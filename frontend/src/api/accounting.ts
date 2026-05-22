@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
+import { fetchAllPages } from '@/lib/paginate'
 import type { GLAccount, JournalEntry, JournalEntryInput, PaginatedResponse, ApiError } from '@/types/api'
 
 export function useAccounts(params?: { search?: string; account_type?: string; is_active?: boolean }) {
@@ -11,6 +12,19 @@ export function useAccounts(params?: { search?: string; account_type?: string; i
       const { data } = await api.get<PaginatedResponse<GLAccount>>('/accounts/', { params })
       return data
     },
+  })
+}
+
+/**
+ * Fetch every GLAccount across all pages. Returns a flat array, not a PaginatedResponse.
+ * Note: `settings.ts` also exports a `useAccounts` that already does a single page_size=500
+ *       fetch — prefer this hook for new code that needs the entire chart of accounts.
+ */
+export function useAllAccounts(params?: { search?: string; account_type?: string; is_active?: boolean }) {
+  return useQuery({
+    queryKey: ['accounts', 'all', params],
+    queryFn: () => fetchAllPages<GLAccount>(api, '/accounts/', params as Record<string, unknown> | undefined),
+    staleTime: 60_000,
   })
 }
 

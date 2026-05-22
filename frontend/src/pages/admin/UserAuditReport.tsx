@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
+import { getApiErrorMessage } from '@/lib/errors'
 
 const ACTION_STYLES: Record<string, { bg: string; color: string }> = {
   Created: { bg: 'rgba(74,144,92,0.1)', color: 'var(--so-success, #4a905c)' },
@@ -33,7 +34,7 @@ export default function UserAuditReport() {
   const [actionType, setActionType] = useState(ALL)
 
   const { data: users } = useUsers()
-  const { data, isLoading } = useUserAuditReport({
+  const { data, isLoading, isError, error } = useUserAuditReport({
     user_id: userId !== ALL ? parseInt(userId, 10) : undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
@@ -153,6 +154,10 @@ export default function UserAuditReport() {
 
           {isLoading ? (
             <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+          ) : isError ? (
+            <div className="m-4 rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }}>
+              {getApiErrorMessage(error, 'Failed to load audit report. Please try again.')}
+            </div>
           ) : results.length === 0 ? (
             <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
               No audit entries found for the selected filters

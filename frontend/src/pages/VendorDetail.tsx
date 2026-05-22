@@ -78,7 +78,7 @@ export default function VendorDetail() {
         { label: 'Overdue Bills', value: `${formatCurrency(vendor?.overdue_bill_balance ?? 0)}`, mono: true, danger: hasOverdue, onClick: () => navigate('/invoices') },
         { label: 'Active RFQs', value: String(vendor?.active_rfq_count ?? 0), onClick: () => navigate('/rfqs') },
         { label: 'Next Incoming', value: vendor?.next_incoming ? format(new Date(vendor.next_incoming + 'T00:00:00'), 'MMM d, yyyy') : '\u2014', onClick: () => navigate('/scheduler') },
-        { label: 'Locations', value: String(vendorLocations.length), onClick: () => {} },
+        { label: 'Locations', value: String(vendorLocations.length) },
       ]}
       primaryAction={
         <div className="flex items-center gap-2">
@@ -203,18 +203,8 @@ export default function VendorDetail() {
                   New RFQ
                 </button>
               </div>
-              <div className="p-6 text-center py-10">
-                <p className="text-[13px] mb-4" style={{ color: 'var(--so-text-tertiary)' }}>
-                  RFQ history is available in the timeline above.
-                </p>
-                <button
-                  className={outlineBtnClass}
-                  style={outlineBtnStyle}
-                  onClick={() => {/* setActiveTab handled by layout -- navigate to timeline filter */}}
-                >
-                  <History className="h-3.5 w-3.5" />
-                  View Timeline
-                </button>
+              <div className="text-center py-8 text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
+                No RFQs yet
               </div>
             </div>
           )}

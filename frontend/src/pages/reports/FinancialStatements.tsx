@@ -25,6 +25,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 
 
 function today(): string {
@@ -136,41 +138,47 @@ export default function FinancialStatements() {
 
   // Trial Balance state
   const [tbDate, setTbDate] = useState(today())
-  const { data: tbData, isLoading: tbLoading } = useTrialBalance(tbDate)
+  const { data: tbData, isLoading: tbLoading, isError: tbIsError, error: tbError, refetch: tbRefetch } = useTrialBalance(tbDate)
 
   // Income Statement state
   const [isStartDate, setIsStartDate] = useState(firstOfYear())
   const [isEndDate, setIsEndDate] = useState(today())
-  const { data: isData, isLoading: isLoading } = useIncomeStatement(isStartDate, isEndDate)
+  const { data: isData, isLoading: isLoading, isError: isIsError, error: isError, refetch: isRefetch } = useIncomeStatement(isStartDate, isEndDate)
 
   // Balance Sheet state
   const [bsDate, setBsDate] = useState(today())
-  const { data: bsData, isLoading: bsLoading } = useBalanceSheet(bsDate)
+  const { data: bsData, isLoading: bsLoading, isError: bsIsError, error: bsError, refetch: bsRefetch } = useBalanceSheet(bsDate)
 
   // Cash Flow state
   const [cfStartDate, setCfStartDate] = useState(firstOfYear())
   const [cfEndDate, setCfEndDate] = useState(today())
-  const { data: cfData, isLoading: cfLoading } = useCashFlowStatement(cfStartDate, cfEndDate)
+  const { data: cfData, isLoading: cfLoading, isError: cfIsError, error: cfError, refetch: cfRefetch } = useCashFlowStatement(cfStartDate, cfEndDate)
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const params = new URLSearchParams()
     let path = ''
+    let filename = ''
+    const datestamp = new Date().toISOString().split('T')[0]
     if (activeTab === 'trial-balance') {
-      path = '/api/v1/reports/trial-balance/pdf/'
+      path = '/reports/trial-balance/pdf/'
       params.set('date', tbDate)
+      filename = `trial-balance-${datestamp}.pdf`
     } else if (activeTab === 'income-statement') {
-      path = '/api/v1/reports/income-statement/pdf/'
+      path = '/reports/income-statement/pdf/'
       params.set('start', isStartDate)
       params.set('end', isEndDate)
+      filename = `income-statement-${datestamp}.pdf`
     } else if (activeTab === 'balance-sheet') {
-      path = '/api/v1/reports/balance-sheet/pdf/'
+      path = '/reports/balance-sheet/pdf/'
       params.set('date', bsDate)
+      filename = `balance-sheet-${datestamp}.pdf`
     } else if (activeTab === 'cash-flow') {
-      path = '/api/v1/reports/cash-flow/pdf/'
+      path = '/reports/cash-flow/pdf/'
       params.set('start', cfStartDate)
       params.set('end', cfEndDate)
+      filename = `cash-flow-${datestamp}.pdf`
     }
-    window.open(`${path}?${params.toString()}`, '_blank')
+    await downloadAuthed(`${path}?${params.toString()}`, filename)
   }
 
   const handleExportCsv = () => {
@@ -262,6 +270,8 @@ export default function FinancialStatements() {
 
             {tbLoading ? (
               <LoadingSkeleton />
+            ) : tbIsError ? (
+              <ReportErrorBlock error={tbError} onRetry={() => tbRefetch()} />
             ) : tbData ? (
               <Card>
                 <CardHeader>
@@ -319,6 +329,8 @@ export default function FinancialStatements() {
 
             {isLoading ? (
               <LoadingSkeleton />
+            ) : isIsError ? (
+              <ReportErrorBlock error={isError} onRetry={() => isRefetch()} />
             ) : isData ? (
               <Card>
                 <CardHeader>
@@ -359,6 +371,8 @@ export default function FinancialStatements() {
 
             {bsLoading ? (
               <LoadingSkeleton />
+            ) : bsIsError ? (
+              <ReportErrorBlock error={bsError} onRetry={() => bsRefetch()} />
             ) : bsData ? (
               <Card>
                 <CardHeader>
@@ -421,6 +435,8 @@ export default function FinancialStatements() {
 
             {cfLoading ? (
               <LoadingSkeleton />
+            ) : cfIsError ? (
+              <ReportErrorBlock error={cfError} onRetry={() => cfRefetch()} />
             ) : cfData ? (
               <Card>
                 <CardHeader>

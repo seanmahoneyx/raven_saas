@@ -18,6 +18,8 @@ import {
 } from '@/components/ui/select'
 import ReportViewer from '@/components/reports/ReportViewer'
 import type { ReportColumn } from '@/components/reports/ReportViewer'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 
 // Filter kinds supported by the per-slug filter bar
 type FilterKind = 'status_so' | 'status_po' | 'customer' | 'vendor' | 'start_date' | 'end_date'
@@ -107,18 +109,6 @@ const REPORT_CONFIGS: Record<
       { key: 'num_lines', header: 'Lines', align: 'right' },
     ],
   },
-  'vendor-performance': {
-    title: 'Vendor Performance',
-    endpoint: '/reports/vendor-performance/',
-    needsDates: true,
-    pdfEndpoint: '/reports/vendor-performance/pdf/',
-    columns: [
-      { key: 'vendor_name', header: 'Vendor' },
-      { key: 'total_orders', header: 'Total Orders', align: 'right', format: 'number', summable: true },
-      { key: 'late_orders', header: 'Late', align: 'right', format: 'number', summable: true },
-      { key: 'on_time_pct', header: 'On-Time %', align: 'right', format: 'percent' },
-    ],
-  },
   'purchase-history': {
     title: 'Purchase History',
     endpoint: '/reports/purchase-history/',
@@ -197,21 +187,6 @@ const REPORT_CONFIGS: Record<
       { key: 'invoice_count', header: 'Invoices', align: 'right', format: 'number', summable: true },
     ],
   },
-  'gross-margin-detail': {
-    title: 'Gross Margin Detail',
-    endpoint: '/reports/gross-margin-detail/',
-    pdfEndpoint: '/reports/gross-margin-detail/pdf/',
-    needsDates: true,
-    columns: [
-      { key: 'item_sku', header: 'SKU' },
-      { key: 'item_name', header: 'Item' },
-      { key: 'qty_sold', header: 'Qty', align: 'right', format: 'number', summable: true },
-      { key: 'revenue', header: 'Revenue', align: 'right', format: 'currency', summable: true },
-      { key: 'cogs', header: 'COGS', align: 'right', format: 'currency', summable: true },
-      { key: 'gross_margin', header: 'Gross Margin', align: 'right', format: 'currency', summable: true },
-      { key: 'margin_pct', header: 'Margin %', align: 'right', format: 'percent' },
-    ],
-  },
 }
 
 const SO_STATUS_OPTIONS = [
@@ -281,21 +256,31 @@ export default function CannedReport() {
     if (filterEndDate) params.end_date = filterEndDate
   }
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['canned-report', slug, params],
     queryFn: () => apiClient.get(config!.endpoint, { params }).then(r => r.data),
     enabled: !!config,
   })
 
-  const handleExportCsv = () => {
+  const [isExportingCsv, setIsExportingCsv] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+
+  const handleExportCsv = async () => {
+    if (!config) return
+    setIsExportingCsv(true)
     const csvParams = new URLSearchParams({ ...params, format: 'csv' })
-    window.open(`/api/v1${config!.endpoint}?${csvParams.toString()}`, '_blank')
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed(`${config.endpoint}?${csvParams.toString()}`, `${slug}-${datestamp}.csv`)
+    setIsExportingCsv(false)
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (!config?.pdfEndpoint) return
+    setIsDownloadingPdf(true)
     const pdfParams = new URLSearchParams(params)
-    window.open(`/api/v1${config.pdfEndpoint}?${pdfParams.toString()}`, '_blank')
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed(`${config.pdfEndpoint}?${pdfParams.toString()}`, `${slug}-${datestamp}.pdf`)
+    setIsDownloadingPdf(false)
   }
 
   if (!config) {
@@ -451,14 +436,20 @@ export default function CannedReport() {
         </div>
       )}
 
-      <ReportViewer
-        title={config.title}
-        columns={config.columns}
-        rows={data?.rows || []}
-        isLoading={isLoading}
-        onExportCsv={handleExportCsv}
-        onDownloadPdf={config.pdfEndpoint ? handleDownloadPdf : undefined}
-      />
+      {isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
+      ) : (
+        <ReportViewer
+          title={config.title}
+          columns={config.columns}
+          rows={data?.rows || []}
+          isLoading={isLoading}
+          onExportCsv={handleExportCsv}
+          onDownloadPdf={config.pdfEndpoint ? handleDownloadPdf : undefined}
+          isExportingCsv={isExportingCsv}
+          isDownloadingPdf={isDownloadingPdf}
+        />
+      )}
     </div>
   )
 }

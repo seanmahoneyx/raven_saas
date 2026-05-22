@@ -6,6 +6,7 @@ import {
   type CellId,
 } from './useSchedulerStore'
 import { ManifestCell } from './ManifestCell'
+import { parseLocalDate, todayLocal } from '@/lib/dates'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -23,11 +24,9 @@ const DateHeader = memo(function DateHeader({ date, dayLabel }: DateHeaderProps)
   const isLocked = useSchedulerStore(selectLockedMemo)
   const toggleDateLock = useSchedulerStore((s) => s.toggleDateLock)
 
-  // Check if today
-  const isToday = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0]
-    return date === today
-  }, [date])
+  // Check if today (use local TZ — `toISOString()` would shift the day for
+  // users west of UTC during evening hours).
+  const isToday = useMemo(() => date === todayLocal(), [date])
 
   const handleToggle = useCallback(() => {
     toggleDateLock(date)
@@ -169,10 +168,10 @@ export const WeekGroup = memo(function WeekGroup({ dates, weekLabel, isCurrentWe
   const trucks = useSchedulerStore((s) => s.trucks)
 
   const dayLabels = useMemo(() => {
-    return dates.map((d) => {
-      const day = new Date(d + 'T12:00:00Z')
-      return WEEKDAYS[day.getUTCDay()]
-    })
+    // Parse YYYY-MM-DD strings as local dates and read the local weekday.
+    // The previous approach (`new Date(d + 'T12:00:00Z')` + `getUTCDay()`) was
+    // brittle and could return the wrong weekday for users far from UTC.
+    return dates.map((d) => WEEKDAYS[parseLocalDate(d).getDay()])
   }, [dates])
 
   const rows = useMemo(() => {

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select'
 import { useCreateVendor, useUpdateVendor, useParties } from '@/api/parties'
 import type { Vendor } from '@/types/api'
+import { toastApiError } from '@/lib/errors'
 
 interface VendorDialogProps {
   open: boolean
@@ -78,7 +79,7 @@ export function VendorDialog({ open, onOpenChange, vendor }: VendorDialogProps) 
       }
       onOpenChange(false)
     } catch (error) {
-      console.error(`Failed to ${isEditing ? 'update' : 'create'} vendor:`, error)
+      toastApiError(error, `Failed to ${isEditing ? 'update' : 'create'} vendor`)
     }
   }
 

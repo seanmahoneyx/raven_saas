@@ -66,9 +66,8 @@ describe('ReportsDashboard', () => {
     expect(screen.getByText('Open Orders')).toBeInTheDocument()
     expect(screen.getByText('Backorders')).toBeInTheDocument()
 
-    // Purchasing section (3 reports)
+    // Purchasing section (2 reports)
     expect(screen.getByText('Open POs')).toBeInTheDocument()
-    expect(screen.getByText('Vendor Performance')).toBeInTheDocument()
     expect(screen.getByText('Purchase History')).toBeInTheDocument()
 
     // Warehouse & Inventory section (4 reports)
@@ -77,9 +76,8 @@ describe('ReportsDashboard', () => {
     expect(screen.getByText('Low Stock Alerts')).toBeInTheDocument()
     expect(screen.getByText('Dead Stock')).toBeInTheDocument()
 
-    // Financial section (2 reports)
+    // Financial section (1 report)
     expect(screen.getByText('Sales Tax Liability')).toBeInTheDocument()
-    expect(screen.getByText('Gross Margin Detail')).toBeInTheDocument()
   })
 
   it('navigates when report card clicked', async () => {

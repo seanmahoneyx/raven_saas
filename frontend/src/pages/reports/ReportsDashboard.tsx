@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
+import { useAuth } from '@/hooks/useAuth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   BarChart3, Users, Package, Truck, Warehouse, DollarSign,
@@ -11,6 +12,7 @@ interface ReportLink {
   description: string
   path: string
   icon: React.ReactNode
+  adminOnly?: boolean
 }
 
 const reportSections: { title: string; reports: ReportLink[] }[] = [
@@ -22,7 +24,7 @@ const reportSections: { title: string; reports: ReportLink[] }[] = [
       { title: 'Gross Margin', description: 'Revenue vs COGS by customer and item', path: '/reports/gross-margin', icon: <TrendingDown className="h-5 w-5 text-green-600" /> },
       { title: 'Contract Utilization', description: 'Commitment vs release with burn rate', path: '/reports/contract-utilization', icon: <FileText className="h-5 w-5 text-purple-600" /> },
       { title: 'Vendor Scorecard', description: 'Delivery performance, spend, and lead time', path: '/reports/vendor-scorecard', icon: <Users className="h-5 w-5 text-cyan-600" /> },
-      { title: 'Sales Commission', description: 'Commission earned by rep from paid invoices', path: '/reports/sales-commission', icon: <DollarSign className="h-5 w-5 text-green-500" /> },
+      { title: 'Sales Commission', description: 'Commission earned by rep from paid invoices', path: '/reports/sales-commission', icon: <DollarSign className="h-5 w-5 text-green-500" />, adminOnly: true },
       { title: 'Orders vs Inventory', description: 'Demand coverage and projected shortages', path: '/reports/orders-vs-inventory', icon: <Package className="h-5 w-5 text-blue-500" /> },
     ],
   },
@@ -39,7 +41,6 @@ const reportSections: { title: string; reports: ReportLink[] }[] = [
     title: 'Purchasing',
     reports: [
       { title: 'Open POs', description: 'Incoming stock sorted by expected date', path: '/reports/open-pos', icon: <Truck className="h-5 w-5 text-indigo-500" /> },
-      { title: 'Vendor Performance', description: 'On-time delivery rate by vendor', path: '/reports/vendor-performance', icon: <Users className="h-5 w-5 text-cyan-500" /> },
       { title: 'Purchase History', description: 'Items purchased with cost trends', path: '/reports/purchase-history', icon: <FileText className="h-5 w-5 text-teal-500" /> },
     ],
   },
@@ -56,7 +57,6 @@ const reportSections: { title: string; reports: ReportLink[] }[] = [
     title: 'Financial',
     reports: [
       { title: 'Sales Tax Liability', description: 'Tax collected by zone', path: '/reports/sales-tax', icon: <DollarSign className="h-5 w-5 text-red-600" /> },
-      { title: 'Gross Margin Detail', description: 'Revenue minus COGS by item', path: '/reports/gross-margin-detail', icon: <TrendingDown className="h-5 w-5 text-orange-500" /> },
     ],
   },
 ]
@@ -64,6 +64,15 @@ const reportSections: { title: string; reports: ReportLink[] }[] = [
 export default function ReportsDashboard() {
   usePageTitle('Reports')
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = Boolean(user?.is_staff || user?.is_superuser)
+
+  const visibleSections = reportSections
+    .map((section) => ({
+      ...section,
+      reports: section.reports.filter((r) => !r.adminOnly || isAdmin),
+    }))
+    .filter((section) => section.reports.length > 0)
 
   return (
     <div className="p-8 space-y-8">
@@ -72,7 +81,7 @@ export default function ReportsDashboard() {
         <p className="text-muted-foreground mt-1">Standard report pack — sales, purchasing, inventory, and financial</p>
       </div>
 
-      {reportSections.map((section) => (
+      {visibleSections.map((section) => (
         <div key={section.title}>
           <h2 className="text-lg font-semibold mb-3">{section.title}</h2>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">

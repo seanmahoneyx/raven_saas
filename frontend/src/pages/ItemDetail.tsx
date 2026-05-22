@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useTrackEntityView, useFavorites, useAddFavorite, useRemoveFavorite } from '@/api/favorites'
 import { ArrowLeft, Package, History, Users, Printer, Copy, BarChart3, Pencil, Paperclip, Search, DollarSign, Star, AlertCircle } from 'lucide-react'
 import { getApiErrorMessage } from '@/lib/errors'
+import { openAuthedInTab } from '@/lib/downloads'
 import { useAuth } from '@/hooks/useAuth'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { useItem, useItemVendors, useDuplicateItem, useSimilarItems, useTransitionItem, useBumpRevision, useSetPreferredVendor, useCreateItemVendor } from '@/api/items'
 import { useParties } from '@/api/parties'
 import { useCostLists, useCreateCostList } from '@/api/costLists'
@@ -270,7 +279,7 @@ export default function ItemDetail() {
                 <button
                   className={outlineBtnClass}
                   style={outlineBtnStyle}
-                  onClick={() => window.open(`/api/v1/items/${item.id}/spec_sheet/`, '_blank')}
+                  onClick={() => openAuthedInTab(`/items/${item.id}/spec_sheet/`)}
                 >
                   <Printer className="h-3.5 w-3.5" />
                   Spec Sheet
@@ -399,38 +408,38 @@ export default function ItemDetail() {
         )}
 
         {/* Revision bump dialog */}
-        {revisionDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }}>
-            <div className="rounded-[14px] border p-6 w-[440px] space-y-4" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-              <h3 className="text-lg font-bold">Bump Revision</h3>
-              <p className="text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+        <Dialog open={revisionDialogOpen} onOpenChange={setRevisionDialogOpen}>
+          <DialogContent className="sm:max-w-[440px]" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <DialogHeader>
+              <DialogTitle>Bump Revision</DialogTitle>
+              <DialogDescription>
                 This will increment the revision to <span className="font-mono font-bold">Rev {(item.revision || 0) + 1}</span>.
                 Vendors will see the change note on future POs.
-              </p>
-              <div className="space-y-1.5">
-                <Label className="text-[13px] font-medium">What changed? *</Label>
-                <Textarea
-                  value={revisionReason}
-                  onChange={e => setRevisionReason(e.target.value)}
-                  placeholder="e.g., Height increased 6&quot; to 7&quot; per customer request"
-                  rows={3}
-                  style={inputStyle}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setRevisionDialogOpen(false)}>Cancel</button>
-                <button className={primaryBtnClass} style={primaryBtnStyle}
-                  disabled={!revisionReason.trim() || bumpRevision.isPending}
-                  onClick={async () => {
-                    await bumpRevision.mutateAsync({ id: item.id, reason: revisionReason.trim() })
-                    setRevisionDialogOpen(false)
-                  }}>
-                  {bumpRevision.isPending ? 'Saving...' : `Save as Rev ${(item.revision || 0) + 1}`}
-                </button>
-              </div>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              <Label className="text-[13px] font-medium">What changed? *</Label>
+              <Textarea
+                value={revisionReason}
+                onChange={e => setRevisionReason(e.target.value)}
+                placeholder="e.g., Height increased 6&quot; to 7&quot; per customer request"
+                rows={3}
+                style={inputStyle}
+              />
             </div>
-          </div>
-        )}
+            <DialogFooter>
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => setRevisionDialogOpen(false)}>Cancel</button>
+              <button className={primaryBtnClass} style={primaryBtnStyle}
+                disabled={!revisionReason.trim() || bumpRevision.isPending}
+                onClick={async () => {
+                  await bumpRevision.mutateAsync({ id: item.id, reason: revisionReason.trim() })
+                  setRevisionDialogOpen(false)
+                }}>
+                {bumpRevision.isPending ? 'Saving...' : `Save as Rev ${(item.revision || 0) + 1}`}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* -- Tabs --------------------------------------------- */}
         <div className="flex gap-1 mb-6 animate-in delay-3 rounded-xl p-1.5 overflow-x-auto"

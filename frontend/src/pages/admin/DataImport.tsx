@@ -1,9 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
+import { toast } from 'sonner'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { apiClient } from '@/api/client'
 import { getApiErrorMessage } from '@/lib/errors'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024 // 5 MB
 import {
   Select,
   SelectContent,
@@ -68,18 +71,34 @@ export default function DataImport() {
     e.preventDefault()
     setIsDragging(false)
     const dropped = e.dataTransfer.files[0]
-    if (dropped && dropped.name.endsWith('.csv')) {
-      setFile(dropped)
-      setStep('upload')
+    if (!dropped) return
+    if (!dropped.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Only .csv files are supported')
+      return
     }
+    if (dropped.size > MAX_IMPORT_FILE_BYTES) {
+      toast.error('File is too large. Maximum size is 5 MB.')
+      return
+    }
+    setFile(dropped)
+    setStep('upload')
   }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
-    if (selected) {
-      setFile(selected)
-      setStep('upload')
+    if (!selected) return
+    if (!selected.name.toLowerCase().endsWith('.csv')) {
+      toast.error('Only .csv files are supported')
+      e.target.value = ''
+      return
     }
+    if (selected.size > MAX_IMPORT_FILE_BYTES) {
+      toast.error('File is too large. Maximum size is 5 MB.')
+      e.target.value = ''
+      return
+    }
+    setFile(selected)
+    setStep('upload')
   }
 
   const runImport = async (commit: boolean) => {
@@ -98,9 +117,16 @@ export default function DataImport() {
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
       setReport(data)
-      setStep(commit && data.error_count === 0 ? 'done' : 'review')
+      const success = commit && data.error_count === 0
+      setStep(success ? 'done' : 'review')
+      if (success) {
+        toast.success('Import complete')
+      } else if (data.error_count > 0) {
+        toast.error(`${data.error_count} validation error${data.error_count === 1 ? '' : 's'} found`)
+      }
     } catch (err: unknown) {
       const message = getApiErrorMessage(err, 'Import failed. Check your file format.')
+      toast.error(message)
       setReport({
         import_type: importType,
         mode: commit ? 'commit' : 'dry_run',
@@ -133,7 +159,7 @@ export default function DataImport() {
     } catch (err) {
       const message = getApiErrorMessage(err, 'Template download failed.')
       console.error('Template download failed', err)
-      alert(message)
+      toast.error(message)
     }
   }
 
@@ -147,15 +173,15 @@ export default function DataImport() {
   const canCommit = report && report.error_count === 0 && report.valid > 0 && report.mode === 'dry_run'
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Data Import</h1>
-          <p className="text-sm text-slate-400 mt-1">Upload CSV files to bulk-import records into the system.</p>
+          <h1 className="text-3xl font-bold">Data Import</h1>
+          <p className="text-muted-foreground mt-1">Upload CSV files to bulk-import records into the system.</p>
         </div>
         {step !== 'select' && (
-          <Button variant="ghost" onClick={reset} className="text-slate-400 hover:text-white">
+          <Button variant="ghost" onClick={reset}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Start Over
           </Button>
@@ -170,13 +196,28 @@ export default function DataImport() {
           const isDone = i < stepIndex
           return (
             <div key={label} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                isActive ? 'bg-blue-600 text-white' : isDone ? 'bg-green-600 text-white' : 'bg-slate-800 text-slate-500'
-              }`}>
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                style={
+                  isActive
+                    ? { background: 'var(--so-accent)', color: '#fff' }
+                    : isDone
+                      ? { background: 'var(--so-success-text, #16a34a)', color: '#fff' }
+                      : { background: 'var(--so-border-light)', color: 'var(--so-text-tertiary)' }
+                }
+              >
                 {isDone ? '✓' : i + 1}
               </div>
-              <span className={`text-sm ${isActive ? 'text-white font-medium' : 'text-slate-500'}`}>{label}</span>
-              {i < 3 && <div className="w-8 h-px bg-slate-700" />}
+              <span
+                className="text-sm"
+                style={{
+                  color: isActive ? 'var(--so-text-primary)' : 'var(--so-text-tertiary)',
+                  fontWeight: isActive ? 500 : 400,
+                }}
+              >
+                {label}
+              </span>
+              {i < 3 && <div className="w-8 h-px" style={{ background: 'var(--so-border)' }} />}
             </div>
           )
         })}
@@ -184,10 +225,13 @@ export default function DataImport() {
 
       {/* Step 1: Select Type */}
       {step === 'select' && (
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-white">What are you importing?</h2>
+        <div
+          className="rounded-lg p-6 space-y-4 border"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+        >
+          <h2 className="text-lg font-semibold">What are you importing?</h2>
           <Select value={importType} onValueChange={(v) => setImportType(v)}>
-            <SelectTrigger className="w-full max-w-md bg-slate-800 border-slate-700 text-white">
+            <SelectTrigger className="w-full max-w-md">
               <SelectValue placeholder="Select import type..." />
             </SelectTrigger>
             <SelectContent>
@@ -198,9 +242,12 @@ export default function DataImport() {
           </Select>
 
           {selectedType && (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mt-4">
-              <h3 className="text-sm font-medium text-slate-300 mb-2">Expected CSV Columns</h3>
-              <p className="text-sm text-slate-400 font-mono">{selectedType.columns}</p>
+            <div
+              className="rounded-lg p-4 mt-4 border"
+              style={{ background: 'var(--so-bg)', borderColor: 'var(--so-border-light)' }}
+            >
+              <h3 className="text-sm font-medium mb-2" style={{ color: 'var(--so-text-secondary)' }}>Expected CSV Columns</h3>
+              <p className="text-sm font-mono" style={{ color: 'var(--so-text-tertiary)' }}>{selectedType.columns}</p>
             </div>
           )}
 
@@ -208,7 +255,6 @@ export default function DataImport() {
             <Button
               onClick={() => setStep('upload')}
               disabled={!importType}
-              className="bg-blue-600 hover:bg-blue-700"
             >
               Next: Upload File
             </Button>
@@ -217,7 +263,6 @@ export default function DataImport() {
               variant="outline"
               onClick={downloadTemplate}
               disabled={!importType}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               <Download className="h-4 w-4 mr-2" />
               Download Template
@@ -228,9 +273,12 @@ export default function DataImport() {
 
       {/* Step 2: Upload File */}
       {step === 'upload' && !report && (
-        <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-white">Upload CSV File</h2>
-          <p className="text-sm text-slate-400">
+        <div
+          className="rounded-lg p-6 space-y-4 border"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+        >
+          <h2 className="text-lg font-semibold">Upload CSV File</h2>
+          <p className="text-sm text-muted-foreground">
             Importing: <Badge variant="outline" className="ml-1">{selectedType?.label}</Badge>
           </p>
 
@@ -240,13 +288,14 @@ export default function DataImport() {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+            className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors"
+            style={
               isDragging
-                ? 'border-blue-500 bg-blue-500/10'
+                ? { borderColor: 'var(--so-accent)', background: 'var(--so-info-bg, rgba(0,0,0,0.04))' }
                 : file
-                  ? 'border-green-500/50 bg-green-500/5'
-                  : 'border-slate-700 hover:border-slate-600 bg-slate-800/30'
-            }`}
+                  ? { borderColor: 'var(--so-success-text, #16a34a)', background: 'var(--so-success-bg, rgba(0,0,0,0.03))' }
+                  : { borderColor: 'var(--so-border)', background: 'var(--so-bg)' }
+            }
           >
             <input
               ref={fileInputRef}
@@ -257,15 +306,15 @@ export default function DataImport() {
             />
             {file ? (
               <div className="space-y-2">
-                <FileSpreadsheet className="h-10 w-10 mx-auto text-green-400" />
-                <p className="text-white font-medium">{file.name}</p>
-                <p className="text-sm text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
+                <FileSpreadsheet className="h-10 w-10 mx-auto" style={{ color: 'var(--so-success-text, #16a34a)' }} />
+                <p className="font-medium">{file.name}</p>
+                <p className="text-sm text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
               </div>
             ) : (
               <div className="space-y-2">
-                <Upload className="h-10 w-10 mx-auto text-slate-500" />
-                <p className="text-slate-300">Drag & drop your CSV file here</p>
-                <p className="text-sm text-slate-500">or click to browse</p>
+                <Upload className="h-10 w-10 mx-auto" style={{ color: 'var(--so-text-tertiary)' }} />
+                <p style={{ color: 'var(--so-text-secondary)' }}>Drag &amp; drop your CSV file here</p>
+                <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>or click to browse (max 5 MB)</p>
               </div>
             )}
           </div>
@@ -274,7 +323,6 @@ export default function DataImport() {
             <Button
               onClick={() => runImport(false)}
               disabled={!file || isLoading}
-              className="bg-amber-600 hover:bg-amber-700"
             >
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileCheck className="h-4 w-4 mr-2" />}
               Test Import (Dry Run)
@@ -284,7 +332,6 @@ export default function DataImport() {
               variant="outline"
               onClick={downloadTemplate}
               disabled={!importType}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               <Download className="h-4 w-4 mr-2" />
               Download Template
@@ -297,26 +344,29 @@ export default function DataImport() {
       {step === 'review' && report && (
         <div className="space-y-4">
           {/* Summary Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">
+          <div
+            className="rounded-lg p-6 border"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+          >
+            <h2 className="text-lg font-semibold mb-4">
               {report.mode === 'dry_run' ? 'Dry Run Results' : 'Import Results'}
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-slate-800 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-white">{report.total}</p>
-                <p className="text-xs text-slate-400 mt-1">Total Rows</p>
+              <div className="rounded-lg p-4 text-center border" style={{ background: 'var(--so-bg)', borderColor: 'var(--so-border-light)' }}>
+                <p className="text-2xl font-bold">{report.total}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Total Rows</p>
               </div>
-              <div className="bg-slate-800 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-green-400">{report.valid}</p>
-                <p className="text-xs text-slate-400 mt-1">Valid</p>
+              <div className="rounded-lg p-4 text-center border" style={{ background: 'var(--so-bg)', borderColor: 'var(--so-border-light)' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--so-success-text, #16a34a)' }}>{report.valid}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Valid</p>
               </div>
-              <div className="bg-slate-800 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-red-400">{report.error_count}</p>
-                <p className="text-xs text-slate-400 mt-1">Errors</p>
+              <div className="rounded-lg p-4 text-center border" style={{ background: 'var(--so-bg)', borderColor: 'var(--so-border-light)' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--so-danger-text, #dc2626)' }}>{report.error_count}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Errors</p>
               </div>
-              <div className="bg-slate-800 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-blue-400">{report.created + report.updated}</p>
-                <p className="text-xs text-slate-400 mt-1">Processed</p>
+              <div className="rounded-lg p-4 text-center border" style={{ background: 'var(--so-bg)', borderColor: 'var(--so-border-light)' }}>
+                <p className="text-2xl font-bold" style={{ color: 'var(--so-accent)' }}>{report.created + report.updated}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--so-text-tertiary)' }}>Processed</p>
               </div>
             </div>
 
@@ -326,13 +376,12 @@ export default function DataImport() {
                 <Button
                   onClick={() => runImport(true)}
                   disabled={isLoading}
-                  className="bg-green-600 hover:bg-green-700"
                 >
                   {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                   Run Import (Commit {report.valid} Records)
                 </Button>
               )}
-              <Button variant="outline" onClick={reset} className="border-slate-700 text-slate-300">
+              <Button variant="outline" onClick={reset}>
                 Start Over
               </Button>
             </div>
@@ -340,22 +389,29 @@ export default function DataImport() {
 
           {/* Error List */}
           {report.errors.length > 0 && (
-            <div className="bg-slate-900 border border-red-900/50 rounded-lg p-6">
+            <div
+              className="rounded-lg p-6 border"
+              style={{ background: 'var(--so-surface)', borderColor: 'var(--so-danger-border, var(--so-border))' }}
+            >
               <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
-                <h3 className="text-sm font-semibold text-red-400">
+                <AlertTriangle className="h-5 w-5" style={{ color: 'var(--so-danger-text, #dc2626)' }} />
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--so-danger-text, #dc2626)' }}>
                   {report.errors.length} Validation Error{report.errors.length !== 1 ? 's' : ''}
                 </h3>
               </div>
               <div className="max-h-80 overflow-y-auto space-y-1">
                 {report.errors.map((err, i) => (
-                  <div key={i} className="flex items-start gap-3 py-2 px-3 rounded bg-slate-800/50 text-sm">
+                  <div
+                    key={i}
+                    className="flex items-start gap-3 py-2 px-3 rounded text-sm"
+                    style={{ background: 'var(--so-bg)' }}
+                  >
                     {err.row > 0 && (
-                      <Badge variant="outline" className="shrink-0 text-xs border-red-800 text-red-400">
+                      <Badge variant="outline" className="shrink-0 text-xs">
                         Row {err.row}
                       </Badge>
                     )}
-                    <span className="text-slate-300">{err.message}</span>
+                    <span style={{ color: 'var(--so-text-secondary)' }}>{err.message}</span>
                   </div>
                 ))}
               </div>
@@ -366,14 +422,17 @@ export default function DataImport() {
 
       {/* Step 4: Done */}
       {step === 'done' && report && (
-        <div className="bg-slate-900 border border-green-900/50 rounded-lg p-8 text-center">
-          <CheckCircle2 className="h-16 w-16 mx-auto text-green-400 mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Import Complete</h2>
-          <p className="text-slate-400 mb-1">{report.message}</p>
-          <p className="text-sm text-slate-500">
+        <div
+          className="rounded-lg p-8 text-center border"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+        >
+          <CheckCircle2 className="h-16 w-16 mx-auto mb-4" style={{ color: 'var(--so-success-text, #16a34a)' }} />
+          <h2 className="text-xl font-bold mb-2">Import Complete</h2>
+          <p className="mb-1" style={{ color: 'var(--so-text-secondary)' }}>{report.message}</p>
+          <p className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
             {report.created} created, {report.updated} updated out of {report.total} rows.
           </p>
-          <Button onClick={reset} className="mt-6 bg-blue-600 hover:bg-blue-700">
+          <Button onClick={reset} className="mt-6">
             Import More Data
           </Button>
         </div>

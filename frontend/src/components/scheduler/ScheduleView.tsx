@@ -16,12 +16,15 @@ import { WeekGroup } from './WeekGroup'
 import { RunContainer } from './RunContainer'
 import { ManifestLine } from './ManifestLine'
 import { NoteCard } from './NoteCard'
+import { formatLocalDate, todayLocal } from '@/lib/dates'
 
 // ─── Date Utility ─────────────────────────────────────────────────────────────
 
 function getWeekBands(startOffset: number, endOffset: number): { dates: string[]; label: string; isCurrentWeek: boolean }[] {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  // Use the local calendar date — `toISOString().slice(0,10)` would shift the
+  // day for users west of UTC during evening hours.
+  const todayStr = todayLocal()
   const monday = new Date(today)
   monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
 
@@ -31,7 +34,7 @@ function getWeekBands(startOffset: number, endOffset: number): { dates: string[]
     for (let d = 0; d < 5; d++) { // Mon-Fri only
       const day = new Date(monday)
       day.setDate(monday.getDate() + w * 7 + d)
-      week.push(day.toISOString().slice(0, 10))
+      week.push(formatLocalDate(day))
     }
     const isCurrentWeek = week.includes(todayStr)
     const label = `Week of ${week[0].slice(5)} to ${week[4].slice(5)}`

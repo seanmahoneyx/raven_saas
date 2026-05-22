@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -7,6 +7,15 @@ import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } fr
 import { PageHeader } from '@/components/page'
 import { useDriverManifest, useStartRun, useArriveAtStop } from '@/api/logistics'
 import { ChevronDown, ChevronRight, MapPin, Package, Truck } from 'lucide-react'
+
+function formatTodayLabel(): string {
+  return new Date().toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
 
 export default function DriverManifest() {
   usePageTitle('Driver Manifest')
@@ -29,12 +38,18 @@ export default function DriverManifest() {
     })
   }
 
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  // Recompute the "today" label periodically and on window focus so it stays
+  // accurate if a driver leaves the page open past midnight.
+  const [today, setToday] = useState(formatTodayLabel)
+  useEffect(() => {
+    const refresh = () => setToday(formatTodayLabel())
+    const intervalId = window.setInterval(refresh, 5 * 60 * 1000) // every 5 minutes
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -45,7 +60,7 @@ export default function DriverManifest() {
           title="Driver Manifest"
           description={today}
           primary={
-            manifest && !manifest.is_complete && manifest.stops.every((s) => s.arrived_at === null)
+            manifest && !manifest.is_complete && manifest.stops.every((s) => !s.arrived_at)
               ? { label: 'Start Run', icon: Truck, loading: startRun.isPending, onClick: () => startRun.mutate() }
               : undefined
           }

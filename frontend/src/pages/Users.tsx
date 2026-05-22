@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/api/users'
-import type { User } from '@/api/users'
+import type { User, UpdateUserPayload } from '@/api/users'
+import { useAuth } from '@/hooks/useAuth'
+import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -22,9 +25,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Shield, Mail, Plus, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
-const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
-const dangerBtnStyle: React.CSSProperties = { background: '#dc2626', border: '1px solid #dc2626' }
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle, dangerBtnClass, dangerBtnStyle } from '@/components/ui/button-styles'
 
 const INITIAL_FORM = {
   username: '',
@@ -37,6 +38,7 @@ const INITIAL_FORM = {
 
 export default function UsersPage() {
   usePageTitle('Users')
+  const { user: currentUser } = useAuth()
   const { data: users, isLoading } = useUsers()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
@@ -66,14 +68,18 @@ export default function UsersPage() {
 
   const handleCreate = async () => {
     if (!formData.username.trim() || !formData.password) return
-    await createUser.mutateAsync(formData)
-    setFormData(INITIAL_FORM)
-    setCreateOpen(false)
+    try {
+      await createUser.mutateAsync(formData)
+      setFormData(INITIAL_FORM)
+      setCreateOpen(false)
+    } catch (err) {
+      toastApiError(err, 'Failed to create user')
+    }
   }
 
   const handleUpdate = async () => {
     if (!editUser || !formData.username.trim()) return
-    const payload: Record<string, any> = {
+    const payload: UpdateUserPayload & { id: number } = {
       id: editUser.id,
       username: formData.username,
       email: formData.email,
@@ -84,19 +90,42 @@ export default function UsersPage() {
     if (formData.password) {
       payload.password = formData.password
     }
-    await updateUser.mutateAsync(payload as any)
-    setEditUser(null)
+    try {
+      await updateUser.mutateAsync(payload)
+      setEditUser(null)
+    } catch (err) {
+      toastApiError(err, 'Failed to update user')
+    }
   }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    await deleteUser.mutateAsync(deleteTarget.id)
-    setDeleteTarget(null)
+    if (currentUser && deleteTarget.id === currentUser.id) {
+      toast.error("You can't delete your own account")
+      setDeleteTarget(null)
+      return
+    }
+    try {
+      await deleteUser.mutateAsync(deleteTarget.id)
+      setDeleteTarget(null)
+    } catch (err) {
+      toastApiError(err, 'Failed to delete user')
+    }
   }
 
   const handleToggleActive = async (user: User) => {
-    await updateUser.mutateAsync({ id: user.id, is_active: !user.is_active })
+    if (currentUser && user.id === currentUser.id) {
+      toast.error("You can't deactivate your own account")
+      return
+    }
+    try {
+      await updateUser.mutateAsync({ id: user.id, is_active: !user.is_active })
+    } catch (err) {
+      toastApiError(err, 'Failed to update user')
+    }
   }
+
+  const isSelf = (user: User) => Boolean(currentUser && user.id === currentUser.id)
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -206,11 +235,15 @@ export default function UsersPage() {
                             <Pencil className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleToggleActive(user)}>
+                          <DropdownMenuItem
+                            onClick={() => handleToggleActive(user)}
+                            disabled={isSelf(user)}
+                          >
                             {user.is_active ? 'Deactivate' : 'Activate'}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => setDeleteTarget(user)}
+                            disabled={isSelf(user)}
                             className="text-destructive focus:text-destructive"
                           >
                             <Trash2 className="mr-2 h-4 w-4" />

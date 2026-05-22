@@ -12,12 +12,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllCustomers, useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { toast } from 'sonner'
 
 interface LineFormData {
   id: string
@@ -32,10 +33,9 @@ export default function CreateContract() {
   const navigate = useNavigate()
   const createContract = useCreateContract()
 
-  const { data: customersData } = useCustomers()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: customersData } = useAllCustomers()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
@@ -50,13 +50,14 @@ export default function CreateContract() {
 
   const [lines, setLines] = useState<LineFormData[]>([])
 
-  const selectedCustomer = customersData?.results?.find(
-    (c) => String(c.id) === formData.customer
-  )
-  const customerLocations =
-    locationsData?.results?.filter(
-      (l) => selectedCustomer && l.party === selectedCustomer.party
-    ) ?? []
+  const customers = customersData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
+
+  const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
+  // Server-side filter via DRF's filterset_fields ['party', ...] on LocationViewSet.
+  const { data: locationsData } = useAllLocations(selectedCustomer?.party)
+  const customerLocations = selectedCustomer ? locationsData ?? [] : []
 
   const handleAddLine = () => {
     setLines([
@@ -75,7 +76,7 @@ export default function CreateContract() {
         if (l.id !== id) return l
         const updated = { ...l, [field]: value }
         if (field === 'item' && value) {
-          const selectedItem = itemsData?.results?.find((item) => String(item.id) === value)
+          const selectedItem = items.find((item) => String(item.id) === value)
           if (selectedItem?.base_uom) {
             updated.uom = String(selectedItem.base_uom)
           }
@@ -92,6 +93,15 @@ export default function CreateContract() {
     e.preventDefault()
     setError('')
 
+    if (!formData.customer) {
+      toast.error('Customer is required')
+      return
+    }
+    if (!formData.issue_date) {
+      toast.error('Issue date is required')
+      return
+    }
+
     const linesPayload = lines
       .filter((l) => l.item && l.blanket_qty && l.uom)
       .map((l) => ({
@@ -100,6 +110,11 @@ export default function CreateContract() {
         uom: Number(l.uom),
         unit_price: l.unit_price || null,
       }))
+
+    if (linesPayload.length === 0) {
+      toast.error('Add at least one valid line item')
+      return
+    }
 
     try {
       await createContract.mutateAsync({
@@ -150,7 +165,7 @@ export default function CreateContract() {
                     value={formData.customer ? Number(formData.customer) : null}
                     onChange={(id) => {
                       const idStr = id ? String(id) : ''
-                      const cust = customersData?.results?.find((c) => String(c.id) === idStr)
+                      const cust = customers.find((c) => String(c.id) === idStr)
                       setFormData((prev) => ({
                         ...prev,
                         customer: idStr,
@@ -249,27 +264,27 @@ export default function CreateContract() {
                           <SelectValue placeholder="Select item..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {itemsData?.results?.map((item) => (
+                          {items.map((item) => (
                             <SelectItem key={item.id} value={String(item.id)}>
                               {item.sku} - {item.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input type="number" placeholder="Qty" value={line.blanket_qty} onChange={(e) => handleLineChange(line.id, 'blanket_qty', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <Input type="number" min="0" step="1" placeholder="Qty" value={line.blanket_qty} onChange={(e) => handleLineChange(line.id, 'blanket_qty', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
                           <SelectValue placeholder="UOM" />
                         </SelectTrigger>
                         <SelectContent>
-                          {uomData?.results?.map((uom) => (
+                          {uoms.map((uom) => (
                             <SelectItem key={uom.id} value={String(uom.id)}>
                               {uom.code}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input type="number" step="0.01" placeholder="Price" value={line.unit_price} onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <Input type="number" min="0" step="0.01" placeholder="Price" value={line.unit_price} onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-colors" style={{ color: 'var(--so-danger-text)' }}>
                         <Trash2 className="h-4 w-4" />
                       </button>

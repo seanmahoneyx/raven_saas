@@ -48,14 +48,18 @@ export default function FixedAssetDetail() {
   })
 
   const handleDispose = async () => {
-    await disposeAsset.mutateAsync({
-      id: assetId,
-      disposal_date: disposeForm.disposal_date,
-      disposal_amount: disposeForm.disposal_amount,
-      disposal_method: disposeForm.disposal_method,
-      disposal_notes: disposeForm.disposal_notes,
-    })
-    setDisposeOpen(false)
+    try {
+      await disposeAsset.mutateAsync({
+        id: assetId,
+        disposal_date: disposeForm.disposal_date,
+        disposal_amount: disposeForm.disposal_amount,
+        disposal_method: disposeForm.disposal_method,
+        disposal_notes: disposeForm.disposal_notes,
+      })
+      setDisposeOpen(false)
+    } catch {
+      // Hook surfaces the error toast; keep dialog open so the user can retry.
+    }
   }
 
   if (isLoading) {

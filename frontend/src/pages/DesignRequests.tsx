@@ -43,6 +43,7 @@ import { useUnitsOfMeasure } from '@/api/items'
 import { DesignRequestDialog } from '@/components/design/DesignRequestDialog'
 import type { DesignRequest, DesignRequestStatus } from '@/types/api'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
@@ -86,7 +87,7 @@ function PromoteDialog({
       })
       onOpenChange(false)
     } catch (err) {
-      console.error('Failed to promote design:', err)
+      toastApiError(err, 'Failed to promote design')
     }
   }
 
@@ -152,6 +153,15 @@ export default function DesignRequests() {
   const [dateTo, setDateTo] = useState('')
 
   const { data: requestsData, isLoading } = useDesignRequests()
+  // Dedicated count queries so the Pending and My Work tab badges reflect the
+  // full server-side total, not just the first paginated page of the list.
+  // Note: the backend exposes `assigned_to` as a filter but not `checked_out_by`.
+  // The tab body still filters by `checked_out_by === user.id`; for the badge
+  // count we use `assigned_to` as a close proxy (request assigned to user).
+  const { data: pendingRequestsData } = useDesignRequests({ status: 'pending' })
+  const { data: myWorkRequestsData } = useDesignRequests(
+    user?.id != null ? { assigned_to: user.id } : undefined
+  )
   const deleteRequest = useDeleteDesignRequest()
   const updateRequest = useUpdateDesignRequest()
   const checkoutDesign = useCheckoutDesign()
@@ -160,11 +170,22 @@ export default function DesignRequests() {
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
 
   const designRequests = requestsData?.results ?? []
 
-  const pendingCount = useMemo(() => designRequests.filter(dr => dr.status === 'pending').length, [designRequests])
-  const myWorkCount = useMemo(() => designRequests.filter(dr => user?.id != null && dr.checked_out_by === user.id).length, [designRequests, user])
+  // Prefer server-side `count` (total across all pages); fall back to results length.
+  const pendingCount = pendingRequestsData?.count ?? (pendingRequestsData?.results?.length ?? 0)
+  const myWorkCount = myWorkRequestsData?.count ?? (myWorkRequestsData?.results?.length ?? 0)
 
   const tabs: { key: DesignTab; label: string; count: number }[] = [
     { key: 'pending', label: 'Pending', count: pendingCount },
@@ -437,7 +458,7 @@ export default function DesignRequests() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {

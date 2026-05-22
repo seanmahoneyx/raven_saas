@@ -19,8 +19,10 @@ import {
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import { useCreatePurchaseOrder, useUpdatePurchaseOrder, useNextPurchaseOrderNumber } from '@/api/orders'
-import { useVendors, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllVendors, useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { toastApiError } from '@/lib/errors'
+import { toast } from 'sonner'
 import type { PurchaseOrder, OrderStatus } from '@/types/api'
 
 interface PurchaseOrderDialogProps {
@@ -58,15 +60,14 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
     scheduled_date: '',
     ship_to: '',
     notes: '',
-    priority: '5',
   })
 
   const [lines, setLines] = useState<OrderLineForm[]>([])
 
-  const { data: vendorsData } = useVendors()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: vendorsData } = useAllVendors()
+  const { data: locationsData } = useAllLocations()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const createOrder = useCreatePurchaseOrder()
   const updateOrder = useUpdatePurchaseOrder()
@@ -84,7 +85,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
         scheduled_date: order.scheduled_date ?? '',
         ship_to: String(order.ship_to),
         notes: order.notes,
-        priority: String(order.priority),
       })
       if (order.lines) {
         setLines(order.lines.map((line) => ({
@@ -106,7 +106,6 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
         scheduled_date: '',
         ship_to: '',
         notes: '',
-        priority: '5',
       })
       setLines([])
     }
@@ -129,7 +128,7 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
 
     // Auto-set UOM when item is selected
     if (field === 'item' && value) {
-      const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
+      const selectedItem = (itemsData ?? []).find((i) => String(i.id) === value)
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
       }
@@ -141,16 +140,27 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    const payload = {
+    if (!formData.vendor) {
+      toast.error('Vendor is required')
+      return
+    }
+    if (!formData.ship_to) {
+      toast.error('Ship To warehouse is required')
+      return
+    }
+
+    const vendorId = Number(formData.vendor)
+    const shipToId = Number(formData.ship_to)
+
+    const payload: Record<string, unknown> = {
       po_number: formData.po_number || undefined,
       status: formData.status,
-      vendor: Number(formData.vendor),
+      vendor: vendorId,
       order_date: formData.order_date,
       expected_date: formData.expected_date || null,
       scheduled_date: formData.scheduled_date || null,
-      ship_to: Number(formData.ship_to),
+      ship_to: shipToId,
       notes: formData.notes,
-      priority: Number(formData.priority),
       lines: lines.map((line, index) => ({
         ...(line.id ? { id: line.id } : {}),
         line_number: index + 1,
@@ -171,16 +181,16 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
       }
       onOpenChange(false)
       onSuccess?.(result)
-    } catch (error) {
-      console.error('Failed to save order:', error)
+    } catch (err) {
+      toastApiError(err, 'Failed to create purchase order')
     }
   }
 
   const isPending = createOrder.isPending || updateOrder.isPending
-  const vendors = vendorsData?.results ?? []
-  const locations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const vendors = vendorsData ?? []
+  const locations = locationsData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   // Filter warehouse locations for ship_to
   const warehouseLocations = locations.filter((l) => l.location_type === 'WAREHOUSE')
@@ -206,36 +216,23 @@ export function PurchaseOrderDialog({ open, onOpenChange, order, onSuccess }: Pu
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             {/* Header Section */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => setFormData({ ...formData, status: value as OrderStatus })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORDER_STATUSES.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
-                <Input
-                  id="priority"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select
+                value={formData.status}
+                onValueChange={(value) => setFormData({ ...formData, status: value as OrderStatus })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORDER_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

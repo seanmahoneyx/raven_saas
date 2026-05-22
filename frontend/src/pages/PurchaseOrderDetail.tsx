@@ -24,12 +24,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { usePurchaseOrder, useUpdatePurchaseOrder, useReceivePurchaseOrder, useDeletePurchaseOrder } from '@/api/orders'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { useCostLookup } from '@/api/costLists'
 import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { getApiErrorMessage } from '@/lib/errors'
+import { getApiErrorMessage, toastApiError } from '@/lib/errors'
+import { formatPaymentTerms } from '@/lib/payment-terms'
+import { parseLocalDate } from '@/lib/dates'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import EmailModal from '@/components/common/EmailModal'
 import api from '@/api/client'
@@ -102,11 +104,11 @@ export default function PurchaseOrderDetail() {
 
   usePageTitle(order ? `PO ${order.po_number}` : 'Purchase Order')
 
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const lookupLine = costLookupLine !== null ? linesFormData[costLookupLine] : null
   const { data: costData, isFetching: isCostFetching } = useCostLookup(
@@ -200,7 +202,7 @@ export default function PurchaseOrderDetail() {
 
   const handleSave = async () => {
     if (!order) return
-    const payload: Record<string, unknown> = {
+    const payload = {
       id: order.id,
       status: formData.status,
       expected_date: formData.expected_date || null,
@@ -216,12 +218,11 @@ export default function PurchaseOrderDetail() {
       })),
     }
     try {
-      await updatePurchaseOrder.mutateAsync(payload as Parameters<typeof updatePurchaseOrder.mutateAsync>[0])
+      await updatePurchaseOrder.mutateAsync(payload)
       setIsEditing(false)
       toast.success('Purchase order updated successfully')
     } catch (error) {
-      console.error('Failed to save purchase order:', error)
-      toast.error('Failed to save purchase order')
+      toastApiError(error, 'Failed to save purchase order')
     }
   }
 
@@ -348,7 +349,7 @@ export default function PurchaseOrderDetail() {
           { label: 'Order Date', value: format(new Date(order.order_date + 'T00:00:00'), 'MMM d, yyyy') },
           { label: 'Expected Date', value: order.expected_date ? format(new Date(order.expected_date + 'T00:00:00'), 'MMM d, yyyy') : null },
           { label: 'Scheduled Date', value: order.scheduled_date ? format(new Date(order.scheduled_date + 'T00:00:00'), 'MMM d, yyyy') : null },
-          { label: 'Terms', value: 'Net 30' },
+          { label: 'Terms', value: formatPaymentTerms((order as unknown as { vendor_payment_terms?: string; payment_terms?: string }).vendor_payment_terms ?? (order as unknown as { payment_terms?: string }).payment_terms) },
         ]}
         notes={order.notes}
         columns={[
@@ -451,7 +452,7 @@ export default function PurchaseOrderDetail() {
             <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
               <strong className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{order.vendor_name}</strong>
               {' \u00b7 Created '}
-              {format(new Date(order.created_at || order.order_date + 'T00:00:00'), 'MMM d, yyyy')}
+              {format(order.created_at ? new Date(order.created_at) : parseLocalDate(order.order_date), 'MMM d, yyyy')}
             </div>
           </div>
 
@@ -826,8 +827,13 @@ export default function PurchaseOrderDetail() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={async () => {
-          await deletePO.mutateAsync(purchaseOrderId)
-          navigate('/vendors/open-orders')
+          try {
+            await deletePO.mutateAsync(purchaseOrderId)
+            navigate('/vendors/open-orders')
+          } catch (err) {
+            // Surface server reason (e.g., PO has bills attached) and stay on detail page.
+            toastApiError(err, 'Failed to delete purchase order')
+          }
         }}
         loading={deletePO.isPending}
       />

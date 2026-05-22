@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select'
 import { Printer, Tag, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
+import { useDebounce } from '@/hooks/useDebounce'
 
 interface ItemOption {
   id: number
@@ -57,11 +59,14 @@ export default function PrintLabels() {
   const [binFormat, setBinFormat] = useState('PDF')
   const [binLoading, setBinLoading] = useState(false)
 
+  // Debounce search input so we don't fire a request on every keystroke.
+  const debouncedItemSearch = useDebounce(itemSearch, 250)
+
   // Fetch items for search
   const { data: items } = useQuery<{ results: ItemOption[] }>({
-    queryKey: ['items', 'label-search', itemSearch],
-    queryFn: () => apiClient.get('/items/', { params: { search: itemSearch, page_size: 20 } }).then(r => r.data),
-    enabled: itemSearch.length >= 1,
+    queryKey: ['items', 'label-search', debouncedItemSearch],
+    queryFn: () => apiClient.get('/items/', { params: { search: debouncedItemSearch, page_size: 20 } }).then(r => r.data),
+    enabled: debouncedItemSearch.length >= 1,
   })
 
   // Fetch warehouses
@@ -75,8 +80,8 @@ export default function PrintLabels() {
       toast.error('Select an item first')
       return
     }
-    const qty = parseInt(labelQty) || 1
-    if (qty < 1 || qty > 300) {
+    const qty = parseInt(labelQty, 10)
+    if (Number.isNaN(qty) || qty < 1 || qty > 300) {
       toast.error('Quantity must be between 1 and 300')
       return
     }
@@ -91,8 +96,8 @@ export default function PrintLabels() {
         openPdfInNewTab(result)
         toast.success(`${qty} label(s) generated`)
       }
-    } catch {
-      toast.error('Failed to generate labels')
+    } catch (err) {
+      toastApiError(err, 'Failed to generate labels')
     } finally {
       setItemLoading(false)
     }
@@ -117,8 +122,8 @@ export default function PrintLabels() {
         openPdfInNewTab(result)
         toast.success('Bin labels generated')
       }
-    } catch {
-      toast.error('Failed to generate bin labels')
+    } catch (err) {
+      toastApiError(err, 'Failed to generate bin labels')
     } finally {
       setBinLoading(false)
     }

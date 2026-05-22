@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useAccounts } from '@/api/accounting'
+import { useAllAccounts } from '@/api/accounting'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -52,8 +52,8 @@ export default function ReceivePayment() {
   const [depositAccount, setDepositAccount] = useState<string>('')
 
   // Fetch bank/cash accounts for deposit account dropdown
-  const { data: accountsData } = useAccounts({ account_type: 'ASSET_CURRENT', is_active: true })
-  const bankAccounts = (accountsData?.results ?? []).filter(a =>
+  const { data: accountsData } = useAllAccounts({ account_type: 'ASSET_CURRENT', is_active: true })
+  const bankAccounts = (accountsData ?? []).filter(a =>
     (a.account_type === 'ASSET_CURRENT' || a.account_type === 'ASSET_FIXED' || a.account_type === 'ASSET_OTHER') && (a.name?.toLowerCase().includes('bank') || a.name?.toLowerCase().includes('cash') || a.code?.startsWith('1'))
   )
 
@@ -190,13 +190,16 @@ export default function ReceivePayment() {
     }
 
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         customer: selectedCustomerId,
         payment_date: paymentDate,
         amount,
         payment_method: paymentMethod,
         reference_number: referenceNumber,
         notes,
+      }
+      if (depositAccount) {
+        payload.deposit_account = parseInt(depositAccount, 10)
       }
 
       await createDraft.mutateAsync(payload)
@@ -235,13 +238,16 @@ export default function ReceivePayment() {
     }
 
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         customer: selectedCustomerId,
         payment_date: paymentDate,
         amount,
         payment_method: paymentMethod,
         reference_number: referenceNumber,
         notes,
+      }
+      if (depositAccount) {
+        payload.deposit_account = parseInt(depositAccount, 10)
       }
 
       const draft = await createDraft.mutateAsync(payload)

@@ -176,9 +176,9 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
     try {
       let result: Estimate
       if (isEditing && estimate) {
-        result = await updateEstimate.mutateAsync({ id: estimate.id, ...payload } as any)
+        result = await updateEstimate.mutateAsync({ id: estimate.id, ...payload })
       } else {
-        result = await createEstimate.mutateAsync(payload as any)
+        result = await createEstimate.mutateAsync(payload)
       }
       onOpenChange(false)
       onSuccess?.(result)

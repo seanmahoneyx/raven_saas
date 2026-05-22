@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { useQuery } from '@tanstack/react-query'
 import { useCreateCheck } from '@/api/checks'
 import { useOtherNames, type OtherName } from '@/api/otherNames'
-import api from '@/api/client'
+import { useAllAccounts } from '@/api/accounting'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -13,28 +12,16 @@ import { PageHeader } from '@/components/page'
 
 type PayeeType = 'other_name' | 'manual'
 
-interface BankAccount {
-  id: number
-  name: string
-  account_type: string
-}
-
 export default function CreateCheck() {
   usePageTitle('Write Check')
   const navigate = useNavigate()
   const createCheck = useCreateCheck()
 
   const { data: otherNamesData } = useOtherNames()
-  const { data: bankAccountsData } = useQuery<BankAccount[]>({
-    queryKey: ['bank-accounts-asset'],
-    queryFn: async () => {
-      const { data: res } = await api.get('/accounts/', { params: { type: 'ASSET_CURRENT' } })
-      return res.results ?? res
-    },
-  })
+  const { data: bankAccountsData } = useAllAccounts({ account_type: 'ASSET_CURRENT' })
 
   const otherNames = otherNamesData ?? []
-  const bankAccounts: BankAccount[] = bankAccountsData ?? []
+  const bankAccounts = bankAccountsData ?? []
 
   const [error, setError] = useState('')
   const [payeeType, setPayeeType] = useState<PayeeType>('other_name')
@@ -250,7 +237,7 @@ export default function CreateCheck() {
                   <Input
                     type="number"
                     step="0.01"
-                    min="0"
+                    min="0.01"
                     value={formData.amount}
                     onChange={(e) => update('amount', e.target.value)}
                     placeholder="0.00"
@@ -290,9 +277,9 @@ export default function CreateCheck() {
             </button>
             <button
               type="submit"
-              className={`${primaryBtnClass}${isPending || !formData.payee_name.trim() || !formData.amount || !formData.check_date ? ' opacity-50 pointer-events-none' : ''}`}
+              className={`${primaryBtnClass}${isPending || !formData.payee_name.trim() || !formData.amount || !formData.check_date || !formData.bank_account ? ' opacity-50 pointer-events-none' : ''}`}
               style={primaryBtnStyle}
-              disabled={isPending || !formData.payee_name.trim() || !formData.amount || !formData.check_date}
+              disabled={isPending || !formData.payee_name.trim() || !formData.amount || !formData.check_date || !formData.bank_account}
             >
               {isPending ? 'Saving...' : 'Write Check'}
             </button>

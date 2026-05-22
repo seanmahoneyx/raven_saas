@@ -208,7 +208,7 @@ export default function Dashboard() {
                       color: 'var(--so-text-primary)',
                       fontSize: '12px',
                     }}
-                    formatter={((value: number) => [formatCurrency(value), 'Revenue']) as any}
+                    formatter={(value) => [formatCurrency(value as number), 'Revenue']}
                   />
                   <Area
                     type="monotone"
@@ -262,7 +262,7 @@ export default function Dashboard() {
                           color: 'var(--so-text-primary)',
                           fontSize: '12px',
                         }}
-                        formatter={((value: number) => [formatCurrency(value), 'Revenue']) as any}
+                        formatter={(value) => [formatCurrency(value as number), 'Revenue']}
                       />
                       <Bar dataKey="revenue" fill="var(--so-accent)" radius={[0, 4, 4, 0]} />
                     </BarChart>

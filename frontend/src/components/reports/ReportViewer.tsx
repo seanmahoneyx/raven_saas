@@ -19,6 +19,8 @@ interface ReportViewerProps {
   isLoading?: boolean
   onExportCsv?: () => void
   onDownloadPdf?: () => void
+  isExportingCsv?: boolean
+  isDownloadingPdf?: boolean
 }
 
 function formatValue(value: any, format?: string): string {
@@ -35,7 +37,7 @@ function formatValue(value: any, format?: string): string {
   return String(value)
 }
 
-export default function ReportViewer({ title, columns, rows, isLoading, onExportCsv, onDownloadPdf }: ReportViewerProps) {
+export default function ReportViewer({ title, columns, rows, isLoading, onExportCsv, onDownloadPdf, isExportingCsv, isDownloadingPdf }: ReportViewerProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [filter, setFilter] = useState('')
@@ -116,13 +118,13 @@ export default function ReportViewer({ title, columns, rows, isLoading, onExport
               className="w-48 h-8"
             />
             {onDownloadPdf && (
-              <Button variant="outline" size="sm" className="gap-1" onClick={onDownloadPdf}>
-                <FileText className="h-4 w-4" /> Download PDF
+              <Button variant="outline" size="sm" className="gap-1" onClick={onDownloadPdf} disabled={isDownloadingPdf}>
+                <FileText className="h-4 w-4" /> {isDownloadingPdf ? 'Generating…' : 'Download PDF'}
               </Button>
             )}
             {onExportCsv && (
-              <Button variant="outline" size="sm" className="gap-1" onClick={onExportCsv}>
-                <Download className="h-4 w-4" /> CSV
+              <Button variant="outline" size="sm" className="gap-1" onClick={onExportCsv} disabled={isExportingCsv}>
+                <Download className="h-4 w-4" /> {isExportingCsv ? 'Exporting…' : 'CSV'}
               </Button>
             )}
           </div>

@@ -14,6 +14,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import {
   ClipboardCheck, Plus, Play, CheckCircle,
 } from 'lucide-react'
@@ -108,6 +110,7 @@ export default function CycleCounts() {
   const [detailId, setDetailId] = useState<number | null>(null)
   const [selectedWarehouse, setSelectedWarehouse] = useState('')
   const [notes, setNotes] = useState('')
+  const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
 
   const { data: detail, refetch: refetchDetail } = useCycleCount(detailId)
 
@@ -147,9 +150,13 @@ export default function CycleCounts() {
 
   const recordLine = useMutation({
     mutationFn: async ({ countId, lineId, qty }: { countId: number; lineId: number; qty: string }) => {
+      const parsed = parseFloat(qty)
+      if (Number.isNaN(parsed) || parsed < 0) {
+        throw new Error('Count must be a non-negative number')
+      }
       const { data } = await api.post(`/warehouse/cycle-counts/${countId}/record/`, {
         line_id: lineId,
-        counted_quantity: parseFloat(qty),
+        counted_quantity: parsed,
       })
       return data
     },
@@ -159,6 +166,16 @@ export default function CycleCounts() {
     },
     onError: (err: any) => toast.error(getApiErrorMessage(err, 'Failed to record')),
   })
+
+  const submitCount = (countId: number, lineId: number, qty: string | undefined) => {
+    if (!qty) return
+    const parsed = parseFloat(qty)
+    if (Number.isNaN(parsed) || parsed < 0) {
+      toast.error('Count must be a non-negative number')
+      return
+    }
+    recordLine.mutate({ countId, lineId, qty })
+  }
 
   const finalizeCount = useMutation({
     mutationFn: async (id: number) => {
@@ -223,7 +240,11 @@ export default function CycleCounts() {
   ], [])
 
   if (isLoading) {
-    return <div className="p-8 text-muted-foreground">Loading cycle counts...</div>
+    return (
+      <div className="p-4 md:p-8">
+        <TableSkeleton columns={6} rows={8} />
+      </div>
+    )
   }
 
   // Detail view
@@ -259,7 +280,10 @@ export default function CycleCounts() {
               <Button
                 variant={hasVariance ? 'destructive' : 'default'}
                 onClick={() => {
-                  if (hasVariance && !confirm('There are variances. Finalize and apply adjustments?')) return
+                  if (hasVariance) {
+                    setFinalizeConfirmOpen(true)
+                    return
+                  }
                   finalizeCount.mutate(detail.id)
                 }}
                 disabled={finalizeCount.isPending}
@@ -308,16 +332,15 @@ export default function CycleCounts() {
                               <div className="flex items-center gap-1 justify-end">
                                 <Input
                                   type="number"
+                                  min="0"
+                                  step="0.01"
+                                  inputMode="decimal"
                                   className="w-24 h-8 text-right"
                                   value={countInputs[line.id] ?? ''}
                                   onChange={(e) => setCountInputs({ ...countInputs, [line.id]: e.target.value })}
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && countInputs[line.id]) {
-                                      recordLine.mutate({
-                                        countId: detail.id,
-                                        lineId: line.id,
-                                        qty: countInputs[line.id],
-                                      })
+                                    if (e.key === 'Enter') {
+                                      submitCount(detail.id, line.id, countInputs[line.id])
                                     }
                                   }}
                                 />
@@ -325,22 +348,14 @@ export default function CycleCounts() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-8 px-2"
-                                  onClick={() => {
-                                    if (countInputs[line.id]) {
-                                      recordLine.mutate({
-                                        countId: detail.id,
-                                        lineId: line.id,
-                                        qty: countInputs[line.id],
-                                      })
-                                    }
-                                  }}
+                                  onClick={() => submitCount(detail.id, line.id, countInputs[line.id])}
                                   disabled={!countInputs[line.id] || recordLine.isPending}
                                 >
                                   <CheckCircle className="h-4 w-4" />
                                 </Button>
                               </div>
                             ) : line.is_counted ? (
-                              parseFloat(line.counted_quantity!).toLocaleString()
+                              line.counted_quantity != null ? parseFloat(line.counted_quantity).toLocaleString() : '—'
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
@@ -370,6 +385,20 @@ export default function CycleCounts() {
             </CardContent>
           </Card>
         ) : null}
+
+        <ConfirmDialog
+          open={finalizeConfirmOpen}
+          onOpenChange={setFinalizeConfirmOpen}
+          title="Finalize with variances?"
+          description="There are variances on this count. Finalizing will apply inventory adjustments to bring system quantities in line with the counted quantities. This cannot be undone."
+          confirmLabel="Finalize and Adjust"
+          variant="destructive"
+          loading={finalizeCount.isPending}
+          onConfirm={() => {
+            setFinalizeConfirmOpen(false)
+            finalizeCount.mutate(detail.id)
+          }}
+        />
       </div>
     )
   }

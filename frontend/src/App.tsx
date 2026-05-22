@@ -71,6 +71,11 @@ import JournalEntries from '@/pages/JournalEntries'
 import CreateJournalEntry from '@/pages/CreateJournalEntry'
 import JournalEntryDetail from '@/pages/JournalEntryDetail'
 import CreateInvoice from '@/pages/CreateInvoice'
+import CreateBill from '@/pages/CreateBill'
+import BillDetail from '@/pages/BillDetail'
+import PayBills from '@/pages/PayBills'
+import ItemReceipts from '@/pages/ItemReceipts'
+import ItemReceiptDetail from '@/pages/ItemReceiptDetail'
 import Pipeline from '@/pages/Pipeline'
 import ContactDetail from '@/pages/ContactDetail'
 import InvoiceDetail from '@/pages/InvoiceDetail'
@@ -206,6 +211,11 @@ function App() {
                 <Route path="/invoices" element={<Invoices />} />
                 <Route path="/invoices/new" element={<CreateInvoice />} />
                 <Route path="/invoices/:id" element={<InvoiceDetail />} />
+                <Route path="/bills/new" element={<CreateBill />} />
+                <Route path="/bills/:id" element={<BillDetail />} />
+                <Route path="/pay-bills" element={<PayBills />} />
+                <Route path="/item-receipts" element={<ItemReceipts />} />
+                <Route path="/item-receipts/:id" element={<ItemReceiptDetail />} />
                 <Route path="/receive-payment" element={<ReceivePayment />} />
                 <Route path="/other-names" element={<OtherNames />} />
                 <Route path="/checks" element={<Checks />} />

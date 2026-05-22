@@ -66,7 +66,7 @@ export default function CreatePriceList() {
         notes: formData.notes,
         lines: linesPayload,
       })
-      navigate('/customers')
+      navigate('/price-lists')
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {

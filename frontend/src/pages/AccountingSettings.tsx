@@ -3,15 +3,18 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Save, Calculator } from 'lucide-react'
-import { useSettings, useUpdateSettings, useAccounts } from '@/api/settings'
+import { useSettings, useUpdateSettings } from '@/api/settings'
+import { useAllAccounts } from '@/api/accounting'
 import { toast } from 'sonner'
+import { getApiErrorMessage, toastApiError } from '@/lib/errors'
 import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { Button } from '@/components/ui/button'
 
 export default function AccountingSettings() {
   usePageTitle('Accounting Settings')
 
-  const { data: settings, isLoading } = useSettings()
-  const { data: accounts } = useAccounts()
+  const { data: settings, isLoading, isError, error, refetch } = useSettings()
+  const { data: accounts, isError: accountsIsError, error: accountsError, refetch: refetchAccounts } = useAllAccounts()
   const updateSettings = useUpdateSettings()
 
   const [formData, setFormData] = useState({
@@ -49,8 +52,7 @@ export default function AccountingSettings() {
       await updateSettings.mutateAsync(formData)
       toast.success('Accounting settings saved')
     } catch (error) {
-      toast.error('Failed to save accounting settings')
-      console.error(error)
+      toastApiError(error, 'Failed to save accounting settings')
     }
   }
 
@@ -59,6 +61,26 @@ export default function AccountingSettings() {
       <div className="raven-page" style={{ minHeight: '100vh' }}>
         <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
           <div className="text-center py-16 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading accounting settings...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="raven-page" style={{ minHeight: '100vh' }}>
+        <div className="max-w-[1080px] mx-auto px-4 md:px-8 py-7">
+          <div
+            className="rounded-lg border p-8 text-center"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+          >
+            <p className="mb-4" style={{ color: 'var(--so-text-secondary)' }}>
+              Failed to load accounting settings: {getApiErrorMessage(error, 'Unknown error')}
+            </p>
+            <Button variant="outline" onClick={() => refetch()}>
+              Retry
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -113,30 +135,53 @@ export default function AccountingSettings() {
           </div>
 
           <div className="px-6 py-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {accountSelect('default_income_account', 'Income Account', 'default_income_account')}
-              {accountSelect('default_cogs_account', 'COGS Account', 'default_cogs_account')}
-              {accountSelect('default_inventory_account', 'Inventory Account', 'default_inventory_account')}
-              {accountSelect('default_ar_account', 'A/R Account', 'default_ar_account')}
-              {accountSelect('default_ap_account', 'A/P Account', 'default_ap_account')}
-              {accountSelect('default_cash_account', 'Cash Account', 'default_cash_account')}
-              {accountSelect('default_freight_income_account', 'Freight Income Account', 'default_freight_income_account')}
-              {accountSelect('default_freight_expense_account', 'Freight Expense Account', 'default_freight_expense_account')}
-              {accountSelect('default_sales_discount_account', 'Sales Discount Account', 'default_sales_discount_account')}
-              {accountSelect('default_purchase_discount_account', 'Purchase Discount Account', 'default_purchase_discount_account')}
-            </div>
-
-            <div className="pt-5">
-              <button
-                className={primaryBtnClass + (updateSettings.isPending ? ' opacity-50 pointer-events-none' : '')}
-                style={primaryBtnStyle}
-                onClick={handleSave}
-                disabled={updateSettings.isPending}
+            {accountsIsError ? (
+              <div
+                className="rounded-lg border p-6 text-center"
+                style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
               >
-                <Save className="h-3.5 w-3.5" />
-                {updateSettings.isPending ? 'Saving...' : 'Save Settings'}
-              </button>
-            </div>
+                <p className="mb-4 text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+                  Failed to load chart of accounts: {getApiErrorMessage(accountsError, 'Unknown error')}
+                </p>
+                <Button variant="outline" onClick={() => refetchAccounts()}>
+                  Retry
+                </Button>
+              </div>
+            ) : accounts && accounts.length === 0 ? (
+              <div
+                className="rounded-lg border p-6 text-center text-sm"
+                style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', color: 'var(--so-text-secondary)' }}
+              >
+                No accounts available. Create accounts in the Chart of Accounts before configuring defaults.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {accountSelect('default_income_account', 'Income Account', 'default_income_account')}
+                  {accountSelect('default_cogs_account', 'COGS Account', 'default_cogs_account')}
+                  {accountSelect('default_inventory_account', 'Inventory Account', 'default_inventory_account')}
+                  {accountSelect('default_ar_account', 'A/R Account', 'default_ar_account')}
+                  {accountSelect('default_ap_account', 'A/P Account', 'default_ap_account')}
+                  {accountSelect('default_cash_account', 'Cash Account', 'default_cash_account')}
+                  {accountSelect('default_freight_income_account', 'Freight Income Account', 'default_freight_income_account')}
+                  {accountSelect('default_freight_expense_account', 'Freight Expense Account', 'default_freight_expense_account')}
+                  {accountSelect('default_sales_discount_account', 'Sales Discount Account', 'default_sales_discount_account')}
+                  {accountSelect('default_purchase_discount_account', 'Purchase Discount Account', 'default_purchase_discount_account')}
+                </div>
+
+                <div className="pt-5">
+                  <button
+                    className={primaryBtnClass + (updateSettings.isPending ? ' opacity-50 pointer-events-none' : '')}
+                    style={primaryBtnStyle}
+                    onClick={handleSave}
+                    disabled={updateSettings.isPending}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {updateSettings.isPending ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

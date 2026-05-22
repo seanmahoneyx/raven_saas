@@ -29,6 +29,10 @@ import { MobileCardList } from '@/components/ui/MobileCardList'
 import { SalesOrderCard, PurchaseOrderCard } from '@/components/orders/OrderCard'
 
 import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
+import { downloadAuthed, openAuthedInTab } from '@/lib/downloads'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { getApiErrorMessage } from '@/lib/errors'
+import { formatCurrency } from '@/lib/format'
 
 type Tab = 'sales' | 'purchase'
 
@@ -88,8 +92,8 @@ export default function Orders() {
     }
   }, [searchParams, setSearchParams])
 
-  const { data: salesData } = useSalesOrders()
-  const { data: purchaseData } = usePurchaseOrders()
+  const { data: salesData, isLoading: salesLoading, isError: salesIsError, error: salesError, refetch: refetchSales } = useSalesOrders()
+  const { data: purchaseData, isLoading: purchaseLoading, isError: purchaseIsError, error: purchaseError, refetch: refetchPurchase } = usePurchaseOrders()
   const deleteSalesOrder = useDeleteSalesOrder()
   const deletePurchaseOrder = useDeletePurchaseOrder()
   const updateOrder = useUpdateSalesOrder()
@@ -230,7 +234,7 @@ export default function Orders() {
         header: 'Total',
         cell: ({ row }) => (
           <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
-            ${parseFloat(row.getValue('subtotal')).toFixed(2)}
+            {formatCurrency(row.getValue('subtotal'))}
           </span>
         ),
       },
@@ -343,7 +347,7 @@ export default function Orders() {
         header: 'Total',
         cell: ({ row }) => (
           <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
-            ${parseFloat(row.getValue('subtotal')).toFixed(2)}
+            {formatCurrency(row.getValue('subtotal'))}
           </span>
         ),
       },
@@ -366,7 +370,7 @@ export default function Orders() {
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => window.open(`/api/v1/purchase-orders/${order.id}/pdf/`, '_blank')}>
+                <DropdownMenuItem onClick={() => downloadAuthed(`/purchase-orders/${order.id}/pdf/`, `po-${order.po_number}.pdf`)}>
                   <FileDown className="mr-2 h-4 w-4" />
                   Download PDF
                 </DropdownMenuItem>
@@ -505,39 +509,57 @@ export default function Orders() {
               </span>
             </div>
             {activeTab === 'sales' && (
-              <DataTable
-                columns={salesColumns}
-                data={salesData?.results ?? []}
-                searchColumn="order_number"
-                searchPlaceholder="Search orders..."
-                storageKey="all-sales-orders"
-                onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
-                enableSelection
-                bulkActions={[
-                  { key: 'print', label: 'Print', icon: <Printer className="mr-1 h-4 w-4" /> },
-                  { key: 'status', label: 'Update Status', icon: <RefreshCw className="mr-1 h-4 w-4" /> },
-                ]}
-                onBulkAction={(action, rows) => {
-                  if (action === 'print') {
-                    rows.forEach((row: any) => {
-                      window.open(`/api/v1/sales-orders/${row.id}/pick-ticket/`, '_blank')
-                    })
-                  } else if (action === 'status') {
-                    setStatusDialogRows(rows as SalesOrder[])
-                    setStatusDialogOpen(true)
-                  }
-                }}
-              />
+              salesLoading ? (
+                <div className="p-6"><TableSkeleton columns={9} rows={8} showSearch={false} /></div>
+              ) : salesIsError ? (
+                <div className="p-6 text-center text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+                  <p className="mb-4">Failed to load sales orders: {getApiErrorMessage(salesError, 'Unknown error')}</p>
+                  <Button variant="outline" onClick={() => refetchSales()}>Retry</Button>
+                </div>
+              ) : (
+                <DataTable
+                  columns={salesColumns}
+                  data={salesData?.results ?? []}
+                  searchColumn="order_number"
+                  searchPlaceholder="Search orders..."
+                  storageKey="all-sales-orders"
+                  onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
+                  enableSelection
+                  bulkActions={[
+                    { key: 'print', label: 'Print', icon: <Printer className="mr-1 h-4 w-4" /> },
+                    { key: 'status', label: 'Update Status', icon: <RefreshCw className="mr-1 h-4 w-4" /> },
+                  ]}
+                  onBulkAction={(action, rows) => {
+                    if (action === 'print') {
+                      rows.forEach((row: any) => {
+                        openAuthedInTab(`/sales-orders/${row.id}/pick-ticket/`)
+                      })
+                    } else if (action === 'status') {
+                      setStatusDialogRows(rows as SalesOrder[])
+                      setStatusDialogOpen(true)
+                    }
+                  }}
+                />
+              )
             )}
             {activeTab === 'purchase' && (
-              <DataTable
-                columns={purchaseColumns}
-                data={purchaseData?.results ?? []}
-                searchColumn="po_number"
-                searchPlaceholder="Search POs..."
-                storageKey="all-purchase-orders"
-                onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
-              />
+              purchaseLoading ? (
+                <div className="p-6"><TableSkeleton columns={9} rows={8} showSearch={false} /></div>
+              ) : purchaseIsError ? (
+                <div className="p-6 text-center text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+                  <p className="mb-4">Failed to load purchase orders: {getApiErrorMessage(purchaseError, 'Unknown error')}</p>
+                  <Button variant="outline" onClick={() => refetchPurchase()}>Retry</Button>
+                </div>
+              ) : (
+                <DataTable
+                  columns={purchaseColumns}
+                  data={purchaseData?.results ?? []}
+                  searchColumn="po_number"
+                  searchPlaceholder="Search POs..."
+                  storageKey="all-purchase-orders"
+                  onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
+                />
+              )
             )}
           </div>
         )}

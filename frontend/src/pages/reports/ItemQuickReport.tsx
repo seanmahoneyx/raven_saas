@@ -16,13 +16,26 @@ import { format, startOfWeek, startOfMonth, startOfYear } from 'date-fns'
 import { FileDown, Printer, Search, X } from 'lucide-react'
 import api from '@/api/client'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
+import { parseLocalDate } from '@/lib/dates'
+import { formatCurrency } from '@/lib/format'
 
 // ─── Column Definitions ─────────────────────────────────────────────────────
 
 const fmtDateCell = (iso: string) => {
-  const [y, m, d] = iso.split('-')
-  return `${m.padStart(2, '0')}/${d.padStart(2, '0')}/${y}`
+  if (!iso) return ''
+  // Handle either ISO date (YYYY-MM-DD) or full ISO timestamp by delegating
+  // to Date parsing for anything with a 'T'. Local-TZ for date-only strings
+  // prevents the day-shift bug in negative-UTC zones.
+  const d = iso.includes('T') ? new Date(iso) : parseLocalDate(iso)
+  return format(d, 'MM/dd/yyyy')
 }
+
+// Null-safe money formatter — renders an em-dash for null/undefined backend values
+// instead of the literal string "undefined" that `?.toFixed()` produces.
+const fmtMoney = (value: number | null | undefined): string =>
+  value != null ? formatCurrency(value) : '—'
 
 const financialColumns: ColumnDef<QuickReportFinancialRow>[] = [
   { accessorKey: 'date', header: 'Date', cell: ({ row }) => fmtDateCell(row.original.date) },
@@ -136,9 +149,9 @@ function ItemReportSection({ report, sku, name }: { report: ItemQuickReportData;
           <CardTitle className="flex items-center justify-between text-base">
             <span>Posting Transactions</span>
             <div className="flex gap-4 text-sm font-normal">
-              <span>Sales: <strong className="text-green-600">${report.financials.summary.total_sales?.toFixed(2)}</strong></span>
-              <span>Costs: <strong className="text-red-600">${report.financials.summary.total_costs?.toFixed(2)}</strong></span>
-              <span>Margin: <strong className="text-blue-600">${report.financials.summary.gross_margin?.toFixed(2)}</strong></span>
+              <span>Sales: <strong className="text-green-600">{fmtMoney(report.financials.summary.total_sales)}</strong></span>
+              <span>Costs: <strong className="text-red-600">{fmtMoney(report.financials.summary.total_costs)}</strong></span>
+              <span>Margin: <strong className="text-blue-600">{fmtMoney(report.financials.summary.gross_margin)}</strong></span>
             </div>
           </CardTitle>
         </CardHeader>
@@ -161,7 +174,7 @@ function ItemReportSection({ report, sku, name }: { report: ItemQuickReportData;
             <div className="flex gap-4 text-sm font-normal">
               <span><strong>{report.purchase_orders.summary.po_count}</strong> POs</span>
               <span>Qty: <strong>{report.purchase_orders.summary.total_quantity}</strong></span>
-              <span>Value: <strong className="text-blue-600">${report.purchase_orders.summary.total_value?.toFixed(2)}</strong></span>
+              <span>Value: <strong className="text-blue-600">{fmtMoney(report.purchase_orders.summary.total_value)}</strong></span>
             </div>
           </CardTitle>
         </CardHeader>
@@ -184,7 +197,7 @@ function ItemReportSection({ report, sku, name }: { report: ItemQuickReportData;
             <div className="flex gap-4 text-sm font-normal">
               <span><strong>{report.sales_orders.summary.so_count}</strong> SOs</span>
               <span>Qty: <strong>{report.sales_orders.summary.total_quantity}</strong></span>
-              <span>Value: <strong className="text-blue-600">${report.sales_orders.summary.total_value?.toFixed(2)}</strong></span>
+              <span>Value: <strong className="text-blue-600">{fmtMoney(report.sales_orders.summary.total_value)}</strong></span>
             </div>
           </CardTitle>
         </CardHeader>
@@ -284,6 +297,8 @@ export default function ItemQuickReport() {
   const isLoading = reportQueries.some((q) => q.isLoading)
   const isFetching = reportQueries.some((q) => q.isFetching)
   const hasResults = reportQueries.some((q) => q.data)
+  const firstErrorQuery = reportQueries.find((q) => q.isError)
+  const isErrorAny = !!firstErrorQuery
 
   // Sort results alphabetically descending (Z→A) by item name
   const sortedResults = useMemo(() => {
@@ -330,25 +345,12 @@ export default function ItemQuickReport() {
 
   async function handleDownloadPDF() {
     if (!runParams || runParams.itemIds.length === 0) return
-    try {
-      const params: Record<string, string> = {}
-      if (runParams.start) params.start_date = runParams.start
-      if (runParams.end) params.end_date = runParams.end
-      const response = await api.get(
-        `/reports/item-quick-report/${runParams.itemIds[0]}/pdf/`,
-        { params, responseType: 'blob' }
-      )
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `item-quick-report.pdf`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } catch {
-      // silently fail for PDF download errors
-    }
+    const params = new URLSearchParams()
+    if (runParams.start) params.set('start_date', runParams.start)
+    if (runParams.end) params.set('end_date', runParams.end)
+    const qs = params.toString()
+    const url = `/reports/item-quick-report/${runParams.itemIds[0]}/pdf/${qs ? `?${qs}` : ''}`
+    await downloadAuthed(url, 'item-quick-report.pdf')
   }
 
   const printTimestamp = format(new Date(), 'MMMM d, yyyy h:mm a')
@@ -514,6 +516,18 @@ export default function ItemQuickReport() {
               </Card>
             ))}
           </div>
+        )}
+
+        {/* ─── Error state ─── */}
+        {!isLoading && isErrorAny && runParams && (
+          <ReportErrorBlock
+            error={firstErrorQuery?.error}
+            onRetry={() => {
+              reportQueries.forEach((q) => {
+                if (q.isError) q.refetch()
+              })
+            }}
+          />
         )}
 
         {/* ─── Report Sections — one group per item, separated by dividers ─── */}

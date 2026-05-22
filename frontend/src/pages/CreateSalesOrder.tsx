@@ -16,10 +16,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateSalesOrder, useNextSalesOrderNumber } from '@/api/orders'
-import { useCustomers, useLocations } from '@/api/parties'
+import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
@@ -89,10 +89,10 @@ export default function CreateSalesOrder() {
   const createOrder = useCreateSalesOrder()
   const { data: nextSONumber } = useNextSalesOrderNumber()
 
-  const { data: customersData } = useCustomers()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: customersData } = useAllCustomers()
+  const { data: locationsData } = useAllLocations()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const [error, setError] = useState('')
   const [priceLookupLine, setPriceLookupLine] = useState<number | null>(null)
@@ -126,10 +126,10 @@ export default function CreateSalesOrder() {
     { item: string; quantity_ordered: string; uom: string; unit_price: string; notes: string; contract: string; fulfillment_method: string }[]
   >(buildInitialLines)
 
-  const customers = customersData?.results ?? []
-  const allLocations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const customers = customersData ?? []
+  const allLocations = locationsData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
   const customerLocations = selectedCustomer
@@ -368,11 +368,7 @@ export default function CreateSalesOrder() {
 
     try {
       const newOrder = await createOrder.mutateAsync(payload as any)
-      if (sourceEstimateId) {
-        navigate(`/orders/sales/${(newOrder as any).id}`)
-      } else {
-        navigate('/customers/open-orders')
-      }
+      navigate(`/orders/sales/${(newOrder as any).id}`)
     } catch (err: any) {
       const msg = err?.response?.data
       if (typeof msg === 'object') {

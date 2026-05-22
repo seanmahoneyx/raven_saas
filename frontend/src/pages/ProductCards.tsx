@@ -5,6 +5,7 @@ import { Package, Search, X, ChevronDown, Plus, ExternalLink } from 'lucide-reac
 import { useItems, useItem } from '@/api/items'
 import { ProductCardTab } from '@/components/items/ProductCardTab'
 import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useDebounce } from '@/hooks/useDebounce'
 
 export default function ProductCards() {
   usePageTitle('Product Cards')
@@ -16,11 +17,14 @@ export default function ProductCards() {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Debounce search text so we don't fire a query on every keystroke.
+  const debouncedSearchText = useDebounce(searchText, 250)
+
   // Fetch items: when dropdown is open with search text, filter; otherwise load recent items
   const { data: searchResults, isLoading: searchLoading } = useItems(
     dropdownOpen
-      ? searchText.length >= 1
-        ? { search: searchText }
+      ? debouncedSearchText.length >= 1
+        ? { search: debouncedSearchText }
         : {}
       : undefined
   )

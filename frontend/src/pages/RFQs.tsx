@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -18,6 +18,7 @@ import { useRFQs, useDeleteRFQ } from '@/api/rfqs'
 import type { RFQ, RFQStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
@@ -44,6 +45,16 @@ export default function RFQs() {
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
 
   const handleDeleteClick = (rfq: RFQ) => {
     setDeletingRFQ(rfq)
@@ -58,8 +69,7 @@ export default function RFQs() {
       setDeleteDialogOpen(false)
       setDeletingRFQ(null)
     } catch (error) {
-      console.error('Failed to delete RFQ:', error)
-      toast.error('Failed to delete RFQ')
+      toastApiError(error, 'Failed to delete RFQ')
     }
   }
 
@@ -189,7 +199,7 @@ export default function RFQs() {
           { value: 'draft', label: 'Draft' },
           { value: 'sent', label: 'Sent' },
           { value: 'received', label: 'Received' },
-          { value: 'cancelled', label: 'Closed' },
+          { value: 'cancelled', label: 'Cancelled' },
         ],
       },
     ],
@@ -197,7 +207,7 @@ export default function RFQs() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {

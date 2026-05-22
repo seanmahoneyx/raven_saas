@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus } from 'lucide-react'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
@@ -159,7 +158,6 @@ export default function Logistics() {
         <PageHeader
           title="Logistics"
           description="Manage deliveries, license plates, and driver runs"
-          primary={activeTab === 'lpns' ? { label: 'New LPN', icon: Plus, onClick: () => {} } : undefined}
         />
 
         {/* Tabs */}

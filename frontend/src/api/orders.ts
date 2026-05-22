@@ -2,7 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
-import type { PurchaseOrder, SalesOrder, PaginatedResponse, OrderStatus, ApiError } from '@/types/api'
+import type {
+  PurchaseOrder, PurchaseOrderInput,
+  SalesOrder, SalesOrderInput,
+  PaginatedResponse, OrderStatus, ApiError,
+} from '@/types/api'
 
 export function useNextSalesOrderNumber() {
   return useQuery({
@@ -53,7 +57,7 @@ export function useSalesOrder(id: number) {
 export function useCreateSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (order: Partial<SalesOrder>) => {
+    mutationFn: async (order: SalesOrderInput) => {
       const { data } = await api.post<SalesOrder>('/sales-orders/', order)
       return data
     },
@@ -71,7 +75,7 @@ export function useCreateSalesOrder() {
 export function useUpdateSalesOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...order }: Partial<SalesOrder> & { id: number }) => {
+    mutationFn: async ({ id, ...order }: SalesOrderInput & { id: number }) => {
       const { data } = await api.patch<SalesOrder>(`/sales-orders/${id}/`, order)
       return data
     },
@@ -145,7 +149,7 @@ export function usePurchaseOrder(id: number) {
 export function useCreatePurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (order: Partial<PurchaseOrder>) => {
+    mutationFn: async (order: PurchaseOrderInput) => {
       const { data } = await api.post<PurchaseOrder>('/purchase-orders/', order)
       return data
     },
@@ -163,7 +167,7 @@ export function useCreatePurchaseOrder() {
 export function useUpdatePurchaseOrder() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...order }: Partial<PurchaseOrder> & { id: number }) => {
+    mutationFn: async ({ id, ...order }: PurchaseOrderInput & { id: number }) => {
       const { data } = await api.patch<PurchaseOrder>(`/purchase-orders/${id}/`, order)
       return data
     },

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -14,6 +14,7 @@ import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } f
 
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
+import { parseLocalDate } from '@/lib/dates'
 
 const openStatuses: OrderStatus[] = ['draft', 'confirmed', 'scheduled', 'picking', 'shipped', 'crossdock']
 
@@ -21,11 +22,21 @@ export default function OpenSalesOrders() {
   usePageTitle('Sales Orders')
   const navigate = useNavigate()
 
-  const { data: ordersData } = useSalesOrders()
+  const { data: ordersData, isLoading: ordersLoading } = useSalesOrders()
   const { data: settingsData } = useSettings()
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
@@ -77,7 +88,7 @@ export default function OpenSalesOrders() {
 
     Object.keys(groups).forEach(customerName => {
       groups[customerName].sort((a, b) =>
-        new Date(b.order_date).getTime() - new Date(a.order_date).getTime()
+        parseLocalDate(b.order_date).getTime() - parseLocalDate(a.order_date).getTime()
       )
     })
 
@@ -118,12 +129,19 @@ export default function OpenSalesOrders() {
     }))
   }
 
-  const summaryKPIs = [
-    { label: 'Total Open Orders', value: summaryStats.totalOpen },
-    { label: 'Draft', value: summaryStats.draftCount },
-    { label: 'Scheduled', value: summaryStats.scheduledCount },
-    { label: 'Total Value', value: `$${summaryStats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
-  ]
+  const summaryKPIs = ordersLoading
+    ? [
+        { label: 'Total Open Orders', value: '—' as string | number },
+        { label: 'Draft', value: '—' as string | number },
+        { label: 'Scheduled', value: '—' as string | number },
+        { label: 'Total Value', value: '—' as string | number },
+      ]
+    : [
+        { label: 'Total Open Orders', value: summaryStats.totalOpen },
+        { label: 'Draft', value: summaryStats.draftCount },
+        { label: 'Scheduled', value: summaryStats.scheduledCount },
+        { label: 'Total Value', value: `$${summaryStats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+      ]
 
   const columns: ColumnDef<SalesOrder>[] = [
     {
@@ -136,14 +154,14 @@ export default function OpenSalesOrders() {
     {
       accessorKey: 'order_date',
       header: 'Order Date',
-      cell: ({ row }) => format(new Date(row.original.order_date), 'MMM d, yyyy'),
+      cell: ({ row }) => format(parseLocalDate(row.original.order_date), 'MMM d, yyyy'),
     },
     {
       accessorKey: 'scheduled_date',
       header: 'Scheduled',
       cell: ({ row }) =>
         row.original.scheduled_date
-          ? format(new Date(row.original.scheduled_date), 'MMM d, yyyy')
+          ? format(parseLocalDate(row.original.scheduled_date), 'MMM d, yyyy')
           : '-',
     },
     {
@@ -204,7 +222,7 @@ export default function OpenSalesOrders() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {

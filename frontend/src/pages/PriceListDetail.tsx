@@ -22,6 +22,7 @@ import { useItems } from '@/api/items'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { format } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { formatCurrency as formatCurrencyShared } from '@/lib/format'
 
 interface LineForm {
   id?: number
@@ -109,10 +110,10 @@ export default function PriceListDetail() {
       })),
     }
     try {
-      await updatePriceList.mutateAsync(payload as any)
+      await updatePriceList.mutateAsync(payload)
       setIsEditing(false)
-    } catch (error) {
-      console.error('Failed to save price list:', error)
+    } catch {
+      // Hook surfaces the error toast; stay in edit mode so the user can retry.
     }
   }
 
@@ -120,9 +121,8 @@ export default function PriceListDetail() {
     setIsEditing(false)
   }
 
-  const formatCurrency = (value: string) => {
-    return `$${parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}`
-  }
+  // Price-list tier rates are quoted at 4-decimal precision (e.g. $0.0825/pc).
+  const formatCurrency = (value: string) => formatCurrencyShared(value, { decimals: 4 })
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Ongoing'

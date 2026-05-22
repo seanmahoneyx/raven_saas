@@ -2,13 +2,19 @@ import { useState, useMemo } from 'react'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useShipmentSync } from '@/hooks/useRealtimeSync'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Plus, Truck, FileText } from 'lucide-react'
+import { Truck, FileText } from 'lucide-react'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { DataTable } from '@/components/ui/data-table'
 import { useShipments, useBillsOfLading, type Shipment, type BillOfLading } from '@/api/shipping'
-import { format } from 'date-fns'
+import { format, isValid } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
+
+function formatDateSafe(value: string | null | undefined, pattern = 'MMM d, yyyy'): string {
+  if (!value) return '—'
+  const d = new Date(value)
+  return isValid(d) ? format(d, pattern) : '—'
+}
 
 type Tab = 'shipments' | 'bols'
 
@@ -28,8 +34,8 @@ export default function Shipping() {
       { accessorKey: 'ship_from_name', header: 'From' },
       { accessorKey: 'ship_to_name', header: 'To' },
       { accessorKey: 'carrier', header: 'Carrier', cell: ({ row }) => row.getValue('carrier') || '-' },
-      { accessorKey: 'ship_date', header: 'Ship Date', cell: ({ row }) => { const date = row.getValue('ship_date') as string | null; return date ? format(new Date(date), 'MMM d, yyyy') : '-' } },
-      { accessorKey: 'delivery_date', header: 'Delivery Date', cell: ({ row }) => { const date = row.getValue('delivery_date') as string | null; return date ? format(new Date(date), 'MMM d, yyyy') : '-' } },
+      { accessorKey: 'ship_date', header: 'Ship Date', cell: ({ row }) => formatDateSafe(row.getValue('ship_date') as string | null) },
+      { accessorKey: 'delivery_date', header: 'Delivery Date', cell: ({ row }) => formatDateSafe(row.getValue('delivery_date') as string | null) },
       { accessorKey: 'tracking_number', header: 'Tracking', cell: ({ row }) => { const tracking = row.getValue('tracking_number') as string; return tracking ? <span className="font-mono text-xs">{tracking}</span> : '-' } },
     ],
     []
@@ -43,7 +49,7 @@ export default function Shipping() {
       { accessorKey: 'carrier', header: 'Carrier' },
       { accessorKey: 'trailer_number', header: 'Trailer #', cell: ({ row }) => row.getValue('trailer_number') || '-' },
       { accessorKey: 'driver_name', header: 'Driver', cell: ({ row }) => row.getValue('driver_name') || '-' },
-      { accessorKey: 'pickup_date', header: 'Pickup', cell: ({ row }) => { const date = row.getValue('pickup_date') as string | null; return date ? format(new Date(date), 'MMM d, yyyy') : '-' } },
+      { accessorKey: 'pickup_date', header: 'Pickup', cell: ({ row }) => formatDateSafe(row.getValue('pickup_date') as string | null) },
       { accessorKey: 'freight_charge', header: 'Freight', cell: ({ row }) => { const charge = row.getValue('freight_charge') as string; return charge ? `$${parseFloat(charge).toFixed(2)}` : '-' } },
     ],
     []
@@ -66,7 +72,6 @@ export default function Shipping() {
         <PageHeader
           title="Shipping"
           description="Manage shipments and bills of lading"
-          primary={{ label: `New ${activeTab === 'shipments' ? 'Shipment' : 'BOL'}`, icon: Plus, onClick: () => {} }}
         />
 
         <div className="mb-5 animate-in delay-1">

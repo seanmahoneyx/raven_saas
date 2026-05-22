@@ -22,6 +22,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 import { formatCurrency } from '@/lib/format'
 
 function today(): string {
@@ -141,14 +143,26 @@ export default function AgingReports() {
   const { data: customersData } = useCustomers({ search: arCustomerSearch || undefined })
   const { data: vendorsData } = useVendors({ search: apVendorSearch || undefined })
 
-  const { data: arData, isLoading: arLoading } = useARAgingReport({
+  const {
+    data: arData,
+    isLoading: arLoading,
+    isError: arIsError,
+    error: arError,
+    refetch: arRefetch,
+  } = useARAgingReport({
     date: arDate,
     interval: arInterval,
     through: arThrough,
     customer: arCustomerId,
   })
 
-  const { data: apData, isLoading: apLoading } = useAPAgingReport({
+  const {
+    data: apData,
+    isLoading: apLoading,
+    isError: apIsError,
+    error: apError,
+    refetch: apRefetch,
+  } = useAPAgingReport({
     date: apDate,
     interval: apInterval,
     through: apThrough,
@@ -166,16 +180,23 @@ export default function AgingReports() {
     downloadCsv(headers, rows, `${activeTab}-aging-${datestamp}.csv`)
   }
 
-  const buildPdfUrl = (tab: 'ar' | 'ap') => {
+  const handleDownloadPdf = async () => {
+    const tab = activeTab as 'ar' | 'ap'
+    const datestamp = new Date().toISOString().split('T')[0]
+    let url = ''
+    let filename = ''
     if (tab === 'ar') {
       const p = new URLSearchParams({ date: arDate, interval: String(arInterval), through: String(arThrough) })
       if (arCustomerId != null) p.set('customer', String(arCustomerId))
-      return `/api/v1/reports/ar-aging/pdf/?${p.toString()}`
+      url = `/reports/ar-aging/pdf/?${p.toString()}`
+      filename = `ar-aging-${datestamp}.pdf`
     } else {
       const p = new URLSearchParams({ date: apDate, interval: String(apInterval), through: String(apThrough) })
       if (apVendorId != null) p.set('vendor', String(apVendorId))
-      return `/api/v1/reports/ap-aging/pdf/?${p.toString()}`
+      url = `/reports/ap-aging/pdf/?${p.toString()}`
+      filename = `ap-aging-${datestamp}.pdf`
     }
+    await downloadAuthed(url, filename)
   }
 
   return (
@@ -194,7 +215,7 @@ export default function AgingReports() {
           <button
             className={outlineBtnClass}
             style={outlineBtnStyle}
-            onClick={() => window.open(buildPdfUrl(activeTab as 'ar' | 'ap'), '_blank')}
+            onClick={handleDownloadPdf}
           >
             <FileText className="h-3.5 w-3.5" /> Download PDF
           </button>
@@ -277,6 +298,8 @@ export default function AgingReports() {
                 <Skeleton className="h-6 w-48" />
                 <Skeleton className="h-40 w-full" />
               </div>
+            ) : arIsError ? (
+              <ReportErrorBlock error={arError} onRetry={() => arRefetch()} />
             ) : arData ? (
               <AgingTable data={arData} partyLabel="Customer" />
             ) : null}
@@ -348,6 +371,8 @@ export default function AgingReports() {
                 <Skeleton className="h-6 w-48" />
                 <Skeleton className="h-40 w-full" />
               </div>
+            ) : apIsError ? (
+              <ReportErrorBlock error={apError} onRetry={() => apRefetch()} />
             ) : apData ? (
               <AgingTable data={apData} partyLabel="Vendor" />
             ) : null}

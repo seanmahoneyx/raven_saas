@@ -50,11 +50,34 @@ export default function Scanner() {
   const [destLocation, setDestLocation] = useState<LocationResult | null>(null)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const lastScanRef = useRef<{ value: string; ts: number }>({ value: '', ts: 0 })
 
-  // Auto-focus input on step change
+  // Auto-focus input on step change. Focus immediately; if layout reflow
+  // swallows it, the next tick (0ms) catches up without dropping the first
+  // character of a handheld scanner barcode.
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 100)
+    inputRef.current?.focus()
+    const id = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(id)
   }, [step])
+
+  // Audio feedback via WebAudio (no asset dependency). Silently no-ops if the
+  // user hasn't interacted with the page yet (AudioContext creation throws).
+  const beep = (freq: number, duration: number) => {
+    try {
+      const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      const ctx = new Ctor()
+      const oscillator = ctx.createOscillator()
+      oscillator.frequency.value = freq
+      oscillator.connect(ctx.destination)
+      oscillator.start()
+      oscillator.stop(ctx.currentTime + duration / 1000)
+    } catch {
+      /* user hasn't interacted with page yet; ignore */
+    }
+  }
+  const beepSuccess = () => beep(880, 80)   // high A, short
+  const beepError = () => beep(220, 200)    // low A, longer
 
   const resetAll = useCallback(() => {
     setStep('source')
@@ -90,10 +113,12 @@ export default function Scanner() {
       return data
     },
     onSuccess: () => {
+      beepSuccess()
       toast.success('Move completed successfully', { duration: 3000 })
       resetAll()
     },
     onError: (err: any) => {
+      beepError()
       const msg = getApiErrorMessage(err, 'Move failed')
       setError(msg)
       toast.error(msg)
@@ -103,6 +128,15 @@ export default function Scanner() {
   const handleScan = async () => {
     const value = scanInput.trim()
     if (!value) return
+
+    // Debounce double-fires: ignore identical scan within 250ms of the prior one.
+    const now = Date.now()
+    if (value === lastScanRef.current.value && now - lastScanRef.current.ts < 250) {
+      setScanInput('')
+      return
+    }
+    lastScanRef.current = { value, ts: now }
+
     setError('')
     setScanInput('')
 
@@ -111,12 +145,14 @@ export default function Scanner() {
         case 'source': {
           const loc = await lookupLocation(value)
           setSourceLocation(loc)
+          beepSuccess()
           setStep('item')
           break
         }
         case 'item': {
           const result = await lookupItem(value)
           setItem(result)
+          beepSuccess()
           if (result.lots.length > 0) {
             setStep('lot')
           } else {
@@ -128,25 +164,30 @@ export default function Scanner() {
           // Match lot by lot_number scan
           const lot = item?.lots.find((l) => l.lot_number === value)
           if (!lot) {
+            beepError()
             setError(`Lot "${value}" not found for this item`)
             return
           }
           setSelectedLot(lot)
+          beepSuccess()
           setStep('qty')
           break
         }
         case 'destination': {
           const loc = await lookupLocation(value)
           if (loc.id === sourceLocation?.id) {
+            beepError()
             setError('Destination cannot be the same as source')
             return
           }
           setDestLocation(loc)
+          beepSuccess()
           setStep('confirm')
           break
         }
       }
     } catch (err: any) {
+      beepError()
       const msg = getApiErrorMessage(err, 'Lookup failed')
       setError(msg)
     }

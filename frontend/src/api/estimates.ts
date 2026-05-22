@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
-import type { Estimate, PaginatedResponse, EstimateStatus, ApiError } from '@/types/api'
+import type { Estimate, EstimateInput, PaginatedResponse, EstimateStatus, ApiError, Contract } from '@/types/api'
 
 export function useNextEstimateNumber() {
   return useQuery({
@@ -40,7 +40,7 @@ export function useEstimate(id: number) {
 export function useCreateEstimate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (estimate: Partial<Estimate>) => {
+    mutationFn: async (estimate: EstimateInput) => {
       const { data } = await api.post<Estimate>('/estimates/', estimate)
       return data
     },
@@ -57,7 +57,7 @@ export function useCreateEstimate() {
 export function useUpdateEstimate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...estimate }: Partial<Estimate> & { id: number }) => {
+    mutationFn: async ({ id, ...estimate }: EstimateInput & { id: number }) => {
       const { data } = await api.patch<Estimate>(`/estimates/${id}/`, estimate)
       return data
     },
@@ -126,7 +126,7 @@ export function useConvertEstimateToContract() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (id: number) => {
-      const { data } = await api.post(`/estimates/${id}/convert-to-contract/`)
+      const { data } = await api.post<Contract>(`/estimates/${id}/convert-to-contract/`)
       return data
     },
     onSuccess: () => {

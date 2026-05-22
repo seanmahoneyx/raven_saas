@@ -24,21 +24,13 @@ export default function Scheduler() {
   }, [])
 
   // Use the sync hook to fetch data and hydrate the store
-  const { isLoading, isError, error } = useSchedulerSync({
+  const { isLoading, isError, error, refetch } = useSchedulerSync({
     startDate,
     endDate,
   })
 
   // Connect to WebSocket for real-time updates
   const { isConnected, connectionState } = useSchedulerWebSocket()
-
-  if (isError) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-        <div className="text-red-600">Error loading scheduler: {error?.message}</div>
-      </div>
-    )
-  }
 
   return (
     <ErrorBoundary>
@@ -54,13 +46,22 @@ export default function Scheduler() {
             <div>
               <h1 className="text-base font-semibold text-white tracking-wide">Schedulizer</h1>
               <p className="text-[11px] text-slate-400">
-                Drag orders to schedule &middot; Double-click for details &middot; Right-click for notes
+                Drag orders to schedule &middot; Right-click for notes
               </p>
             </div>
           </div>
           <div className="ml-auto flex items-center gap-3">
             {/* WebSocket connection status */}
-            <div className="flex items-center gap-1.5" title={`WebSocket: ${connectionState}`}>
+            <div
+              className="flex items-center gap-1.5"
+              title={
+                isConnected
+                  ? 'Real-time updates active'
+                  : connectionState === 'connecting'
+                    ? 'Connecting to live updates…'
+                    : 'Live updates unavailable — page will not auto-refresh'
+              }
+            >
               <div
                 className={`w-2 h-2 rounded-full ${
                   isConnected
@@ -71,7 +72,11 @@ export default function Scheduler() {
                 }`}
               />
               <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-                {isConnected ? 'Live' : connectionState === 'connecting' ? 'Connecting' : 'Offline'}
+                {isConnected
+                  ? 'Live'
+                  : connectionState === 'connecting'
+                    ? 'Connecting'
+                    : 'Live updates unavailable'}
               </span>
             </div>
 
@@ -85,14 +90,32 @@ export default function Scheduler() {
           </div>
         </div>
 
-        <FilterBar />
+        {isError ? (
+          <div className="flex-1 flex items-center justify-center px-6">
+            <div className="flex flex-col items-center gap-3 max-w-md text-center">
+              <div className="text-sm font-semibold text-red-600">
+                Error loading scheduler{error?.message ? `: ${error.message}` : ''}
+              </div>
+              <button
+                onClick={() => refetch()}
+                className="px-3 py-1.5 rounded-md bg-slate-800 text-white text-xs font-medium hover:bg-slate-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <FilterBar />
 
-        <div className="flex-1 overflow-hidden">
-          <ScheduleView />
-        </div>
+            <div className="flex-1 overflow-hidden">
+              <ScheduleView />
+            </div>
 
-        <HistoryPanel />
-        <OrderDetailModal />
+            <HistoryPanel />
+            <OrderDetailModal />
+          </>
+        )}
       </div>
     </ErrorBoundary>
   )

@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { PRIORITY_COLORS } from '@/lib/utils'
+import { formatCurrency } from '@/lib/format'
 
 type HubTab = 'all' | 'mentions' | 'messages' | 'tasks' | 'approvals'
 
@@ -46,6 +47,41 @@ const approvalRuleBadge: Record<string, { label: string; bg: string; text: strin
   price_list_approval: { label: 'Price List', bg: 'rgba(16,185,129,0.1)', text: 'rgb(16,185,129)' },
 }
 
+// Maximum number of items to render in any tab to avoid unbounded growth.
+const HUB_RENDER_CAP = 50
+
+/**
+ * Map a Django content_type model name to a route for the underlying object.
+ * Mirrors the routing patterns used elsewhere (Approvals.getOrderLink, Pipeline.getCardRoute).
+ */
+function getTaskTargetRoute(model: string, objectId: number): string | null {
+  switch (model) {
+    case 'purchaseorder':
+      return `/orders/purchase/${objectId}`
+    case 'salesorder':
+      return `/orders/sales/${objectId}`
+    case 'estimate':
+      return `/estimates/${objectId}`
+    case 'designrequest':
+    case 'design_request':
+      return `/design-requests/${objectId}`
+    case 'item':
+      return `/items/${objectId}`
+    case 'customer':
+      return `/customers/${objectId}`
+    case 'vendor':
+      return `/vendors/${objectId}`
+    case 'invoice':
+      return `/invoices`
+    case 'pricelisthead':
+      return `/price-lists/${objectId}`
+    case 'rfq':
+      return `/rfqs/${objectId}`
+    default:
+      return null
+  }
+}
+
 export default function NotificationHub() {
   usePageTitle('Notifications')
   const navigate = useNavigate()
@@ -66,11 +102,19 @@ export default function NotificationHub() {
   const [approvalDialog, setApprovalDialog] = useState<{ action: 'approve' | 'reject'; request: ApprovalRequest } | null>(null)
   const [decisionNote, setDecisionNote] = useState('')
 
-  const notifications = notifData?.notifications ?? []
-  const mentions = mentionData?.notifications ?? []
-  const tasks = myTasksData?.results ?? []
-  const approvals = approvalsData ?? []
+  const allNotifications = notifData?.notifications ?? []
+  const allMentions = mentionData?.notifications ?? []
+  const allTasks = myTasksData?.results ?? []
+  const allApprovals = approvalsData ?? []
   const unreadCount = notifData?.unread_count ?? 0
+
+  // Cap render lists to avoid unbounded DOM growth. The underlying queries are
+  // already user-scoped (myTasks, useAllApprovals → /approvals/my-all/) and
+  // notifications are limit:50, so this is a safety net for tasks/approvals.
+  const notifications = allNotifications.slice(0, HUB_RENDER_CAP)
+  const mentions = allMentions.slice(0, HUB_RENDER_CAP)
+  const tasks = allTasks.slice(0, HUB_RENDER_CAP)
+  const approvals = allApprovals.slice(0, HUB_RENDER_CAP)
 
   const handleTabChange = (id: string) => {
     setActiveTab(id as HubTab)
@@ -130,10 +174,21 @@ export default function NotificationHub() {
 
   const renderTaskRow = (t: Task) => {
     const sc = taskStatusConfig[t.status] || taskStatusConfig.open
+    const route = getTaskTargetRoute(t.content_type_model, t.object_id)
+    const isClickable = !!route
     return (
       <div
         key={t.id}
-        className="flex items-center gap-3 px-5 py-3.5"
+        role={isClickable ? 'button' : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onClick={() => { if (route) navigate(route) }}
+        onKeyDown={(e) => {
+          if (route && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            navigate(route)
+          }
+        }}
+        className={`flex items-center gap-3 px-5 py-3.5 transition-colors ${isClickable ? 'cursor-pointer hover:opacity-90' : ''}`}
         style={{ borderBottom: '1px solid var(--so-border-light)' }}
       >
         <span
@@ -191,7 +246,7 @@ export default function NotificationHub() {
             </span>
             {a.amount && (
               <span className="text-[11px] font-mono" style={{ color: 'var(--so-text-secondary)' }}>
-                ${parseFloat(a.amount).toLocaleString()}
+                {formatCurrency(a.amount)}
               </span>
             )}
             <span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>
@@ -275,7 +330,17 @@ export default function NotificationHub() {
                 {{ all: 'All Notifications', mentions: 'Mentions', messages: 'Messages', tasks: 'My Tasks', approvals: 'Approvals' }[activeTab]}
               </span>
               <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                {{ all: notifications.length, mentions: mentions.length, messages: 0, tasks: tasks.length, approvals: approvals.length }[activeTab]} items
+                {(() => {
+                  const counts: Record<HubTab, { shown: number; total: number }> = {
+                    all: { shown: notifications.length, total: allNotifications.length },
+                    mentions: { shown: mentions.length, total: allMentions.length },
+                    messages: { shown: 0, total: 0 },
+                    tasks: { shown: tasks.length, total: allTasks.length },
+                    approvals: { shown: approvals.length, total: allApprovals.length },
+                  }
+                  const { shown, total } = counts[activeTab]
+                  return shown < total ? `${shown} of ${total} items` : `${shown} items`
+                })()}
               </span>
             </div>
           )}

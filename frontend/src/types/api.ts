@@ -411,6 +411,46 @@ export interface TeleItem extends CorrugatedItem {
   height: string
 }
 
+// Writable payload for corrugated/box items (covers DC, RSC, HSC, FOL, Tele).
+// Server determines specific subtype by endpoint; this union of optional fields
+// represents the superset of what may be sent.
+export interface BoxItemInput {
+  sku?: string
+  name?: string
+  secondary_ident?: string
+  division?: DivisionType
+  description?: string
+  purch_desc?: string
+  sell_desc?: string
+  base_uom?: number
+  customer?: number | null
+  parent?: number | null
+  units_per_layer?: number | null
+  units_per_pallet?: number | null
+  unit_height?: string | null
+  pallet_height?: string | null
+  pallet_footprint?: string
+  item_type?: StockingType
+  is_active?: boolean
+  extra_info_lines?: ItemExtraInfoLine[]
+  lifecycle_status?: LifecycleStatus
+  // Corrugated fields
+  test?: TestType | ''
+  flute?: FluteType | ''
+  paper?: PaperType | ''
+  is_printed?: boolean
+  panels_printed?: number | null
+  colors_printed?: number | null
+  ink_list?: string
+  // Dimension fields (DC/RSC/HSC/FOL/Tele)
+  length?: string
+  width?: string
+  height?: string
+  blank_length?: string | null
+  blank_width?: string | null
+  out_per_rotary?: number | null
+}
+
 // Packaging Item types
 export interface PackagingItem extends Item {
   sub_type: PackagingSubType
@@ -496,9 +536,38 @@ export interface Estimate {
   is_expired: boolean
   num_lines: number
   converted_order_number: string | null
+  converted_contract_number: string | null
+  converted_contract_id: number | null
   lines?: EstimateLine[]
   created_at: string
   updated_at: string
+}
+
+export interface EstimateLineInput {
+  id?: number
+  line_number?: number
+  item: number
+  description?: string
+  quantity: number
+  uom: number
+  unit_price: string
+  notes?: string
+}
+
+export interface EstimateInput {
+  estimate_number?: string
+  status?: EstimateStatus
+  customer?: number
+  date?: string
+  expiration_date?: string | null
+  ship_to?: number | null
+  bill_to?: number | null
+  customer_po?: string
+  notes?: string
+  terms_and_conditions?: string
+  tax_rate?: string
+  design_request?: number | null
+  lines?: EstimateLineInput[]
 }
 
 // Order types
@@ -547,6 +616,30 @@ export interface PurchaseOrder {
   next_id: number | null
   created_at: string
   updated_at: string
+}
+
+export interface PurchaseOrderLineInput {
+  id?: number
+  line_number?: number
+  item: number
+  quantity_ordered: number
+  uom: number
+  unit_cost: string
+  notes?: string
+  fulfillment_method?: FulfillmentMethod | null
+}
+
+export interface PurchaseOrderInput {
+  po_number?: string
+  status?: OrderStatus
+  vendor?: number
+  order_date?: string
+  expected_date?: string | null
+  scheduled_date?: string | null
+  ship_to?: number
+  notes?: string
+  priority?: number
+  lines?: PurchaseOrderLineInput[]
 }
 
 export interface SalesOrderLine {
@@ -609,6 +702,34 @@ export interface SalesOrder {
   next_id: number | null
   created_at: string
   updated_at: string
+}
+
+export interface SalesOrderLineInput {
+  id?: number
+  line_number?: number
+  item: number
+  quantity_ordered: number
+  uom: number
+  unit_price: string
+  notes?: string
+  fulfillment_method?: FulfillmentMethod | null
+  contract?: number | null
+}
+
+export interface SalesOrderInput {
+  order_number?: string
+  status?: OrderStatus
+  customer?: number
+  order_date?: string
+  scheduled_date?: string | null
+  ship_to?: number | null
+  bill_to?: number | null
+  customer_po?: string
+  order_class?: SalesOrderClass
+  notes?: string
+  priority?: number
+  source_estimate?: number | null
+  lines?: SalesOrderLineInput[]
 }
 
 // Delivery Run types

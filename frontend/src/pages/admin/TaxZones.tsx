@@ -250,7 +250,9 @@ export default function TaxZones() {
               <Input
                 id="zone-rate"
                 type="number"
-                step="0.01"
+                step="0.0001"
+                min="0"
+                max="100"
                 value={zoneForm.rate}
                 onChange={(e) => setZoneForm({ ...zoneForm, rate: e.target.value })}
                 placeholder="e.g. 6.00"
@@ -269,14 +271,19 @@ export default function TaxZones() {
               Cancel
             </Button>
             <Button
-              onClick={() =>
+              onClick={() => {
+                const rateNum = parseFloat(zoneForm.rate)
+                if (!Number.isFinite(rateNum) || rateNum < 0 || rateNum > 100) {
+                  toast.error('Rate must be a number between 0 and 100')
+                  return
+                }
                 saveZone.mutate({
                   id: editingZone?.id,
                   name: zoneForm.name,
-                  rate: (parseFloat(zoneForm.rate) / 100).toString(),
+                  rate: (rateNum / 100).toString(),
                   is_active: zoneForm.is_active,
                 })
-              }
+              }}
               disabled={saveZone.isPending || !zoneForm.name || !zoneForm.rate}
             >
               {saveZone.isPending ? 'Saving...' : 'Save'}

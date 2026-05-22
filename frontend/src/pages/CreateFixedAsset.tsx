@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -47,16 +47,28 @@ export default function CreateFixedAsset() {
     notes: '',
   })
 
+  // Track whether the user has manually edited auto-filled fields. If they have,
+  // do not overwrite their value when source fields (cost / acquisition_date) change.
+  const salvageManuallyEdited = useRef(false)
+  const depreciationStartManuallyEdited = useRef(false)
+
   const isPending = createAsset.isPending
 
-  const update = (field: string, value: string) =>
+  const update = (field: string, value: string) => {
+    if (field === 'salvage_value') salvageManuallyEdited.current = true
+    if (field === 'depreciation_start_date') depreciationStartManuallyEdited.current = true
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
 
-  // Auto-fill from category defaults
+  // Auto-fill from category defaults. Picking a category is an explicit reset:
+  // re-arm the auto-fill so subsequent cost edits recompute salvage from this
+  // category's rate.
   useEffect(() => {
     if (!formData.category) return
     const cat = categories.find(c => String(c.id) === formData.category)
     if (!cat) return
+
+    salvageManuallyEdited.current = false
 
     setFormData(prev => {
       const cost = parseFloat(prev.acquisition_cost) || 0
@@ -71,8 +83,10 @@ export default function CreateFixedAsset() {
     })
   }, [formData.category, categories])
 
-  // Recalculate salvage when cost changes and category is set
+  // Recalculate salvage when cost changes and category is set, unless the user
+  // has manually edited the salvage value.
   useEffect(() => {
+    if (salvageManuallyEdited.current) return
     if (!formData.category) return
     const cat = categories.find(c => String(c.id) === formData.category)
     if (!cat) return
@@ -83,8 +97,10 @@ export default function CreateFixedAsset() {
     setFormData(prev => ({ ...prev, salvage_value: salvage }))
   }, [formData.acquisition_cost]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sync depreciation start date with acquisition date
+  // Sync depreciation start date with acquisition date, unless the user has
+  // manually edited the depreciation start.
   useEffect(() => {
+    if (depreciationStartManuallyEdited.current) return
     setFormData(prev => ({ ...prev, depreciation_start_date: prev.acquisition_date }))
   }, [formData.acquisition_date])
 

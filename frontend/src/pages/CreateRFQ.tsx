@@ -12,12 +12,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
-import { useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { useCreateRFQ, useNextRFQNumber } from '@/api/rfqs'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { getApiErrorMessage } from '@/lib/errors'
+import { toast } from 'sonner'
 
 interface LineFormData {
   id: string
@@ -34,13 +36,13 @@ export default function CreateRFQ() {
   const createRFQ = useCreateRFQ()
   const { data: nextRFQNumber } = useNextRFQNumber()
 
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: locationsData } = useAllLocations()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
   const [error, setError] = useState('')
   const [formData, setFormData] = useState({
-    status: 'DRAFT',
+    status: 'draft',
     vendor: '',
     date: new Date().toISOString().split('T')[0],
     expected_date: '',
@@ -51,7 +53,7 @@ export default function CreateRFQ() {
   const [lines, setLines] = useState<LineFormData[]>([])
 
   const warehouseLocations =
-    locationsData?.results?.filter((l) => l.location_type === 'WAREHOUSE') ?? []
+    (locationsData ?? []).filter((l) => l.location_type === 'WAREHOUSE')
 
   const handleAddLine = () => {
     setLines([
@@ -70,7 +72,7 @@ export default function CreateRFQ() {
         if (l.id !== id) return l
         const updated = { ...l, [field]: value }
         if (field === 'item' && value) {
-          const selectedItem = itemsData?.results?.find((item) => String(item.id) === value)
+          const selectedItem = (itemsData ?? []).find((item) => String(item.id) === value)
           if (selectedItem?.base_uom) {
             updated.uom = String(selectedItem.base_uom)
           }
@@ -87,6 +89,11 @@ export default function CreateRFQ() {
     e.preventDefault()
     setError('')
 
+    if (lines.length === 0 || lines.every((l) => !l.item || !l.quantity)) {
+      toast.error('Add at least one line with an item and quantity')
+      return
+    }
+
     const linesPayload = lines
       .filter((l) => l.item && l.quantity && l.uom)
       .map((l) => ({
@@ -97,8 +104,13 @@ export default function CreateRFQ() {
         target_price: l.target_price || null,
       }))
 
+    if (linesPayload.length === 0) {
+      toast.error('Add at least one valid line item (item, quantity, and UOM are required)')
+      return
+    }
+
     try {
-      await createRFQ.mutateAsync({
+      const newRFQ = await createRFQ.mutateAsync({
         status: formData.status as import('@/types/api').RFQStatus,
         vendor: Number(formData.vendor),
         date: formData.date,
@@ -107,15 +119,9 @@ export default function CreateRFQ() {
         notes: formData.notes,
         lines: linesPayload as import('@/types/api').RFQLine[],
       })
-      navigate('/vendors')
-    } catch (err: any) {
-      const msg = err?.response?.data
-      if (typeof msg === 'object') {
-        const firstKey = Object.keys(msg)[0]
-        setError(`${firstKey}: ${Array.isArray(msg[firstKey]) ? msg[firstKey][0] : msg[firstKey]}`)
-      } else {
-        setError(String(msg || 'Failed to create RFQ'))
-      }
+      navigate(`/rfqs/${newRFQ.id}`)
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Failed to create RFQ'))
     }
   }
 
@@ -210,15 +216,15 @@ export default function CreateRFQ() {
                     <div key={line.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
                       <Select value={line.item} onValueChange={(v) => handleLineChange(line.id, 'item', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select item..." /></SelectTrigger>
-                        <SelectContent>{itemsData?.results?.map((item) => (<SelectItem key={item.id} value={String(item.id)}>{item.sku} - {item.name}</SelectItem>))}</SelectContent>
+                        <SelectContent>{(itemsData ?? []).map((item) => (<SelectItem key={item.id} value={String(item.id)}>{item.sku} - {item.name}</SelectItem>))}</SelectContent>
                       </Select>
                       <Input placeholder="Line description" value={line.description} onChange={(e) => handleLineChange(line.id, 'description', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <Input type="number" placeholder="Qty" value={line.quantity} onChange={(e) => handleLineChange(line.id, 'quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <Input type="number" min="0" step="1" placeholder="Qty" value={line.quantity} onChange={(e) => handleLineChange(line.id, 'quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="UOM" /></SelectTrigger>
-                        <SelectContent>{uomData?.results?.map((uom) => (<SelectItem key={uom.id} value={String(uom.id)}>{uom.code}</SelectItem>))}</SelectContent>
+                        <SelectContent>{(uomData ?? []).map((uom) => (<SelectItem key={uom.id} value={String(uom.id)}>{uom.code}</SelectItem>))}</SelectContent>
                       </Select>
-                      <Input type="number" step="0.01" placeholder="Price" value={line.target_price} onChange={(e) => handleLineChange(line.id, 'target_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <Input type="number" min="0" step="0.01" placeholder="Price" value={line.target_price} onChange={(e) => handleLineChange(line.id, 'target_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer" style={{ color: 'var(--so-danger-text)' }}>
                         <Trash2 className="h-4 w-4" />
                       </button>

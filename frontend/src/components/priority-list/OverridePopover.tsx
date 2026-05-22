@@ -3,6 +3,7 @@ import { usePriorityListStore } from './usePriorityListStore'
 import { useSetDailyOverride, useClearDailyOverride } from '@/api/priorityList'
 import { parseLocalDate } from '@/lib/dates'
 import type { BoxType } from '@/types/api'
+import { toastApiError } from '@/lib/errors'
 
 interface OverridePopoverProps {
   vendorId: number
@@ -61,7 +62,7 @@ export const OverridePopover = memo(function OverridePopover({
       })
       onClose()
     } catch (error) {
-      console.error('Failed to set override:', error)
+      toastApiError(error, 'Failed to set override')
     } finally {
       setIsSubmitting(false)
     }
@@ -82,7 +83,7 @@ export const OverridePopover = memo(function OverridePopover({
       })
       onClose()
     } catch (error) {
-      console.error('Failed to clear override:', error)
+      toastApiError(error, 'Failed to clear override')
     } finally {
       setIsSubmitting(false)
     }

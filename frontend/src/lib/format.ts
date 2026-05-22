@@ -1,7 +1,18 @@
-export function formatCurrency(value: string | number): string {
-  const num = typeof value === 'string' ? parseFloat(value) : value
-  if (isNaN(num)) return '$0.00'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num)
+export interface FormatCurrencyOptions {
+  /** Number of fraction digits to display (controls both min and max). Default: 2. */
+  decimals?: number
+}
+
+export function formatCurrency(value: string | number | null | undefined, options?: FormatCurrencyOptions): string {
+  const num = typeof value === 'string' ? parseFloat(value) : (value ?? NaN)
+  if (typeof num !== 'number' || isNaN(num)) return '$0.00'
+  const decimals = options?.decimals ?? 2
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(num)
 }
 
 export function formatLifeMonths(months: number): string {

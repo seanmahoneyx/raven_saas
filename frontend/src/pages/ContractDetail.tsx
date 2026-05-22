@@ -31,6 +31,7 @@ import { ReleaseDialog } from '@/components/contracts/ReleaseDialog'
 import type { ContractStatus, ContractLine } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { EntryToolbar } from '@/components/common/EntryToolbar'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
@@ -278,12 +279,11 @@ export default function ContractDetail() {
       notes: formData.notes,
     }
     try {
-      await updateContract.mutateAsync(payload as any)
+      await updateContract.mutateAsync(payload)
       setIsEditing(false)
       toast.success('Contract updated successfully')
     } catch (error) {
-      console.error('Failed to save contract:', error)
-      toast.error('Failed to save contract')
+      toastApiError(error, 'Failed to save contract')
     }
   }
 
@@ -321,7 +321,7 @@ export default function ContractDetail() {
         notes: releaseNotes || undefined,
       })
       setMultiReleaseDialogOpen(false)
-      navigate(`/orders/sales/${(result as any).id}`)
+      navigate(`/orders/sales/${result.id}`)
     } catch {
       // error toast handled by mutation
     }

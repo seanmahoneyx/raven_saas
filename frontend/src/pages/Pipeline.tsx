@@ -5,7 +5,8 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { usePipelineData } from '@/api/pipeline'
 import { useItems } from '@/api/items'
 import type { PipelineStage, PipelineCard as PipelineCardType, Item } from '@/types/api'
-import { ArrowRight, Filter, X, Clock, Layers } from 'lucide-react'
+import { ArrowRight, Filter, X, Clock, Layers, AlertCircle } from 'lucide-react'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
 type Track = 'customer' | 'vendor' | 'both' | 'items'
 
@@ -27,13 +28,15 @@ function getCardRoute(entityType: string, id: number): string {
   switch (entityType) {
     case 'sales_order': return `/orders/sales/${id}`
     case 'purchase_order': return `/orders/purchase/${id}`
-    case 'design_request': return '/design-requests'
-    case 'estimate': return '/estimates'
-    case 'shipment': return '/orders/sales'
+    case 'design_request': return `/design-requests/${id}`
+    case 'estimate': return `/estimates/${id}`
+    // No /shipping/:id detail route exists — route to list with id hint so the user can find the row.
+    case 'shipment': return `/shipping?shipment=${id}`
     case 'invoice': return '/invoices'
     case 'customer_payment': return '/receive-payment'
     case 'rfq': return '/rfqs'
-    case 'inventory_lot': return '/orders/purchase'
+    // No /inventory/lots/:id detail route exists — route to inventory page with id hint.
+    case 'inventory_lot': return `/inventory?lot=${id}`
     case 'vendor_bill': return '/invoices'
     case 'bill_payment': return '/invoices'
     default: return STAGE_ROUTES[entityType] || '/'
@@ -79,7 +82,7 @@ export default function Pipeline() {
     date_to: filters.date_to || undefined,
   }), [filters])
 
-  const { data, isLoading } = usePipelineData(queryFilters)
+  const { data, isLoading, isError, error, refetch } = usePipelineData(queryFilters)
 
   const stages = useMemo(() => {
     if (!data) return []
@@ -91,10 +94,19 @@ export default function Pipeline() {
   const hasFilters = filters.customer || filters.vendor || filters.date_from || filters.date_to
 
   // Fetch items for each lifecycle stage (only when items tab active)
-  const { data: draftItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'draft' } : undefined)
-  const { data: pendingDesignItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'pending_design' } : undefined)
-  const { data: inDesignItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'in_design' } : undefined)
-  const { data: pendingApprovalItems } = useItems(activeTrack === 'items' ? { lifecycle_status: 'pending_approval' } : undefined)
+  const { data: draftItems, isLoading: draftLoading } = useItems(
+    activeTrack === 'items' ? { lifecycle_status: 'draft' } : undefined,
+  )
+  const { data: pendingDesignItems, isLoading: pendingDesignLoading } = useItems(
+    activeTrack === 'items' ? { lifecycle_status: 'pending_design' } : undefined,
+  )
+  const { data: inDesignItems, isLoading: inDesignLoading } = useItems(
+    activeTrack === 'items' ? { lifecycle_status: 'in_design' } : undefined,
+  )
+  const { data: pendingApprovalItems, isLoading: pendingApprovalLoading } = useItems(
+    activeTrack === 'items' ? { lifecycle_status: 'pending_approval' } : undefined,
+  )
+  const itemsLoading = draftLoading || pendingDesignLoading || inDesignLoading || pendingApprovalLoading
 
   const tabs: { key: Track; label: string }[] = [
     { key: 'customer', label: 'Customer' },
@@ -122,22 +134,28 @@ export default function Pipeline() {
           <Filter size={14} />
           <span className="text-xs font-medium">Filters</span>
         </div>
-        <input
-          type="text"
-          placeholder="Customer ID"
-          value={filters.customer || ''}
-          onChange={e => setFilters(f => ({ ...f, customer: e.target.value || undefined }))}
-          className="h-8 px-2.5 rounded-md text-xs"
-          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text)', width: 110 }}
-        />
-        <input
-          type="text"
-          placeholder="Vendor ID"
-          value={filters.vendor || ''}
-          onChange={e => setFilters(f => ({ ...f, vendor: e.target.value || undefined }))}
-          className="h-8 px-2.5 rounded-md text-xs"
-          style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text)', width: 110 }}
-        />
+        <div style={{ width: 220 }}>
+          <SearchableCombobox
+            entityType="customer"
+            value={filters.customer ? Number(filters.customer) : null}
+            onChange={(id) =>
+              setFilters((f) => ({ ...f, customer: id != null ? String(id) : undefined }))
+            }
+            placeholder="Customer…"
+            allowClear
+          />
+        </div>
+        <div style={{ width: 220 }}>
+          <SearchableCombobox
+            entityType="vendor"
+            value={filters.vendor ? Number(filters.vendor) : null}
+            onChange={(id) =>
+              setFilters((f) => ({ ...f, vendor: id != null ? String(id) : undefined }))
+            }
+            placeholder="Vendor…"
+            allowClear
+          />
+        </div>
         <input
           type="date"
           value={filters.date_from || ''}
@@ -198,8 +216,31 @@ export default function Pipeline() {
         </div>
       )}
 
+      {/* Error State */}
+      {activeTrack !== 'items' && !isLoading && isError && (
+        <div
+          className="rounded-xl border p-8 text-center"
+          style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
+        >
+          <AlertCircle size={28} style={{ color: 'var(--so-danger-text, #ef4444)', margin: '0 auto' }} />
+          <p className="mt-3 text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+            Failed to load pipeline
+          </p>
+          {error instanceof Error && error.message && (
+            <p className="mt-1 text-xs" style={{ color: 'var(--so-text-muted)' }}>{error.message}</p>
+          )}
+          <button
+            onClick={() => refetch()}
+            className="mt-4 px-3 py-1.5 rounded-md text-xs font-medium"
+            style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface-raised)', color: 'var(--so-text)' }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Empty State */}
-      {activeTrack !== 'items' && !isLoading && stages.length === 0 && (
+      {activeTrack !== 'items' && !isLoading && !isError && stages.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 rounded-xl"
           style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
           <Layers size={40} style={{ color: 'var(--so-text-muted)' }} />
@@ -209,7 +250,7 @@ export default function Pipeline() {
       )}
 
       {/* Kanban Board (Order Pipeline) */}
-      {activeTrack !== 'items' && !isLoading && stages.length > 0 && (
+      {activeTrack !== 'items' && !isLoading && !isError && stages.length > 0 && (
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {stages.map(stage => (
             <KanbanColumn
@@ -222,8 +263,23 @@ export default function Pipeline() {
         </div>
       )}
 
+      {/* Item Lifecycle Kanban — Loading */}
+      {activeTrack === 'items' && itemsLoading && (
+        <div className="flex gap-4 overflow-hidden" style={{ minHeight: 400 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex-shrink-0 w-[280px] rounded-xl p-4 animate-pulse"
+              style={{ background: 'var(--so-surface)', border: '1px solid var(--so-border)' }}>
+              <div className="h-4 w-32 rounded mb-4" style={{ background: 'var(--so-surface-raised)' }} />
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="h-16 rounded-lg mb-2" style={{ background: 'var(--so-surface-raised)' }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Item Lifecycle Kanban */}
-      {activeTrack === 'items' && (
+      {activeTrack === 'items' && !itemsLoading && (
         <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {[
             { key: 'draft', label: 'Drafts', color: '#a855f7', items: draftItems?.results ?? [] },

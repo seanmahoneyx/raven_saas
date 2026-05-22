@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useRFQ, useUpdateRFQ, useConvertRFQ, useSendRFQ, useConvertRFQToPriceList } from '@/api/rfqs'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useAttachments } from '@/api/attachments'
 import FileUpload from '@/components/common/FileUpload'
@@ -26,7 +26,7 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import type { RFQStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { getApiErrorMessage } from '@/lib/errors'
+import { getApiErrorMessage, toastApiError } from '@/lib/errors'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 const RFQ_STATUSES = [
@@ -70,10 +70,10 @@ export default function RFQDetail() {
     { item: string; item_name: string; item_sku: string; quantity: string; uom: string; uom_code: string; target_price: string; quoted_price: string; notes: string }[]
   >([])
 
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   usePageTitle(rfq ? `RFQ ${rfq.rfq_number}` : 'RFQ')
 
@@ -152,8 +152,7 @@ export default function RFQDetail() {
       setIsEditing(false)
       toast.success('RFQ updated successfully')
     } catch (error) {
-      console.error('Failed to save RFQ:', error)
-      toast.error('Failed to save RFQ')
+      toastApiError(error, 'Failed to save RFQ')
     }
   }
 

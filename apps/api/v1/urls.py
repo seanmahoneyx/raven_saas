@@ -40,10 +40,13 @@ from .views.importers import DataImportView
 from .views.inventory import (
     InventoryLotViewSet, InventoryPalletViewSet,
     InventoryBalanceViewSet, InventoryTransactionViewSet,
-    WarehousePalletSummaryView,
+    WarehousePalletSummaryView, ItemReceiptViewSet,
 )
 from .views.shipping import ShipmentViewSet, BillOfLadingViewSet, DeliveryRunCreateShipmentView
-from .views.invoicing import InvoiceViewSet, PaymentViewSet, TaxZoneViewSet, TaxRuleViewSet
+from .views.invoicing import (
+    InvoiceViewSet, PaymentViewSet, TaxZoneViewSet, TaxRuleViewSet,
+    VendorBillViewSet, BillPaymentViewSet,
+)
 from .views.payments import CustomerPaymentViewSet, OpenInvoicesView, OtherNameViewSet, CheckViewSet
 from .views.reporting import (
     ReportDefinitionViewSet, ReportScheduleViewSet,
@@ -184,6 +187,7 @@ router.register(r'inventory/lots', InventoryLotViewSet, basename='inventorylot')
 router.register(r'inventory/pallets', InventoryPalletViewSet, basename='inventorypallet')
 router.register(r'inventory/balances', InventoryBalanceViewSet, basename='inventorybalance')
 router.register(r'inventory/transactions', InventoryTransactionViewSet, basename='inventorytransaction')
+router.register(r'item-receipts', ItemReceiptViewSet, basename='item-receipt')
 
 # Shipping
 router.register(r'shipments', ShipmentViewSet, basename='shipment')
@@ -194,6 +198,10 @@ router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'payments', PaymentViewSet, basename='payment')
 router.register(r'tax-zones', TaxZoneViewSet, basename='taxzone')
 router.register(r'tax-rules', TaxRuleViewSet, basename='taxrule')
+
+# Vendor Bills (AP) — mirrors invoices/payments above
+router.register(r'bills', VendorBillViewSet, basename='bill')
+router.register(r'bill-payments', BillPaymentViewSet, basename='bill-payment')
 
 # Customer Payments (Cash Receipts)
 router.register(r'customer-payments', CustomerPaymentViewSet, basename='customerpayment')

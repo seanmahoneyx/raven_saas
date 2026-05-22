@@ -12,6 +12,8 @@ import { formatDistanceToNow } from 'date-fns'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { formatCurrency } from '@/lib/format'
+import { useAuth } from '@/hooks/useAuth'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
 
 const TABS = [
   { key: 'pending', label: 'Pending', icon: Clock },
@@ -72,8 +74,8 @@ function timeUntil(dateStr: string) {
 }
 
 function getOrderLink(approval: ApprovalRequest) {
-  if (approval.order_type === 'purchaseorder') return `/purchase-orders/${approval.order_id}`
-  if (approval.order_type === 'salesorder') return `/orders/${approval.order_id}`
+  if (approval.order_type === 'purchaseorder') return `/orders/purchase/${approval.order_id}`
+  if (approval.order_type === 'salesorder') return `/orders/sales/${approval.order_id}`
   if (approval.order_type === 'pricelisthead') return `/price-lists/${approval.order_id}`
   return '#'
 }
@@ -81,18 +83,31 @@ function getOrderLink(approval: ApprovalRequest) {
 export default function Approvals() {
   usePageTitle('Approvals')
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<TabKey>('pending')
   const [rejectDialog, setRejectDialog] = useState<ApprovalRequest | null>(null)
   const [rejectNote, setRejectNote] = useState('')
 
   const { data: pendingApprovals } = useMyPendingApprovals()
-  const { data: allApprovals, isLoading } = useAllApprovals(
-    activeTab === 'all' ? undefined : { status: activeTab }
-  )
+  const {
+    data: allApprovals,
+    isLoading,
+    isError,
+    error: allApprovalsError,
+    refetch: refetchAllApprovals,
+  } = useAllApprovals(activeTab === 'all' ? undefined : { status: activeTab })
   const approveMutation = useApproveRequest()
   const rejectMutation = useRejectRequest()
 
-  const displayApprovals = activeTab === 'pending' ? (pendingApprovals || []) : (allApprovals || [])
+  // Scope approved/rejected/all tabs the same way as pending: only show approvals
+  // where the user is the approver (or where no approver is assigned).
+  // The backend `my-all` endpoint also returns approvals where the user is the
+  // requestor; we filter those out here for consistency with the pending tab.
+  const scopedAllApprovals = (allApprovals || []).filter(
+    (a) => a.approver == null || (user?.id != null && a.approver === user.id)
+  )
+
+  const displayApprovals = activeTab === 'pending' ? (pendingApprovals || []) : scopedAllApprovals
   const pendingCount = pendingApprovals?.length || 0
 
   const handleApprove = (id: number) => {
@@ -168,6 +183,14 @@ export default function Approvals() {
 
           {isLoading ? (
             <div className="text-center py-12 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Loading...</div>
+          ) : isError && activeTab !== 'pending' ? (
+            <div className="p-6">
+              <ReportErrorBlock
+                error={allApprovalsError}
+                onRetry={() => refetchAllApprovals()}
+                fallback="Failed to load approvals"
+              />
+            </div>
           ) : displayApprovals.length === 0 ? (
             <div className="text-center py-12">
               <ShieldCheck className="h-8 w-8 mx-auto mb-2 opacity-20" />

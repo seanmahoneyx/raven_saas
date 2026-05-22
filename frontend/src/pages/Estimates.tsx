@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -28,6 +28,10 @@ import { MobileCardList } from '@/components/ui/MobileCardList'
 import { EstimateCard } from '@/components/estimates/EstimateCard'
 import { TableColumnPicker, useTableColumnVisibility } from '@/components/ui/data-table-column-picker'
 import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
+import { downloadAuthed } from '@/lib/downloads'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { getApiErrorMessage } from '@/lib/errors'
+import { formatCurrency } from '@/lib/format'
 
 export default function Estimates() {
   usePageTitle('Estimates')
@@ -48,12 +52,22 @@ export default function Estimates() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  const { data: estimatesData } = useEstimates()
+  const { data: estimatesData, isLoading: estimatesLoading, isError: estimatesIsError, error: estimatesError, refetch: refetchEstimates } = useEstimates()
   const { data: settings } = useSettings()
   const { visibility: estimatesVisibility, setVisibility: setEstimatesVisibility, toggle: toggleEstimateColumn, reset: resetEstimateColumns } = useTableColumnVisibility('estimates')
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
   const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
+  const [isPrintMode, setIsPrintMode] = useState(false)
+
+  useEffect(() => {
+    if (isPrintMode) {
+      requestAnimationFrame(() => {
+        window.print()
+        setIsPrintMode(false)
+      })
+    }
+  }, [isPrintMode])
 
   const reportFilterConfig: ReportFilterConfig = {
     title: 'Estimates List',
@@ -77,7 +91,7 @@ export default function Estimates() {
 
   const handleFilteredPrint = (filters: ReportFilterResult) => {
     setPrintFilters(filters)
-    setTimeout(() => window.print(), 100)
+    setIsPrintMode(true)
   }
 
   const handleFilteredExport = (filters: ReportFilterResult) => {
@@ -187,7 +201,7 @@ export default function Estimates() {
         header: 'Total',
         cell: ({ row }) => (
           <span className="font-medium">
-            ${parseFloat(row.getValue('total_amount')).toFixed(2)}
+            {formatCurrency(row.getValue('total_amount'))}
           </span>
         ),
       },
@@ -225,7 +239,7 @@ export default function Estimates() {
                     Convert to Sales Order
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => window.open(`/api/v1/estimates/${est.id}/pdf/`, '_blank')}>
+                <DropdownMenuItem onClick={() => downloadAuthed(`/estimates/${est.id}/pdf/`, `estimate-${est.estimate_number}.pdf`)}>
                   <FileDown className="mr-2 h-4 w-4" />
                   Download PDF
                 </DropdownMenuItem>
@@ -470,16 +484,25 @@ export default function Estimates() {
                 />
               </div>
             </div>
-            <DataTable
-              storageKey="estimates"
-              columns={columns}
-              data={filteredEstimates}
-              onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
-              hideToolbar
-              embedded
-              userToggledColumns={estimatesVisibility}
-              onUserToggledColumnsChange={setEstimatesVisibility}
-            />
+            {estimatesLoading ? (
+              <div className="p-6"><TableSkeleton columns={7} rows={8} showSearch={false} /></div>
+            ) : estimatesIsError ? (
+              <div className="p-6 text-center text-sm" style={{ color: 'var(--so-text-secondary)' }}>
+                <p className="mb-4">Failed to load estimates: {getApiErrorMessage(estimatesError, 'Unknown error')}</p>
+                <Button variant="outline" onClick={() => refetchEstimates()}>Retry</Button>
+              </div>
+            ) : (
+              <DataTable
+                storageKey="estimates"
+                columns={columns}
+                data={filteredEstimates}
+                onRowClick={(estimate) => navigate(`/estimates/${estimate.id}`)}
+                hideToolbar
+                embedded
+                userToggledColumns={estimatesVisibility}
+                onUserToggledColumnsChange={setEstimatesVisibility}
+              />
+            )}
           </div>
         )}
 
@@ -548,7 +571,7 @@ export default function Estimates() {
                   {showCol('status') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', textTransform: 'capitalize' }}>{e.status}</td>}
                   {showCol('num_lines') && <td style={{ padding: '4px 6px', border: '1px solid #ccc' }}>{e.num_lines}</td>}
                   {showCol('total_amount') && <td style={{ padding: '4px 6px', border: '1px solid #ccc', textAlign: 'right', fontFamily: 'monospace' }}>
-                    ${parseFloat(e.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatCurrency(e.total_amount)}
                   </td>}
                 </tr>
               )

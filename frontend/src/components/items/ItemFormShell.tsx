@@ -24,10 +24,12 @@ import {
   useUpdatePackagingItem,
 } from '@/api/items'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { openAuthedInTab } from '@/lib/downloads'
 import { useParties } from '@/api/parties'
 import type {
   Item, ItemExtraInfoLine, PackagingSubType, DivisionType, ItemType,
   TestType, FluteType, PaperType, LifecycleStatus,
+  BoxItemInput,
 } from '@/types/api'
 import {
   DIVISIONS, BOX_TYPES, PKG_SUB_TYPES,
@@ -449,7 +451,11 @@ export default function ItemFormShell({
     })
   }
 
-  const set = (field: keyof FormData, value: any) => setFormData((prev) => ({ ...prev, [field]: value }))
+  // Generic setter constrained to FormData keys. Value is bound to the field's
+  // own type — callers passing a wider type (e.g. a Select's `string` onValueChange
+  // result for a narrow union field) must narrow at the call site.
+  const set = <K extends keyof FormData>(field: K, value: FormData[K]) =>
+    setFormData((prev) => ({ ...prev, [field]: value }))
 
   const addExtraInfo = () => {
     setFormData((prev) => ({
@@ -482,10 +488,10 @@ export default function ItemFormShell({
 
     const effectivePurchDesc = isCorrugated ? autoPurchDesc : formData.purch_desc
 
-    const basePayload: Record<string, any> = {
+    const basePayload: BoxItemInput = {
       name: formData.name,
       secondary_ident: formData.secondary_ident || '',
-      division: formData.division,
+      division: formData.division as DivisionType,
       purch_desc: effectivePurchDesc || undefined,
       sell_desc: formData.sell_desc || undefined,
       base_uom: formData.base_uom ? Number(formData.base_uom) : undefined,
@@ -509,7 +515,7 @@ export default function ItemFormShell({
       let result: Item | undefined
 
       if (isCorrugated) {
-        const corrugatedPayload = {
+        const corrugatedPayload: BoxItemInput = {
           ...basePayload,
           test: formData.test || undefined,
           flute: formData.flute || undefined,
@@ -529,9 +535,9 @@ export default function ItemFormShell({
             : { height: formData.height }),
         }
         if (isCreating) {
-          result = (await createBoxItem.mutateAsync(corrugatedPayload as any)) as Item
+          result = (await createBoxItem.mutateAsync(corrugatedPayload)) as Item
         } else if (initialItem) {
-          result = (await updateBoxItem.mutateAsync({ id: initialItem.id, ...corrugatedPayload } as any)) as Item
+          result = (await updateBoxItem.mutateAsync({ id: initialItem.id, ...corrugatedPayload })) as Item
         }
       } else if (isPackaging) {
         const st = formData.pkg_sub_type as PackagingSubType
@@ -578,12 +584,12 @@ export default function ItemFormShell({
         if (isCreating) {
           result = (await createItem.mutateAsync(basePayload as Partial<Item>)) as Item
         } else if (initialItem) {
-          result = (await updateItem.mutateAsync({ id: initialItem.id, ...basePayload } as any)) as Item
+          result = (await updateItem.mutateAsync({ id: initialItem.id, ...(basePayload as Partial<Item>) })) as Item
         }
       }
 
       if (printAfterCreate.current && result?.id) {
-        window.open(`/api/v1/items/${result.id}/spec_sheet/`, '_blank')
+        await openAuthedInTab(`/items/${result.id}/spec_sheet/`)
       }
 
       // Companion items (create modes only)
@@ -675,7 +681,7 @@ export default function ItemFormShell({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <Label style={labelStyle}>Item Type</Label>
-                  <Select value={formData.item_type} onValueChange={(v) => set('item_type', v)}>
+                  <Select value={formData.item_type} onValueChange={(v) => set('item_type', v as FormData['item_type'])}>
                     <SelectTrigger style={inputStyle}><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="inventory">Inventory</SelectItem>
@@ -687,7 +693,7 @@ export default function ItemFormShell({
                 </div>
                 <div className="space-y-1.5">
                   <Label style={labelStyle}>Division *</Label>
-                  <Select value={formData.division} onValueChange={(v) => set('division', v)} disabled={isUpdating}>
+                  <Select value={formData.division} onValueChange={(v) => set('division', v as FormData['division'])} disabled={isUpdating}>
                     <SelectTrigger style={inputStyle}><SelectValue /></SelectTrigger>
                     <SelectContent>{DIVISIONS.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}</SelectContent>
                   </Select>
@@ -717,28 +723,28 @@ export default function ItemFormShell({
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="space-y-1.5">
                       <Label style={labelStyle}>Box Type *</Label>
-                      <Select value={formData.box_type || ''} onValueChange={(v) => set('box_type', v)} disabled={isUpdating}>
+                      <Select value={formData.box_type || ''} onValueChange={(v) => set('box_type', v as FormData['box_type'])} disabled={isUpdating}>
                         <SelectTrigger style={inputStyle}><SelectValue /></SelectTrigger>
                         <SelectContent>{BOX_TYPES.map((bt) => <SelectItem key={bt.value} value={bt.value}>{bt.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label style={labelStyle}>Test (ECT)</Label>
-                      <Select value={formData.test || 'none'} onValueChange={(v) => set('test', v === 'none' ? '' : v)}>
+                      <Select value={formData.test || 'none'} onValueChange={(v) => set('test', (v === 'none' ? '' : v) as FormData['test'])}>
                         <SelectTrigger style={inputStyle}><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent><SelectItem value="none">None</SelectItem>{TEST_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label style={labelStyle}>Flute</Label>
-                      <Select value={formData.flute || 'none'} onValueChange={(v) => set('flute', v === 'none' ? '' : v)}>
+                      <Select value={formData.flute || 'none'} onValueChange={(v) => set('flute', (v === 'none' ? '' : v) as FormData['flute'])}>
                         <SelectTrigger style={inputStyle}><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent><SelectItem value="none">None</SelectItem>{FLUTE_TYPES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1.5">
                       <Label style={labelStyle}>Paper</Label>
-                      <Select value={formData.paper || 'none'} onValueChange={(v) => set('paper', v === 'none' ? '' : v)}>
+                      <Select value={formData.paper || 'none'} onValueChange={(v) => set('paper', (v === 'none' ? '' : v) as FormData['paper'])}>
                         <SelectTrigger style={inputStyle}><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent><SelectItem value="none">None</SelectItem>{PAPER_TYPES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
                       </Select>
@@ -779,7 +785,7 @@ export default function ItemFormShell({
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="space-y-1.5">
                       <Label style={labelStyle}>Type *</Label>
-                      <Select value={formData.pkg_sub_type || ''} onValueChange={(v) => set('pkg_sub_type', v)} disabled={isUpdating}>
+                      <Select value={formData.pkg_sub_type || ''} onValueChange={(v) => set('pkg_sub_type', v as FormData['pkg_sub_type'])} disabled={isUpdating}>
                         <SelectTrigger style={inputStyle}><SelectValue /></SelectTrigger>
                         <SelectContent>{PKG_SUB_TYPES.map((st) => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}</SelectContent>
                       </Select>
@@ -1035,7 +1041,25 @@ export default function ItemFormShell({
                           </div>
                           <div className="space-y-1.5">
                             <Label style={labelStyle}># of Colors</Label>
-                            <Input type="number" min="0" max="8" value={formData.colors_printed} onChange={(e) => set('colors_printed', e.target.value)} placeholder="0" style={inputStyle} />
+                            <Input
+                              type="number"
+                              min="0"
+                              max="8"
+                              value={formData.colors_printed}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                if (raw === '') {
+                                  set('colors_printed', '')
+                                  return
+                                }
+                                const n = Number(raw)
+                                if (Number.isNaN(n)) return
+                                const clamped = Math.max(0, Math.min(8, Math.floor(n)))
+                                set('colors_printed', String(clamped))
+                              }}
+                              placeholder="0"
+                              style={inputStyle}
+                            />
                           </div>
                         </div>
                       )}

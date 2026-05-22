@@ -12,9 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useAccounts } from '@/api/accounting'
+import { useAllAccounts } from '@/api/accounting'
 import { useCreateJournalEntry } from '@/api/accounting'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
@@ -30,7 +31,7 @@ export default function CreateJournalEntry() {
   usePageTitle('New Journal Entry')
   const navigate = useNavigate()
 
-  const { data: accountsData } = useAccounts({ is_active: true })
+  const { data: accountsList } = useAllAccounts({ is_active: true })
   const createMutation = useCreateJournalEntry()
 
   const [date, setDate] = useState('')
@@ -64,13 +65,20 @@ export default function CreateJournalEntry() {
   }
 
   const calculateTotals = () => {
-    let totalDebit = 0
-    let totalCredit = 0
-    lines.forEach((line) => {
-      if (line.debit) totalDebit += parseFloat(line.debit) || 0
-      if (line.credit) totalCredit += parseFloat(line.credit) || 0
-    })
-    return { totalDebit, totalCredit, isBalanced: totalDebit === totalCredit && totalDebit > 0 }
+    // Compare totals in integer cents to avoid float equality false negatives
+    // (e.g., 33.33 + 33.33 + 33.34 vs 100.00).
+    const totalDebitCents = lines.reduce(
+      (sum, l) => sum + Math.round((parseFloat(l.debit) || 0) * 100),
+      0,
+    )
+    const totalCreditCents = lines.reduce(
+      (sum, l) => sum + Math.round((parseFloat(l.credit) || 0) * 100),
+      0,
+    )
+    const totalDebit = totalDebitCents / 100
+    const totalCredit = totalCreditCents / 100
+    const isBalanced = totalDebitCents === totalCreditCents && totalDebitCents > 0
+    return { totalDebit, totalCredit, isBalanced }
   }
 
   const { totalDebit, totalCredit, isBalanced } = calculateTotals()
@@ -100,11 +108,9 @@ export default function CreateJournalEntry() {
 
     try {
       await createMutation.mutateAsync(payload)
-      toast.success('Journal entry created successfully')
       navigate('/journal-entries')
-    } catch (error) {
-      console.error('Failed to create journal entry:', error)
-      toast.error('Failed to create journal entry')
+    } catch (err) {
+      toastApiError(err, 'Failed to create journal entry')
     }
   }
 
@@ -178,7 +184,7 @@ export default function CreateJournalEntry() {
                           <Select value={line.account} onValueChange={(value) => handleLineChange(index, 'account', value)}>
                             <SelectTrigger className="w-[250px]" style={inputStyle}><SelectValue placeholder="Select account..." /></SelectTrigger>
                             <SelectContent>
-                              {accountsData?.results.map((account) => (
+                              {accountsList?.map((account) => (
                                 <SelectItem key={account.id} value={account.id.toString()}>{account.code} - {account.name}</SelectItem>
                               ))}
                             </SelectContent>

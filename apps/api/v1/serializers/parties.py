@@ -84,6 +84,7 @@ class VendorSerializer(TenantModelSerializer):
     buyer_name = serializers.CharField(source='buyer.get_full_name', read_only=True, allow_null=True, default=None)
     open_balance = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, default=0)
     has_attachments = serializers.BooleanField(read_only=True, default=False)
+    payable_account_name = serializers.CharField(source='payable_account.name', read_only=True, allow_null=True, default=None)
 
     class Meta:
         model = Vendor
@@ -93,6 +94,7 @@ class VendorSerializer(TenantModelSerializer):
             'payment_terms', 'default_ship_from', 'buyer', 'buyer_name',
             'vendor_type', 'invoice_delivery_method',
             'tax_code', 'tax_id', 'credit_limit', 'charge_freight',
+            'payable_account', 'payable_account_name',
             'open_po_total', 'open_po_count', 'next_incoming',
             'overdue_bill_balance', 'active_rfq_count',
             'open_balance', 'has_attachments',

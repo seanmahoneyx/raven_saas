@@ -266,8 +266,12 @@ export default function FixedAssets() {
   }
 
   const handleRunDepreciation = async () => {
-    const result = await runDepreciation.mutateAsync({ period_date: deprPeriod + '-01' })
-    setDeprResult(result)
+    try {
+      const result = await runDepreciation.mutateAsync({ period_date: deprPeriod + '-01' })
+      setDeprResult(result)
+    } catch {
+      // Hook surfaces the error toast.
+    }
   }
 
   return (

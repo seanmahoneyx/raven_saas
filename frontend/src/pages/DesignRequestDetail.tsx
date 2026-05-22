@@ -29,7 +29,7 @@ import { useAuth } from '@/hooks/useAuth'
 import type { DesignRequestStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { getApiErrorMessage } from '@/lib/errors'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
@@ -144,24 +144,30 @@ export default function DesignRequestDetail() {
 
   usePageTitle(designRequest ? `Design ${designRequest.file_number}` : 'Design Request')
 
+  // Snapshot the design request into form state only on the transition into
+  // edit mode. Once editing, do NOT re-sync from `designRequest` — otherwise
+  // a background refetch (e.g. after a live checkbox toggle, attachment
+  // upload/delete, or WebSocket invalidation) would clobber unsaved edits.
   useEffect(() => {
-    if (isEditing && designRequest) {
-      setFormData({
-        ident: designRequest.ident || '',
-        style: designRequest.style || '',
-        status: designRequest.status,
-        customer: designRequest.customer ? String(designRequest.customer) : '',
-        length: designRequest.length || '',
-        width: designRequest.width || '',
-        depth: designRequest.depth || '',
-        test: designRequest.test || '',
-        flute: designRequest.flute || '',
-        paper: designRequest.paper || '',
-        sample_quantity: designRequest.sample_quantity ? String(designRequest.sample_quantity) : '',
-        notes: designRequest.notes || '',
-      })
-    }
-  }, [isEditing, designRequest])
+    if (!isEditing || !designRequest) return
+    setFormData({
+      ident: designRequest.ident || '',
+      style: designRequest.style || '',
+      status: designRequest.status,
+      customer: designRequest.customer ? String(designRequest.customer) : '',
+      length: designRequest.length || '',
+      width: designRequest.width || '',
+      depth: designRequest.depth || '',
+      test: designRequest.test || '',
+      flute: designRequest.flute || '',
+      paper: designRequest.paper || '',
+      sample_quantity: designRequest.sample_quantity ? String(designRequest.sample_quantity) : '',
+      notes: designRequest.notes || '',
+    })
+    // Intentionally exclude `designRequest` from deps: form is initialized once
+    // when entering edit mode, then owned by the user until save/cancel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing])
 
   const customers = customersData?.results ?? []
 
@@ -182,12 +188,11 @@ export default function DesignRequestDetail() {
         paper: formData.paper || '',
         sample_quantity: formData.sample_quantity ? Number(formData.sample_quantity) : null,
         notes: formData.notes,
-      } as any)
+      })
       setIsEditing(false)
       toast.success('Design request updated successfully')
     } catch (error) {
-      console.error('Failed to save design request:', error)
-      toast.error('Failed to save design request')
+      toastApiError(error, 'Failed to save design request')
     }
   }
 
@@ -196,17 +201,17 @@ export default function DesignRequestDetail() {
   }
 
   // LIVE checkbox toggle - saves immediately without edit mode
-  const handleCheckboxToggle = async (field: string, currentValue: boolean) => {
+  type ChecklistField = 'has_ard' | 'has_pdf' | 'has_eps' | 'has_dxf' | 'has_samples' | 'pallet_configuration'
+  const handleCheckboxToggle = async (field: ChecklistField, currentValue: boolean) => {
     if (!designRequest) return
     try {
       await updateDesignRequest.mutateAsync({
         id: designRequest.id,
         [field]: !currentValue,
-      } as any)
+      })
       toast.success('Checklist updated')
     } catch (error) {
-      console.error('Failed to toggle checkbox:', error)
-      toast.error('Failed to update checklist')
+      toastApiError(error, 'Failed to update checklist')
     }
   }
 
@@ -222,11 +227,17 @@ export default function DesignRequestDetail() {
     }
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      uploadAttachment.mutate({ designRequestId, file })
-      e.target.value = ''
+    if (!file) return
+    // Clear the input so the same file can be re-selected after an error.
+    e.target.value = ''
+    try {
+      await uploadAttachment.mutateAsync({ designRequestId, file })
+    } catch {
+      // `useUploadDesignRequestAttachment` already surfaces a toast via its
+      // onError handler; the catch here just prevents an unhandled-rejection
+      // warning when the upload fails.
     }
   }
 
@@ -303,7 +314,7 @@ export default function DesignRequestDetail() {
               )}
             </div>
             <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--so-text-secondary)' }}>
-              {designRequest.customer_name ? (
+              {designRequest.customer_name && designRequest.customer ? (
                 <button
                   onClick={() => navigate(`/customers/${designRequest.customer}`)}
                   className="transition-colors cursor-pointer hover:underline"
@@ -311,6 +322,9 @@ export default function DesignRequestDetail() {
                 >
                   {designRequest.customer_name}
                 </button>
+              ) : designRequest.customer_name ? (
+                // Customer name is present but no FK id — render as plain text.
+                <span style={{ color: 'var(--so-text-secondary)' }}>{designRequest.customer_name}</span>
               ) : (
                 <span style={{ color: 'var(--so-text-tertiary)' }}>No customer assigned</span>
               )}
@@ -479,13 +493,15 @@ export default function DesignRequestDetail() {
                     <div className="flex justify-between py-2.5" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                       <span className="text-sm" style={{ color: 'var(--so-text-tertiary)' }}>Customer</span>
                       <span className="font-medium text-sm">
-                        {designRequest.customer_name ? (
+                        {designRequest.customer_name && designRequest.customer ? (
                           <button
                             onClick={() => navigate(`/customers/${designRequest.customer}`)}
                             className="hover:underline cursor-pointer"
                           >
                             {designRequest.customer_name}
                           </button>
+                        ) : designRequest.customer_name ? (
+                          designRequest.customer_name
                         ) : '\u2014'}
                       </span>
                     </div>
@@ -840,7 +856,7 @@ function PromoteDialog({
       })
       onOpenChange(false)
     } catch (err) {
-      console.error('Failed to promote design:', err)
+      toastApiError(err, 'Failed to promote design')
     }
   }
 
@@ -932,8 +948,7 @@ function CreateEstimateDialog({
       onOpenChange(false)
       navigate(`/estimates/${result.id}`)
     } catch (err: any) {
-      console.error('Failed to create estimate:', err)
-      toast.error(getApiErrorMessage(err, 'Failed to create estimate'))
+      toastApiError(err, 'Failed to create estimate')
     }
   }
 

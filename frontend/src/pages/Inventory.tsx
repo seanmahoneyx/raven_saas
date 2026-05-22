@@ -22,6 +22,7 @@ import { format } from 'date-fns'
 import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader, KpiGrid, KpiCard, TabStrip } from '@/components/page'
+import { getDivisionLabel } from '@/lib/labels'
 
 type Tab = 'balances' | 'lots' | 'pallets' | 'transactions'
 
@@ -79,7 +80,7 @@ export default function Inventory() {
       ),
     },
     { accessorKey: 'name', header: 'Name' },
-    { accessorKey: 'division', header: 'Division', cell: ({ row }) => <span className="capitalize">{row.getValue('division')}</span> },
+    { accessorKey: 'division', header: 'Division', cell: ({ row }) => <span>{getDivisionLabel(row.getValue('division') as string | null)}</span> },
     {
       accessorKey: 'qty_on_hand',
       header: 'On Hand',
@@ -144,7 +145,7 @@ export default function Inventory() {
     { accessorKey: 'pallet_number', header: 'Pallet #', cell: ({ row }) => <span className="font-mono">{row.getValue('pallet_number')}</span> },
     { accessorKey: 'quantity_on_hand', header: 'On Hand', cell: ({ row }) => <span className="font-medium">{row.getValue('quantity_on_hand')}</span> },
     { accessorKey: 'quantity_received', header: 'Received', cell: ({ row }) => row.getValue('quantity_received') },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => getStatusBadge((row.getValue('status') as string).toLowerCase()) },
+    { accessorKey: 'status', header: 'Status', cell: ({ row }) => getStatusBadge((row.getValue('status') as string | null)?.toLowerCase() ?? 'unknown') },
   ], [])
 
   const transactionColumns: ColumnDef<InventoryTransaction>[] = useMemo(() => [

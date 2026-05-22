@@ -4,3 +4,5 @@ export const outlineBtnClass = 'inline-flex items-center justify-center gap-1.5 
 export const outlineBtnStyle: CSSProperties = { border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }
 export const primaryBtnClass = 'inline-flex items-center justify-center gap-1.5 px-3.5 h-9 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
 export const primaryBtnStyle: CSSProperties = { background: 'var(--so-accent)', border: '1px solid var(--so-accent)' }
+export const dangerBtnClass = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md text-[13px] font-medium text-white transition-all cursor-pointer'
+export const dangerBtnStyle: CSSProperties = { background: '#dc2626', border: '1px solid #dc2626' }

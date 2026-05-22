@@ -13,6 +13,7 @@ import { useTrucks, useDeleteTruck } from '@/api/parties'
 import { TruckDialog } from '@/components/parties/TruckDialog'
 import type { Truck } from '@/types/api'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { PageHeader, KpiGrid, KpiCard } from '@/components/page'
@@ -36,7 +37,7 @@ export default function Trucks() {
       setDeleteDialogOpen(false)
       setPendingDeleteId(null)
     } catch (error) {
-      toast.error('Failed to delete truck')
+      toastApiError(error, 'Failed to delete truck')
     }
   }
 

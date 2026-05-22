@@ -2,10 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
+import { fetchAllPages } from '@/lib/paginate'
 import type {
   Item, UnitOfMeasure, PaginatedResponse,
   CorrugatedFeature, DCItem, RSCItem, HSCItem, FOLItem, TeleItem,
-  PackagingItem,
+  PackagingItem, BoxItemInput,
   ItemVendor, ApiError
 } from '@/types/api'
 
@@ -20,6 +21,18 @@ export function useItems(params?: { search?: string; is_active?: boolean; divisi
       const { data } = await api.get<PaginatedResponse<Item>>('/items/', { params })
       return data
     },
+  })
+}
+
+/**
+ * Fetch every Item across all pages. Returns a flat array, not a PaginatedResponse.
+ * Use for dropdowns, KPI tiles, and dashboards that must not be silently capped at PAGE_SIZE=50.
+ */
+export function useAllItems(params?: { search?: string; is_active?: boolean; division?: string; lifecycle_status?: string }) {
+  return useQuery({
+    queryKey: ['items', 'all', params],
+    queryFn: () => fetchAllPages<Item>(api, '/items/', params as Record<string, unknown> | undefined),
+    staleTime: 60_000,
   })
 }
 
@@ -108,6 +121,17 @@ export function useUnitsOfMeasure() {
   })
 }
 
+/**
+ * Fetch every UnitOfMeasure across all pages. Returns a flat array, not a PaginatedResponse.
+ */
+export function useAllUnitsOfMeasure() {
+  return useQuery({
+    queryKey: ['uom', 'all'],
+    queryFn: () => fetchAllPages<UnitOfMeasure>(api, '/uom/'),
+    staleTime: 60_000,
+  })
+}
+
 export function useCreateUnitOfMeasure() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -174,7 +198,7 @@ const boxEndpoints: Record<BoxType, string> = {
 export function useCreateBoxItem(boxType: BoxType) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (item: Partial<BoxItem>) => {
+    mutationFn: async (item: BoxItemInput) => {
       const { data } = await api.post<BoxItem>(boxEndpoints[boxType], item)
       return data
     },
@@ -192,7 +216,7 @@ export function useCreateBoxItem(boxType: BoxType) {
 export function useUpdateBoxItem(boxType: BoxType) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...item }: Partial<BoxItem> & { id: number }) => {
+    mutationFn: async ({ id, ...item }: BoxItemInput & { id: number }) => {
       const { data } = await api.patch<BoxItem>(`${boxEndpoints[boxType]}${id}/`, item)
       return data
     },

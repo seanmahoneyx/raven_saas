@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
+import { fetchAllPages } from '@/lib/paginate'
 import type { Party, Customer, Vendor, Location, Truck, PaginatedResponse, TimelineEvent, CustomerAttachment, ApiError } from '@/types/api'
 
 // Parties
@@ -12,6 +13,17 @@ export function useParties(params?: { search?: string; party_type?: string; is_a
       const { data } = await api.get<PaginatedResponse<Party>>('/parties/', { params })
       return data
     },
+  })
+}
+
+/**
+ * Fetch every Party across all pages. Returns a flat array, not a PaginatedResponse.
+ */
+export function useAllParties(params?: { search?: string; party_type?: string; is_active?: boolean }) {
+  return useQuery({
+    queryKey: ['parties', 'all', params],
+    queryFn: () => fetchAllPages<Party>(api, '/parties/', params as Record<string, unknown> | undefined),
+    staleTime: 60_000,
   })
 }
 
@@ -84,6 +96,18 @@ export function useCustomers(params?: { search?: string }) {
       const { data } = await api.get<PaginatedResponse<Customer>>('/customers/', { params })
       return data
     },
+  })
+}
+
+/**
+ * Fetch every Customer across all pages. Returns a flat array, not a PaginatedResponse.
+ * Use for CreateEstimate, CreateContract, and other forms that need the full picker list.
+ */
+export function useAllCustomers(params?: { search?: string }) {
+  return useQuery({
+    queryKey: ['customers', 'all', params],
+    queryFn: () => fetchAllPages<Customer>(api, '/customers/', params as Record<string, unknown> | undefined),
+    staleTime: 60_000,
   })
 }
 
@@ -251,6 +275,17 @@ export function useVendors(params?: { search?: string }) {
   })
 }
 
+/**
+ * Fetch every Vendor across all pages. Returns a flat array, not a PaginatedResponse.
+ */
+export function useAllVendors(params?: { search?: string }) {
+  return useQuery({
+    queryKey: ['vendors', 'all', params],
+    queryFn: () => fetchAllPages<Vendor>(api, '/vendors/', params as Record<string, unknown> | undefined),
+    staleTime: 60_000,
+  })
+}
+
 export function useVendor(id: number) {
   return useQuery({
     queryKey: ['vendors', id],
@@ -413,6 +448,17 @@ export function useLocations(partyId?: number) {
       const { data } = await api.get<PaginatedResponse<Location>>('/locations/', { params })
       return data
     },
+  })
+}
+
+/**
+ * Fetch every Location across all pages. Returns a flat array, not a PaginatedResponse.
+ */
+export function useAllLocations(partyId?: number) {
+  return useQuery({
+    queryKey: ['locations', 'all', partyId],
+    queryFn: () => fetchAllPages<Location>(api, '/locations/', partyId ? { party: partyId } : undefined),
+    staleTime: 60_000,
   })
 }
 

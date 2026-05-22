@@ -18,7 +18,6 @@ import {
   Tags,
   BarChart3,
   Calendar,
-  Palette,
   GitBranchPlus,
   CheckSquare,
   Cog,

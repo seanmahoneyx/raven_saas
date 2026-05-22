@@ -25,7 +25,8 @@ export interface KpiItem {
   value: string
   mono?: boolean
   danger?: boolean
-  onClick: () => void
+  /** Optional. When omitted the tile renders as static (no cursor, no role=button). */
+  onClick?: () => void
 }
 
 

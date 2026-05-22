@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, Check, Undo2 } from 'lucide-react'
 import { useJournalEntry, usePostJournalEntry, useReverseJournalEntry } from '@/api/accounting'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import PrintForm from '@/components/common/PrintForm'
 
@@ -32,8 +33,7 @@ export default function JournalEntryDetail() {
       toast.success('Journal entry posted successfully')
       setPostDialogOpen(false)
     } catch (error) {
-      console.error('Failed to post entry:', error)
-      toast.error('Failed to post entry')
+      toastApiError(error, 'Failed to post entry')
     }
   }
 
@@ -44,8 +44,7 @@ export default function JournalEntryDetail() {
       toast.success('Journal entry reversed successfully')
       setReverseDialogOpen(false)
     } catch (error) {
-      console.error('Failed to reverse entry:', error)
-      toast.error('Failed to reverse entry')
+      toastApiError(error, 'Failed to reverse entry')
     }
   }
 

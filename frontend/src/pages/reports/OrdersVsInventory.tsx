@@ -10,6 +10,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 
 function statusColor(status: string): string {
   switch (status) {
@@ -40,12 +42,13 @@ function statusBadgeVariant(status: string): 'success' | 'warning' | 'destructiv
 export default function OrdersVsInventory() {
   usePageTitle('Orders vs Inventory')
   const navigate = useNavigate()
-  const { data, isLoading } = useOrdersVsInventoryReport()
+  const { data, isLoading, isError, error, refetch } = useOrdersVsInventoryReport()
 
   const items = data?.items ?? []
 
-  const handleDownloadPdf = () => {
-    window.open('/api/v1/reports/orders-vs-inventory/pdf/', '_blank')
+  const handleDownloadPdf = async () => {
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed('/reports/orders-vs-inventory/pdf/', `orders-vs-inventory-${datestamp}.pdf`)
   }
 
   const handleExportCsv = () => {
@@ -96,6 +99,8 @@ export default function OrdersVsInventory() {
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-64 w-full" />
         </div>
+      ) : isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
       ) : (
         <Card>
           <CardHeader>

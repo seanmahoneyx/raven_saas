@@ -22,11 +22,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useEstimate, useUpdateEstimate, useConvertEstimateToContract } from '@/api/estimates'
-import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllCustomers, useAllLocations } from '@/api/parties'
+import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import type { EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { toastApiError } from '@/lib/errors'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
@@ -81,15 +82,15 @@ export default function EstimateDetail() {
 
   usePageTitle(estimate ? `Estimate ${estimate.estimate_number}` : 'Estimate Detail')
 
-  const { data: customersData } = useCustomers()
-  const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
-  const { data: uomData } = useUnitsOfMeasure()
+  const { data: customersData } = useAllCustomers()
+  const { data: locationsData } = useAllLocations()
+  const { data: itemsData } = useAllItems()
+  const { data: uomData } = useAllUnitsOfMeasure()
 
-  const customers = customersData?.results ?? []
-  const locations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
-  const uoms = uomData?.results ?? []
+  const customers = customersData ?? []
+  const locations = locationsData ?? []
+  const items = itemsData ?? []
+  const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
   const customerLocations = selectedCustomer
@@ -140,7 +141,7 @@ export default function EstimateDetail() {
     newLines[index] = { ...newLines[index], [field]: value }
 
     if (field === 'item' && value) {
-      const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
+      const selectedItem = items.find((i) => String(i.id) === value)
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
         newLines[index].description = selectedItem.sell_desc || selectedItem.name
@@ -176,12 +177,11 @@ export default function EstimateDetail() {
       })),
     }
     try {
-      await updateEstimate.mutateAsync(payload as any)
+      await updateEstimate.mutateAsync(payload)
       setIsEditing(false)
       toast.success('Estimate updated successfully')
     } catch (error) {
-      console.error('Failed to save estimate:', error)
-      toast.error('Failed to save estimate')
+      toastApiError(error, 'Failed to save estimate')
     }
   }
 
@@ -207,7 +207,7 @@ export default function EstimateDetail() {
     try {
       const contract = await convertToContract.mutateAsync(estimate.id)
       toast.success('Estimate converted to contract')
-      navigate(`/contracts/${(contract as any).id}`)
+      navigate(`/contracts/${contract.id}`)
     } catch {
       // error toast handled by hook
     }
@@ -633,7 +633,7 @@ export default function EstimateDetail() {
           ) : null}
 
           {/* Converted reference */}
-          {!isEditing && (estimate.converted_order_number || (estimate as any).converted_contract_number) && (
+          {!isEditing && (estimate.converted_order_number || estimate.converted_contract_number) && (
             <div
               className="flex items-center gap-2 px-5 py-3"
               style={{ borderTop: '1px solid var(--so-border-light)', background: 'var(--so-accent-light)' }}
@@ -646,13 +646,13 @@ export default function EstimateDetail() {
                   Converted to: {estimate.converted_order_number}
                 </span>
               )}
-              {(estimate as any).converted_contract_number && (
+              {estimate.converted_contract_number && (
                 <button
                   className="font-mono text-xs px-2 py-0.5 rounded cursor-pointer transition-colors"
                   style={{ border: '1px solid var(--so-border)', color: 'var(--so-accent)' }}
-                  onClick={() => navigate(`/contracts/${(estimate as any).converted_contract_id}`)}
+                  onClick={() => navigate(`/contracts/${estimate.converted_contract_id}`)}
                 >
-                  Converted to: {(estimate as any).converted_contract_number}
+                  Converted to: {estimate.converted_contract_number}
                 </button>
               )}
             </div>

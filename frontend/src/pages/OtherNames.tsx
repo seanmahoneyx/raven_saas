@@ -86,20 +86,28 @@ export default function OtherNames() {
   }
 
   const handleSave = async () => {
-    if (editingItem) {
-      await updateOtherName.mutateAsync({ id: editingItem.id, ...form })
-    } else {
-      await createOtherName.mutateAsync(form)
+    try {
+      if (editingItem) {
+        await updateOtherName.mutateAsync({ id: editingItem.id, ...form })
+      } else {
+        await createOtherName.mutateAsync(form)
+      }
+      setDialogOpen(false)
+    } catch {
+      // Hook surfaces the error toast; keep the dialog open so the user can retry.
     }
-    setDialogOpen(false)
   }
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
-    await deleteOtherName.mutateAsync(pendingDeleteId)
-    setDeleteDialogOpen(false)
-    setPendingDeleteId(null)
-    setDialogOpen(false)
+    try {
+      await deleteOtherName.mutateAsync(pendingDeleteId)
+      setDeleteDialogOpen(false)
+      setPendingDeleteId(null)
+      setDialogOpen(false)
+    } catch {
+      // Hook surfaces the error toast; keep dialogs open so the user can retry.
+    }
   }
 
   const isSaving = createOtherName.isPending || updateOtherName.isPending

@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/format'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -23,18 +24,17 @@ import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const INVOICE_TYPES = [
-  { value: 'AR', label: 'Accounts Receivable (AR)' },
-  { value: 'AP', label: 'Accounts Payable (AP)' },
-]
-
+// AR-only creation. AP (Vendor Bill) creation lives in CreateBill.tsx;
+// the AR/AP toggle on the Invoices list page routes to the right form.
+// Backend enum values from apps/invoicing/models.py:116-124
+// Field name on backend is `payment_terms` (NOT `terms`).
 const TERMS_OPTIONS = [
-  { value: 'NET_15', label: 'Net 15' },
-  { value: 'NET_30', label: 'Net 30' },
-  { value: 'NET_45', label: 'Net 45' },
-  { value: 'NET_60', label: 'Net 60' },
-  { value: 'NET_90', label: 'Net 90' },
+  { value: 'NET15', label: 'Net 15' },
+  { value: 'NET30', label: 'Net 30' },
+  { value: 'NET45', label: 'Net 45' },
+  { value: 'NET60', label: 'Net 60' },
   { value: 'DUE_ON_RECEIPT', label: 'Due on Receipt' },
+  { value: 'COD', label: 'Cash on Delivery' },
 ]
 
 const EMPTY_LINE = { item: '', description: '', quantity: '', unit_price: '', notes: '' }
@@ -56,11 +56,10 @@ export default function CreateInvoice() {
   const createInvoice = useCreateInvoice()
 
   const [formData, setFormData] = useState({
-    invoice_type: prefill.invoice_type || 'AR',
     party: prefill.party ? String(prefill.party) : '',
     invoice_date: prefill.invoice_date || new Date().toISOString().split('T')[0],
     due_date: prefill.due_date || '',
-    terms: prefill.terms || 'NET_30',
+    payment_terms: prefill.payment_terms || prefill.terms || 'NET30',
     notes: prefill.notes || '',
   })
 
@@ -85,9 +84,8 @@ export default function CreateInvoice() {
 
   const [error, setError] = useState('')
 
-  /* ---- Party data based on invoice type ---- */
-  const partyType = formData.invoice_type === 'AR' ? 'CUSTOMER' : 'VENDOR'
-  const { data: partiesData } = useParties({ party_type: partyType })
+  /* ---- Customer lookup (AR invoices) ---- */
+  const { data: partiesData } = useParties({ party_type: 'CUSTOMER' })
   const parties = partiesData?.results ?? []
 
   /* ---- Items ---- */
@@ -155,15 +153,39 @@ export default function CreateInvoice() {
       setError('Due date is required')
       return
     }
+    if (new Date(formData.due_date) < new Date(formData.invoice_date)) {
+      const msg = 'Due date must be on or after invoice date'
+      setError(msg)
+      toast.error(msg)
+      return
+    }
 
     const filledLines = linesFormData.filter(line => line.item)
 
+    // Guard: quantity and unit_price must be valid non-negative numbers
+    for (const line of filledLines) {
+      const qty = parseFloat(line.quantity)
+      const price = parseFloat(line.unit_price)
+      if (!Number.isFinite(qty) || qty < 0) {
+        const msg = 'Each line must have a non-negative quantity'
+        setError(msg)
+        toast.error(msg)
+        return
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        const msg = 'Each line must have a non-negative unit price'
+        setError(msg)
+        toast.error(msg)
+        return
+      }
+    }
+
+    // Backend Invoice = AR (customer invoice). AP / VendorBill wired in Track C3.
     const payload: any = {
-      invoice_type: formData.invoice_type,
-      party: Number(formData.party),
+      customer: Number(formData.party),
       invoice_date: formData.invoice_date,
       due_date: formData.due_date,
-      terms: formData.terms,
+      payment_terms: formData.payment_terms,
       notes: formData.notes || '',
       lines: filledLines.map((line, idx) => ({
         line_number: idx + 1,
@@ -270,37 +292,14 @@ export default function CreateInvoice() {
             {/* ---- Header Fields ---- */}
             <div className="px-6 py-5">
               {/* Row 1: Invoice Type | Party (span 2) | Invoice Date | Due Date | Terms */}
-              <div className="grid grid-cols-6 gap-4">
-                <div>
-                  <label className={labelClass} style={labelStyle}>Invoice Type *</label>
-                  <Select
-                    value={formData.invoice_type}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, invoice_type: value, party: '' }))}
-                  >
-                    <SelectTrigger
-                      className="h-9 text-sm"
-                      style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {INVOICE_TYPES.map((t) => (
-                        <SelectItem key={t.value} value={t.value}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-5 gap-4">
                 <div className="col-span-2">
-                  <label className={labelClass} style={labelStyle}>
-                    {formData.invoice_type === 'AR' ? 'Customer' : 'Vendor'} *
-                  </label>
+                  <label className={labelClass} style={labelStyle}>Customer *</label>
                   <SearchableCombobox
-                    entityType={formData.invoice_type === 'AR' ? 'customer' : 'vendor'}
+                    entityType="customer"
                     value={formData.party ? Number(formData.party) : null}
                     onChange={(id) => setFormData(prev => ({ ...prev, party: id ? String(id) : '' }))}
-                    placeholder={`Select ${formData.invoice_type === 'AR' ? 'customer' : 'vendor'}...`}
+                    placeholder="Select customer..."
                     allowClear
                   />
                 </div>
@@ -327,8 +326,8 @@ export default function CreateInvoice() {
                 <div>
                   <label className={labelClass} style={labelStyle}>Terms</label>
                   <Select
-                    value={formData.terms}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, terms: value }))}
+                    value={formData.payment_terms}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, payment_terms: value }))}
                   >
                     <SelectTrigger
                       className="h-9 text-sm"
@@ -448,7 +447,9 @@ export default function CreateInvoice() {
                         {/* Qty */}
                         <td className="py-1.5 px-1">
                           <Input
-                            type="text"
+                            type="number"
+                            min="0"
+                            step="1"
                             inputMode="numeric"
                             value={line.quantity}
                             onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
@@ -460,7 +461,9 @@ export default function CreateInvoice() {
                         {/* Unit Price */}
                         <td className="py-1.5 px-1">
                           <Input
-                            type="text"
+                            type="number"
+                            min="0"
+                            step="0.01"
                             inputMode="decimal"
                             value={line.unit_price}
                             onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}

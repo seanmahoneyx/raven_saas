@@ -13,6 +13,8 @@ import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
 
 import { outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import PrintReportHeader, { PrintFooter } from '@/components/common/PrintReportHeader'
+import ReportErrorBlock from '@/components/common/ReportErrorBlock'
+import { downloadAuthed } from '@/lib/downloads'
 import { formatCurrency } from '@/lib/format'
 
 function formatPct(value: string | number): string {
@@ -38,13 +40,14 @@ export default function GrossMargin() {
   const [dateTo, setDateTo] = useState(today())
   const [activeTab, setActiveTab] = useState('by-customer')
 
-  const { data, isLoading } = useGrossMarginReport({ date_from: dateFrom, date_to: dateTo })
+  const { data, isLoading, isError, error, refetch } = useGrossMarginReport({ date_from: dateFrom, date_to: dateTo })
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     const params = new URLSearchParams()
     if (dateFrom) params.set('date_from', dateFrom)
     if (dateTo) params.set('date_to', dateTo)
-    window.open(`/api/v1/reports/gross-margin/pdf/?${params.toString()}`, '_blank')
+    const datestamp = new Date().toISOString().split('T')[0]
+    await downloadAuthed(`/reports/gross-margin/pdf/?${params.toString()}`, `gross-margin-${datestamp}.pdf`)
   }
 
   const handleExportCsv = () => {
@@ -114,6 +117,8 @@ export default function GrossMargin() {
             <Card key={i}><CardContent className="pt-6"><Skeleton className="h-10 w-full" /></CardContent></Card>
           ))}
         </div>
+      ) : isError ? (
+        <ReportErrorBlock error={error} onRetry={() => refetch()} />
       ) : data ? (
         <>
           <div className="grid gap-4 md:grid-cols-4">
