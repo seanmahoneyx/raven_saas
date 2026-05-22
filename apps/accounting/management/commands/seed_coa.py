@@ -80,6 +80,7 @@ CHART_OF_ACCOUNTS = [
     ('2000', 'Accounts Payable', AccountType.LIABILITY_CURRENT, None, True, 'Trade payables to vendors'),
     ('2010', 'Accounts Payable - Trade', AccountType.LIABILITY_CURRENT, '2000', False, 'Vendor invoices outstanding'),
     ('2020', 'Accounts Payable - Accrued', AccountType.LIABILITY_CURRENT, '2000', False, 'Accrued but not invoiced'),
+    ('2050', 'GR/IR Clearing', AccountType.LIABILITY_CURRENT, '2000', True, 'Received-Not-Billed accrual cleared by vendor bill posting'),
 
     ('2100', 'Accrued Expenses', AccountType.LIABILITY_CURRENT, None, True, ''),
     ('2110', 'Accrued Wages', AccountType.LIABILITY_CURRENT, '2100', False, 'Unpaid wages at period end'),

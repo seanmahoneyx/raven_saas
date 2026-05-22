@@ -52,7 +52,7 @@ ssh root@<droplet-ip>
 
 # Clone the repo
 cd /opt
-git clone https://github.com/<your-org>/raven_saas.git raven
+git clone https://github.com/seanmahoneyx/raven_saas.git raven
 cd raven
 
 # Allow Docker to act as the build runner (already installed via marketplace image)
@@ -139,7 +139,7 @@ docker compose logs nginx --tail=50
 # Apply all migrations (creates schema in the Postgres container)
 docker compose exec web python manage.py migrate
 
-# Bootstrap the default tenant + admin user
+# Bootstrap the default tenant + admin user + chart of accounts + GL defaults
 docker compose exec web python manage.py seed_pilot
 
 # Set the admin password (you'll be prompted)
@@ -148,8 +148,16 @@ docker compose exec web python manage.py changepassword admin
 
 You should see the seed_pilot output confirm:
 - Tenant `MS Packaging & Supply Distribution` created
-- Auto-created TenantSettings and 9 TenantSequence rows
+- Auto-created TenantSettings and 10 TenantSequence rows (SO, PO, INV, BOL,
+  CONTRACT, JE, EST, RFQ, FA, IR)
 - Admin user `admin (seanmahoney621@gmail.com)` created
+- Standard Chart of Accounts seeded (179 accounts)
+- AccountingSettings defaults wired: AR (1110), AP (2010), Cash (1020),
+  Inventory (1230), COGS (5000), Income (4000), GR/IR (2050)
+
+If you forget the GR/IR default and try to post a receipt-linked vendor bill
+later, you'll get a `ValidationError` telling you to set it in Accounting
+Settings — easy to recover from, but the seed handles it for you.
 
 ---
 
@@ -162,6 +170,17 @@ You should see the seed_pilot output confirm:
    the admin route loads.
 5. Upload a small Customers CSV with `commit=false` (dry run) to verify
    parsing works.
+6. **AP smoke (after imports in step 8):** Vendors → create a Vendor.
+   Items → create an Item with an Asset account (any inventory account works).
+   Invoices → Payable → **New Bill** → pick the vendor, add a line, Create →
+   Post → Record Payment. If posting succeeds and the payment lands, the
+   AP flow + GL accounts are wired correctly.
+7. **Receipt → Bill smoke (optional):** create a confirmed PO with one line,
+   click Receive on the PO detail page. Open **Item Receipts**, confirm a
+   receipt row appeared. Open it and click **Create Bill from Receipt** →
+   the new draft Bill should appear linked to the receipt; posting it
+   should clear the GR/IR accrual (verify in Journal Entries: a posted JE
+   debits 2050 GR/IR, credits 2010 A/P).
 
 ---
 
