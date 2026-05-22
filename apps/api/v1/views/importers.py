@@ -1,4 +1,6 @@
+import io
 import re
+import zipfile
 
 from django.http import HttpResponse
 from rest_framework.views import APIView
@@ -63,6 +65,69 @@ class DataImportView(APIView):
         safe = re.sub(r'[^a-zA-Z0-9\-]', '', import_type)
         response = HttpResponse(csv_bytes, content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{safe}-template.csv"'
+        return response
+
+
+class DataImportTemplateBundleView(APIView):
+    """
+    GET /api/v1/admin/import/templates/bundle/
+
+    Returns a ZIP archive containing every importer's CSV template, plus a
+    README that describes the recommended load order (foreign keys flow
+    downward) so operators can populate company data offline before
+    uploading.
+    """
+    permission_classes = [IsAdminUser]
+
+    LOAD_ORDER = [
+        'warehouses',
+        'locations',
+        'customers',
+        'vendors',
+        'parties',
+        'items',
+        'inventory',
+        'gl-opening-balances',
+    ]
+
+    README = (
+        "Raven Pilot - Import Templates\n"
+        "==============================\n\n"
+        "Recommended load order (foreign keys flow downward):\n"
+        "  1. warehouses-template.csv          (one row per physical warehouse)\n"
+        "  2. locations-template.csv           (bins/zones - depend on Warehouse)\n"
+        "  3. customers-template.csv           (full customer detail)\n"
+        "  4. vendors-template.csv             (full vendor detail)\n"
+        "  5. parties-template.csv             (only if you have OTHER-type parties)\n"
+        "  6. items-template.csv               (UOMs must already exist - see note)\n"
+        "  7. inventory-template.csv           (starting stock counts)\n"
+        "  8. gl-opening-balances-template.csv (one Journal Entry per import)\n\n"
+        "For each file: upload with 'Dry Run' first, fix any validation\n"
+        "errors, then re-upload with 'Commit'.\n\n"
+        "PREREQUISITES NOT IN THIS BUNDLE\n"
+        "  * UnitsOfMeasure (UOM codes like EA, CS, PL): no importer yet -\n"
+        "    create them via Settings -> UOM before importing items.\n"
+        "  * Tenant + Chart of Accounts: created by seed_pilot during deploy.\n"
+        "  * Contracts, Price Lists, Fixed Assets: no importer yet - enter\n"
+        "    via the UI for the initial pilot.\n"
+    )
+
+    @extend_schema(
+        tags=['admin'],
+        summary='Download all CSV import templates as a ZIP bundle',
+    )
+    def get(self, request):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('README.txt', self.README)
+            for import_type in self.LOAD_ORDER:
+                if import_type not in IMPORTER_MAP:
+                    continue  # defensive — order list is hand-curated
+                filename, csv_bytes = build_template_csv(import_type)
+                zf.writestr(filename, csv_bytes)
+        buf.seek(0)
+        response = HttpResponse(buf.getvalue(), content_type='application/zip')
+        response['Content-Disposition'] = 'attachment; filename="raven-import-templates.zip"'
         return response
 
     @extend_schema(

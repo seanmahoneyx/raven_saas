@@ -163,6 +163,25 @@ export default function DataImport() {
     }
   }
 
+  const downloadAllTemplates = async () => {
+    try {
+      const res = await apiClient.get('/admin/import/templates/bundle/', { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/zip' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'raven-import-templates.zip'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'Bundle download failed.')
+      console.error('Bundle download failed', err)
+      toast.error(message)
+    }
+  }
+
   const reset = () => {
     setFile(null)
     setReport(null)
@@ -180,12 +199,17 @@ export default function DataImport() {
           <h1 className="text-3xl font-bold">Data Import</h1>
           <p className="text-muted-foreground mt-1">Upload CSV files to bulk-import records into the system.</p>
         </div>
-        {step !== 'select' && (
-          <Button variant="ghost" onClick={reset}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Start Over
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={downloadAllTemplates}>
+            Download All Templates (ZIP)
           </Button>
-        )}
+          {step !== 'select' && (
+            <Button variant="ghost" onClick={reset}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Start Over
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Step Indicator */}

@@ -36,7 +36,7 @@ from .views.logistics import (
     LicensePlateViewSet, DeliveryStopViewSet, InitializeRunView,
     DriverRunView, ManifestPDFView,
 )
-from .views.importers import DataImportView
+from .views.importers import DataImportView, DataImportTemplateBundleView
 from .views.inventory import (
     InventoryLotViewSet, InventoryPalletViewSet,
     InventoryBalanceViewSet, InventoryTransactionViewSet,
@@ -281,6 +281,7 @@ urlpatterns = [
     path('logistics/runs/<int:run_id>/manifest-pdf/', ManifestPDFView.as_view(), name='run-manifest-pdf'),
 
     # Admin Data Import
+    path('admin/import/templates/bundle/', DataImportTemplateBundleView.as_view(), name='data-import-templates-bundle'),
     path('admin/import/<str:import_type>/template/', DataImportView.as_view(), name='data-import-template'),
     path('admin/import/<str:import_type>/', DataImportView.as_view(), name='data-import'),
 

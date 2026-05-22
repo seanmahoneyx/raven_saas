@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreateCheck } from '@/api/checks'
 import { useOtherNames, type OtherName } from '@/api/otherNames'
+import { useAllVendors } from '@/api/parties'
 import { useAllAccounts } from '@/api/accounting'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,7 +11,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 
-type PayeeType = 'other_name' | 'manual'
+type PayeeType = 'vendor' | 'other_name' | 'manual'
+
+const PAYEE_LABELS: Record<PayeeType, string> = {
+  vendor: 'Vendor',
+  other_name: 'Other Name',
+  manual: 'Manual',
+}
 
 export default function CreateCheck() {
   usePageTitle('Write Check')
@@ -18,14 +25,17 @@ export default function CreateCheck() {
   const createCheck = useCreateCheck()
 
   const { data: otherNamesData } = useOtherNames()
+  const { data: vendorsData } = useAllVendors()
   const { data: bankAccountsData } = useAllAccounts({ account_type: 'ASSET_CURRENT' })
 
   const otherNames = otherNamesData ?? []
+  const vendors = vendorsData ?? []
   const bankAccounts = bankAccountsData ?? []
 
   const [error, setError] = useState('')
-  const [payeeType, setPayeeType] = useState<PayeeType>('other_name')
+  const [payeeType, setPayeeType] = useState<PayeeType>('vendor')
   const [otherNameId, setOtherNameId] = useState('')
+  const [vendorId, setVendorId] = useState('')
   const [formData, setFormData] = useState({
     payee_name: '',
     payee_address: '',
@@ -41,6 +51,7 @@ export default function CreateCheck() {
   const handlePayeeTypeChange = (type: PayeeType) => {
     setPayeeType(type)
     setOtherNameId('')
+    setVendorId('')
     setFormData((prev) => ({ ...prev, payee_name: '', payee_address: '' }))
   }
 
@@ -51,6 +62,19 @@ export default function CreateCheck() {
       ...prev,
       payee_name: found ? (found.print_name || found.name) : '',
       payee_address: found ? found.full_address ?? '' : '',
+    }))
+  }
+
+  const handleVendorSelect = (id: string) => {
+    const found = vendors.find((v) => String(v.id) === id)
+    setVendorId(id)
+    setFormData((prev) => ({
+      ...prev,
+      payee_name: found ? found.party_display_name : '',
+      // Vendor addresses live on Location records — leave blank; user can
+      // fill in for the printed check, or we can enhance later by fetching
+      // the vendor's default remit-to location.
+      payee_address: '',
     }))
   }
 
@@ -67,7 +91,9 @@ export default function CreateCheck() {
         amount: formData.amount,
         memo: formData.memo,
       }
-      if (payeeType === 'other_name' && otherNameId) {
+      if (payeeType === 'vendor' && vendorId) {
+        payload.vendor = Number(vendorId)
+      } else if (payeeType === 'other_name' && otherNameId) {
         payload.other_name = Number(otherNameId)
       }
 
@@ -109,8 +135,7 @@ export default function CreateCheck() {
               <div className="space-y-1.5">
                 <Label style={{ color: 'var(--so-text-secondary)' }}>Payee Type</Label>
                 <div className="flex rounded-md overflow-hidden border" style={{ borderColor: 'var(--so-border)' }}>
-                  {(['other_name', 'manual'] as PayeeType[]).map((type) => {
-                    const label = type === 'other_name' ? 'Other Name' : 'Manual'
+                  {(['vendor', 'other_name', 'manual'] as PayeeType[]).map((type, idx, arr) => {
                     const active = payeeType === type
                     return (
                       <button
@@ -120,16 +145,50 @@ export default function CreateCheck() {
                         style={{
                           background: active ? 'var(--so-accent)' : 'var(--so-surface)',
                           color: active ? '#fff' : 'var(--so-text-secondary)',
-                          borderRight: type !== 'manual' ? '1px solid var(--so-border)' : undefined,
+                          borderRight: idx < arr.length - 1 ? '1px solid var(--so-border)' : undefined,
                         }}
                         onClick={() => handlePayeeTypeChange(type)}
                       >
-                        {label}
+                        {PAYEE_LABELS[type]}
                       </button>
                     )
                   })}
                 </div>
               </div>
+
+              {/* Vendor selector */}
+              {payeeType === 'vendor' && (
+                <div className="space-y-1.5">
+                  <Label style={{ color: 'var(--so-text-secondary)' }}>Select Vendor</Label>
+                  <select
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-primary)' }}
+                    value={vendorId}
+                    onChange={(e) => handleVendorSelect(e.target.value)}
+                  >
+                    <option value="">Select a vendor...</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={String(v.id)}>
+                        {v.party_display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Vendor payee gets an editable address (no auto-fill yet) */}
+              {payeeType === 'vendor' && vendorId && (
+                <div className="space-y-1.5">
+                  <Label style={{ color: 'var(--so-text-secondary)' }}>Payee Address (optional)</Label>
+                  <Textarea
+                    rows={3}
+                    value={formData.payee_address}
+                    onChange={(e) => update('payee_address', e.target.value)}
+                    placeholder="Vendor remit-to address (leave blank to print no address)"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
+              )}
 
               {/* Other Name selector */}
               {payeeType === 'other_name' && (
