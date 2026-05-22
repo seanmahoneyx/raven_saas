@@ -256,6 +256,7 @@ export default function TopNavbar() {
         { type: 'item', to: '/rfqs', icon: FileText, label: 'RFQs' },
         { type: 'separator' },
         { type: 'item', to: '/vendors/open-orders', icon: PackageCheck, label: 'Purchase Orders' },
+        { type: 'item', to: '/item-receipts', icon: PackageCheck, label: 'Item Receipts' },
         { type: 'separator' },
         { type: 'item', to: '/cost-lists', icon: DollarSign, label: 'Cost Lists' },
       ],

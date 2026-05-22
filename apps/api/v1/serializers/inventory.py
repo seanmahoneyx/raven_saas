@@ -1,9 +1,13 @@
 # apps/api/v1/serializers/inventory.py
 """
-Serializers for Inventory models: InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction.
+Serializers for Inventory models: InventoryLot, InventoryPallet, InventoryBalance,
+InventoryTransaction, ItemReceipt, ItemReceiptLine.
 """
 from rest_framework import serializers
-from apps.inventory.models import InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction
+from apps.inventory.models import (
+    InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction,
+    ItemReceipt, ItemReceiptLine,
+)
 from .base import TenantModelSerializer
 
 
@@ -123,3 +127,80 @@ class InventoryTransactionSerializer(TenantModelSerializer):
             'balance_on_hand', 'balance_allocated',
         ]
         read_only_fields = ['transaction_date', 'balance_on_hand', 'balance_allocated']
+
+
+# ─── Item Receipt Serializers ────────────────────────────────────────────────
+
+class ItemReceiptLineSerializer(TenantModelSerializer):
+    """Serializer for ItemReceiptLine."""
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+    quantity_remaining_to_bill = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ItemReceiptLine
+        fields = [
+            'id', 'receipt', 'line_number',
+            'purchase_order_line',
+            'item', 'item_sku', 'item_name',
+            'quantity', 'unit_cost', 'amount',
+            'quantity_billed', 'quantity_remaining_to_bill',
+            'notes',
+        ]
+        read_only_fields = ['quantity_billed']
+
+
+class ItemReceiptListSerializer(TenantModelSerializer):
+    """Lightweight serializer for list views."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    vendor_code = serializers.CharField(source='vendor.party.code', read_only=True)
+    warehouse_code = serializers.CharField(source='warehouse.code', read_only=True)
+    purchase_order_number = serializers.CharField(
+        source='purchase_order.po_number', read_only=True, allow_null=True,
+    )
+    num_lines = serializers.IntegerField(read_only=True)
+    subtotal = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = ItemReceipt
+        fields = [
+            'id', 'receipt_number', 'status',
+            'vendor', 'vendor_name', 'vendor_code',
+            'warehouse', 'warehouse_code',
+            'purchase_order', 'purchase_order_number',
+            'received_date', 'num_lines', 'subtotal',
+        ]
+
+
+class ItemReceiptDetailSerializer(TenantModelSerializer):
+    """Full receipt with nested lines."""
+    vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
+    vendor_code = serializers.CharField(source='vendor.party.code', read_only=True)
+    warehouse_code = serializers.CharField(source='warehouse.code', read_only=True)
+    purchase_order_number = serializers.CharField(
+        source='purchase_order.po_number', read_only=True, allow_null=True,
+    )
+    received_by_name = serializers.CharField(
+        source='received_by.username', read_only=True, allow_null=True,
+    )
+    lines = ItemReceiptLineSerializer(many=True, read_only=True)
+    subtotal = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = ItemReceipt
+        fields = [
+            'id', 'receipt_number', 'status',
+            'vendor', 'vendor_name', 'vendor_code',
+            'warehouse', 'warehouse_code',
+            'purchase_order', 'purchase_order_number',
+            'received_date',
+            'received_by', 'received_by_name',
+            'journal_entry', 'notes',
+            'lines', 'subtotal',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'receipt_number', 'status', 'journal_entry', 'received_by',
+            'created_at', 'updated_at',
+        ]

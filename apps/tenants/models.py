@@ -189,6 +189,7 @@ class TenantSequence(models.Model):
         ('EST', 'Estimate'),
         ('RFQ', 'Request for Quotation'),
         ('FA', 'Fixed Asset'),
+        ('IR', 'Item Receipt'),
     ]
 
     tenant = models.ForeignKey(

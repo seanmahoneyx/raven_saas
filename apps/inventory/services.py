@@ -18,8 +18,12 @@ from django.core.exceptions import ValidationError
 from django.contrib.contenttypes.models import ContentType
 import uuid
 
-from .models import InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction, InventoryLayer
+from .models import (
+    InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction,
+    InventoryLayer, ItemReceipt, ItemReceiptLine,
+)
 from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
+from apps.tenants.models import get_next_sequence_number
 
 
 class InventoryService:
@@ -1091,3 +1095,177 @@ class ReorderService:
         alerts.sort(key=lambda a: severity_order.get(a['severity'], 3))
 
         return alerts
+
+
+# ─── Receiving Service ────────────────────────────────────────────────────────
+
+
+class ReceivingService:
+    """
+    Service for recording goods receipts (ItemReceipt documents).
+
+    A receipt is an immutable record of what physically arrived. Posting a
+    receipt has three effects:
+
+    1. **Inventory** — creates lots, pallets, and FIFO cost layers via
+       InventoryService.receive_stock (one call per line).
+    2. **General Ledger** — each line's receive_stock call posts
+       Dr Inventory Asset, Cr GR/IR (Received-Not-Billed clearing account).
+    3. **PO reconciliation** — increments PurchaseOrderLine.quantity_received
+       counters and updates the PO status to partially_received or complete.
+
+    Receipts can later be rolled into VendorBills via
+    VendorBillService.create_bill_from_receipts(...) — bill posting then
+    clears the GR/IR accrual (Dr GR/IR, Cr A/P).
+
+    Receipts are decoupled from VendorBills by design: a single PO can
+    produce multiple partial receipts; a single receipt's lines can be
+    split across multiple bills (or vice versa).
+    """
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    def _generate_receipt_number(self):
+        return get_next_sequence_number(self.tenant, 'IR')
+
+    def _resolve_grir_account(self):
+        acct_settings = AccountingSettings.get_for_tenant(self.tenant)
+        grir = acct_settings.default_grir_account
+        if not grir:
+            raise ValidationError(
+                "No GR/IR (Received-Not-Billed) account configured. "
+                "Set default_grir_account in Accounting Settings before "
+                "posting receipts."
+            )
+        return grir
+
+    def create_and_post_receipt(
+        self,
+        vendor,
+        warehouse,
+        lines,
+        purchase_order=None,
+        received_date=None,
+        notes='',
+    ):
+        """
+        Create and post a receipt in one step.
+
+        Args:
+            vendor: Vendor instance
+            warehouse: parties.Location instance (the receiving warehouse)
+            lines: list of dicts with keys:
+                - item (Item instance)
+                - quantity (int)
+                - unit_cost (Decimal)
+                - purchase_order_line (optional, PurchaseOrderLine instance)
+                - notes (optional, str)
+            purchase_order: optional PurchaseOrder instance
+            received_date: optional date (defaults to today)
+            notes: optional header notes
+
+        Returns:
+            ItemReceipt with status='posted' and inventory lots created.
+
+        Raises:
+            ValidationError on missing accounts, empty lines, etc.
+        """
+        if not lines:
+            raise ValidationError("Cannot create a receipt with no lines.")
+
+        if received_date is None:
+            received_date = timezone.now().date()
+
+        # Resolve GR/IR account up-front so we don't half-create a receipt
+        # then fail on JE creation.
+        grir_account = self._resolve_grir_account()
+        inv_svc = InventoryService(self.tenant, self.user)
+
+        with transaction.atomic():
+            receipt = ItemReceipt.objects.create(
+                tenant=self.tenant,
+                receipt_number=self._generate_receipt_number(),
+                vendor=vendor,
+                purchase_order=purchase_order,
+                warehouse=warehouse,
+                received_date=received_date,
+                received_by=self.user,
+                status='draft',
+                notes=notes or '',
+            )
+
+            line_objs = []
+            for idx, ln in enumerate(lines):
+                line_obj = ItemReceiptLine.objects.create(
+                    tenant=self.tenant,
+                    receipt=receipt,
+                    line_number=(idx + 1) * 10,
+                    purchase_order_line=ln.get('purchase_order_line'),
+                    item=ln['item'],
+                    quantity=ln['quantity'],
+                    unit_cost=Decimal(str(ln['unit_cost'])),
+                    notes=ln.get('notes', ''),
+                )
+                line_objs.append(line_obj)
+
+            # Post inventory + GL per line. Each receive_stock posts its own
+            # Dr Inventory / Cr GR/IR JE — easy to audit one-to-one.
+            for line in line_objs:
+                inv_svc.receive_stock(
+                    item=line.item,
+                    warehouse=warehouse,
+                    quantity=line.quantity,
+                    unit_cost=line.unit_cost,
+                    credit_account=grir_account,
+                    source_document=receipt,
+                    vendor=vendor,
+                    purchase_order=purchase_order,
+                    received_date=received_date,
+                    notes=f"Receipt {receipt.receipt_number} line {line.line_number}",
+                )
+
+                # Update PO line counter when linked
+                po_line = line.purchase_order_line
+                if po_line is not None:
+                    po_line.quantity_received = (po_line.quantity_received or 0) + line.quantity
+                    po_line.save(update_fields=['quantity_received'])
+
+            # Update PO status from line totals (mirrors the original logic
+            # that used to live in OrdersService.receive_purchase_order).
+            if purchase_order is not None:
+                # Drop prefetch cache so we re-query updated counters
+                if hasattr(purchase_order, '_prefetched_objects_cache'):
+                    purchase_order._prefetched_objects_cache.pop('lines', None)
+                all_lines = purchase_order.lines.all()
+                all_full = all(
+                    (pl.quantity_received or 0) >= pl.quantity_ordered for pl in all_lines
+                )
+                any_received = any(
+                    (pl.quantity_received or 0) > 0 for pl in all_lines
+                )
+                if all_full:
+                    purchase_order.status = 'complete'
+                elif any_received:
+                    purchase_order.status = 'partially_received'
+                purchase_order.save(update_fields=['status'])
+
+            receipt.status = 'posted'
+            receipt.save(update_fields=['status'])
+
+            # Broadcast (best-effort) — same pattern other services use
+            try:
+                from apps.api.ws_signals import broadcast_order_update
+                if purchase_order is not None:
+                    broadcast_order_update(
+                        tenant_id=self.tenant.pk,
+                        order_type='purchase_order',
+                        order_id=purchase_order.pk,
+                        status=purchase_order.status,
+                        data={'order_number': purchase_order.po_number},
+                    )
+            except Exception:
+                pass
+
+            return receipt

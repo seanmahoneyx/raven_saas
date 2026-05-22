@@ -507,3 +507,200 @@ class InventoryLayer(TenantMixin, TimestampMixin):
     def is_depleted(self):
         """True if no inventory remains in this layer."""
         return self.quantity_remaining <= 0
+
+
+# ─── Item Receipts (Goods Receipt Notes) ──────────────────────────────────────
+#
+# An ItemReceipt is the standing document recording a physical receipt of
+# goods from a vendor — independent of, but optionally linked to, a Purchase
+# Order. Receipt → Inventory lots (qty + cost) and Receipt → Bill (GR/IR
+# clearing) are both downstream, but the receipt itself is the immutable
+# record of what arrived.
+#
+# Accounting:
+#   Receipt post  → Dr Inventory, Cr GR/IR (Received-Not-Billed accrual)
+#   Bill   post   → Dr GR/IR,    Cr A/P
+#
+# A single PO can generate multiple partial Receipts. A single Receipt can be
+# rolled into one Bill, or its lines can be split across multiple Bills.
+
+
+class ItemReceipt(TenantMixin, TimestampMixin):
+    """
+    Header for a physical receipt of goods.
+
+    Records who received what, when, and against which PO (if any). Posting
+    the receipt creates inventory lots and a GR/IR accrual journal entry.
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('partially_billed', 'Partially Billed'),
+        ('billed', 'Billed'),
+        ('void', 'Void'),
+    ]
+
+    receipt_number = models.CharField(
+        max_length=50,
+        help_text="Receipt number (unique per tenant). Generated via TenantSequence.",
+    )
+    vendor = models.ForeignKey(
+        'parties.Vendor',
+        on_delete=models.PROTECT,
+        related_name='item_receipts',
+        help_text="Vendor who supplied the goods",
+    )
+    purchase_order = models.ForeignKey(
+        'orders.PurchaseOrder',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='item_receipts',
+        help_text="Originating PO (optional — direct receipts without a PO are allowed)",
+    )
+    warehouse = models.ForeignKey(
+        'new_warehousing.Warehouse',
+        on_delete=models.PROTECT,
+        related_name='item_receipts',
+        help_text="Warehouse that received the goods",
+    )
+    received_date = models.DateField(
+        default=timezone.now,
+        help_text="Date goods were physically received",
+    )
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='received_item_receipts',
+        help_text="User who recorded the receipt",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft',
+    )
+    journal_entry = models.ForeignKey(
+        'accounting.JournalEntry',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='item_receipts',
+        help_text="GR/IR accrual JE created when receipt is posted",
+    )
+    notes = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Item Receipt"
+        verbose_name_plural = "Item Receipts"
+        unique_together = [('tenant', 'receipt_number')]
+        ordering = ['-received_date', '-id']
+        indexes = [
+            models.Index(fields=['tenant', 'receipt_number']),
+            models.Index(fields=['tenant', 'vendor', 'received_date']),
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'purchase_order']),
+        ]
+
+    def __str__(self):
+        return f"Receipt {self.receipt_number}"
+
+    @property
+    def subtotal(self):
+        """Sum of line amounts."""
+        return sum((ln.amount for ln in self.lines.all()), start=0) or 0
+
+    @property
+    def num_lines(self):
+        return self.lines.count()
+
+    @property
+    def all_lines_billed(self):
+        """True if every line is fully billed (quantity_billed >= quantity)."""
+        return all(
+            (ln.quantity_billed or 0) >= ln.quantity
+            for ln in self.lines.all()
+        )
+
+    @property
+    def any_line_billed(self):
+        return any((ln.quantity_billed or 0) > 0 for ln in self.lines.all())
+
+    def recompute_billing_status(self):
+        """Update status based on aggregate billed quantity on lines."""
+        if self.status in ('draft', 'void'):
+            return
+        if self.all_lines_billed:
+            self.status = 'billed'
+        elif self.any_line_billed:
+            self.status = 'partially_billed'
+        else:
+            self.status = 'posted'
+
+
+class ItemReceiptLine(TenantMixin, TimestampMixin):
+    """
+    A single line of received goods on an ItemReceipt.
+
+    Each line is independently billable. `quantity_billed` tracks how much
+    of this receipt line has already been rolled into a VendorBillLine, so
+    we can prevent double-billing without locking the entire receipt.
+    """
+    receipt = models.ForeignKey(
+        ItemReceipt,
+        on_delete=models.CASCADE,
+        related_name='lines',
+    )
+    line_number = models.PositiveIntegerField(
+        help_text="Line sequence (10, 20, 30...)",
+    )
+    purchase_order_line = models.ForeignKey(
+        'orders.PurchaseOrderLine',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='receipt_lines',
+        help_text="Source PO line (null for direct receipts not against a PO)",
+    )
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='receipt_lines',
+    )
+    quantity = models.PositiveIntegerField(
+        help_text="Quantity received (base units)",
+    )
+    unit_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        help_text="Cost per unit at time of receipt",
+    )
+    quantity_billed = models.PositiveIntegerField(
+        default=0,
+        help_text="Quantity already rolled into vendor bills",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Item Receipt Line"
+        verbose_name_plural = "Item Receipt Lines"
+        ordering = ['receipt', 'line_number']
+        unique_together = [('receipt', 'line_number')]
+        indexes = [
+            models.Index(fields=['tenant', 'receipt']),
+            models.Index(fields=['tenant', 'purchase_order_line']),
+        ]
+
+    def __str__(self):
+        return f"{self.receipt.receipt_number} L{self.line_number}: {self.item.sku} × {self.quantity}"
+
+    @property
+    def amount(self):
+        return self.quantity * self.unit_cost
+
+    @property
+    def quantity_remaining_to_bill(self):
+        return max(self.quantity - (self.quantity_billed or 0), 0)

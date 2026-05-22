@@ -116,6 +116,10 @@ class OrderLifecycleTestCase(TestCase):
             tenant=cls.tenant, code='1200', name='Inventory',
             account_type=AccountType.ASSET_CURRENT,
         )
+        cls.grir_account = Account.objects.create(
+            tenant=cls.tenant, code='2050', name='GR/IR',
+            account_type=AccountType.LIABILITY_CURRENT,
+        )
 
         # Item
         cls.item = Item.objects.create(
@@ -132,6 +136,7 @@ class OrderLifecycleTestCase(TestCase):
         acct.default_income_account = cls.income_account
         acct.default_cogs_account = cls.cogs_account
         acct.default_inventory_account = cls.inventory_account
+        acct.default_grir_account = cls.grir_account
         acct.save()
 
     def setUp(self):
@@ -180,7 +185,8 @@ class OrderLifecycleTestCase(TestCase):
         result = order_svc.receive_purchase_order(po)
         po.refresh_from_db()
         self.assertEqual(po.status, 'complete')
-        self.assertTrue(len(result['lots_created']) > 0)
+        self.assertIsNotNone(result['item_receipt'])
+        self.assertEqual(result['item_receipt'].status, 'posted')
 
         # Inventory on_hand should increase, on_order should decrease
         balance.refresh_from_db()

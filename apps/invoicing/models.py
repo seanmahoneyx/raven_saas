@@ -764,6 +764,17 @@ class VendorBillLine(TenantMixin):
         related_name='bill_lines',
         help_text="Source purchase order line"
     )
+    item_receipt_line = models.ForeignKey(
+        'inventory.ItemReceiptLine',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bill_lines',
+        help_text=(
+            "Source item-receipt line. When set, the bill clears that "
+            "receipt's GR/IR accrual instead of debiting expense/asset."
+        ),
+    )
 
     class Meta:
         verbose_name = "Vendor Bill Line"

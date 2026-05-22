@@ -536,162 +536,97 @@ class OrderService:
 
     def receive_purchase_order(self, purchase_order, line_receipts=None):
         """
-        Receive goods against a PO, creating inventory lots, FIFO layers, and GL entries.
+        Receive goods against a PO by creating a posted ItemReceipt.
+
+        Delegates the heavy lifting to ReceivingService.create_and_post_receipt,
+        which:
+        - Creates an ItemReceipt header + lines
+        - Posts inventory lots / FIFO layers via InventoryService.receive_stock
+        - Posts a Dr Inventory / Cr GR/IR journal entry (per line)
+        - Updates PurchaseOrderLine.quantity_received and PO.status
+
+        Vendor bills are no longer auto-created here — that's an explicit
+        downstream step from the receipt (see VendorBillService.create_bill_from_receipts).
 
         Args:
             purchase_order: PO instance (must be confirmed, scheduled, or partially_received)
-            line_receipts: Optional list of dicts: [{'line_id': int, 'quantity': int, 'unit_cost': Decimal}, ...]
-                          If None, receives all lines at full remaining quantity using line's unit_cost.
+            line_receipts: Optional list of dicts:
+                [{'line_id': int, 'quantity': int, 'unit_cost': Decimal}, ...]
+                If None, receives every line at its remaining quantity using
+                the line's own unit_cost.
 
         Returns:
-            dict with 'lots_created' count and 'po_status'
+            dict: {'item_receipt': ItemReceipt, 'po_status': str}
+
+        Raises:
+            ValidationError: PO is in a non-receivable status, no default
+                warehouse, GR/IR account missing.
         """
         if purchase_order.status not in ('confirmed', 'scheduled', 'partially_received'):
             raise ValidationError(
                 f"Cannot receive PO with status '{purchase_order.status}'. Must be 'confirmed', 'scheduled', or 'partially_received'."
             )
 
-        from apps.inventory.services import InventoryService
+        from apps.inventory.services import InventoryService, ReceivingService
 
         warehouse = self._get_default_warehouse()
         if not warehouse:
             raise ValidationError("No default warehouse configured. Cannot receive inventory.")
 
+        # Build the receipt-line payload.
+        if line_receipts:
+            recv_lines = []
+            for r in line_receipts:
+                line = purchase_order.lines.get(id=r['line_id'])
+                qty = r.get('quantity', line.quantity_remaining)
+                cost = Decimal(str(r.get('unit_cost', line.unit_cost)))
+                recv_lines.append({
+                    'item': line.item,
+                    'quantity': qty,
+                    'unit_cost': cost,
+                    'purchase_order_line': line,
+                })
+        else:
+            recv_lines = []
+            for line in purchase_order.lines.select_related('item').all():
+                qty = line.quantity_remaining if line.quantity_remaining > 0 else line.quantity_ordered
+                if qty <= 0:
+                    continue
+                recv_lines.append({
+                    'item': line.item,
+                    'quantity': qty,
+                    'unit_cost': line.unit_cost,
+                    'purchase_order_line': line,
+                })
+
+        if not recv_lines:
+            raise ValidationError("Nothing to receive — every PO line is already fully received.")
+
+        receiving_svc = ReceivingService(self.tenant, self.user)
+        receipt = receiving_svc.create_and_post_receipt(
+            vendor=purchase_order.vendor,
+            warehouse=warehouse,
+            lines=recv_lines,
+            purchase_order=purchase_order,
+            notes=f'PO receive: {purchase_order.po_number}',
+        )
+
+        # Pull on-order down to reflect what's now arrived.
         inv_svc = InventoryService(self.tenant, self.user)
-        lots_created = []
-
-        with transaction.atomic():
-            if line_receipts:
-                # Partial / specified receive
-                for receipt in line_receipts:
-                    line = purchase_order.lines.get(id=receipt['line_id'])
-                    qty = receipt.get('quantity', line.quantity_remaining)
-                    cost = Decimal(str(receipt.get('unit_cost', line.unit_cost)))
-
-                    lot, pallets, layer = inv_svc.receive_stock(
-                        item=line.item,
-                        warehouse=warehouse,
-                        quantity=qty,
-                        unit_cost=cost,
-                        purchase_order=purchase_order,
-                        vendor=purchase_order.vendor,
-                        notes=f'PO receive: {purchase_order.po_number} line {line.line_number}',
-                    )
-                    inv_svc.remove_on_order(
-                        item=line.item,
-                        warehouse=warehouse,
-                        quantity=qty,
-                        purchase_order=purchase_order,
-                    )
-                    # Update quantity_received on the line
-                    line.quantity_received = (line.quantity_received or 0) + qty
-                    line.save(update_fields=['quantity_received'])
-                    lots_created.append(lot)
-            else:
-                # Full receive - all lines at remaining quantity
-                for line in purchase_order.lines.select_related('item').all():
-                    qty = line.quantity_remaining if line.quantity_remaining > 0 else line.quantity_ordered
-                    lot, pallets, layer = inv_svc.receive_stock(
-                        item=line.item,
-                        warehouse=warehouse,
-                        quantity=qty,
-                        unit_cost=line.unit_cost,
-                        purchase_order=purchase_order,
-                        vendor=purchase_order.vendor,
-                        notes=f'PO receive: {purchase_order.po_number} line {line.line_number}',
-                    )
-                    inv_svc.remove_on_order(
-                        item=line.item,
-                        warehouse=warehouse,
-                        quantity=qty,
-                        purchase_order=purchase_order,
-                    )
-                    # Update quantity_received on the line
-                    line.quantity_received = (line.quantity_received or 0) + qty
-                    line.save(update_fields=['quantity_received'])
-                    lots_created.append(lot)
-
-            # Clear prefetch cache to get fresh line data after quantity_received updates
-            if hasattr(purchase_order, '_prefetched_objects_cache'):
-                purchase_order._prefetched_objects_cache.pop('lines', None)
-            # Determine PO status based on line receipt completeness
-            all_lines = purchase_order.lines.all()
-            all_fully_received = all(
-                line.quantity_received >= line.quantity_ordered
-                for line in all_lines
-            )
-            any_received = any(
-                (line.quantity_received or 0) > 0
-                for line in all_lines
-            )
-
-            if all_fully_received:
-                purchase_order.status = 'complete'
-            elif any_received:
-                purchase_order.status = 'partially_received'
-            # else: keep current status (shouldn't happen in normal flow)
-            purchase_order.save()
-
-            # Auto-create vendor bill
-            vendor_bill = None
+        for rl in recv_lines:
             try:
-                from apps.invoicing.services import VendorBillService
-                from django.utils import timezone as tz
-                from datetime import timedelta
-
-                bill_svc = VendorBillService(self.tenant, self.user)
-                bill = bill_svc.create_bill(
-                    vendor=purchase_order.vendor,
-                    vendor_invoice_number=purchase_order.po_number,
-                    due_date=tz.now().date() + timedelta(days=30),
-                    bill_date=tz.now().date(),
+                inv_svc.remove_on_order(
+                    item=rl['item'],
+                    warehouse=warehouse,
+                    quantity=rl['quantity'],
                     purchase_order=purchase_order,
-                    notes=f'Auto-created from PO receive: {purchase_order.po_number}',
                 )
+            except ValidationError:
+                pass  # remove_on_order is best-effort here
 
-                # Add bill lines from PO lines
-                if line_receipts:
-                    for receipt in line_receipts:
-                        line = purchase_order.lines.get(id=receipt['line_id'])
-                        qty = receipt.get('quantity', line.quantity_ordered)
-                        cost = Decimal(str(receipt.get('unit_cost', line.unit_cost)))
-                        bill_svc.add_line(
-                            bill=bill,
-                            description=f'{line.item.name} ({line.item.sku})',
-                            quantity=qty,
-                            unit_price=cost,
-                            item=line.item,
-                            purchase_order_line=line,
-                        )
-                else:
-                    for line in purchase_order.lines.select_related('item').all():
-                        bill_svc.add_line(
-                            bill=bill,
-                            description=f'{line.item.name} ({line.item.sku})',
-                            quantity=line.quantity_ordered,
-                            unit_price=line.unit_cost,
-                            item=line.item,
-                            purchase_order_line=line,
-                        )
-                vendor_bill = bill
-            except Exception:
-                pass  # Don't block PO receive if bill creation fails
-
-        # Broadcast order update via WebSocket
-        try:
-            from apps.api.ws_signals import broadcast_order_update
-            broadcast_order_update(
-                tenant_id=self.tenant.pk,
-                order_type='purchase_order',
-                order_id=purchase_order.pk,
-                status=purchase_order.status,
-                data={'order_number': purchase_order.po_number},
-            )
-        except Exception:
-            pass  # Never break the main flow
+        purchase_order.refresh_from_db()
 
         return {
-            'lots_created': lots_created,
+            'item_receipt': receipt,
             'po_status': purchase_order.status,
-            'vendor_bill': vendor_bill,
         }

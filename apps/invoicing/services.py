@@ -1179,6 +1179,7 @@ class VendorBillService:
         item=None,
         expense_account=None,
         purchase_order_line=None,
+        item_receipt_line=None,
     ):
         """
         Add a line to a vendor bill.
@@ -1191,6 +1192,9 @@ class VendorBillService:
             item: Optional Item instance
             expense_account: Optional explicit expense account
             purchase_order_line: Optional PO line reference
+            item_receipt_line: Optional ItemReceiptLine reference. When set,
+                the bill will clear that receipt's GR/IR accrual on post and
+                increment the receipt line's `quantity_billed` counter.
 
         Returns:
             VendorBillLine instance
@@ -1202,6 +1206,17 @@ class VendorBillService:
         max_line = bill.lines.aggregate(max_line=Max('line_number'))['max_line'] or 0
         line_number = max_line + 10
 
+        # Guard against double-billing a receipt line beyond its quantity.
+        if item_receipt_line is not None:
+            remaining = item_receipt_line.quantity_remaining_to_bill
+            if Decimal(str(quantity)) > Decimal(str(remaining)):
+                raise ValidationError(
+                    f"Quantity {quantity} exceeds remaining unbilled "
+                    f"quantity {remaining} on receipt line "
+                    f"{item_receipt_line.receipt.receipt_number} "
+                    f"L{item_receipt_line.line_number}."
+                )
+
         line = VendorBillLine.objects.create(
             tenant=self.tenant,
             bill=bill,
@@ -1212,12 +1227,97 @@ class VendorBillService:
             quantity=quantity,
             unit_price=unit_price,
             purchase_order_line=purchase_order_line,
+            item_receipt_line=item_receipt_line,
         )
+
+        # Update the receipt line counter and roll the receipt header status
+        # so the receipts list reflects "Partially Billed" / "Billed".
+        if item_receipt_line is not None:
+            item_receipt_line.quantity_billed = (item_receipt_line.quantity_billed or 0) + int(quantity)
+            item_receipt_line.save(update_fields=['quantity_billed'])
+            receipt = item_receipt_line.receipt
+            if hasattr(receipt, '_prefetched_objects_cache'):
+                receipt._prefetched_objects_cache.pop('lines', None)
+            receipt.recompute_billing_status()
+            receipt.save(update_fields=['status'])
 
         bill.calculate_totals()
         bill.save()
 
         return line
+
+    def create_bill_from_receipts(
+        self,
+        vendor,
+        receipt_lines,
+        vendor_invoice_number,
+        due_date,
+        bill_date=None,
+        notes='',
+    ):
+        """
+        Create a draft VendorBill from one or more ItemReceiptLines.
+
+        Each input dict represents a portion of a receipt line being billed:
+            {'receipt_line': ItemReceiptLine, 'quantity': int, 'unit_price': Decimal (optional)}
+
+        If `unit_price` is omitted, the receipt line's unit_cost is used —
+        matching the receipt is the common case. Different prices are allowed
+        for handling vendor pricing adjustments at billing time.
+
+        All receipt lines must belong to the same vendor as `vendor`.
+
+        Returns:
+            VendorBill in draft status with all lines added.
+        """
+        if not receipt_lines:
+            raise ValidationError("Cannot create a bill from zero receipt lines.")
+
+        # All receipts must belong to the same vendor as the bill.
+        for entry in receipt_lines:
+            rl = entry['receipt_line']
+            if rl.receipt.vendor_id != vendor.pk:
+                raise ValidationError(
+                    f"Receipt {rl.receipt.receipt_number} is not from vendor "
+                    f"{vendor.party.display_name}."
+                )
+
+        # Pick a representative PO to link on the bill header, if all the
+        # supplied receipts share the same one. (A consolidated bill across
+        # multiple POs leaves the bill's purchase_order blank.)
+        po_ids = {entry['receipt_line'].receipt.purchase_order_id for entry in receipt_lines}
+        bill_po = None
+        if len(po_ids) == 1 and po_ids != {None}:
+            sample = receipt_lines[0]['receipt_line'].receipt.purchase_order
+            bill_po = sample
+
+        with transaction.atomic():
+            bill = self.create_bill(
+                vendor=vendor,
+                vendor_invoice_number=vendor_invoice_number,
+                due_date=due_date,
+                bill_date=bill_date,
+                purchase_order=bill_po,
+                notes=notes,
+            )
+
+            for entry in receipt_lines:
+                rl = entry['receipt_line']
+                qty = entry.get('quantity', rl.quantity_remaining_to_bill)
+                price = entry.get('unit_price', rl.unit_cost)
+                if qty <= 0:
+                    continue
+                self.add_line(
+                    bill=bill,
+                    description=f"{rl.item.name} ({rl.item.sku})",
+                    quantity=qty,
+                    unit_price=Decimal(str(price)),
+                    item=rl.item,
+                    purchase_order_line=rl.purchase_order_line,
+                    item_receipt_line=rl,
+                )
+
+            return bill
 
     # ===== GL POSTING =====
 
@@ -1261,25 +1361,41 @@ class VendorBillService:
                 "Set it on the bill, vendor, or in Accounting Settings."
             )
 
-        # Resolve expense accounts per line (validate before creating anything)
+        # Resolve debit accounts per line (validate before creating anything).
+        # Lines linked to an ItemReceiptLine clear the GR/IR accrual instead of
+        # debiting expense/inventory — the inventory hit already happened when
+        # the receipt was posted. Direct bills (no receipt link) keep the
+        # existing fallback to expense → asset → default COGS.
+        grir_account = acct_settings.default_grir_account
         line_accounts = []
-        for line in bill.lines.select_related('item').all():
-            expense_acct = line.expense_account
-            if not expense_acct and line.item:
-                expense_acct = (
-                    line.item.expense_account
-                    or line.item.asset_account  # Inventory items go to asset
-                    or acct_settings.default_cogs_account
-                )
-            if not expense_acct:
-                expense_acct = acct_settings.default_cogs_account
-            if not expense_acct:
-                item_desc = f"Item '{line.item.name}' (SKU: {line.item.sku})" if line.item else f"Line {line.line_number}"
-                raise ValidationError(
-                    f"Missing expense account for {item_desc}. "
-                    "Set it on the line, item, or in Accounting Settings."
-                )
-            line_accounts.append((line, expense_acct))
+        for line in bill.lines.select_related('item', 'item_receipt_line').all():
+            if line.item_receipt_line_id is not None:
+                if not grir_account:
+                    raise ValidationError(
+                        "Bill line is linked to an Item Receipt but no "
+                        "default_grir_account is configured in Accounting Settings."
+                    )
+                debit_acct = grir_account
+            else:
+                debit_acct = line.expense_account
+                if not debit_acct and line.item:
+                    debit_acct = (
+                        line.item.expense_account
+                        or line.item.asset_account  # Inventory items go to asset
+                        or acct_settings.default_cogs_account
+                    )
+                if not debit_acct:
+                    debit_acct = acct_settings.default_cogs_account
+                if not debit_acct:
+                    item_desc = (
+                        f"Item '{line.item.name}' (SKU: {line.item.sku})"
+                        if line.item else f"Line {line.line_number}"
+                    )
+                    raise ValidationError(
+                        f"Missing expense account for {item_desc}. "
+                        "Set it on the line, item, or in Accounting Settings."
+                    )
+            line_accounts.append((line, debit_acct))
 
         if not line_accounts:
             raise ValidationError("Cannot post bill with no lines")
@@ -1318,13 +1434,13 @@ class VendorBillService:
             )
             line_num += 10
 
-            # DEBIT: Expense/Asset accounts per bill line
-            for bill_line, expense_acct in line_accounts:
+            # DEBIT: per-line account (GR/IR for receipt-linked lines, otherwise expense/asset)
+            for bill_line, debit_acct in line_accounts:
                 JournalEntryLine.objects.create(
                     tenant=self.tenant,
                     entry=je,
                     line_number=line_num,
-                    account=expense_acct,
+                    account=debit_acct,
                     description=f"{bill_line.description}",
                     debit=bill_line.amount,
                     credit=Decimal('0.00'),

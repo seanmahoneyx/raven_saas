@@ -772,6 +772,19 @@ class AccountingSettings(TimestampMixin):
         help_text="Default account for purchase discounts received"
     )
 
+    # GR/IR accrual — "Received but Not Invoiced" clearing liability.
+    # Credited when goods are received (debits Inventory); debited when the
+    # vendor bill arrives (credits A/P). Bridges the timing gap between
+    # physical receipt and vendor invoice.
+    default_grir_account = models.ForeignKey(
+        Account,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='+',
+        help_text="Default GR/IR (Received-Not-Billed) clearing account, typically a current liability like 2050"
+    )
+
     default_sales_tax_account = models.ForeignKey(
         Account,
         on_delete=models.PROTECT,
