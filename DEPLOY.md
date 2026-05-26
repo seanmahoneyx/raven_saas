@@ -154,6 +154,16 @@ You should see the seed_pilot output confirm:
 - Standard Chart of Accounts seeded (179 accounts)
 - AccountingSettings defaults wired: AR (1110), AP (2010), Cash (1020),
   Inventory (1230), COGS (5000), Income (4000), GR/IR (2050)
+- Onboarding pre-filled (address `40 Natcon Dr, Shirley, NY 11967`,
+  phone `(631) 821-6567`, industry `distribution`, `onboarding_completed=True`)
+- Default warehouse `WH-01 / Main Warehouse` created
+- 6 default UoMs seeded: EA, CS, RL, PAL, BNDL, LB
+
+Because `onboarding_completed=True` is set, the in-app onboarding wizard is
+**bypassed for every user on this tenant** — testers go straight to the
+dashboard after login. If you ever want to revisit the wizard (e.g. to add
+more UoMs through the UI), set `onboarding_completed=False` on the tenant
+from Django admin or the shell.
 
 If you forget the GR/IR default and try to post a receipt-linked vendor bill
 later, you'll get a `ValidationError` telling you to set it in Accounting
@@ -165,7 +175,8 @@ Settings — easy to recover from, but the seed handles it for you.
 
 1. In a browser: `http://<droplet-ip>`
 2. Log in as `admin` with the password you just set.
-3. Confirm you can see the dashboard.
+3. Confirm you land directly on the dashboard (no onboarding wizard —
+   `seed_pilot` pre-completes it).
 4. Go to **Admin → Data Import** and download a CSV template to verify
    the admin route loads.
 5. Upload a small Customers CSV with `commit=false` (dry run) to verify
@@ -181,6 +192,42 @@ Settings — easy to recover from, but the seed handles it for you.
    the new draft Bill should appear linked to the receipt; posting it
    should clear the GR/IR accrual (verify in Journal Entries: a posted JE
    debits 2050 GR/IR, credits 2010 A/P).
+
+---
+
+## 7a. Create pilot tester accounts
+
+The `User` model has no tenant FK — `TenantMiddleware` resolves tenant from
+subdomain/default per-request, so every account on this Django instance
+automatically scopes to the seeded default tenant. Tester creation is
+therefore just "make a user with a password":
+
+**Option A — Django admin (recommended for one-off creates):**
+
+1. Log in at `http://<droplet-ip>/admin/` as `admin`.
+2. **Authentication and Authorization → Users → Add user**.
+3. Username + password → Save.
+4. On the next screen: leave `is_staff` and `is_superuser` **off** (unless
+   you want them in /admin), set `is_active` = **on**, fill in name/email
+   if useful, Save.
+5. Hand the tester their username + password. They log in at
+   `http://<droplet-ip>/` (not /admin) and land on the dashboard.
+
+**Option B — Shell one-liner (fast for batch creates):**
+
+```bash
+docker compose exec web python manage.py shell -c "
+from django.contrib.auth import get_user_model
+U = get_user_model()
+for username, pwd in [('alice', 'changeme1'), ('bob', 'changeme2')]:
+    u, created = U.objects.get_or_create(username=username, defaults={'is_active': True})
+    u.set_password(pwd); u.is_active = True; u.save()
+    print(('created' if created else 'updated'), username)
+"
+```
+
+Have testers change their password on first login (top-right user menu →
+account settings, or `/admin/password_change/` if they're staff).
 
 ---
 

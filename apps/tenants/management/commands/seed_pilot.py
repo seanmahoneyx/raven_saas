@@ -22,7 +22,9 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
 from apps.accounting.models import Account, AccountingSettings
+from apps.items.models import UnitOfMeasure
 from apps.tenants.models import Tenant
+from apps.warehousing.models import Warehouse
 from shared.managers import set_current_tenant
 
 
@@ -30,6 +32,22 @@ DEFAULT_TENANT_NAME = 'MS Packaging & Supply Distribution'
 DEFAULT_TENANT_SUBDOMAIN = 'localhost'
 DEFAULT_ADMIN_USERNAME = 'admin'
 DEFAULT_ADMIN_EMAIL = 'seanmahoney621@gmail.com'
+
+# Pre-filled onboarding data so pilot testers skip the wizard and land
+# straight in the dashboard. See _complete_onboarding below.
+DEFAULT_COMPANY_ADDRESS = '40 Natcon Dr, Shirley, NY 11967'
+DEFAULT_COMPANY_PHONE = '(631) 821-6567'
+DEFAULT_INDUSTRY = 'distribution'
+DEFAULT_WAREHOUSE_CODE = 'WH-01'
+DEFAULT_WAREHOUSE_NAME = 'Main Warehouse'
+DEFAULT_UOMS = [
+    ('EA', 'Each'),
+    ('CS', 'Case'),
+    ('RL', 'Roll'),
+    ('PAL', 'Pallet'),
+    ('BNDL', 'Bundle'),
+    ('LB', 'Pound'),
+]
 
 # Account codes used by the standard seed_coa CHART_OF_ACCOUNTS. If you change
 # the chart, update these to match (or the AccountingSettings wiring step will
@@ -73,6 +91,7 @@ class Command(BaseCommand):
         if not options['skip_coa']:
             self._ensure_chart_of_accounts(tenant)
             self._wire_accounting_defaults(tenant)
+        self._complete_onboarding(tenant)
         self._print_next_steps(options['admin_username'])
 
     def _ensure_tenant(self, name):
@@ -128,6 +147,11 @@ class Command(BaseCommand):
 
     def _ensure_chart_of_accounts(self, tenant):
         """Seed the standard CoA if the tenant has no accounts yet."""
+        # Account.objects is tenant-aware and AND-combines with the thread-local
+        # current_tenant. Management commands start with no tenant set, which
+        # makes the "already seeded?" check return 0 and triggers a duplicate
+        # seed_coa run (UNIQUE constraint on (tenant_id, code) blows up).
+        set_current_tenant(tenant)
         existing = Account.objects.filter(tenant=tenant).count()
         if existing:
             self.stdout.write(self.style.WARNING(
@@ -167,6 +191,76 @@ class Command(BaseCommand):
             '  AccountingSettings defaults wired (AR, AP, Cash, Inventory, COGS, Income, GR/IR)'
         ))
 
+    def _complete_onboarding(self, tenant):
+        """Pre-fill onboarding artifacts so testers skip the wizard entirely.
+
+        Sets company fields, creates one default warehouse, seeds the
+        distributor UoM list, and flips onboarding_completed=True so the
+        OnboardingGuard in the frontend lets users straight into the app.
+        Idempotent: re-running won't overwrite hand-edited values.
+        """
+        set_current_tenant(tenant)
+
+        changed = []
+        if not tenant.company_address:
+            tenant.company_address = DEFAULT_COMPANY_ADDRESS
+            changed.append('company_address')
+        if not tenant.company_phone:
+            tenant.company_phone = DEFAULT_COMPANY_PHONE
+            changed.append('company_phone')
+        if not tenant.industry:
+            tenant.industry = DEFAULT_INDUSTRY
+            changed.append('industry')
+        if not tenant.onboarding_completed:
+            tenant.onboarding_completed = True
+            tenant.onboarding_step = 5
+            changed.extend(['onboarding_completed', 'onboarding_step'])
+        if changed:
+            tenant.save(update_fields=changed)
+            self.stdout.write(self.style.SUCCESS(
+                f'  Onboarding pre-filled: {", ".join(changed)}'
+            ))
+        else:
+            self.stdout.write(self.style.WARNING(
+                '  Onboarding already configured - tenant fields untouched.'
+            ))
+
+        warehouse, wh_created = Warehouse.objects.get_or_create(
+            tenant=tenant,
+            code=DEFAULT_WAREHOUSE_CODE,
+            defaults={
+                'name': DEFAULT_WAREHOUSE_NAME,
+                'is_default': True,
+                'is_active': True,
+            },
+        )
+        if wh_created:
+            self.stdout.write(self.style.SUCCESS(
+                f'  Created default warehouse: {warehouse.code} ({warehouse.name})'
+            ))
+        else:
+            self.stdout.write(self.style.WARNING(
+                f'  Default warehouse already exists: {warehouse.code} ({warehouse.name})'
+            ))
+
+        uom_created = 0
+        for code, name in DEFAULT_UOMS:
+            _, created = UnitOfMeasure.objects.get_or_create(
+                tenant=tenant,
+                code=code,
+                defaults={'name': name, 'is_active': True},
+            )
+            if created:
+                uom_created += 1
+        if uom_created:
+            self.stdout.write(self.style.SUCCESS(
+                f'  Seeded {uom_created} unit(s) of measure'
+            ))
+        else:
+            self.stdout.write(self.style.WARNING(
+                '  All default UoMs already exist - none added.'
+            ))
+
     def _print_next_steps(self, username):
         self.stdout.write('')
         self.stdout.write(self.style.NOTICE('Next steps:'))
@@ -174,5 +268,10 @@ class Command(BaseCommand):
             f'  1. Set the admin password:  python manage.py changepassword {username}'
         ))
         self.stdout.write(self.style.NOTICE(
-            '  2. Log in at the deployed URL and import data via Admin -> Data Import'
+            '  2. Create pilot tester accounts (Django admin or createsuperuser/'
+            'createuser) and hand out the credentials - the onboarding wizard '
+            'is pre-completed so they land straight in the dashboard.'
+        ))
+        self.stdout.write(self.style.NOTICE(
+            '  3. Import historical data via Admin -> Data Import.'
         ))
