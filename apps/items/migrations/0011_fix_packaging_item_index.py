@@ -9,9 +9,10 @@ class Migration(migrations.Migration):
         ('items', '0010_add_packaging_item'),
     ]
 
-    operations = [
-        migrations.RemoveIndex(
-            model_name='packagingitem',
-            name='items_packa_tenant__923f50_idx',
-        ),
-    ]
+    # The RemoveIndex op this migration used to perform paired with an
+    # AddIndex in 0010 that has been removed (it was a Django bug under
+    # multi-table inheritance — see note in 0010). On dev DBs both
+    # migrations are already recorded as applied; on fresh DBs they are
+    # both no-ops. Either way the end state matches the model (no index
+    # on packagingitem).
+    operations = []

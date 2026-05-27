@@ -185,8 +185,11 @@ class Migration(migrations.Migration):
             name='tenant',
             field=models.ForeignKey(blank=True, db_constraint=False, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='tenants.tenant'),
         ),
-        migrations.AddIndex(
-            model_name='packagingitem',
-            index=models.Index(fields=['tenant', 'sub_type'], name='items_packa_tenant__923f50_idx'),
-        ),
+        # NOTE: The original AddIndex(fields=['tenant', 'sub_type']) on
+        # packagingitem was a Django bug under multi-table inheritance: the
+        # `tenant` column lives on the parent items_item table, not on the
+        # child items_packagingitem table, so Postgres rejects the index.
+        # SQLite silently allowed it in dev. Migration 0011 used to remove
+        # it; since both are no-ops on a fresh DB, we drop the operation
+        # here entirely.
     ]
