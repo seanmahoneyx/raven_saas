@@ -82,19 +82,26 @@ class TenantMiddleware:
         host = request.get_host().split(':')[0]  # Remove port if present
         parts = host.split('.')
 
-        if len(parts) >= 2:
+        # Skip subdomain lookup entirely when host is a raw IPv4 address
+        # (e.g., the initial pilot at http://159.203.109.50/) — otherwise
+        # we'd try to match a tenant with subdomain="159" and miss the
+        # default-tenant fallback below.
+        is_ipv4 = len(parts) == 4 and all(part.isdigit() for part in parts)
+
+        if not is_ipv4 and len(parts) >= 2:
             subdomain = parts[0]
 
             # Skip common non-tenant subdomains
             if subdomain not in ['www', 'api', 'admin', 'localhost', '127']:
-                try:
-                    return Tenant.objects.filter(
-                        subdomain=subdomain,
-                        is_active=True
-                    ).first()
-                except Tenant.DoesNotExist:
-                    pass
+                matched = Tenant.objects.filter(
+                    subdomain=subdomain,
+                    is_active=True
+                ).first()
+                if matched:
+                    return matched
+                # No match — fall through to the default-tenant fallback
+                # instead of returning None here.
 
-        # Strategy 3: Fallback to default tenant (for development)
-        # This allows local development at http://localhost:8000
+        # Strategy 3: Fallback to default tenant (for development and
+        # IP-only / single-tenant deploys like the pilot).
         return Tenant.objects.filter(is_default=True, is_active=True).first()
