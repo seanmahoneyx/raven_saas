@@ -386,20 +386,24 @@ if _sentry_dsn:
     )
 
 # Security Settings (Production)
-# These are disabled in DEBUG mode for local development
+# These are disabled in DEBUG mode for local development.
+# HTTPS-dependent flags are additionally gated on FORCE_HTTPS so an
+# initial pilot can run on http://<ip> until a domain + TLS are wired up.
+FORCE_HTTPS = config('FORCE_HTTPS', default='True', cast=bool)
 if not DEBUG:
-    # HTTPS/SSL
-    SECURE_SSL_REDIRECT = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    if FORCE_HTTPS:
+        # HTTPS/SSL
+        SECURE_SSL_REDIRECT = True
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-    # HSTS (HTTP Strict Transport Security)
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+        # HSTS (HTTP Strict Transport Security)
+        SECURE_HSTS_SECONDS = 31536000  # 1 year
+        SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+        SECURE_HSTS_PRELOAD = True
 
-    # Cookie Security
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+        # Cookie Security
+        SESSION_COOKIE_SECURE = True
+        CSRF_COOKIE_SECURE = True
 
     # Content Security
     SECURE_CONTENT_TYPE_NOSNIFF = True
