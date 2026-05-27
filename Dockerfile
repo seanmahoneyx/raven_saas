@@ -80,6 +80,7 @@ COPY manage.py gunicorn.conf.py ./
 COPY raven/ ./raven/
 COPY apps/ ./apps/
 COPY users/ ./users/
+COPY theme/ ./theme/
 COPY templates/ ./templates/
 
 # Copy frontend build output
