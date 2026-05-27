@@ -29,8 +29,13 @@ COOKIE_MAX_AGE_REFRESH = 60 * 60 * 24 * 7  # 7 days
 
 
 def _get_cookie_settings():
-    """Get cookie settings based on DEBUG mode."""
-    secure = not settings.DEBUG  # Only secure in production
+    """Get cookie settings.
+
+    Secure flag is on only when the deployment forces HTTPS. An http-only
+    pilot (FORCE_HTTPS=False) must NOT set Secure or the browser silently
+    drops the cookie and login never persists.
+    """
+    secure = not settings.DEBUG and getattr(settings, 'FORCE_HTTPS', True)
     return {
         'httponly': True,
         'secure': secure,
