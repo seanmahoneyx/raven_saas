@@ -7,7 +7,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { useItemReceipt, useCreateBillFromReceipt } from '@/api/inventory'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency } from '@/lib/format'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 
 export default function ItemReceiptDetail() {
   const { id } = useParams<{ id: string }>()

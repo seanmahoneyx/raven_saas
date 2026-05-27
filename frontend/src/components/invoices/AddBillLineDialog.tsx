@@ -9,7 +9,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useItems } from '@/api/items'
 import { useAddBillLine } from '@/api/invoicing'
