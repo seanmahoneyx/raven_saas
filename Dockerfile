@@ -23,7 +23,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 2: Python backend
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim AS backend-builder
+FROM python:3.12-slim-bookworm AS backend-builder
 
 # Prevent Python from writing bytecode and enable unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -52,7 +52,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt \
 # ---------------------------------------------------------------------------
 # Stage 3: Final production image
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
