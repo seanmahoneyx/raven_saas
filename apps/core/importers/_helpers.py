@@ -34,13 +34,38 @@ def int_or_none(value):
 
 
 def validate_party_basics(row, row_num, errors):
-    """Append errors for Code/Name/PaymentTerms required fields. Mutates errors list in place."""
-    if not row.get('Code'):
-        errors.append(f"Row {row_num}: Code is required.")
+    """Append errors for Name/PaymentTerms required fields. Mutates errors list in place.
+
+    Code is optional — when blank, importers auto-generate CUST-NNN / VEND-NNN
+    via `generate_next_party_code()` below.
+    """
     if not row.get('Name'):
         errors.append(f"Row {row_num}: Name is required.")
     if not row.get('PaymentTerms'):
         errors.append(f"Row {row_num}: PaymentTerms is required.")
+
+
+def generate_next_party_code(tenant, prefix, width=3):
+    """Return the next available `{prefix}NNN` Party code for this tenant.
+
+    Scans existing Party.code values matching the prefix and increments the
+    max numeric suffix. Same race-condition profile as Item._generate_mspn:
+    safe for serial/single-user imports, not safe under concurrent creates
+    (will be migrated to TenantSequence.select_for_update — see backlog).
+    """
+    import re
+    from apps.parties.models import Party
+    pattern = re.compile(rf'^{re.escape(prefix)}(\d+)$')
+    max_num = 0
+    for code in Party.objects.filter(
+        tenant=tenant, code__startswith=prefix
+    ).values_list('code', flat=True):
+        match = pattern.match(code or '')
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+    return f"{prefix}{str(max_num + 1).zfill(width)}"
 
 
 def validate_credit_limit(row, row_num, errors):

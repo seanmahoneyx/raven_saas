@@ -71,15 +71,21 @@ class PartyImporter(BaseCsvImporter):
     """
     Import parties (customers/vendors) from CSV.
 
-    Required columns: Code, Name, Type
-    Optional columns: LegalName, Email, Phone, Notes
+    Required columns: Name, Type
+    Optional columns: Code (auto-generated as CUST-NNN / VEND-NNN / PRTY-NNN
+        based on Type if blank), LegalName, Email, Phone, Notes
     """
-    required_columns = ['Code', 'Name', 'Type']
+    required_columns = ['Name', 'Type']
+
+    _TYPE_PREFIX = {
+        'CUSTOMER': 'CUST-',
+        'VENDOR': 'VEND-',
+        'BOTH': 'CUST-',  # BOTH starts life as a customer code
+        'OTHER': 'PRTY-',
+    }
 
     def validate_row(self, row_num, row):
         errors = []
-        if not row.get('Code'):
-            errors.append(f"Row {row_num}: Code is required.")
         if not row.get('Name'):
             errors.append(f"Row {row_num}: Name is required.")
 
@@ -89,17 +95,23 @@ class PartyImporter(BaseCsvImporter):
         elif party_type not in VALID_PARTY_TYPES:
             errors.append(f"Row {row_num}: Invalid Type '{party_type}'. Must be one of: {', '.join(VALID_PARTY_TYPES)}")
 
-        # Check code uniqueness
-        code = row.get('Code', '')
+        # Uniqueness check only when an explicit Code is provided.
+        # Blank Code is allowed: process_row auto-generates by type.
+        code = row.get('Code', '').strip()
         if code and Party.objects.filter(tenant=self.tenant, code=code).exists():
             errors.append(f"Row {row_num}: Party code '{code}' already exists.")
 
         return errors
 
     def process_row(self, row_num, row):
+        from ._helpers import generate_next_party_code
+        code = row.get('Code', '').strip()
+        if not code:
+            prefix = self._TYPE_PREFIX.get(row['Type'].upper(), 'PRTY-')
+            code = generate_next_party_code(self.tenant, prefix)
         party, created = Party.objects.update_or_create(
             tenant=self.tenant,
-            code=row['Code'],
+            code=code,
             defaults={
                 'display_name': row['Name'],
                 'party_type': row['Type'].upper(),

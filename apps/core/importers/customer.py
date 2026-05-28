@@ -11,6 +11,7 @@ from ._helpers import (
     validate_credit_limit,
     validate_address_completeness,
     upsert_party_address,
+    generate_next_party_code,
 )
 
 
@@ -18,12 +19,13 @@ class CustomerImporter(BaseCsvImporter):
     """
     Import customers from CSV.
 
-    Required columns: Code, Name, PaymentTerms
-    Optional columns: LegalName, Email, Phone, Notes, CustomerType, TaxCode,
-                      ResaleNumber, CreditLimit, ChargeFreight,
-                      Address1, Address2, City, State, PostalCode, Country
+    Required columns: Name, PaymentTerms
+    Optional columns: Code (auto-generated as CUST-NNN if blank), LegalName,
+                      Email, Phone, Notes, CustomerType, TaxCode, ResaleNumber,
+                      CreditLimit, ChargeFreight, Address1, Address2, City,
+                      State, PostalCode, Country
     """
-    required_columns = ['Code', 'Name', 'PaymentTerms']
+    required_columns = ['Name', 'PaymentTerms']
 
     _VALID_CUSTOMER_TYPES = [c[0] for c in Customer.CUSTOMER_TYPE_CHOICES]
 
@@ -43,7 +45,9 @@ class CustomerImporter(BaseCsvImporter):
         return errors
 
     def process_row(self, row_num, row):
-        code = row['Code']
+        code = row.get('Code', '').strip()
+        if not code:
+            code = generate_next_party_code(self.tenant, 'CUST-')
         display_name = row['Name']
 
         # Determine party_type promotion

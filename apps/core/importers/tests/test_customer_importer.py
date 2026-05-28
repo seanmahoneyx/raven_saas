@@ -220,3 +220,17 @@ class CustomerImporterTestCase(TestCase):
         self.assertEqual(result['errors'], [])
         cust = Customer.objects.get(tenant=self.tenant, party=party)
         self.assertEqual(cust.tax_code, 'NEW-TAX')
+
+    def test_blank_code_auto_generates_sequential_cust(self):
+        """Blank Code in a row assigns the next CUST-NNN, multiple blank rows increment."""
+        f = make_csv(
+            base_row(Code='', Name='Auto One'),
+            base_row(Code='', Name='Auto Two'),
+        )
+        result = self._importer().run(f, commit=True)
+        self.assertEqual(result['errors'], [])
+        codes = sorted(
+            Party.objects.filter(tenant=self.tenant, code__startswith='CUST-')
+            .values_list('code', flat=True)
+        )
+        self.assertEqual(codes, ['CUST-001', 'CUST-002'])

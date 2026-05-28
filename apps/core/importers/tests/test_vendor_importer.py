@@ -208,3 +208,17 @@ class VendorImporterTestCase(TestCase):
         self.assertEqual(result['errors'], [])
         vend = Vendor.objects.get(tenant=self.tenant, party=party)
         self.assertEqual(vend.tax_code, 'NEW-VTX')
+
+    def test_blank_code_auto_generates_sequential_vend(self):
+        """Blank Code in a row assigns the next VEND-NNN, multiple blank rows increment."""
+        f = make_csv(
+            base_row(Code='', Name='Auto Vendor One'),
+            base_row(Code='', Name='Auto Vendor Two'),
+        )
+        result = self._importer().run(f, commit=True)
+        self.assertEqual(result['errors'], [])
+        codes = sorted(
+            Party.objects.filter(tenant=self.tenant, code__startswith='VEND-')
+            .values_list('code', flat=True)
+        )
+        self.assertEqual(codes, ['VEND-001', 'VEND-002'])

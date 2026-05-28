@@ -11,6 +11,7 @@ from ._helpers import (
     validate_credit_limit,
     validate_address_completeness,
     upsert_party_address,
+    generate_next_party_code,
 )
 
 
@@ -18,12 +19,13 @@ class VendorImporter(BaseCsvImporter):
     """
     Import vendors from CSV.
 
-    Required columns: Code, Name, PaymentTerms
-    Optional columns: LegalName, Email, Phone, Notes, VendorType, TaxCode, TaxId,
-                      CreditLimit, ChargeFreight,
-                      Address1, Address2, City, State, PostalCode, Country
+    Required columns: Name, PaymentTerms
+    Optional columns: Code (auto-generated as VEND-NNN if blank), LegalName,
+                      Email, Phone, Notes, VendorType, TaxCode, TaxId,
+                      CreditLimit, ChargeFreight, Address1, Address2, City,
+                      State, PostalCode, Country
     """
-    required_columns = ['Code', 'Name', 'PaymentTerms']
+    required_columns = ['Name', 'PaymentTerms']
 
     _VALID_VENDOR_TYPES = [v[0] for v in Vendor.VENDOR_TYPE_CHOICES]
 
@@ -43,7 +45,9 @@ class VendorImporter(BaseCsvImporter):
         return errors
 
     def process_row(self, row_num, row):
-        code = row['Code']
+        code = row.get('Code', '').strip()
+        if not code:
+            code = generate_next_party_code(self.tenant, 'VEND-')
         display_name = row['Name']
 
         # Determine party_type promotion
