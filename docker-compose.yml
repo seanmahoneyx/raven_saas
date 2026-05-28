@@ -83,6 +83,10 @@ services:
   # bundle without manual `docker compose cp` plumbing.
   frontend-publisher:
     image: raven-web
+    # Run as root so we can write into the empty named volume on first boot
+    # (the web image's USER raven has no write access to a fresh root-owned
+    # volume mount). Only used for the one-shot copy; nginx mounts read-only.
+    user: "0:0"
     depends_on:
       - web
     command: >
