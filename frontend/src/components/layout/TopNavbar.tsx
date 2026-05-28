@@ -427,7 +427,7 @@ export default function TopNavbar() {
       </NavLink>
 
       {/* Navigation */}
-      <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 scrollbar-hide">
+      <nav className="flex-1 flex items-center gap-1 overflow-x-auto min-w-0 scrollbar-hide pl-1 pr-1 py-1">
         {navigationStructure.map((item) => {
           // Skip admin-only items if not admin
           if (item.type === 'dropdown' && item.requiresAdmin && !isAdmin) {
