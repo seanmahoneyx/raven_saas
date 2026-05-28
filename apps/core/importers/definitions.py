@@ -125,15 +125,14 @@ class ItemImporter(BaseCsvImporter):
     """
     Import items from CSV.
 
-    Required columns: SKU, Name, UOM
-    Optional columns: Description, Division, PurchDesc, SellDesc
+    Required columns: Name, UOM
+    Optional columns: SKU (auto-generated as MSPN-000001 if blank — see
+        Item.save()), Description, Division, PurchDesc, SellDesc
     """
-    required_columns = ['SKU', 'Name', 'UOM']
+    required_columns = ['Name', 'UOM']
 
     def validate_row(self, row_num, row):
         errors = []
-        if not row.get('SKU'):
-            errors.append(f"Row {row_num}: SKU is required.")
         if not row.get('Name'):
             errors.append(f"Row {row_num}: Name is required.")
         if not row.get('UOM'):
@@ -144,8 +143,9 @@ class ItemImporter(BaseCsvImporter):
         if uom_code and not UnitOfMeasure.objects.filter(tenant=self.tenant, code=uom_code).exists():
             errors.append(f"Row {row_num}: UOM '{uom_code}' not found. Create it first.")
 
-        # Validate SKU uniqueness
-        sku = row.get('SKU', '')
+        # Validate SKU uniqueness only when an explicit SKU is provided.
+        # Blank SKU is allowed: Item.save() auto-generates MSPN-NNNNNN.
+        sku = row.get('SKU', '').strip()
         if sku and Item.objects.filter(tenant=self.tenant, sku=sku).exists():
             errors.append(f"Row {row_num}: SKU '{sku}' already exists.")
 
@@ -171,25 +171,34 @@ class ItemImporter(BaseCsvImporter):
     def process_row(self, row_num, row):
         uom = UnitOfMeasure.objects.get(tenant=self.tenant, code=row['UOM'])
         division = row.get('Division', '').lower() or 'misc'
+        sku = row.get('SKU', '').strip()
 
-        _, created = Item.objects.update_or_create(
-            tenant=self.tenant,
-            sku=row['SKU'],
-            defaults={
-                'name': row['Name'],
-                'base_uom': uom,
-                'division': division,
-                'description': row.get('Description', ''),
-                'purch_desc': row.get('PurchDesc', ''),
-                'sell_desc': row.get('SellDesc', ''),
-                'secondary_ident': row.get('SecondaryIdent', ''),
-                'reorder_point': int_or_none(row.get('ReorderPoint')),
-                'min_stock': int_or_none(row.get('MinStock')),
-                'is_active': True,
-                'item_type': 'inventory',
-            },
-        )
-        return 'created' if created else 'updated'
+        common_fields = {
+            'name': row['Name'],
+            'base_uom': uom,
+            'division': division,
+            'description': row.get('Description', ''),
+            'purch_desc': row.get('PurchDesc', ''),
+            'sell_desc': row.get('SellDesc', ''),
+            'secondary_ident': row.get('SecondaryIdent', ''),
+            'reorder_point': int_or_none(row.get('ReorderPoint')),
+            'min_stock': int_or_none(row.get('MinStock')),
+            'is_active': True,
+            'item_type': 'inventory',
+        }
+
+        if sku:
+            # Explicit SKU → idempotent upsert keyed by (tenant, sku)
+            _, created = Item.objects.update_or_create(
+                tenant=self.tenant,
+                sku=sku,
+                defaults=common_fields,
+            )
+            return 'created' if created else 'updated'
+
+        # Blank SKU → always create a new item; Item.save() fills MSPN-NNNNNN
+        Item.objects.create(tenant=self.tenant, **common_fields)
+        return 'created'
 
 
 class GLOpeningBalanceImporter(BaseCsvImporter):
