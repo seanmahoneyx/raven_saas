@@ -67,6 +67,65 @@ class DataImportView(APIView):
         response['Content-Disposition'] = f'attachment; filename="{safe}-template.csv"'
         return response
 
+    @extend_schema(
+        tags=['admin'],
+        summary='Import data from CSV file',
+        description='Upload CSV for locations, parties, items, warehouses, customers, vendors, or inventory. Use commit=false for dry run.',
+    )
+    def post(self, request, import_type):
+        # Validate import type
+        if import_type not in IMPORTER_MAP:
+            return Response(
+                {'detail': f"Invalid import type '{import_type}'. Must be one of: {', '.join(IMPORTER_MAP.keys())}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file
+        if 'file' not in request.FILES:
+            return Response(
+                {'detail': 'No file uploaded. Send a CSV file in the "file" field.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        file = request.FILES['file']
+        if not file.name.endswith('.csv'):
+            return Response(
+                {'detail': 'Only CSV files are supported.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # File size cap (F2)
+        if file.size > MAX_CSV_BYTES:
+            return Response(
+                {'detail': 'File exceeds 10 MB limit.'},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        # Parse commit flag
+        commit = request.data.get('commit', 'false').lower() == 'true'
+
+        # Run importer
+        ImporterClass = IMPORTER_MAP[import_type]
+        importer = ImporterClass(tenant=request.tenant, user=request.user)
+        report = importer.run(file, commit=commit)
+
+        # Build response
+        response_data = {
+            'import_type': import_type,
+            'mode': 'commit' if commit else 'dry_run',
+            'total': report['total'],
+            'valid': report['valid'],
+            'created': report['created'],
+            'updated': report['updated'],
+            'error_count': len(report['errors']),
+            'errors': report['errors'],
+        }
+
+        if commit and not report['errors']:
+            response_data['message'] = f"Successfully imported {report['created']} new and updated {report['updated']} existing records."
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
 class DataImportTemplateBundleView(APIView):
     """
@@ -129,62 +188,3 @@ class DataImportTemplateBundleView(APIView):
         response = HttpResponse(buf.getvalue(), content_type='application/zip')
         response['Content-Disposition'] = 'attachment; filename="raven-import-templates.zip"'
         return response
-
-    @extend_schema(
-        tags=['admin'],
-        summary='Import data from CSV file',
-        description='Upload CSV for locations, parties, items, warehouses, customers, vendors, or inventory. Use commit=false for dry run.',
-    )
-    def post(self, request, import_type):
-        # Validate import type
-        if import_type not in IMPORTER_MAP:
-            return Response(
-                {'detail': f"Invalid import type '{import_type}'. Must be one of: {', '.join(IMPORTER_MAP.keys())}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Validate file
-        if 'file' not in request.FILES:
-            return Response(
-                {'detail': 'No file uploaded. Send a CSV file in the "file" field.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        file = request.FILES['file']
-        if not file.name.endswith('.csv'):
-            return Response(
-                {'detail': 'Only CSV files are supported.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # File size cap (F2)
-        if file.size > MAX_CSV_BYTES:
-            return Response(
-                {'detail': 'File exceeds 10 MB limit.'},
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
-
-        # Parse commit flag
-        commit = request.data.get('commit', 'false').lower() == 'true'
-
-        # Run importer
-        ImporterClass = IMPORTER_MAP[import_type]
-        importer = ImporterClass(tenant=request.tenant, user=request.user)
-        report = importer.run(file, commit=commit)
-
-        # Build response
-        response_data = {
-            'import_type': import_type,
-            'mode': 'commit' if commit else 'dry_run',
-            'total': report['total'],
-            'valid': report['valid'],
-            'created': report['created'],
-            'updated': report['updated'],
-            'error_count': len(report['errors']),
-            'errors': report['errors'],
-        }
-
-        if commit and not report['errors']:
-            response_data['message'] = f"Successfully imported {report['created']} new and updated {report['updated']} existing records."
-
-        return Response(response_data, status=status.HTTP_200_OK)
