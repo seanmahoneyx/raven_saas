@@ -60,7 +60,7 @@ class Party(TenantMixin, TimestampMixin):
         help_text="Inactive parties are hidden from selections"
     )
     main_phone = models.CharField(
-        max_length=30,
+        max_length=50,
         blank=True,
         help_text="Primary phone number"
     )
@@ -417,7 +417,7 @@ class Location(TenantMixin, TimestampMixin):
     postal_code = models.CharField(max_length=20)
     country = models.CharField(max_length=100, default='USA')
     phone = models.CharField(
-        max_length=20,
+        max_length=50,
         blank=True,
         help_text="Location contact phone"
     )

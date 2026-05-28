@@ -85,6 +85,7 @@ class PartyImporter(BaseCsvImporter):
     }
 
     def validate_row(self, row_num, row):
+        from ._helpers import validate_phone_lengths
         errors = []
         if not row.get('Name'):
             errors.append(f"Row {row_num}: Name is required.")
@@ -101,6 +102,7 @@ class PartyImporter(BaseCsvImporter):
         if code and Party.objects.filter(tenant=self.tenant, code=code).exists():
             errors.append(f"Row {row_num}: Party code '{code}' already exists.")
 
+        validate_phone_lengths(row, row_num, errors)
         return errors
 
     def process_row(self, row_num, row):

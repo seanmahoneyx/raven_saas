@@ -68,6 +68,21 @@ def generate_next_party_code(tenant, prefix, width=3):
     return f"{prefix}{str(max_num + 1).zfill(width)}"
 
 
+PHONE_MAX_LENGTH = 50  # matches Party.main_phone / Location.phone
+
+
+def validate_phone_lengths(row, row_num, errors):
+    """Append errors if Phone (and any subsidiary Phone columns) exceed the
+    model's max_length. Prevents StringDataRightTruncation 500s — surfaces
+    as a clean row-level validation error instead."""
+    phone = (row.get('Phone') or '').strip()
+    if phone and len(phone) > PHONE_MAX_LENGTH:
+        errors.append(
+            f"Row {row_num}: Phone exceeds {PHONE_MAX_LENGTH} characters "
+            f"(was {len(phone)})."
+        )
+
+
 def validate_credit_limit(row, row_num, errors):
     """Append error if CreditLimit present and invalid (non-decimal or negative)."""
     raw = row.get('CreditLimit', '').strip()

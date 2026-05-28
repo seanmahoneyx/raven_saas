@@ -10,6 +10,7 @@ from ._helpers import (
     validate_party_basics,
     validate_credit_limit,
     validate_address_completeness,
+    validate_phone_lengths,
     upsert_party_address,
     generate_next_party_code,
 )
@@ -32,6 +33,7 @@ class CustomerImporter(BaseCsvImporter):
     def validate_row(self, row_num, row):
         errors = []
         validate_party_basics(row, row_num, errors)
+        validate_phone_lengths(row, row_num, errors)
 
         customer_type = row.get('CustomerType', '').strip().upper()
         if customer_type and customer_type not in self._VALID_CUSTOMER_TYPES:
