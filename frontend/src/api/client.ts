@@ -60,12 +60,18 @@ const processQueue = (error: Error | null, token: string | null = null) => {
   failedQueue = []
 }
 
+// Auth endpoints whose 401s mean "bad credentials" — never trigger refresh /
+// /login redirect for these, or the Login page's error message gets stomped
+// by a hard navigation before it can render.
+const AUTH_ENDPOINTS = ['/auth/login/', '/auth/token/', '/auth/refresh/', '/auth/token/refresh/', '/auth/logout/']
+const isAuthEndpoint = (url?: string) => !!url && AUTH_ENDPOINTS.some(ep => url.endsWith(ep))
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint(originalRequest.url)) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
