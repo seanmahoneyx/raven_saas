@@ -40,8 +40,9 @@ CHANGED="$(git diff --name-only "$BEFORE" "$AFTER")"
 log "Files changed:"
 printf '    %s\n' $CHANGED
 
-# Anything that ends up baked into the web image
-if echo "$CHANGED" | grep -qE '^(apps/|shared/|theme/|frontend/|raven/|requirements\.txt|Dockerfile)'; then
+# Anything that ends up baked into the web image (must mirror the COPY
+# directives in Dockerfile — if a path is added there, add it here too).
+if echo "$CHANGED" | grep -qE '^(apps/|users/|shared/|theme/|raven/|templates/|frontend/|manage\.py|gunicorn\.conf\.py|requirements\.txt|Dockerfile)'; then
     log "Backend/frontend changes detected — rebuilding web image..."
     docker compose build web
 else
