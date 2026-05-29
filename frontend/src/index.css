@@ -115,47 +115,12 @@
 .delay-4 { animation-delay: 0.2s; }
 
 /* ═══════════════════════════════════════════════
-   DARK MODE — the signature Raven look
+   DARK MODE — opt-in only via :root.dark
+   (OS prefers-color-scheme auto-switch disabled
+    until --so-* design tokens get dark variants;
+    otherwise so-* text/surface stays light and
+    becomes invisible on Tailwind dark backgrounds)
    ═══════════════════════════════════════════════ */
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --color-background: hsl(0 0% 7%);
-    --color-foreground: hsl(0 0% 98%);
-    --color-card: hsl(260 4% 10%);
-    --color-card-foreground: hsl(0 0% 98%);
-    --color-popover: hsl(260 4% 10%);
-    --color-popover-foreground: hsl(0 0% 98%);
-    --color-primary: hsl(187 100% 50%);
-    --color-primary-foreground: hsl(0 0% 5%);
-    --color-secondary: hsl(265 100% 46%);
-    --color-secondary-foreground: hsl(0 0% 98%);
-    --color-muted: hsl(260 5% 14%);
-    --color-muted-foreground: hsl(0 0% 75%);
-    --color-accent: hsl(265 50% 14%);
-    --color-accent-foreground: hsl(265 80% 72%);
-    --color-destructive: hsl(0 72% 45%);
-    --color-destructive-foreground: hsl(0 0% 98%);
-    --color-border: hsl(260 5% 16%);
-    --color-input: hsl(260 5% 16%);
-    --color-ring: hsl(187 100% 50%);
-
-    --color-sidebar: hsl(0 0% 4%);
-    --color-sidebar-foreground: hsl(0 0% 75%);
-    --color-sidebar-primary: hsl(187 100% 50%);
-    --color-sidebar-primary-foreground: hsl(0 0% 4%);
-    --color-sidebar-accent: hsl(265 40% 12%);
-    --color-sidebar-accent-foreground: hsl(0 0% 95%);
-    --color-sidebar-border: hsl(265 8% 12%);
-    --color-sidebar-ring: hsl(187 100% 50%);
-
-    --color-chart-1: hsl(187 100% 50%);
-    --color-chart-2: hsl(265 100% 55%);
-    --color-chart-3: hsl(195 85% 55%);
-    --color-chart-4: hsl(280 60% 62%);
-    --color-chart-5: hsl(0 0% 75%);
-  }
-}
 
 /* Manual .dark class */
 :root.dark {

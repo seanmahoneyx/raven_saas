@@ -13,14 +13,15 @@ const ThemeProviderContext = createContext<ThemeProviderContextType | null>(null
 const STORAGE_KEY = 'raven-ui-theme'
 
 function getSystemTheme(): 'dark' | 'light' {
-  if (typeof window === 'undefined') return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  // Dark mode is currently incomplete (--so-* design tokens are light-only),
+  // so 'system' resolves to 'light' until proper dark variants ship.
+  return 'light'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === 'undefined') return 'system'
-    return (localStorage.getItem(STORAGE_KEY) as Theme) || 'system'
+    if (typeof window === 'undefined') return 'light'
+    return (localStorage.getItem(STORAGE_KEY) as Theme) || 'light'
   })
 
   const resolvedTheme = theme === 'system' ? getSystemTheme() : theme
