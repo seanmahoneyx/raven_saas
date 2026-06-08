@@ -20,7 +20,8 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { useCreateEstimate, useUpdateEstimate, useNextEstimateNumber } from '@/api/estimates'
 import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import type { Estimate, EstimateStatus } from '@/types/api'
 
 interface EstimateDialogProps {
@@ -67,7 +68,7 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
 
   const { data: customersData } = useCustomers()
   const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
+  const { data: itemsData } = useAllItems()
   const { data: uomData } = useUnitsOfMeasure()
 
   const createEstimate = useCreateEstimate()
@@ -136,7 +137,7 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
 
     // Auto-set UOM and description when item is selected
     if (field === 'item' && value) {
-      const selectedItem = itemsData?.results.find((i) => String(i.id) === value)
+      const selectedItem = itemsData?.find((i) => String(i.id) === value)
       if (selectedItem) {
         newLines[index].uom = String(selectedItem.base_uom)
         newLines[index].description = selectedItem.sell_desc || selectedItem.name
@@ -190,7 +191,11 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
   const isPending = createEstimate.isPending || updateEstimate.isPending
   const customers = customersData?.results ?? []
   const locations = locationsData?.results ?? []
-  const items = itemsData?.results ?? []
+  const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
   const uoms = uomData?.results ?? []
 
   // Filter locations by selected customer's party
@@ -381,21 +386,13 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
                     <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 bg-muted/50 rounded-lg">
                       <div className="col-span-4 space-y-1">
                         <Label className="text-xs">Item</Label>
-                        <Select
-                          value={line.item}
-                          onValueChange={(value) => handleLineChange(index, 'item', value)}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Select item..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {items.map((item) => (
-                              <SelectItem key={item.id} value={String(item.id)}>
-                                {item.sku} - {item.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableCombobox
+                          entityType="item"
+                          value={line.item ? Number(line.item) : null}
+                          initialLabel={itemLabel(line.item)}
+                          onChange={(id) => handleLineChange(index, 'item', id ? String(id) : '')}
+                          placeholder="Select item..."
+                        />
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Qty</Label>

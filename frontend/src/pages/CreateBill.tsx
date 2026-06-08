@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCreateBill } from '@/api/invoicing'
-import { useItems } from '@/api/items'
+import { useAllItems } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
@@ -72,8 +73,12 @@ export default function CreateBill() {
   const [error, setError] = useState('')
 
   /* ---- Items (shared lookup) ---- */
-  const { data: itemsData } = useItems()
-  const items = itemsData?.results ?? []
+  const { data: itemsData } = useAllItems()
+  const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
 
   /* ---- Line handlers ---- */
   const handleLineChange = (index: number, field: string, value: string) => {
@@ -405,24 +410,13 @@ export default function CreateBill() {
                       >
                         {/* Item */}
                         <td className="py-1.5 px-1 pl-6">
-                          <Select
-                            value={line.item}
-                            onValueChange={(v) => handleLineItemChange(index, v)}
-                          >
-                            <SelectTrigger
-                              className="h-9 text-sm border shadow-none"
-                              style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
-                            >
-                              <SelectValue placeholder="Select item..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {items.map((item) => (
-                                <SelectItem key={item.id} value={String(item.id)}>
-                                  {item.sku} - {item.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableCombobox
+                            entityType="item"
+                            value={line.item ? Number(line.item) : null}
+                            initialLabel={itemLabel(line.item)}
+                            onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                            placeholder="Select item..."
+                          />
                         </td>
                         {/* Description (auto-filled, editable) */}
                         <td className="py-1.5 px-1">

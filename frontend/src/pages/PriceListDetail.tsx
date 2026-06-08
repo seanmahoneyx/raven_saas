@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/select'
 import { usePriceList, useUpdatePriceList } from '@/api/priceLists'
 import { useCustomers } from '@/api/parties'
-import { useItems } from '@/api/items'
+import { useAllItems } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { format } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
@@ -42,7 +43,7 @@ export default function PriceListDetail() {
   const { data: priceList, isLoading } = usePriceList(priceListId)
   const updatePriceList = useUpdatePriceList()
   const { data: customersData } = useCustomers()
-  const { data: itemsData } = useItems()
+  const { data: itemsData } = useAllItems()
 
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -78,7 +79,11 @@ export default function PriceListDetail() {
   }, [isEditing, priceList])
 
   const customers = customersData?.results ?? []
-  const items = itemsData?.results ?? []
+  const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
 
   const handleAddLine = () => {
     setLines([...lines, { min_quantity: '1', unit_price: '0.00' }])
@@ -267,21 +272,13 @@ export default function PriceListDetail() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Item</Label>
-                    <Select
-                      value={formData.item}
-                      onValueChange={(value) => setFormData({ ...formData, item: value })}
-                    >
-                      <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                        <SelectValue placeholder="Select item..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {items.map((item) => (
-                          <SelectItem key={item.id} value={String(item.id)}>
-                            {item.sku} - {item.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableCombobox
+                      entityType="item"
+                      value={formData.item ? Number(formData.item) : null}
+                      initialLabel={itemLabel(formData.item)}
+                      onChange={(id) => setFormData({ ...formData, item: id ? String(id) : '' })}
+                      placeholder="Select item..."
+                    />
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">

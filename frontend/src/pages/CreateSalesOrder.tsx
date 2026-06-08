@@ -20,6 +20,7 @@ import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
 import { usePriceLookup } from '@/api/priceLists'
@@ -129,6 +130,10 @@ export default function CreateSalesOrder() {
   const customers = customersData ?? []
   const allLocations = locationsData ?? []
   const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
   const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
@@ -765,24 +770,13 @@ export default function CreateSalesOrder() {
                         {/* Item (col 0) */}
                         <td className="py-1.5 px-1 pl-6">
                           <div ref={(el) => setCellRef(index, 0, el)} onKeyDown={(e) => handleKeyDown(e, index, 0)}>
-                            <Select
-                              value={line.item}
-                              onValueChange={(v) => handleLineItemChange(index, v)}
-                            >
-                              <SelectTrigger
-                                className="h-9 text-sm border shadow-none"
-                                style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
-                              >
-                                <SelectValue placeholder="Select item..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items.map((item) => (
-                                  <SelectItem key={item.id} value={String(item.id)}>
-                                    {item.sku} - {item.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableCombobox
+                              entityType="item"
+                              value={line.item ? Number(line.item) : null}
+                              initialLabel={itemLabel(line.item)}
+                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                              placeholder="Select item..."
+                            />
                           </div>
                         </td>
                         {/* Description (read-only) */}

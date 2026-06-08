@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { useItems, useDeleteItem } from '@/api/items'
+import { useAllItems, useDeleteItem } from '@/api/items'
 import { ItemDialog } from '@/components/items/ItemDialog'
 import type { Item } from '@/types/api'
 import { toast } from 'sonner'
@@ -42,13 +42,13 @@ export default function Items() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
   const [lifecycleFilter, setLifecycleFilter] = useState<string>('all')
 
-  const { data: itemsData, isLoading: itemsLoading } = useItems(
+  const { data: itemsData, isLoading: itemsLoading } = useAllItems(
     lifecycleFilter === 'all' ? undefined : { lifecycle_status: lifecycleFilter }
   )
   const deleteItem = useDeleteItem()
 
   const mobileItems = useMemo(() => {
-    let rows = itemsData?.results ?? []
+    let rows = itemsData ?? []
     if (mobileSearch.trim()) {
       const q = mobileSearch.toLowerCase()
       rows = rows.filter(i =>
@@ -345,7 +345,7 @@ export default function Items() {
           primary={{ label: 'Add Item', icon: Plus, onClick: () => navigate('/items/new') }}
           trailing={
             <ExportButton
-              data={(itemsData?.results ?? []) as unknown as Record<string, unknown>[]}
+              data={(itemsData ?? []) as unknown as Record<string, unknown>[]}
               filename="items"
               columns={[
                 { key: 'sku', header: 'SKU' },
@@ -403,7 +403,7 @@ export default function Items() {
               style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Items</span>
               <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                {itemsData?.results?.length ?? 0} total
+                {itemsData?.length ?? 0} total
               </span>
             </div>
             {itemsLoading ? (
@@ -412,7 +412,7 @@ export default function Items() {
               <DataTable
                 storageKey="items"
                 columns={itemColumns}
-                data={itemsData?.results ?? []}
+                data={itemsData ?? []}
                 searchColumn="name"
                 searchPlaceholder="Search items..."
                 onRowClick={(item) => navigate(`/items/${item.id}`)}

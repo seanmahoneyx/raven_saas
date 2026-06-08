@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCustomers, useLocations } from '@/api/parties'
-import { useItems, useUnitsOfMeasure } from '@/api/items'
+import { useAllItems, useUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useCreateContract, useUpdateContract } from '@/api/contracts'
 import type { Contract, ContractLineInput } from '@/types/api'
 
@@ -55,7 +56,11 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
 
   const { data: customersData } = useCustomers()
   const { data: locationsData } = useLocations()
-  const { data: itemsData } = useItems()
+  const { data: itemsData } = useAllItems()
+  const itemLabel = (val: string) => {
+    const it = itemsData?.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
   const { data: uomData } = useUnitsOfMeasure()
 
   const createContract = useCreateContract()
@@ -136,7 +141,7 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
 
         // Auto-populate UOM when item is selected
         if (field === 'item' && value) {
-          const selectedItem = itemsData?.results?.find((item) => String(item.id) === value)
+          const selectedItem = itemsData?.find((item) => String(item.id) === value)
           if (selectedItem?.base_uom) {
             updated.uom = String(selectedItem.base_uom)
           }
@@ -328,21 +333,13 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
                       key={line.id}
                       className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center"
                     >
-                      <Select
-                        value={line.item}
-                        onValueChange={(value) => handleLineChange(line.id, 'item', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select item..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {itemsData?.results?.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
-                              {item.sku} - {item.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableCombobox
+                        entityType="item"
+                        value={line.item ? Number(line.item) : null}
+                        initialLabel={itemLabel(line.item)}
+                        onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
+                        placeholder="Select item..."
+                      />
                       <Input
                         type="number"
                         placeholder="Qty"

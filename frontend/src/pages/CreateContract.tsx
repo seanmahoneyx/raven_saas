@@ -14,6 +14,7 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
@@ -52,6 +53,10 @@ export default function CreateContract() {
 
   const customers = customersData ?? []
   const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
   const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
@@ -259,18 +264,13 @@ export default function CreateContract() {
                   </div>
                   {lines.map((line) => (
                     <div key={line.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
-                      <Select value={line.item} onValueChange={(v) => handleLineChange(line.id, 'item', v)}>
-                        <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                          <SelectValue placeholder="Select item..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {items.map((item) => (
-                            <SelectItem key={item.id} value={String(item.id)}>
-                              {item.sku} - {item.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchableCombobox
+                        entityType="item"
+                        value={line.item ? Number(line.item) : null}
+                        initialLabel={itemLabel(line.item)}
+                        onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
+                        placeholder="Select item..."
+                      />
                       <Input type="number" min="0" step="1" placeholder="Qty" value={line.blanket_qty} onChange={(e) => handleLineChange(line.id, 'blanket_qty', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>

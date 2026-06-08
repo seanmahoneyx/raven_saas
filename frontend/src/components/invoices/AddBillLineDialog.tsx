@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
-import { useItems } from '@/api/items'
+import { useAllItems } from '@/api/items'
 import { useAddBillLine } from '@/api/invoicing'
 import { formatCurrency } from '@/lib/format'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
@@ -24,8 +24,8 @@ interface AddBillLineDialogProps {
 
 export function AddBillLineDialog({ open, onOpenChange, billId, billNumber }: AddBillLineDialogProps) {
   const addLine = useAddBillLine()
-  const { data: itemsData } = useItems()
-  const items = itemsData?.results ?? []
+  const { data: itemsData } = useAllItems()
+  const items = itemsData ?? []
 
   const [itemId, setItemId] = useState<number | null>(null)
   const [description, setDescription] = useState('')

@@ -16,7 +16,7 @@ import {
   type InventoryPallet,
   type InventoryTransaction,
 } from '@/api/inventory'
-import { useItems } from '@/api/items'
+import { useAllItems } from '@/api/items'
 import type { Item } from '@/types/api'
 import { format } from 'date-fns'
 import { getStatusBadge, getItemTypeBadge } from '@/components/ui/StatusBadge'
@@ -41,8 +41,8 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState<Tab>('balances')
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null)
 
-  const { data: itemsData } = useItems()
-  const allItems = itemsData?.results ?? []
+  const { data: itemsData } = useAllItems()
+  const allItems = itemsData ?? []
 
   // Detail-level data when an item is selected
   const detailParams = selectedItemId ? { item: selectedItemId } : {}
