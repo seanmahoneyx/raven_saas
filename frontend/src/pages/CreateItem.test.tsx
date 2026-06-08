@@ -1,6 +1,6 @@
 // src/pages/CreateItem.test.tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -71,6 +71,25 @@ function renderPage() {
   return render(<CreateItem />, { wrapper: createWrapper() })
 }
 
+// The dimension fraction/decimal control is a Switch flanked by
+// "Fraction"/"Decimal" labels, inside the "Dimensions (inches)" row.
+function getDimToggle() {
+  const label = screen.getByText('Dimensions (inches)')
+  return within(label.parentElement as HTMLElement).getByRole('switch')
+}
+
+// A Radix Select renders the chosen value inside a <button> trigger plus a
+// hidden native <select> for form integration, so the value text appears
+// twice. Resolve the visible trigger button by its current value text.
+function openSelectTrigger(valueText: string): HTMLButtonElement {
+  const trigger = screen
+    .getAllByText(valueText)
+    .map((el) => el.closest('button'))
+    .find((el): el is HTMLButtonElement => el !== null)
+  if (!trigger) throw new Error(`No select trigger showing "${valueText}"`)
+  return trigger
+}
+
 // ── Tests ──
 
 describe('CreateItem Page', () => {
@@ -84,7 +103,7 @@ describe('CreateItem Page', () => {
     it('shows Auto-generated text inline with MSPN label', () => {
       renderPage()
       const label = screen.getByText((_, el) =>
-        el?.tagName === 'LABEL' && !!el?.textContent?.includes('MSPN') && !!el?.textContent?.includes('(Auto-generated)')
+        el?.tagName === 'LABEL' && !!el?.textContent?.includes('MSPN') && !!el?.textContent?.includes('(Auto)')
       )
       expect(label).toBeInTheDocument()
     })
@@ -145,21 +164,25 @@ describe('CreateItem Page', () => {
   // ─── 4. Dimension fraction/decimal support ───
 
   describe('Dimension fraction/decimal', () => {
-    it('shows fraction display toggle button', () => {
+    it('shows fraction display toggle', () => {
       renderPage()
       // Default division is corrugated, so dimensions section is visible
       expect(screen.getByText('Dimensions (inches)')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /Fraction/i })).toBeInTheDocument()
+      expect(screen.getByText('Fraction')).toBeInTheDocument()
+      expect(screen.getByText('Decimal')).toBeInTheDocument()
+      expect(getDimToggle()).toBeInTheDocument()
     })
 
     it('toggles display mode between fraction and decimal', async () => {
       const user = userEvent.setup()
       renderPage()
-      const toggle = screen.getByRole('button', { name: /Fraction/i })
+      const toggle = getDimToggle()
+      // Starts in fraction mode (switch unchecked)
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
       await user.click(toggle)
-      expect(screen.getByRole('button', { name: /Decimal/i })).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: /Decimal/i }))
-      expect(screen.getByRole('button', { name: /Fraction/i })).toBeInTheDocument()
+      expect(toggle).toHaveAttribute('aria-checked', 'true')
+      await user.click(toggle)
+      expect(toggle).toHaveAttribute('aria-checked', 'false')
     })
 
     it('converts decimal to fraction on blur (fraction mode)', async () => {
@@ -200,7 +223,7 @@ describe('CreateItem Page', () => {
       const user = userEvent.setup()
       renderPage()
       // Switch to decimal mode
-      await user.click(screen.getByRole('button', { name: /Fraction/i }))
+      await user.click(getDimToggle())
       const lengthInput = screen.getByPlaceholderText('L')
       await user.type(lengthInput, '12.75')
       await user.tab()
@@ -213,7 +236,7 @@ describe('CreateItem Page', () => {
       const user = userEvent.setup()
       renderPage()
       // Switch to decimal mode
-      await user.click(screen.getByRole('button', { name: /Fraction/i }))
+      await user.click(getDimToggle())
       const lengthInput = screen.getByPlaceholderText('L')
       await user.type(lengthInput, '10+1/2')
       await user.tab()
@@ -253,7 +276,7 @@ describe('CreateItem Page', () => {
       const user = userEvent.setup()
       renderPage()
       // Enable printing
-      const printSwitch = screen.getByLabelText('Plain')
+      const printSwitch = screen.getByRole('button', { name: 'Printed' })
       await user.click(printSwitch)
       // Colors defaults to empty/0
       expect(screen.queryByPlaceholderText('Color 1')).not.toBeInTheDocument()
@@ -263,7 +286,7 @@ describe('CreateItem Page', () => {
       const user = userEvent.setup()
       renderPage()
       // Enable printing
-      const printSwitch = screen.getByLabelText('Plain')
+      const printSwitch = screen.getByRole('button', { name: 'Printed' })
       await user.click(printSwitch)
       // Find the Colors input (second "0" placeholder after Panels Printed)
       const colorsInputs = screen.getAllByPlaceholderText('0')
@@ -282,7 +305,7 @@ describe('CreateItem Page', () => {
       const user = userEvent.setup()
       renderPage()
       // Enable printing
-      await user.click(screen.getByLabelText('Plain'))
+      await user.click(screen.getByRole('button', { name: 'Printed' }))
       // Set 2 colors
       const colorsInputs = screen.getAllByPlaceholderText('0')
       await user.clear(colorsInputs[1])
@@ -301,7 +324,7 @@ describe('CreateItem Page', () => {
     it('reduces ink color boxes when Colors count decreases', async () => {
       const user = userEvent.setup()
       renderPage()
-      await user.click(screen.getByLabelText('Plain'))
+      await user.click(screen.getByRole('button', { name: 'Printed' }))
       const colorsInputs = screen.getAllByPlaceholderText('0')
       await user.clear(colorsInputs[1])
       await user.type(colorsInputs[1], '3')
@@ -327,10 +350,8 @@ describe('CreateItem Page', () => {
     async function switchToPackaging() {
       const user = userEvent.setup()
       renderPage()
-      // The Division dropdown is the second Select on the page (row 2)
-      // Find the Division select and change it
-      const divisionTrigger = screen.getByText('Corrugated') // default value shown
-      await user.click(divisionTrigger)
+      // Open the Division dropdown (its trigger shows the current value "Corrugated")
+      await user.click(openSelectTrigger('Corrugated'))
       const packagingOption = await screen.findByRole('option', { name: 'Packaging' })
       await user.click(packagingOption)
       return user
@@ -355,9 +376,8 @@ describe('CreateItem Page', () => {
       await waitFor(() => {
         expect(screen.getByText('Type *')).toBeInTheDocument()
       })
-      // Open sub-type dropdown - find the "Bags" text (default value)
-      const typeTrigger = screen.getByText('Bags')
-      await user.click(typeTrigger)
+      // Open sub-type dropdown (its trigger shows the default value "Bags")
+      await user.click(openSelectTrigger('Bags'))
       // Verify some sub-type options exist
       await waitFor(() => {
         expect(screen.getByRole('option', { name: 'Tape' })).toBeInTheDocument()
@@ -405,9 +425,9 @@ describe('CreateItem Page', () => {
       expect(screen.getByText('Board Specifications')).toBeInTheDocument()
     })
 
-    it('shows Printing section for corrugated', () => {
+    it('shows Print Method section for corrugated', () => {
       renderPage()
-      expect(screen.getByText('Printing')).toBeInTheDocument()
+      expect(screen.getByText('Print Method')).toBeInTheDocument()
     })
 
     it('shows Descriptions section', () => {

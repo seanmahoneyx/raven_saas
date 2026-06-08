@@ -37,3 +37,9 @@ globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserv
 
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
+
+// Mock Pointer Capture API (used by Radix UI Select/Popover; absent in jsdom).
+// Without these, Radix dropdowns never open under userEvent in tests.
+Element.prototype.hasPointerCapture = vi.fn(() => false)
+Element.prototype.setPointerCapture = vi.fn()
+Element.prototype.releasePointerCapture = vi.fn()
