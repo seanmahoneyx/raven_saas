@@ -257,9 +257,9 @@ export function SearchableCombobox({
             fontSize: '13px',
             color: isSelected ? 'var(--so-accent)' : 'var(--so-text-primary)',
             fontWeight: isSelected ? 500 : 400,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+            lineHeight: 1.35,
           }}
         >
           {item.label}
@@ -493,7 +493,13 @@ export function SearchableCombobox({
             position: 'absolute',
             top: 'calc(100% + 4px)',
             left: 0,
-            right: 0,
+            // Grow to fit the full item label even when the trigger sits in a
+            // narrow grid column; never narrower than the trigger, never wider
+            // than the viewport.
+            right: 'auto',
+            minWidth: '100%',
+            width: 'max-content',
+            maxWidth: 'min(28rem, 90vw)',
             zIndex: 50,
             background: 'var(--so-surface)',
             border: '1px solid var(--so-border)',

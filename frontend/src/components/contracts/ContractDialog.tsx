@@ -59,7 +59,7 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
   const { data: itemsData } = useAllItems()
   const itemLabel = (val: string) => {
     const it = itemsData?.find((i) => String(i.id) === val)
-    return it ? `${it.sku} - ${it.name}` : undefined
+    return it ? `${it.name} – ${it.sku}` : undefined
   }
   const { data: uomData } = useUnitsOfMeasure()
 

@@ -270,7 +270,7 @@ class SuggestionsAPI(APIView):
             'item': (
                 Item,
                 ['sku', 'name'],
-                lambda o: f'{o.sku} \u2013 {o.name}',
+                lambda o: f'{o.name} \u2013 {o.sku}',
             ),
         }
 

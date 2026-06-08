@@ -115,7 +115,7 @@ def get_entity_label(entity_type, object_id, tenant=None):
             if tenant:
                 qs = qs.filter(tenant=tenant)
             obj = qs.get(pk=object_id)
-            return f"{obj.sku} \u2013 {obj.name}"
+            return f"{obj.name} \u2013 {obj.sku}"
 
         elif entity_type == 'contact':
             from apps.contacts.models import Contact

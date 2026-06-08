@@ -82,7 +82,7 @@ export default function PriceListDetail() {
   const items = itemsData ?? []
   const itemLabel = (val: string) => {
     const it = items.find((i) => String(i.id) === val)
-    return it ? `${it.sku} - ${it.name}` : undefined
+    return it ? `${it.name} – ${it.sku}` : undefined
   }
 
   const handleAddLine = () => {

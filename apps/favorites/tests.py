@@ -230,9 +230,9 @@ class GetEntityLabelTests(TestCase):
         self.assertEqual(label, 'Label Vendor Inc')
 
     def test_get_entity_label_item(self):
-        """Returns 'SKU \u2013 name' for an item."""
+        """Returns 'name \u2013 SKU' for an item."""
         label = get_entity_label('item', self.item.pk, tenant=self.tenant)
-        self.assertEqual(label, 'LBL-SKU-001 \u2013 Label Test Item')
+        self.assertEqual(label, 'Label Test Item \u2013 LBL-SKU-001')
 
     def test_get_entity_label_nonexistent_returns_none(self):
         """Returns None for a non-existent entity."""
