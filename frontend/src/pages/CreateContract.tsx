@@ -14,7 +14,6 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'

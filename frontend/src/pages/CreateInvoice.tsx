@@ -17,7 +17,6 @@ import {
 import { useCreateInvoice } from '@/api/invoicing'
 import { useParties } from '@/api/parties'
 import { useAllItems } from '@/api/items'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 

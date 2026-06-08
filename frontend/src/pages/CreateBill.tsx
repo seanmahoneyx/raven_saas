@@ -7,16 +7,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useCreateBill } from '@/api/invoicing'
 import { useAllItems } from '@/api/items'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 
