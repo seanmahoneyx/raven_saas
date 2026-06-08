@@ -23,8 +23,11 @@ const mockCreatePkgItem = vi.fn()
 
 vi.mock('@/api/items', () => ({
   useCreateItem: () => ({ mutateAsync: mockCreateItem, isPending: false }),
+  useUpdateItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreateBoxItem: () => ({ mutateAsync: mockCreateBoxItem, isPending: false }),
+  useUpdateBoxItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCreatePackagingItem: () => ({ mutateAsync: mockCreatePkgItem, isPending: false }),
+  useUpdatePackagingItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUnitsOfMeasure: () => ({
     data: {
       results: [
