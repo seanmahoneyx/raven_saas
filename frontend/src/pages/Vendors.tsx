@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { useVendors, useDeleteVendor } from '@/api/parties'
+import { useAllVendors, useDeleteVendor } from '@/api/parties'
 import { useFavorites } from '@/api/favorites'
 import { VendorDialog } from '@/components/parties/VendorDialog'
 import type { Vendor } from '@/types/api'
@@ -52,7 +52,11 @@ export default function Vendors() {
     }
   }, [isPrintMode])
 
-  const { data: vendorsData, isLoading: vendorsLoading } = useVendors()
+  // Load every vendor (not just the first server page) so the table can
+  // paginate through all of them. Re-wrap the flat array as { results } to keep
+  // the existing usages below unchanged.
+  const { data: allVendors, isLoading: vendorsLoading } = useAllVendors()
+  const vendorsData = useMemo(() => ({ results: allVendors ?? [] }), [allVendors])
   const deleteVendor = useDeleteVendor()
   const { data: vendorFavorites } = useFavorites('vendor')
 

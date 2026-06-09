@@ -49,6 +49,10 @@ interface DataTableProps<TData, TValue> {
   onUserToggledColumnsChange?: (next: Record<string, boolean>) => void
   /** When true, drop the wrapper border + rounding around the table so it can sit flush inside another card. */
   embedded?: boolean
+  /** Rows shown per page. Defaults to 50. */
+  pageSize?: number
+  /** Selectable page sizes shown in the pager dropdown. Defaults to [25, 50, 75, 100]. */
+  pageSizeOptions?: number[]
 }
 
 export function DataTable<TData, TValue>({
@@ -71,10 +75,13 @@ export function DataTable<TData, TValue>({
   userToggledColumns: controlledToggled,
   onUserToggledColumnsChange,
   embedded,
+  pageSize = 50,
+  pageSizeOptions = [25, 50, 75, 100],
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize })
 
   const isToggleControlled = controlledToggled !== undefined && onUserToggledColumnsChange !== undefined
 
@@ -220,11 +227,13 @@ export function DataTable<TData, TValue>({
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination,
     state: {
       sorting,
       columnFilters,
       rowSelection,
       columnVisibility,
+      pagination,
     },
     enableRowSelection: enableSelection,
   })
@@ -517,14 +526,43 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
-      <div className="flex items-center justify-between pl-6 pr-6">
-        <div className="text-sm text-muted-foreground">
-          {enableSelection && selectedCount > 0
-            ? `${selectedCount} of ${table.getFilteredRowModel().rows.length} row(s) selected`
-            : `${table.getFilteredRowModel().rows.length} row(s)`
-          }
+      <div className="flex flex-wrap items-center justify-between gap-3 pl-6 pr-6">
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            {(() => {
+              const total = table.getFilteredRowModel().rows.length
+              if (enableSelection && selectedCount > 0) {
+                return `${selectedCount} of ${total} row(s) selected`
+              }
+              if (total === 0) return '0 rows'
+              const start = pagination.pageIndex * pagination.pageSize + 1
+              const end = Math.min(start + pagination.pageSize - 1, total)
+              return `${start}–${end} of ${total}`
+            })()}
+          </div>
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <span className="hidden sm:inline">Rows:</span>
+            <select
+              value={pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="rounded-md px-2 py-1 text-sm cursor-pointer"
+              style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }}
+            >
+              {pageSizeOptions.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+          >
+            First
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -533,9 +571,9 @@ export function DataTable<TData, TValue>({
           >
             Previous
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground whitespace-nowrap">
             Page {table.getState().pagination.pageIndex + 1} of{' '}
-            {table.getPageCount()}
+            {Math.max(table.getPageCount(), 1)}
           </span>
           <Button
             variant="outline"
@@ -544,6 +582,14 @@ export function DataTable<TData, TValue>({
             disabled={!table.getCanNextPage()}
           >
             Next
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+            disabled={!table.getCanNextPage()}
+          >
+            Last
           </Button>
         </div>
       </div>

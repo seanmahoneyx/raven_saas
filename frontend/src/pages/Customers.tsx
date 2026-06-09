@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { useCustomers, useDeleteCustomer } from '@/api/parties'
+import { useAllCustomers, useDeleteCustomer } from '@/api/parties'
 import { useFavorites } from '@/api/favorites'
 import { CustomerDialog } from '@/components/parties/CustomerDialog'
 import type { Customer } from '@/types/api'
@@ -40,7 +40,11 @@ export default function Customers() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
 
-  const { data: customersData, isLoading: customersLoading } = useCustomers()
+  // Load every customer (not just the first server page) so the table can
+  // paginate through all of them. Re-wrap the flat array as { results } to keep
+  // the existing usages below unchanged.
+  const { data: allCustomers, isLoading: customersLoading } = useAllCustomers()
+  const customersData = useMemo(() => ({ results: allCustomers ?? [] }), [allCustomers])
   const deleteCustomer = useDeleteCustomer()
   const { data: settings } = useSettings()
   const { data: customerFavorites } = useFavorites('customer')
