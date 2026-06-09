@@ -112,22 +112,34 @@ export function DataTable<TData, TValue>({
     return vis
   }, [responsiveColumns])
 
-  // Merge: responsive defaults + user overrides
-  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+  // Merge: responsive defaults + user overrides.
+  // Responsive breakpoints are measured against the table's own container width
+  // (not window.innerWidth) so columns hide to fit the card they actually live in,
+  // regardless of how wide the browser window is.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState<number | null>(null)
 
   useEffect(() => {
     if (!responsiveColumns) return
-    const handleResize = () => setViewportWidth(window.innerWidth)
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
+    const el = rootRef.current
+    if (!el) return
+    const update = () => setContainerWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [responsiveColumns])
 
+  // Width used for responsive rules: the measured container, falling back to the
+  // window only until the first measurement lands (avoids an all-columns flash).
+  const responsiveWidth = containerWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 1280)
+
   const columnVisibility = useMemo<VisibilityState>(() => {
-    const responsive = getResponsiveVisibility(viewportWidth)
+    const responsive = getResponsiveVisibility(responsiveWidth)
     const base = { ...(defaultColumnVisibility ?? {}), ...responsive }
     // User toggles override everything
     return { ...base, ...userToggledColumns }
-  }, [viewportWidth, getResponsiveVisibility, defaultColumnVisibility, userToggledColumns])
+  }, [responsiveWidth, getResponsiveVisibility, defaultColumnVisibility, userToggledColumns])
 
   const setColumnVisibility = useCallback((updaterOrValue: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
     setUserToggledColumns(prev => {
@@ -228,7 +240,7 @@ export function DataTable<TData, TValue>({
   const selectedCount = Object.keys(rowSelection).length
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={rootRef}>
       {!hideToolbar && (searchColumn || storageKey) && (
         <div className="flex items-center justify-between gap-4 px-6 pt-4">
           {/* Search */}
@@ -347,7 +359,7 @@ export function DataTable<TData, TValue>({
                       .filter(col => col.getCanHide() && col.id !== 'select' && col.id !== 'actions')
                       .map(col => {
                         const header = typeof col.columnDef.header === 'string' ? col.columnDef.header : col.id
-                        const isResponsiveHidden = responsiveColumns?.[col.id] !== undefined && viewportWidth < (responsiveColumns[col.id] ?? 0)
+                        const isResponsiveHidden = responsiveColumns?.[col.id] !== undefined && responsiveWidth < (responsiveColumns[col.id] ?? 0)
                         return (
                           <label
                             key={col.id}

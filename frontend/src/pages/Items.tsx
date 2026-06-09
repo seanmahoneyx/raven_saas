@@ -416,20 +416,25 @@ export default function Items() {
                 searchColumn="name"
                 searchPlaceholder="Search items..."
                 onRowClick={(item) => navigate(`/items/${item.id}`)}
+                // Breakpoints are measured against the table's container width, not the
+                // window. The card content is ~1216px on desktop, so the widest, least
+                // essential columns (Preferred Vendor + the three GL-account columns) drop
+                // off by default and stay reachable via the column picker — keeping the
+                // visible set inside the card instead of spilling past its right edge.
                 responsiveColumns={{
-                  item_type: 768,
-                  division: 768,
-                  lifecycle_status: 768,
-                  revision: 768,
-                  box_type: 768,
-                  qty_on_hand: 768,
-                  qty_on_open_po: 1024,
-                  qty_on_open_so: 1024,
-                  preferred_vendor_name: 1024,
-                  expense_account_name: 1280,
-                  asset_account_name: 1280,
-                  income_account_name: 1280,
-                  attachment_count: 1280,
+                  item_type: 560,
+                  lifecycle_status: 560,
+                  qty_on_hand: 640,
+                  division: 720,
+                  revision: 800,
+                  box_type: 880,
+                  qty_on_open_po: 960,
+                  attachment_count: 1020,
+                  qty_on_open_so: 1080,
+                  preferred_vendor_name: 1180,
+                  expense_account_name: 1400,
+                  asset_account_name: 1400,
+                  income_account_name: 1400,
                 }}
               />
             )}
