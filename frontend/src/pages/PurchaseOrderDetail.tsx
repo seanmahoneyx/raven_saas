@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select'
 import { usePurchaseOrder, useUpdatePurchaseOrder, useReceivePurchaseOrder, useDeletePurchaseOrder } from '@/api/orders'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useCostLookup } from '@/api/costLists'
 import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
@@ -108,6 +109,10 @@ export default function PurchaseOrderDetail() {
   const { data: uomData } = useAllUnitsOfMeasure()
 
   const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.name} – ${it.sku}` : undefined
+  }
   const uoms = uomData ?? []
 
   const lookupLine = costLookupLine !== null ? linesFormData[costLookupLine] : null
@@ -604,18 +609,13 @@ export default function PurchaseOrderDetail() {
                         <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                           {/* Item */}
                           <td className="py-1 px-1 pl-6">
-                            <Select value={line.item} onValueChange={(v) => handleLineItemChange(index, v)}>
-                              <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
-                                <SelectValue placeholder="Select item..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items.map((item) => (
-                                  <SelectItem key={item.id} value={String(item.id)}>
-                                    {item.sku} - {item.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableCombobox
+                              entityType="item"
+                              value={line.item ? Number(line.item) : null}
+                              initialLabel={itemLabel(line.item)}
+                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                              placeholder="Select item..."
+                            />
                             {selectedItem && (
                               <div className="px-3 -mt-1 mb-0.5 font-mono text-[11.5px]" style={{ color: 'var(--so-text-secondary)' }}>{selectedItem.sku}</div>
                             )}

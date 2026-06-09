@@ -692,7 +692,7 @@ export default function CreateSalesOrder() {
             {isMobile ? (
               <MobileLineItemList
                 lines={linesFormData}
-                items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                items={items.map(i => ({ value: String(i.id), label: `${i.name} – ${i.sku}` }))}
                 uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
                 contracts={activeContracts.map(c => ({ value: c.contract_number, label: c.contract_number }))}
                 fulfillmentMethods={[

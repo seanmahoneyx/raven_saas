@@ -119,6 +119,10 @@ export default function CreatePurchaseOrder() {
   const vendors = vendorsData ?? []
   const locations = locationsData ?? []
   const items = itemsData ?? []
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.name} – ${it.sku}` : undefined
+  }
   const uoms = uomData ?? []
 
   const warehouseLocations = locations.filter((l) => l.location_type === 'WAREHOUSE')
@@ -402,7 +406,7 @@ export default function CreatePurchaseOrder() {
               {isMobile ? (
                 <MobileLineItemList
                   lines={linesFormData}
-                  items={items.map(i => ({ value: String(i.id), label: `${i.sku} - ${i.name}` }))}
+                  items={items.map(i => ({ value: String(i.id), label: `${i.name} – ${i.sku}` }))}
                   uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
                   fulfillmentMethods={[
                     { value: 'stock', label: 'Stock' },
@@ -447,21 +451,13 @@ export default function CreatePurchaseOrder() {
                           <React.Fragment key={index}>
                           <tr style={{ borderBottom: warning ? 'none' : '1px solid var(--so-border-light)', background: index % 2 === 1 ? 'var(--so-bg)' : 'transparent' }}>
                             <td className="py-1.5 px-1 pl-6">
-                              <Select
-                                value={line.item}
-                                onValueChange={(v) => handleLineItemChange(index, v)}
-                              >
-                                <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
-                                  <SelectValue placeholder="Select item..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {items.map((item) => (
-                                    <SelectItem key={item.id} value={String(item.id)}>
-                                      {item.sku} - {item.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <SearchableCombobox
+                                entityType="item"
+                                value={line.item ? Number(line.item) : null}
+                                initialLabel={itemLabel(line.item)}
+                                onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                                placeholder="Select item..."
+                              />
                             </td>
                             <td className="py-1.5 px-1 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
                               {selectedItem?.name || ''}
