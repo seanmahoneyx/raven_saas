@@ -296,6 +296,15 @@ class ItemViewSet(viewsets.ModelViewSet):
         return Item.objects.select_related(
             'base_uom', 'customer',
             'income_account', 'expense_account', 'asset_account',
+            # Multi-table-inheritance children, joined so ItemListSerializer.get_box_type's
+            # hasattr() checks read from this query instead of firing up to 7 queries per row.
+            'corrugateditem',
+            'corrugateditem__dcitem',
+            'corrugateditem__rscitem',
+            'corrugateditem__hscitem',
+            'corrugateditem__folitem',
+            'corrugateditem__teleitem',
+            'packagingitem',
         ).annotate(
             qty_on_hand=Coalesce(Subquery(qty_on_hand_sub, output_field=IntegerField()), 0),
             qty_on_open_po=Coalesce(Subquery(qty_on_open_po_sub, output_field=IntegerField()), 0),

@@ -525,6 +525,48 @@ class ItemAPITests(ItemsTestCase):
         self.assertIn('results', response.data)
         self.assertGreaterEqual(len(response.data['results']), 1)
 
+    def test_list_items_query_count_is_bounded(self):
+        """Regression guard: the items list must not run per-row queries.
+
+        ItemListSerializer.get_box_type inspects multi-table-inheritance children
+        via hasattr(); without select_related on that chain each row fired up to 7
+        extra queries. Assert the query count does not grow with row count.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def make_items(prefix, n):
+            for i in range(n):
+                Item.objects.create(
+                    tenant=self.tenant, sku=f'{prefix}-{i}',
+                    name=f'{prefix} item {i}', base_uom=self.uom_each,
+                )
+            # include a corrugated subtype to exercise the box_type join branch
+            RSCItem.objects.create(
+                tenant=self.tenant, sku=f'{prefix}-rsc',
+                name=f'{prefix} rsc', base_uom=self.uom_each,
+                length=Decimal('12.0'), width=Decimal('10.0'), height=Decimal('8.0'),
+            )
+
+        make_items('QC-A', 3)
+        with CaptureQueriesContext(connection) as ctx_small:
+            self.client.get('/api/v1/items/')
+        small = len(ctx_small.captured_queries)
+
+        make_items('QC-B', 12)
+        with CaptureQueriesContext(connection) as ctx_large:
+            self.client.get('/api/v1/items/')
+        large = len(ctx_large.captured_queries)
+
+        # With the N+1 eliminated, adding ~13 more rows must not add queries.
+        # (large is the warm-cache request, so it should be <= the cold one; an
+        # N+1 would instead push it far above small.)
+        self.assertLessEqual(
+            large, small,
+            f'Items list query count scaled with rows ({small} -> {large}); '
+            f'a missing select_related likely re-introduced an N+1.',
+        )
+
     def test_create_item(self):
         """Test POST /api/v1/items/"""
         data = {
