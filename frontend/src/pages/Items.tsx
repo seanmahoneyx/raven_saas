@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { type ColumnDef } from '@tanstack/react-table'
+import { type ColumnDef, type SortingState } from '@tanstack/react-table'
 import { Plus, MoreHorizontal, Pencil, Trash2, Paperclip } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExportButton } from '@/components/ui/export-button'
@@ -13,7 +13,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { useAllItems, useDeleteItem } from '@/api/items'
+import { useAllItems, useItemsInfinite, useDeleteItem } from '@/api/items'
+import api from '@/api/client'
+import { fetchAllPages } from '@/lib/paginate'
 import { ItemDialog } from '@/components/items/ItemDialog'
 import type { Item } from '@/types/api'
 import { toast } from 'sonner'
@@ -42,13 +44,52 @@ export default function Items() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
   const [lifecycleFilter, setLifecycleFilter] = useState<string>('all')
 
-  const { data: itemsData, isLoading: itemsLoading } = useAllItems(
-    lifecycleFilter === 'all' ? undefined : { lifecycle_status: lifecycleFilter }
+  // --- Desktop: server-side list (search + sort + "Load more") ---
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [chunkSize, setChunkSize] = useState(50)
+
+  // Debounce the search box so we hit the server ~300ms after the user stops typing.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Map TanStack sort state → DRF `?ordering=` (single column; `-` prefix = descending).
+  const ordering = useMemo(() => {
+    if (!sorting.length) return undefined
+    const s = sorting[0]
+    return s.desc ? `-${s.id}` : s.id
+  }, [sorting])
+
+  const listFilters = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      lifecycle_status: lifecycleFilter === 'all' ? undefined : lifecycleFilter,
+      ordering,
+      page_size: chunkSize,
+    }),
+    [debouncedSearch, lifecycleFilter, ordering, chunkSize],
   )
+
+  const itemsQuery = useItemsInfinite(listFilters, { enabled: !isMobile })
+  const items = useMemo(
+    () => itemsQuery.data?.pages.flatMap((p) => p.results) ?? [],
+    [itemsQuery.data],
+  )
+  const totalCount = itemsQuery.data?.pages[0]?.count ?? 0
+
+  // --- Mobile: keep the load-all card list (client search/sort over the full set) ---
+  const { data: mobileData } = useAllItems(
+    lifecycleFilter === 'all' ? undefined : { lifecycle_status: lifecycleFilter },
+    { enabled: isMobile },
+  )
+
   const deleteItem = useDeleteItem()
 
   const mobileItems = useMemo(() => {
-    let rows = itemsData ?? []
+    let rows = mobileData ?? []
     if (mobileSearch.trim()) {
       const q = mobileSearch.toLowerCase()
       rows = rows.filter(i =>
@@ -72,7 +113,7 @@ export default function Items() {
       if (av > bv) return mobileSortDir === 'asc' ? 1 : -1
       return 0
     })
-  }, [itemsData, mobileSearch, mobileSortKey, mobileSortDir])
+  }, [mobileData, mobileSearch, mobileSortKey, mobileSortDir])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
@@ -174,6 +215,7 @@ export default function Items() {
       {
         accessorKey: 'box_type',
         header: 'Box Type',
+        enableSorting: false,
         cell: ({ row }) => {
           const type = row.getValue('box_type') as string
           const labels: Record<string, string> = {
@@ -246,6 +288,7 @@ export default function Items() {
       {
         accessorKey: 'expense_account_name',
         header: 'COGS',
+        enableSorting: false,
         cell: ({ row }) => {
           const name = row.original.expense_account_name
           return name ? (
@@ -258,6 +301,7 @@ export default function Items() {
       {
         accessorKey: 'asset_account_name',
         header: 'Asset',
+        enableSorting: false,
         cell: ({ row }) => {
           const name = row.original.asset_account_name
           return name ? (
@@ -270,6 +314,7 @@ export default function Items() {
       {
         accessorKey: 'income_account_name',
         header: 'Sales',
+        enableSorting: false,
         cell: ({ row }) => {
           const name = row.original.income_account_name
           return name ? (
@@ -345,7 +390,15 @@ export default function Items() {
           primary={{ label: 'Add Item', icon: Plus, onClick: () => navigate('/items/new') }}
           trailing={
             <ExportButton
-              data={(itemsData ?? []) as unknown as Record<string, unknown>[]}
+              // Fetch ALL matching rows at click time (respecting the active filter +
+              // search) rather than only the chunks already loaded into the list.
+              fetchData={async () => {
+                const all = await fetchAllPages<Item>(api, '/items/', {
+                  ...(lifecycleFilter === 'all' ? {} : { lifecycle_status: lifecycleFilter }),
+                  ...(debouncedSearch ? { search: debouncedSearch } : {}),
+                })
+                return all as unknown as Record<string, unknown>[]
+              }}
               filename="items"
               columns={[
                 { key: 'sku', header: 'SKU' },
@@ -403,19 +456,30 @@ export default function Items() {
               style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Items</span>
               <span className="text-[12px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                {itemsData?.length ?? 0} total
+                {totalCount} total
               </span>
             </div>
-            {itemsLoading ? (
+            {itemsQuery.isLoading ? (
               <div className="p-6"><TableSkeleton columns={14} rows={8} /></div>
             ) : (
               <DataTable
                 storageKey="items"
                 columns={itemColumns}
-                data={itemsData ?? []}
-                searchColumn="name"
-                searchPlaceholder="Search items..."
+                data={items}
+                searchPlaceholder="Search name, MSPN, MPN…"
                 onRowClick={(item) => navigate(`/items/${item.id}`)}
+                server={{
+                  searchValue: search,
+                  onSearchChange: setSearch,
+                  sorting,
+                  onSortingChange: setSorting,
+                  totalCount,
+                  hasMore: !!itemsQuery.hasNextPage,
+                  onLoadMore: () => itemsQuery.fetchNextPage(),
+                  isFetchingMore: itemsQuery.isFetchingNextPage,
+                  pageSize: chunkSize,
+                  onPageSizeChange: setChunkSize,
+                }}
                 // Breakpoints are measured against the table's container width, not the
                 // window. The card content is ~1216px on desktop, so the widest, least
                 // essential columns (Preferred Vendor + the three GL-account columns) drop

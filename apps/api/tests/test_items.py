@@ -641,6 +641,48 @@ class ItemAPITests(ItemsTestCase):
         for item in response.data['results']:
             self.assertEqual(item['division'], 'corrugated')
 
+    def test_search_is_contains_and_multifragment(self):
+        """Search is case-insensitive 'contains' and AND-s space-separated fragments.
+
+        Backs the list-page search UX: typing a partial like 'blue' matches anywhere
+        in the name, and 'blue 32' returns only rows containing BOTH fragments.
+        """
+        Item.objects.create(
+            tenant=self.tenant, sku='SRCH-1', name='Blue 32x32 RSC Box',
+            base_uom=self.uom_each,
+        )
+        Item.objects.create(
+            tenant=self.tenant, sku='SRCH-2', name='Blue Mailer 12x9',
+            base_uom=self.uom_each,
+        )
+        Item.objects.create(
+            tenant=self.tenant, sku='SRCH-3', name='Red 32x32 Tray',
+            base_uom=self.uom_each,
+        )
+
+        # Partial / fragment match (case-insensitive contains).
+        skus = {r['sku'] for r in self.client.get('/api/v1/items/', {'search': 'blu'}).data['results']}
+        self.assertEqual(skus, {'SRCH-1', 'SRCH-2'})
+
+        # Multi-fragment: both 'blue' AND '32' must appear.
+        skus = {r['sku'] for r in self.client.get('/api/v1/items/', {'search': 'blue 32'}).data['results']}
+        self.assertEqual(skus, {'SRCH-1'})
+
+    def test_search_matches_vendor_mpn(self):
+        """Items are findable by their vendor MPN (partial, case-insensitive)."""
+        item = Item.objects.create(
+            tenant=self.tenant, sku='MPN-SRCH', name='Unrelated Name',
+            base_uom=self.uom_each,
+        )
+        ItemVendor.objects.create(
+            tenant=self.tenant, item=item, vendor=self.vendor, mpn='ZX-99-ALPHA',
+        )
+        results = self.client.get('/api/v1/items/', {'search': 'zx-99'}).data['results']
+        skus = [r['sku'] for r in results]
+        self.assertIn('MPN-SRCH', skus)
+        # The reverse-FK join must not duplicate the item row.
+        self.assertEqual(skus.count('MPN-SRCH'), 1)
+
     def test_box_type_field_base(self):
         """Test box_type field returns 'base' for base items."""
         item = Item.objects.create(

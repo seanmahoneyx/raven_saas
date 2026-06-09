@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
@@ -28,11 +28,50 @@ export function useItems(params?: { search?: string; is_active?: boolean; divisi
  * Fetch every Item across all pages. Returns a flat array, not a PaginatedResponse.
  * Use for dropdowns, KPI tiles, and dashboards that must not be silently capped at PAGE_SIZE=50.
  */
-export function useAllItems(params?: { search?: string; is_active?: boolean; division?: string; lifecycle_status?: string }) {
+export function useAllItems(
+  params?: { search?: string; is_active?: boolean; division?: string; lifecycle_status?: string },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['items', 'all', params],
     queryFn: () => fetchAllPages<Item>(api, '/items/', params as Record<string, unknown> | undefined),
     staleTime: 60_000,
+    enabled: options?.enabled ?? true,
+  })
+}
+
+export interface ItemsListParams {
+  search?: string
+  is_active?: boolean
+  division?: string
+  lifecycle_status?: string
+  ordering?: string
+  page_size?: number
+}
+
+/**
+ * Server-side paginated Items feed for the main list page ("Load more" UX).
+ *
+ * Each page is a `page_size`-row chunk fetched straight from the server, with
+ * search and ordering applied server-side — so the filter sees ALL rows, not
+ * just the ones already loaded (fixes the "search only matches loaded rows" bug).
+ * Pages accumulate in `data.pages`; flatten with `data.pages.flatMap(p => p.results)`.
+ * The total match count is `data.pages[0]?.count`.
+ */
+export function useItemsInfinite(params?: ItemsListParams, options?: { enabled?: boolean }) {
+  const pageSize = params?.page_size ?? 50
+  return useInfiniteQuery({
+    queryKey: ['items', 'infinite', params],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const { data } = await api.get<PaginatedResponse<Item>>('/items/', {
+        params: { ...params, page: pageParam, page_size: pageSize },
+      })
+      return data
+    },
+    getNextPageParam: (lastPage, allPages) => (lastPage.next ? allPages.length + 1 : undefined),
+    staleTime: 30_000,
+    enabled: options?.enabled ?? true,
   })
 }
 

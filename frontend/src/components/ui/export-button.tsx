@@ -1,8 +1,13 @@
+import { useState } from 'react'
 import { Download } from 'lucide-react'
 import { Button } from './button'
 
 interface ExportButtonProps {
-  data: Record<string, unknown>[]
+  /** Rows to export. Optional when `fetchData` is provided. */
+  data?: Record<string, unknown>[]
+  /** Fetch rows lazily when the button is clicked. Use for server-paginated lists so
+   *  the export contains ALL matching rows rather than only the ones already loaded. */
+  fetchData?: () => Promise<Record<string, unknown>[]>
   filename: string
   columns?: { key: string; header: string }[]
   variant?: 'outline' | 'ghost' | 'default'
@@ -20,22 +25,34 @@ function escapeCSVValue(value: unknown): string {
 
 export function ExportButton({
   data,
+  fetchData,
   filename,
   columns,
   variant = 'outline',
   size = 'sm',
   iconOnly = false,
 }: ExportButtonProps) {
-  const handleExport = () => {
-    if (data.length === 0) return
+  const [exporting, setExporting] = useState(false)
 
-    const cols = columns ?? Object.keys(data[0]).map((key) => ({ key, header: key }))
+  const handleExport = async () => {
+    let rows = data ?? []
+    if (fetchData) {
+      try {
+        setExporting(true)
+        rows = await fetchData()
+      } finally {
+        setExporting(false)
+      }
+    }
+    if (rows.length === 0) return
+
+    const cols = columns ?? Object.keys(rows[0]).map((key) => ({ key, header: key }))
 
     const header = cols.map((c) => escapeCSVValue(c.header)).join(',')
-    const rows = data.map((row) =>
+    const body = rows.map((row) =>
       cols.map((c) => escapeCSVValue(row[c.key])).join(',')
     )
-    const csv = [header, ...rows].join('\r\n')
+    const csv = [header, ...body].join('\r\n')
 
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -50,9 +67,9 @@ export function ExportButton({
   }
 
   return (
-    <Button variant={variant} size={iconOnly ? 'icon' : size} onClick={handleExport} title="Export CSV">
+    <Button variant={variant} size={iconOnly ? 'icon' : size} onClick={handleExport} disabled={exporting} title="Export CSV">
       <Download className="h-4 w-4" />
-      {!iconOnly && <span className="ml-2">Export CSV</span>}
+      {!iconOnly && <span className="ml-2">{exporting ? 'Exporting…' : 'Export CSV'}</span>}
     </Button>
   )
 }

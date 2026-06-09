@@ -22,6 +22,31 @@ import { cn } from '@/lib/utils'
  *  Columns not listed are always visible. */
 type ResponsiveColumns = Record<string, number>
 
+/**
+ * Server-driven table config. When supplied, the table runs in "server mode":
+ * pagination ("Load more"), search, and sorting are owned by the parent and applied
+ * on the server — client-side pagination/filtering/sorting are switched off.
+ */
+export interface ServerTableConfig {
+  /** Current search text (controlled). Maps to the server `?search=` param. */
+  searchValue: string
+  onSearchChange: (value: string) => void
+  /** Current sort state (controlled). Parent maps this to a server `?ordering=` param. */
+  sorting: SortingState
+  onSortingChange: (sorting: SortingState) => void
+  /** Total rows matching the current query on the server. */
+  totalCount: number
+  /** Whether another chunk can be loaded. */
+  hasMore: boolean
+  /** Append the next chunk. */
+  onLoadMore: () => void
+  /** True while the next chunk is in flight. */
+  isFetchingMore?: boolean
+  /** Chunk size (rows fetched per page). */
+  pageSize: number
+  onPageSizeChange: (size: number) => void
+}
+
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
@@ -53,6 +78,9 @@ interface DataTableProps<TData, TValue> {
   pageSize?: number
   /** Selectable page sizes shown in the pager dropdown. Defaults to [25, 50, 75, 100]. */
   pageSizeOptions?: number[]
+  /** When provided, the table runs in server-driven mode (search/sort/"Load more" handled
+   *  by the parent + server). Client-side pagination/filtering/sorting are disabled. */
+  server?: ServerTableConfig
 }
 
 export function DataTable<TData, TValue>({
@@ -77,7 +105,9 @@ export function DataTable<TData, TValue>({
   embedded,
   pageSize = 50,
   pageSizeOptions = [25, 50, 75, 100],
+  server,
 }: DataTableProps<TData, TValue>) {
+  const isServer = !!server
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -223,13 +253,24 @@ export function DataTable<TData, TValue>({
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    onSortingChange: setSorting,
+    onSortingChange: isServer
+      ? (updater) => {
+          const next = typeof updater === 'function' ? updater(server!.sorting) : updater
+          server!.onSortingChange(next)
+        }
+      : setSorting,
     onColumnFiltersChange: setColumnFilters,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
     onPaginationChange: setPagination,
+    // Server mode: the parent owns paging/search/sort, so disable the client row models'
+    // slicing/filtering/sorting and let `data` (the accumulated chunks) render as-is.
+    manualPagination: isServer,
+    manualSorting: isServer,
+    manualFiltering: isServer,
+    ...(isServer ? { rowCount: server!.totalCount } : {}),
     state: {
-      sorting,
+      sorting: isServer ? server!.sorting : sorting,
       columnFilters,
       rowSelection,
       columnVisibility,
@@ -238,9 +279,11 @@ export function DataTable<TData, TValue>({
     enableRowSelection: enableSelection,
   })
 
-  const searchValue = searchColumn
-    ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''
-    : ''
+  const searchValue = isServer
+    ? server!.searchValue
+    : searchColumn
+      ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''
+      : ''
 
   const dropdownItems = showSearchDropdown && searchDropdownLabel
     ? table.getFilteredRowModel().rows.slice(0, 20)
@@ -250,10 +293,10 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4" ref={rootRef}>
-      {!hideToolbar && (searchColumn || storageKey) && (
+      {!hideToolbar && (searchColumn || storageKey || isServer) && (
         <div className="flex items-center justify-between gap-4 px-6 pt-4">
           {/* Search */}
-          {searchColumn ? (
+          {(searchColumn || isServer) ? (
             <div ref={containerRef} className="relative max-w-sm flex-1">
               <div className="relative">
                 <Input
@@ -261,7 +304,11 @@ export function DataTable<TData, TValue>({
                   placeholder={searchPlaceholder}
                   value={searchValue}
                   onChange={(event) => {
-                    table.getColumn(searchColumn)?.setFilterValue(event.target.value)
+                    if (isServer) {
+                      server!.onSearchChange(event.target.value)
+                      return
+                    }
+                    table.getColumn(searchColumn!)?.setFilterValue(event.target.value)
                     if (showSearchDropdown) {
                       setDropdownOpen(true)
                       setHighlightIndex(-1)
@@ -284,7 +331,7 @@ export function DataTable<TData, TValue>({
                       if (item) {
                         onRowClick?.(item.original)
                         setDropdownOpen(false)
-                        table.getColumn(searchColumn)?.setFilterValue('')
+                        table.getColumn(searchColumn!)?.setFilterValue('')
                       }
                     } else if (e.key === 'Escape') {
                       setDropdownOpen(false)
@@ -295,7 +342,11 @@ export function DataTable<TData, TValue>({
                 {searchValue && (
                   <button
                     onClick={() => {
-                      table.getColumn(searchColumn)?.setFilterValue('')
+                      if (isServer) {
+                        server!.onSearchChange('')
+                      } else {
+                        table.getColumn(searchColumn!)?.setFilterValue('')
+                      }
                       setDropdownOpen(false)
                       inputRef.current?.focus()
                     }}
@@ -318,7 +369,7 @@ export function DataTable<TData, TValue>({
                         e.preventDefault()
                         onRowClick?.(row.original)
                         setDropdownOpen(false)
-                        table.getColumn(searchColumn)?.setFilterValue('')
+                        table.getColumn(searchColumn!)?.setFilterValue('')
                       }}
                       onMouseEnter={() => setHighlightIndex(idx)}
                     >
@@ -526,6 +577,40 @@ export function DataTable<TData, TValue>({
         </div>
       )}
 
+      {isServer ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 pl-6 pr-6">
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              {data.length === 0
+                ? '0 rows'
+                : `Showing ${data.length} of ${server!.totalCount}`}
+            </div>
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span className="hidden sm:inline">Rows:</span>
+              <select
+                value={server!.pageSize}
+                onChange={(e) => server!.onPageSizeChange(Number(e.target.value))}
+                className="rounded-md px-2 py-1 text-sm cursor-pointer"
+                style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)', color: 'var(--so-text-secondary)' }}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {server!.hasMore && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={server!.onLoadMore}
+              disabled={server!.isFetchingMore}
+            >
+              {server!.isFetchingMore ? 'Loading…' : 'Load more'}
+            </Button>
+          )}
+        </div>
+      ) : (
       <div className="flex flex-wrap items-center justify-between gap-3 pl-6 pr-6">
         <div className="flex items-center gap-4">
           <div className="text-sm text-muted-foreground">
@@ -593,6 +678,7 @@ export function DataTable<TData, TValue>({
           </Button>
         </div>
       </div>
+      )}
     </div>
   )
 }

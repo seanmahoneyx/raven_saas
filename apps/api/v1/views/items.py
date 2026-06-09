@@ -253,8 +253,17 @@ class ItemViewSet(viewsets.ModelViewSet):
     """
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active', 'item_type', 'division', 'base_uom', 'customer', 'parent', 'lifecycle_status']
-    search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc']
-    ordering_fields = ['sku', 'name', 'division', 'created_at']
+    # Default (no prefix) SearchFilter behaviour is case-insensitive "contains", and
+    # space-separated terms are AND-ed across these fields — so "blue 32" matches a row
+    # containing both fragments. `vendors__mpn` lets users search by manufacturer part
+    # number; the reverse-FK join makes SearchFilter apply .distinct() automatically.
+    search_fields = ['sku', 'name', 'description', 'purch_desc', 'sell_desc', 'vendors__mpn']
+    # Annotated columns (qty_*, preferred_vendor_name, attachment_count) are exposed for
+    # ordering so server-side sort works on those list columns too.
+    ordering_fields = [
+        'sku', 'name', 'division', 'item_type', 'lifecycle_status', 'revision', 'created_at',
+        'qty_on_hand', 'qty_on_open_po', 'qty_on_open_so', 'preferred_vendor_name', 'attachment_count',
+    ]
     ordering = ['sku']
 
     def get_queryset(self):
