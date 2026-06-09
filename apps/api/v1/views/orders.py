@@ -62,7 +62,10 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
         ).prefetch_related('lines__item', 'lines__uom').all()
     filterset_fields = ['status', 'vendor', 'scheduled_date', 'scheduled_truck']
     search_fields = ['po_number', 'vendor__party__display_name', 'notes']
-    ordering_fields = ['po_number', 'order_date', 'scheduled_date', 'created_at']
+    ordering_fields = [
+        'po_number', 'order_date', 'expected_date', 'scheduled_date', 'created_at',
+        'status', 'vendor__party__display_name',
+    ]
     ordering = ['-order_date']
 
     def get_serializer_class(self):
@@ -220,7 +223,10 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         ).prefetch_related('lines__item', 'lines__uom').all()
     filterset_fields = ['status', 'customer', 'scheduled_date', 'scheduled_truck']
     search_fields = ['order_number', 'customer__party__display_name', 'customer_po', 'notes']
-    ordering_fields = ['order_number', 'order_date', 'scheduled_date', 'created_at']
+    ordering_fields = [
+        'order_number', 'order_date', 'scheduled_date', 'created_at',
+        'status', 'priority', 'customer__party__display_name',
+    ]
     ordering = ['-order_date']
 
     def get_serializer_class(self):

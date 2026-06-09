@@ -13,7 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useSalesOrders, usePurchaseOrders, useDeleteSalesOrder, useDeletePurchaseOrder, useUpdateSalesOrder } from '@/api/orders'
+import { useDeleteSalesOrder, useDeletePurchaseOrder, useUpdateSalesOrder } from '@/api/orders'
+import { useServerList } from '@/hooks/useServerList'
+import api from '@/api/client'
+import { fetchAllPages } from '@/lib/paginate'
 import { SalesOrderDialog } from '@/components/orders/SalesOrderDialog'
 import { PurchaseOrderDialog } from '@/components/orders/PurchaseOrderDialog'
 import type { SalesOrder, PurchaseOrder } from '@/types/api'
@@ -35,6 +38,26 @@ import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
 
 type Tab = 'sales' | 'purchase'
+
+// Column id → server ordering field. Columns not listed are not sortable server-side
+// (num_lines/subtotal are model @property values, not DB columns) and get
+// enableSorting:false in their column defs.
+const SALES_ORDERING: Record<string, string> = {
+  order_number: 'order_number',
+  customer_name: 'customer__party__display_name',
+  order_date: 'order_date',
+  scheduled_date: 'scheduled_date',
+  status: 'status',
+  priority: 'priority',
+}
+const PURCHASE_ORDERING: Record<string, string> = {
+  po_number: 'po_number',
+  vendor_name: 'vendor__party__display_name',
+  order_date: 'order_date',
+  expected_date: 'expected_date',
+  scheduled_date: 'scheduled_date',
+  status: 'status',
+}
 
 export default function Orders() {
   usePageTitle('Orders')
@@ -92,16 +115,31 @@ export default function Orders() {
     }
   }, [searchParams, setSearchParams])
 
-  const { data: salesData, isLoading: salesLoading, isError: salesIsError, error: salesError, refetch: refetchSales } = useSalesOrders()
-  const { data: purchaseData, isLoading: purchaseLoading, isError: purchaseIsError, error: purchaseError, refetch: refetchPurchase } = usePurchaseOrders()
+  // Server-driven lists ("Load more" + server search/sort). Only the active tab
+  // fetches. Query-key prefixes match the realtime invalidation keys in useOrderSync.
+  const salesList = useServerList<SalesOrder>({
+    queryKey: ['sales-orders', 'infinite'],
+    endpoint: '/sales-orders/',
+    api,
+    enabled: activeTab === 'sales',
+    orderingMap: SALES_ORDERING,
+  })
+  const purchaseList = useServerList<PurchaseOrder>({
+    queryKey: ['purchase-orders', 'infinite'],
+    endpoint: '/purchase-orders/',
+    api,
+    enabled: activeTab === 'purchase',
+    orderingMap: PURCHASE_ORDERING,
+  })
+  const salesRows = salesList.rows
+  const purchaseRows = purchaseList.rows
+
   const deleteSalesOrder = useDeleteSalesOrder()
   const deletePurchaseOrder = useDeletePurchaseOrder()
   const updateOrder = useUpdateSalesOrder()
 
   const mobileOrders = useMemo(() => {
-    const raw = activeTab === 'sales'
-      ? (salesData?.results ?? [])
-      : (purchaseData?.results ?? [])
+    const raw = activeTab === 'sales' ? salesRows : purchaseRows
     let rows = [...raw]
     if (mobileSearch.trim()) {
       const q = mobileSearch.toLowerCase()
@@ -132,7 +170,7 @@ export default function Orders() {
       return 0
     })
     return rows
-  }, [activeTab, salesData, purchaseData, mobileSearch, mobileSortKey, mobileSortDir])
+  }, [activeTab, salesRows, purchaseRows, mobileSearch, mobileSortKey, mobileSortDir])
 
   const handleAddNew = () => {
     if (activeTab === 'sales') {
@@ -225,6 +263,7 @@ export default function Orders() {
       {
         accessorKey: 'num_lines',
         header: 'Lines',
+        enableSorting: false,
         cell: ({ row }) => (
           <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines')}</span>
         ),
@@ -232,6 +271,7 @@ export default function Orders() {
       {
         accessorKey: 'subtotal',
         header: 'Total',
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
             {formatCurrency(row.getValue('subtotal'))}
@@ -338,6 +378,7 @@ export default function Orders() {
       {
         accessorKey: 'num_lines',
         header: 'Lines',
+        enableSorting: false,
         cell: ({ row }) => (
           <span style={{ color: 'var(--so-text-secondary)' }}>{row.getValue('num_lines')}</span>
         ),
@@ -345,6 +386,7 @@ export default function Orders() {
       {
         accessorKey: 'subtotal',
         header: 'Total',
+        enableSorting: false,
         cell: ({ row }) => (
           <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
             {formatCurrency(row.getValue('subtotal'))}
@@ -398,7 +440,9 @@ export default function Orders() {
     { id: 'purchase' as Tab, label: 'Purchase Orders', icon: Package },
   ]
 
-  const activeOrders = activeTab === 'sales' ? salesData?.results ?? [] : purchaseData?.results ?? []
+  // NOTE: KPIs are computed from the rows loaded so far (the active tab's chunks),
+  // not the full dataset — a server-side aggregation endpoint is a Phase 3 follow-up.
+  const activeOrders = activeTab === 'sales' ? salesRows : purchaseRows
 
   const kpis = [
     { label: 'Draft', count: activeOrders.filter((o) => o.status === 'draft').length },
@@ -421,7 +465,14 @@ export default function Orders() {
           }}
           trailing={
             <ExportButton
-              data={(activeTab === 'sales' ? (salesData?.results ?? []) : (purchaseData?.results ?? [])) as unknown as Record<string, unknown>[]}
+              // Fetch ALL matching rows at click time (respecting the active search/sort),
+              // not just the chunks already loaded into the list.
+              fetchData={async () => {
+                const endpoint = activeTab === 'sales' ? '/sales-orders/' : '/purchase-orders/'
+                const params = activeTab === 'sales' ? salesList.exportParams : purchaseList.exportParams
+                const all = await fetchAllPages(api, endpoint, params)
+                return all as unknown as Record<string, unknown>[]
+              }}
               filename={activeTab === 'sales' ? 'sales-orders' : 'purchase-orders'}
               columns={activeTab === 'sales' ? [
                 { key: 'order_number', header: 'Order #' },
@@ -509,19 +560,19 @@ export default function Orders() {
               </span>
             </div>
             {activeTab === 'sales' && (
-              salesLoading ? (
+              salesList.isLoading ? (
                 <div className="p-6"><TableSkeleton columns={9} rows={8} showSearch={false} /></div>
-              ) : salesIsError ? (
+              ) : salesList.query.isError ? (
                 <div className="p-6 text-center text-sm" style={{ color: 'var(--so-text-secondary)' }}>
-                  <p className="mb-4">Failed to load sales orders: {getApiErrorMessage(salesError, 'Unknown error')}</p>
-                  <Button variant="outline" onClick={() => refetchSales()}>Retry</Button>
+                  <p className="mb-4">Failed to load sales orders: {getApiErrorMessage(salesList.query.error, 'Unknown error')}</p>
+                  <Button variant="outline" onClick={() => salesList.query.refetch()}>Retry</Button>
                 </div>
               ) : (
                 <DataTable
                   columns={salesColumns}
-                  data={salesData?.results ?? []}
-                  searchColumn="order_number"
-                  searchPlaceholder="Search orders..."
+                  data={salesRows}
+                  server={salesList.server}
+                  searchPlaceholder="Search by order #, customer..."
                   storageKey="all-sales-orders"
                   onRowClick={(order) => navigate(`/orders/sales/${order.id}`)}
                   enableSelection
@@ -543,19 +594,19 @@ export default function Orders() {
               )
             )}
             {activeTab === 'purchase' && (
-              purchaseLoading ? (
+              purchaseList.isLoading ? (
                 <div className="p-6"><TableSkeleton columns={9} rows={8} showSearch={false} /></div>
-              ) : purchaseIsError ? (
+              ) : purchaseList.query.isError ? (
                 <div className="p-6 text-center text-sm" style={{ color: 'var(--so-text-secondary)' }}>
-                  <p className="mb-4">Failed to load purchase orders: {getApiErrorMessage(purchaseError, 'Unknown error')}</p>
-                  <Button variant="outline" onClick={() => refetchPurchase()}>Retry</Button>
+                  <p className="mb-4">Failed to load purchase orders: {getApiErrorMessage(purchaseList.query.error, 'Unknown error')}</p>
+                  <Button variant="outline" onClick={() => purchaseList.query.refetch()}>Retry</Button>
                 </div>
               ) : (
                 <DataTable
                   columns={purchaseColumns}
-                  data={purchaseData?.results ?? []}
-                  searchColumn="po_number"
-                  searchPlaceholder="Search POs..."
+                  data={purchaseRows}
+                  server={purchaseList.server}
+                  searchPlaceholder="Search by PO #, vendor..."
                   storageKey="all-purchase-orders"
                   onRowClick={(order) => navigate(`/orders/purchase/${order.id}`)}
                 />
