@@ -641,8 +641,8 @@ class ItemAPITests(ItemsTestCase):
         for item in response.data['results']:
             self.assertEqual(item['division'], 'corrugated')
 
-    def test_item_type_field_base(self):
-        """Test item_type field returns 'base' for base items."""
+    def test_box_type_field_base(self):
+        """Test box_type field returns 'base' for base items."""
         item = Item.objects.create(
             tenant=self.tenant,
             sku='TYPE-BASE',
@@ -650,10 +650,10 @@ class ItemAPITests(ItemsTestCase):
             base_uom=self.uom_each,
         )
         response = self.client.get(f'/api/v1/items/{item.id}/')
-        self.assertEqual(response.data['item_type'], 'base')
+        self.assertEqual(response.data['box_type'], 'base')
 
-    def test_item_type_field_rsc(self):
-        """Test item_type field returns 'rsc' for RSC items."""
+    def test_box_type_field_rsc(self):
+        """Test box_type field returns 'rsc' for RSC items."""
         item = RSCItem.objects.create(
             tenant=self.tenant,
             sku='TYPE-RSC',
@@ -664,7 +664,7 @@ class ItemAPITests(ItemsTestCase):
             height=Decimal('8.0'),
         )
         response = self.client.get(f'/api/v1/items/{item.id}/')
-        self.assertEqual(response.data['item_type'], 'rsc')
+        self.assertEqual(response.data['box_type'], 'rsc')
 
 
 class ItemVendorAPITests(ItemsTestCase):
