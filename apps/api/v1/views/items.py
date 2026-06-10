@@ -399,12 +399,10 @@ class ItemViewSet(viewsets.ModelViewSet):
         """Generate a PDF spec sheet for this item."""
         item = self.get_object()
         from apps.documents.pdf import PDFService
+        from apps.api.v1.views.base import pdf_response
         pdf_bytes = PDFService.render_item_spec(item)
 
-        from django.http import HttpResponse
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="spec-sheet-{item.sku}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"spec-sheet-{item.sku}.pdf", inline=True)
 
     @extend_schema(tags=['items'], summary='Duplicate an item (Save As Copy)')
     @action(detail=True, methods=['post'])

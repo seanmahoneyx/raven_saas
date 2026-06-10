@@ -1,8 +1,23 @@
 # apps/api/v1/views/base.py
 """
-Base ViewSet classes for tenant-aware API views.
+Base ViewSet classes and helpers for tenant-aware API views.
 """
+from django.http import HttpResponse
 from rest_framework import viewsets
+
+
+def pdf_response(pdf_bytes, filename, *, inline=True):
+    """
+    Build an HttpResponse that serves PDF bytes with a Content-Disposition header.
+
+    Single source of truth for the ~30 hand-rolled PDF responses across the
+    report/document views. `inline=True` renders in the browser; `inline=False`
+    forces a download.
+    """
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    disposition = 'inline' if inline else 'attachment'
+    response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+    return response
 
 
 class TenantModelViewSet(viewsets.ModelViewSet):

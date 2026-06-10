@@ -4,6 +4,7 @@ from rest_framework import status
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema
 
+from apps.api.v1.views.base import pdf_response
 from apps.warehousing.labels import LabelService
 
 
@@ -39,9 +40,7 @@ class ItemLabelsView(APIView):
         if fmt == 'ZPL':
             return HttpResponse(result, content_type='text/plain')
 
-        response = HttpResponse(result, content_type='application/pdf')
-        response['Content-Disposition'] = 'inline; filename="item-labels.pdf"'
-        return response
+        return pdf_response(result, "item-labels.pdf", inline=True)
 
 
 class BinLabelsView(APIView):
@@ -75,9 +74,7 @@ class BinLabelsView(APIView):
         if fmt == 'ZPL':
             return HttpResponse(result, content_type='text/plain')
 
-        response = HttpResponse(result, content_type='application/pdf')
-        response['Content-Disposition'] = 'inline; filename="bin-labels.pdf"'
-        return response
+        return pdf_response(result, "bin-labels.pdf", inline=True)
 
 
 class LPNLabelsView(APIView):
@@ -106,6 +103,4 @@ class LPNLabelsView(APIView):
         if fmt == 'ZPL':
             return HttpResponse(result, content_type='text/plain')
 
-        response = HttpResponse(result, content_type='application/pdf')
-        response['Content-Disposition'] = 'inline; filename="lpn-labels.pdf"'
-        return response
+        return pdf_response(result, "lpn-labels.pdf", inline=True)

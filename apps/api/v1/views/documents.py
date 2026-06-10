@@ -5,11 +5,11 @@ ViewSets for Document & Attachment management.
 from rest_framework import viewsets, filters, status, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.http import HttpResponse
 from django.contrib.contenttypes.models import ContentType
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from apps.api.v1.views.base import pdf_response
 from apps.documents.models import Attachment
 from apps.documents.pdf import PDFService
 from apps.documents.email import EmailService
@@ -159,9 +159,7 @@ class PDFActionMixin:
             )
 
         # Return PDF as download
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
+        return pdf_response(pdf_bytes, f"{filename}", inline=False)
 
     @extend_schema(tags=['documents'], summary='Download PDF')
     @action(detail=True, methods=['get'], url_path='pdf')
@@ -171,6 +169,4 @@ class PDFActionMixin:
         pdf_bytes = self._get_pdf_bytes(obj)
         filename = self._get_pdf_filename(obj)
 
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return response
+        return pdf_response(pdf_bytes, f"{filename}", inline=False)

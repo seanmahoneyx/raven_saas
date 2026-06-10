@@ -126,16 +126,14 @@ class ManifestPDFView(APIView):
     def get(self, request, run_id):
         from apps.scheduling.models import DeliveryRun
         from apps.documents.pdf import PDFService
-        from django.http import HttpResponse
+        from apps.api.v1.views.base import pdf_response
         try:
             run = DeliveryRun.objects.get(pk=run_id, tenant=request.tenant)
         except DeliveryRun.DoesNotExist:
             from rest_framework.response import Response
             return Response({'error': 'Delivery run not found'}, status=404)
         pdf_bytes = PDFService.render_delivery_manifest(run)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="manifest-{run.name}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"manifest-{run.name}.pdf", inline=True)
 
 
 class InitializeRunView(APIView):

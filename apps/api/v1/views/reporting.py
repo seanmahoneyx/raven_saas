@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from apps.api.v1.views.base import pdf_response
 from apps.reporting.models import ReportDefinition, ReportSchedule, SavedReport, ReportFavorite
 from apps.api.v1.serializers.reporting import (
     ReportDefinitionSerializer, ReportDefinitionListSerializer,
@@ -501,9 +502,7 @@ class ItemQuickReportPDFView(APIView):
         report_data = ItemReportService.get_quick_report(request.tenant, item_id, start_date, end_date)
         pdf_bytes = PDFService.render_item_quick_report(item, report_data, start_date, end_date)
 
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="item-quick-report-{item.sku}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"item-quick-report-{item.sku}.pdf", inline=True)
 
 
 class TrialBalancePDFView(APIView):
@@ -528,9 +527,7 @@ class TrialBalancePDFView(APIView):
         from django.http import HttpResponse
 
         pdf = PDFService.render_trial_balance(request.tenant, as_of_date)
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="trial-balance-{as_of_date.isoformat()}.pdf"'
-        return response
+        return pdf_response(pdf, f"trial-balance-{as_of_date.isoformat()}.pdf", inline=True)
 
 
 class IncomeStatementPDFView(APIView):
@@ -567,11 +564,7 @@ class IncomeStatementPDFView(APIView):
         from django.http import HttpResponse
 
         pdf = PDFService.render_income_statement(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="income-statement-{start_date.isoformat()}-{end_date.isoformat()}.pdf"'
-        )
-        return response
+        return pdf_response(pdf, f"income-statement-{start_date.isoformat()}-{end_date.isoformat()}.pdf", inline=True)
 
 
 class BalanceSheetPDFView(APIView):
@@ -596,9 +589,7 @@ class BalanceSheetPDFView(APIView):
         from django.http import HttpResponse
 
         pdf = PDFService.render_balance_sheet(request.tenant, as_of_date)
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="balance-sheet-{as_of_date.isoformat()}.pdf"'
-        return response
+        return pdf_response(pdf, f"balance-sheet-{as_of_date.isoformat()}.pdf", inline=True)
 
 
 class CashFlowStatementPDFView(APIView):
@@ -635,11 +626,7 @@ class CashFlowStatementPDFView(APIView):
         from django.http import HttpResponse
 
         pdf = PDFService.render_cash_flow_statement(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="cash-flow-{start_date.isoformat()}-{end_date.isoformat()}.pdf"'
-        )
-        return response
+        return pdf_response(pdf, f"cash-flow-{start_date.isoformat()}-{end_date.isoformat()}.pdf", inline=True)
 
 
 class APAgingView(APIView):
@@ -706,9 +693,7 @@ class ARAgingPDFView(APIView):
             request.tenant, as_of_date, interval=interval, through=through,
             customer_id=customer_id,
         )
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="ar-aging-{as_of_date}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"ar-aging-{as_of_date}.pdf", inline=True)
 
 
 class APAgingPDFView(APIView):
@@ -742,9 +727,7 @@ class APAgingPDFView(APIView):
             request.tenant, as_of_date, interval=interval, through=through,
             vendor_id=vendor_id,
         )
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="ap-aging-{as_of_date}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"ap-aging-{as_of_date}.pdf", inline=True)
 
 
 class CashFlowStatementView(APIView):
@@ -917,9 +900,7 @@ class GrossMarginPDFView(APIView):
         from_part = date_from or 'all'
         to_part = date_to or 'time'
         filename = f'gross-margin-{from_part}-{to_part}.pdf'
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{filename}"'
-        return response
+        return pdf_response(pdf, f"{filename}", inline=True)
 
 
 class ContractUtilizationPDFView(APIView):
@@ -933,9 +914,7 @@ class ContractUtilizationPDFView(APIView):
 
         pdf = PDFService.render_contract_utilization(request.tenant)
         today = date.today().isoformat()
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="contract-utilization-{today}.pdf"'
-        return response
+        return pdf_response(pdf, f"contract-utilization-{today}.pdf", inline=True)
 
 
 class VendorScorecardPDFView(APIView):
@@ -959,9 +938,7 @@ class VendorScorecardPDFView(APIView):
         from_part = date_from or date.today().isoformat()
         to_part = date_to or date.today().isoformat()
         filename = f'vendor-scorecard-{from_part}-{to_part}.pdf'
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{filename}"'
-        return response
+        return pdf_response(pdf, f"{filename}", inline=True)
 
 
 class SalesCommissionPDFView(APIView):
@@ -987,9 +964,7 @@ class SalesCommissionPDFView(APIView):
         from_part = date_from or date.today().isoformat()
         to_part = date_to or date.today().isoformat()
         filename = f'sales-commission-{from_part}-{to_part}.pdf'
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="{filename}"'
-        return response
+        return pdf_response(pdf, f"{filename}", inline=True)
 
 
 class OrdersVsInventoryPDFView(APIView):
@@ -1003,6 +978,4 @@ class OrdersVsInventoryPDFView(APIView):
 
         pdf = PDFService.render_orders_vs_inventory(request.tenant)
         today = date.today().isoformat()
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="orders-vs-inventory-{today}.pdf"'
-        return response
+        return pdf_response(pdf, f"orders-vs-inventory-{today}.pdf", inline=True)
