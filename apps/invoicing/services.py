@@ -1463,6 +1463,64 @@ class VendorBillService:
 
             return bill
 
+    def void_vendor_bill(self, bill):
+        """
+        Void a vendor bill, reversing its GL impact.
+
+        If the bill was posted (has a linked journal entry), a reversing entry
+        is created by swapping debits/credits so the original posting is backed
+        out of the ledger. The bill is then marked 'void'.
+
+        Args:
+            bill: VendorBill instance
+
+        Returns:
+            VendorBill with status='void'
+
+        Raises:
+            ValidationError: If the bill has payments or is already void.
+        """
+        if bill.amount_paid > 0:
+            raise ValidationError(
+                "Cannot void a bill with payments. Reverse payments first."
+            )
+        if bill.status == 'void':
+            raise ValidationError("Bill is already void.")
+
+        with transaction.atomic():
+            # Reverse the journal entry if one exists (mirrors invoice void pattern).
+            je = bill.journal_entry
+            if je is not None:
+                rev = JournalEntry.objects.create(
+                    tenant=self.tenant,
+                    entry_number=f"{je.entry_number}-VOID",
+                    date=timezone.now().date(),
+                    memo=f"VOID of {je.memo}",
+                    reference_number=je.reference_number,
+                    entry_type='standard',
+                    status='posted',
+                    posted_at=timezone.now(),
+                    posted_by=self.user,
+                    created_by=self.user,
+                )
+                line_num = 10
+                for line in je.lines.all():
+                    JournalEntryLine.objects.create(
+                        tenant=self.tenant,
+                        entry=rev,
+                        line_number=line_num,
+                        account=line.account,
+                        description=f"VOID: {line.description}",
+                        debit=line.credit,
+                        credit=line.debit,
+                    )
+                    line_num += 10
+
+            VendorBill.objects.filter(pk=bill.pk).update(status='void')
+            bill.refresh_from_db()
+
+        return bill
+
     # ===== PAYMENTS =====
 
     def pay_vendor_bill(

@@ -10,7 +10,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
 from django.db.models import Max
 
 from apps.invoicing.models import (
@@ -530,59 +529,14 @@ class VendorBillViewSet(viewsets.ModelViewSet):
     @extend_schema(tags=['invoicing'], summary='Void a vendor bill')
     @action(detail=True, methods=['post'])
     def void(self, request, pk=None):
-        """
-        Void a vendor bill.
-
-        TODO: Wire to VendorBillService.void_vendor_bill once it exists in
-        services.py (it currently does not; mirrors InvoiceViewSet.void
-        behavior which directly toggles status when no payments are present).
-        """
+        """Void a vendor bill, reversing its GL impact via VendorBillService."""
         bill = self.get_object()
-        if bill.amount_paid > 0:
-            return Response(
-                {'error': 'Cannot void a bill with payments. Reverse payments first.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if bill.status == 'void':
-            return Response(
-                {'error': 'Bill is already void.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        with transaction.atomic():
-            # Reverse the journal entry if one exists (mirrors invoice void pattern).
-            je = bill.journal_entry
-            if je is not None:
-                # Create a reversing entry by negating debits/credits.
-                from apps.accounting.models import JournalEntry, JournalEntryLine
-                from django.utils import timezone as tz
-                rev = JournalEntry.objects.create(
-                    tenant=request.tenant,
-                    entry_number=f"{je.entry_number}-VOID",
-                    date=tz.now().date(),
-                    memo=f"VOID of {je.memo}",
-                    reference_number=je.reference_number,
-                    entry_type='standard',
-                    status='posted',
-                    posted_at=tz.now(),
-                    posted_by=request.user,
-                    created_by=request.user,
-                )
-                ln = 10
-                for line in je.lines.all():
-                    JournalEntryLine.objects.create(
-                        tenant=request.tenant,
-                        entry=rev,
-                        line_number=ln,
-                        account=line.account,
-                        description=f"VOID: {line.description}",
-                        debit=line.credit,
-                        credit=line.debit,
-                    )
-                    ln += 10
-
-            VendorBill.objects.filter(pk=bill.pk).update(status='void')
-            bill.refresh_from_db()
+        try:
+            svc = VendorBillService(request.tenant, request.user)
+            svc.void_vendor_bill(bill)
+        except DjangoValidationError as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = VendorBillDetailSerializer(bill, context={'request': request})
         return Response(serializer.data)
