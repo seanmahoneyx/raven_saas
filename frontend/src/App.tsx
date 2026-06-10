@@ -1,104 +1,111 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider, useAuth } from '@/hooks/useAuth'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { PageLoader } from '@/components/ui/page-loader'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import MainLayout from '@/components/layout/MainLayout'
 import { useOnboardingStatus } from '@/api/onboarding'
 import Login from '@/pages/Login'
-import Dashboard from '@/pages/Dashboard'
-import Scheduler from '@/pages/Scheduler'
-import Customers from '@/pages/Customers'
-import Vendors from '@/pages/Vendors'
-import Trucks from '@/pages/Trucks'
-import Items from '@/pages/Items'
-import Orders from '@/pages/Orders'
-import Inventory from '@/pages/Inventory'
-import Shipping from '@/pages/Shipping'
-import Invoices from '@/pages/Invoices'
-import ReceivePayment from '@/pages/ReceivePayment'
-import Contracts from '@/pages/Contracts'
-import ContractDetail from '@/pages/ContractDetail'
-import PriorityList from '@/pages/PriorityList'
-import CreateCustomer from '@/pages/CreateCustomer'
-import CreateVendor from '@/pages/CreateVendor'
-import DesignRequests from '@/pages/DesignRequests'
-import CreateDesignRequest from '@/pages/CreateDesignRequest'
-import DesignRequestDetail from '@/pages/DesignRequestDetail'
-import ItemDetail from '@/pages/ItemDetail'
-import CustomerDetail from '@/pages/CustomerDetail'
-import VendorDetail from '@/pages/VendorDetail'
-import CreateItem from '@/pages/CreateItem'
-import RequestItem from '@/pages/RequestItem'
-import ItemQuickReport from '@/pages/reports/ItemQuickReport'
-import ReportsDashboard from '@/pages/reports/ReportsDashboard'
-import CannedReport from '@/pages/reports/CannedReport'
-import FinancialStatements from '@/pages/reports/FinancialStatements'
-import AgingReports from '@/pages/reports/AgingReports'
-import GrossMargin from '@/pages/reports/GrossMargin'
-import ContractUtilization from '@/pages/reports/ContractUtilization'
-import VendorScorecard from '@/pages/reports/VendorScorecard'
-import SalesCommission from '@/pages/reports/SalesCommission'
-import OrdersVsInventory from '@/pages/reports/OrdersVsInventory'
-import Estimates from '@/pages/Estimates'
-import CreateEstimate from '@/pages/CreateEstimate'
-import EstimateDetail from '@/pages/EstimateDetail'
-import CreateContract from '@/pages/CreateContract'
-import CreateSalesOrder from '@/pages/CreateSalesOrder'
-import CreatePurchaseOrder from '@/pages/CreatePurchaseOrder'
-import CreateRFQ from '@/pages/CreateRFQ'
-import CreatePriceList from '@/pages/CreatePriceList'
-import RFQs from '@/pages/RFQs'
-import RFQDetail from '@/pages/RFQDetail'
-import PriceLists from '@/pages/PriceLists'
-import ProductCards from '@/pages/ProductCards'
-import PriceListDetail from '@/pages/PriceListDetail'
-import CostLists from '@/pages/CostLists'
-import CostListDetail from '@/pages/CostListDetail'
-import CreateCostList from '@/pages/CreateCostList'
-import OpenSalesOrders from '@/pages/OpenSalesOrders'
-import OpenPurchaseOrders from '@/pages/OpenPurchaseOrders'
-import SalesOrderDetail from '@/pages/SalesOrderDetail'
-import PurchaseOrderDetail from '@/pages/PurchaseOrderDetail'
-import AdminHub from '@/pages/admin/AdminHub'
-import DataImport from '@/pages/admin/DataImport'
-import TaxZones from '@/pages/admin/TaxZones'
-import UserAuditReport from '@/pages/admin/UserAuditReport'
-import ChartOfAccounts from '@/pages/ChartOfAccounts'
-import JournalEntries from '@/pages/JournalEntries'
-import CreateJournalEntry from '@/pages/CreateJournalEntry'
-import JournalEntryDetail from '@/pages/JournalEntryDetail'
-import CreateInvoice from '@/pages/CreateInvoice'
-import CreateBill from '@/pages/CreateBill'
-import BillDetail from '@/pages/BillDetail'
-import PayBills from '@/pages/PayBills'
-import ItemReceipts from '@/pages/ItemReceipts'
-import ItemReceiptDetail from '@/pages/ItemReceiptDetail'
-import Pipeline from '@/pages/Pipeline'
-import ContactDetail from '@/pages/ContactDetail'
-import InvoiceDetail from '@/pages/InvoiceDetail'
-import Scanner from '@/pages/warehouse/Scanner'
-import CycleCounts from '@/pages/warehouse/CycleCounts'
-import PrintLabels from '@/pages/warehouse/PrintLabels'
-import WarehouseLocations from '@/pages/warehouse/WarehouseLocations'
-import Logistics from '@/pages/Logistics'
-import DriverManifest from '@/pages/DriverManifest'
-import OtherNames from '@/pages/OtherNames'
-import Checks from '@/pages/Checks'
-import CreateCheck from '@/pages/CreateCheck'
-import Settings from '@/pages/Settings'
-import AccountingSettings from '@/pages/AccountingSettings'
-import Preferences from '@/pages/settings/Preferences'
-import UsersPage from '@/pages/Users'
-import Onboarding from '@/pages/Onboarding'
-import FixedAssets from '@/pages/FixedAssets'
-import FixedAssetDetail from '@/pages/FixedAssetDetail'
-import CreateFixedAsset from '@/pages/CreateFixedAsset'
-import Approvals from '@/pages/Approvals'
-import NotificationHub from '@/pages/NotificationHub'
-import UnitOfMeasure from '@/pages/UnitOfMeasure'
+
+// Pages are lazy-loaded so each route ships as its own chunk instead of one giant
+// bundle. This also pulls heavy, route-specific deps (recharts in the report pages,
+// dnd-kit in the scheduler) out of the initial download. Login stays eager so the
+// unauthenticated entry point paints without a chunk round-trip.
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Scheduler = lazy(() => import('@/pages/Scheduler'))
+const Customers = lazy(() => import('@/pages/Customers'))
+const Vendors = lazy(() => import('@/pages/Vendors'))
+const Trucks = lazy(() => import('@/pages/Trucks'))
+const Items = lazy(() => import('@/pages/Items'))
+const Orders = lazy(() => import('@/pages/Orders'))
+const Inventory = lazy(() => import('@/pages/Inventory'))
+const Shipping = lazy(() => import('@/pages/Shipping'))
+const Invoices = lazy(() => import('@/pages/Invoices'))
+const ReceivePayment = lazy(() => import('@/pages/ReceivePayment'))
+const Contracts = lazy(() => import('@/pages/Contracts'))
+const ContractDetail = lazy(() => import('@/pages/ContractDetail'))
+const PriorityList = lazy(() => import('@/pages/PriorityList'))
+const CreateCustomer = lazy(() => import('@/pages/CreateCustomer'))
+const CreateVendor = lazy(() => import('@/pages/CreateVendor'))
+const DesignRequests = lazy(() => import('@/pages/DesignRequests'))
+const CreateDesignRequest = lazy(() => import('@/pages/CreateDesignRequest'))
+const DesignRequestDetail = lazy(() => import('@/pages/DesignRequestDetail'))
+const ItemDetail = lazy(() => import('@/pages/ItemDetail'))
+const CustomerDetail = lazy(() => import('@/pages/CustomerDetail'))
+const VendorDetail = lazy(() => import('@/pages/VendorDetail'))
+const CreateItem = lazy(() => import('@/pages/CreateItem'))
+const RequestItem = lazy(() => import('@/pages/RequestItem'))
+const ItemQuickReport = lazy(() => import('@/pages/reports/ItemQuickReport'))
+const ReportsDashboard = lazy(() => import('@/pages/reports/ReportsDashboard'))
+const CannedReport = lazy(() => import('@/pages/reports/CannedReport'))
+const FinancialStatements = lazy(() => import('@/pages/reports/FinancialStatements'))
+const AgingReports = lazy(() => import('@/pages/reports/AgingReports'))
+const GrossMargin = lazy(() => import('@/pages/reports/GrossMargin'))
+const ContractUtilization = lazy(() => import('@/pages/reports/ContractUtilization'))
+const VendorScorecard = lazy(() => import('@/pages/reports/VendorScorecard'))
+const SalesCommission = lazy(() => import('@/pages/reports/SalesCommission'))
+const OrdersVsInventory = lazy(() => import('@/pages/reports/OrdersVsInventory'))
+const Estimates = lazy(() => import('@/pages/Estimates'))
+const CreateEstimate = lazy(() => import('@/pages/CreateEstimate'))
+const EstimateDetail = lazy(() => import('@/pages/EstimateDetail'))
+const CreateContract = lazy(() => import('@/pages/CreateContract'))
+const CreateSalesOrder = lazy(() => import('@/pages/CreateSalesOrder'))
+const CreatePurchaseOrder = lazy(() => import('@/pages/CreatePurchaseOrder'))
+const CreateRFQ = lazy(() => import('@/pages/CreateRFQ'))
+const CreatePriceList = lazy(() => import('@/pages/CreatePriceList'))
+const RFQs = lazy(() => import('@/pages/RFQs'))
+const RFQDetail = lazy(() => import('@/pages/RFQDetail'))
+const PriceLists = lazy(() => import('@/pages/PriceLists'))
+const ProductCards = lazy(() => import('@/pages/ProductCards'))
+const PriceListDetail = lazy(() => import('@/pages/PriceListDetail'))
+const CostLists = lazy(() => import('@/pages/CostLists'))
+const CostListDetail = lazy(() => import('@/pages/CostListDetail'))
+const CreateCostList = lazy(() => import('@/pages/CreateCostList'))
+const OpenSalesOrders = lazy(() => import('@/pages/OpenSalesOrders'))
+const OpenPurchaseOrders = lazy(() => import('@/pages/OpenPurchaseOrders'))
+const SalesOrderDetail = lazy(() => import('@/pages/SalesOrderDetail'))
+const PurchaseOrderDetail = lazy(() => import('@/pages/PurchaseOrderDetail'))
+const AdminHub = lazy(() => import('@/pages/admin/AdminHub'))
+const DataImport = lazy(() => import('@/pages/admin/DataImport'))
+const TaxZones = lazy(() => import('@/pages/admin/TaxZones'))
+const UserAuditReport = lazy(() => import('@/pages/admin/UserAuditReport'))
+const ChartOfAccounts = lazy(() => import('@/pages/ChartOfAccounts'))
+const JournalEntries = lazy(() => import('@/pages/JournalEntries'))
+const CreateJournalEntry = lazy(() => import('@/pages/CreateJournalEntry'))
+const JournalEntryDetail = lazy(() => import('@/pages/JournalEntryDetail'))
+const CreateInvoice = lazy(() => import('@/pages/CreateInvoice'))
+const CreateBill = lazy(() => import('@/pages/CreateBill'))
+const BillDetail = lazy(() => import('@/pages/BillDetail'))
+const PayBills = lazy(() => import('@/pages/PayBills'))
+const ItemReceipts = lazy(() => import('@/pages/ItemReceipts'))
+const ItemReceiptDetail = lazy(() => import('@/pages/ItemReceiptDetail'))
+const Pipeline = lazy(() => import('@/pages/Pipeline'))
+const ContactDetail = lazy(() => import('@/pages/ContactDetail'))
+const InvoiceDetail = lazy(() => import('@/pages/InvoiceDetail'))
+const Scanner = lazy(() => import('@/pages/warehouse/Scanner'))
+const CycleCounts = lazy(() => import('@/pages/warehouse/CycleCounts'))
+const PrintLabels = lazy(() => import('@/pages/warehouse/PrintLabels'))
+const WarehouseLocations = lazy(() => import('@/pages/warehouse/WarehouseLocations'))
+const Logistics = lazy(() => import('@/pages/Logistics'))
+const DriverManifest = lazy(() => import('@/pages/DriverManifest'))
+const OtherNames = lazy(() => import('@/pages/OtherNames'))
+const Checks = lazy(() => import('@/pages/Checks'))
+const CreateCheck = lazy(() => import('@/pages/CreateCheck'))
+const Settings = lazy(() => import('@/pages/Settings'))
+const AccountingSettings = lazy(() => import('@/pages/AccountingSettings'))
+const Preferences = lazy(() => import('@/pages/settings/Preferences'))
+const UsersPage = lazy(() => import('@/pages/Users'))
+const Onboarding = lazy(() => import('@/pages/Onboarding'))
+const FixedAssets = lazy(() => import('@/pages/FixedAssets'))
+const FixedAssetDetail = lazy(() => import('@/pages/FixedAssetDetail'))
+const CreateFixedAsset = lazy(() => import('@/pages/CreateFixedAsset'))
+const Approvals = lazy(() => import('@/pages/Approvals'))
+const NotificationHub = lazy(() => import('@/pages/NotificationHub'))
+const UnitOfMeasure = lazy(() => import('@/pages/UnitOfMeasure'))
 
 // Create a client
 const queryClient = new QueryClient({
@@ -145,6 +152,10 @@ function App() {
         <AuthProvider>
           <BrowserRouter>
             <ErrorBoundary>
+              {/* Outer boundary catches standalone lazy routes (e.g. Onboarding).
+                  Pages rendered inside MainLayout have their own Suspense around the
+                  Outlet so the nav shell doesn't flash on navigation. */}
+              <Suspense fallback={<PageLoader />}>
               <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
@@ -270,6 +281,7 @@ function App() {
                 } />
               </Route>
               </Routes>
+              </Suspense>
             </ErrorBoundary>
           </BrowserRouter>
           <Toaster />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import TopNavbar from './TopNavbar'
 import NavigationBar from './NavigationBar'
@@ -6,6 +6,7 @@ import { MobileHeader } from './MobileHeader'
 import { BottomTabBar } from './BottomTabBar'
 import { MobileNavDrawer } from './MobileNavDrawer'
 import { ErrorBoundary } from '@/components/ui/error-boundary'
+import { PageLoader } from '@/components/ui/page-loader'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 export default function MainLayout() {
@@ -27,7 +28,9 @@ export default function MainLayout() {
         style={{ background: 'var(--so-bg)' }}
       >
         <ErrorBoundary>
-          <Outlet />
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
         </ErrorBoundary>
       </main>
       {isMobile && <BottomTabBar onMenuOpen={() => setDrawerOpen(true)} />}
