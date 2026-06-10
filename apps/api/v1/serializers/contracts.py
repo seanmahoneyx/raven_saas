@@ -4,7 +4,7 @@ Serializers for Contract models: Contract, ContractLine, ContractRelease.
 """
 from rest_framework import serializers
 from apps.contracts.models import Contract, ContractLine, ContractRelease
-from .base import TenantModelSerializer
+from .base import TenantModelSerializer, NavigationMixin
 
 
 # ==================== Contract Release Serializers ====================
@@ -125,24 +125,12 @@ class ContractSerializer(TenantModelSerializer):
         read_only_fields = ['contract_number', 'created_at', 'updated_at']
 
 
-class ContractDetailSerializer(ContractSerializer):
+class ContractDetailSerializer(NavigationMixin, ContractSerializer):
     """Detailed serializer with nested lines."""
     lines = ContractLineDetailSerializer(many=True, read_only=True)
-    prev_id = serializers.SerializerMethodField()
-    next_id = serializers.SerializerMethodField()
 
     class Meta(ContractSerializer.Meta):
         fields = ContractSerializer.Meta.fields + ['lines', 'prev_id', 'next_id']
-
-    def get_prev_id(self, obj):
-        return Contract.objects.filter(
-            tenant=obj.tenant, id__lt=obj.id
-        ).order_by('-id').values_list('id', flat=True).first()
-
-    def get_next_id(self, obj):
-        return Contract.objects.filter(
-            tenant=obj.tenant, id__gt=obj.id
-        ).order_by('id').values_list('id', flat=True).first()
 
 
 class ContractWriteSerializer(TenantModelSerializer):
