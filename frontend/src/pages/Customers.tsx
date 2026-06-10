@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -19,13 +19,13 @@ import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
-import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { ReportFilterModal, type ReportFilterConfig } from '@/components/common/ReportFilterModal'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { CustomerCard } from '@/components/parties/CustomerCard'
 import { PageHeader } from '@/components/page'
 import { byFavoriteThenOther } from '@/lib/sort'
-import { downloadCsv } from '@/lib/csv'
+import { useReportExport } from '@/hooks/useReportExport'
 
 export default function Customers() {
   usePageTitle('Customer Center')
@@ -105,20 +105,6 @@ export default function Customers() {
     [customersData]
   )
 
-  const [printFilterOpen, setPrintFilterOpen] = useState(false)
-  const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
-  const [isPrintMode, setIsPrintMode] = useState(false)
-
-  useEffect(() => {
-    if (isPrintMode) {
-      requestAnimationFrame(() => {
-        window.print()
-        setIsPrintMode(false)
-      })
-    }
-  }, [isPrintMode])
-
   const reportFilterConfig: ReportFilterConfig = {
     title: 'Customer List',
     columns: [
@@ -140,21 +126,16 @@ export default function Customers() {
     ],
   }
 
-  const handleFilteredPrint = (filters: ReportFilterResult) => {
-    setPrintFilters(filters)
-    setIsPrintMode(true)
-  }
-
-  const handleFilteredExport = (filters: ReportFilterResult) => {
-    let rows = customersData?.results ?? []
-    if (rows.length === 0) return
-
-    // Apply row filters
-    if (filters.rowFilters.customer_type && filters.rowFilters.customer_type !== 'all') {
-      rows = rows.filter(r => r.customer_type === filters.rowFilters.customer_type)
-    }
-
-    const allCols = [
+  const {
+    printFilterOpen, setPrintFilterOpen,
+    exportFilterOpen, setExportFilterOpen,
+    printFilters,
+    handleFilteredPrint, handleFilteredExport,
+  } = useReportExport<Customer>({
+    getRows: () => customersData?.results ?? [],
+    // Export header set is intentionally distinct from the modal's column
+    // labels (e.g. 'Open Sales Total' vs 'Open Sales' on screen).
+    columns: [
       { key: 'party_display_name', header: 'Customer Name' },
       { key: 'party_code', header: 'Code' },
       { key: 'customer_type', header: 'Customer Type' },
@@ -163,11 +144,15 @@ export default function Customers() {
       { key: 'csr_name', header: 'CSR' },
       { key: 'open_sales_total', header: 'Open Sales Total' },
       { key: 'open_balance', header: 'Open Balance' },
-    ]
-    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
-
-    downloadCsv(rows as unknown as Record<string, unknown>[], cols, 'customers.csv')
-  }
+    ],
+    filename: 'customers.csv',
+    applyFilters: (rows, filters) => {
+      if (filters.rowFilters.customer_type && filters.rowFilters.customer_type !== 'all') {
+        rows = rows.filter(r => r.customer_type === filters.rowFilters.customer_type)
+      }
+      return rows
+    },
+  })
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return
