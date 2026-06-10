@@ -11,6 +11,7 @@ Models:
 - ItemFeature (item-feature M2M through)
 - CorrugatedItem, DCItem, RSCItem, HSCItem, FOLItem, TeleItem
 """
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from apps.items.models import (
     UnitOfMeasure, Item, ItemUOM, ItemVendor,
@@ -23,6 +24,14 @@ from apps.items.models import (
     LIFECYCLE_STATUS_CHOICES,
 )
 from .base import TenantModelSerializer
+
+
+def _corrugated_or_none(obj):
+    """Return the related CorrugatedItem for an item, or None if it isn't corrugated."""
+    try:
+        return obj.corrugateditem
+    except ObjectDoesNotExist:
+        return None
 
 
 # =============================================================================
@@ -84,7 +93,7 @@ class ItemVendorSerializer(TenantModelSerializer):
         """Return the Vendor model ID (for cost list lookups)."""
         try:
             return obj.vendor.vendor.id
-        except Exception:
+        except (AttributeError, ObjectDoesNotExist):
             return None
 
 
@@ -299,9 +308,8 @@ class ItemDetailSerializer(TenantModelSerializer):
 
     def get_corrugated_details(self, obj):
         """Return corrugated-specific fields if this is a corrugated item."""
-        try:
-            corr = obj.corrugateditem
-        except Exception:
+        corr = _corrugated_or_none(obj)
+        if corr is None:
             return None
         return {
             'test': corr.test,
@@ -315,9 +323,8 @@ class ItemDetailSerializer(TenantModelSerializer):
 
     def get_dimensions(self, obj):
         """Return dimension fields from the specific box type model."""
-        try:
-            corr = obj.corrugateditem
-        except Exception:
+        corr = _corrugated_or_none(obj)
+        if corr is None:
             return None
         # Check box subtypes
         for attr in ['dcitem', 'rscitem', 'hscitem', 'folitem', 'teleitem']:
@@ -334,7 +341,7 @@ class ItemDetailSerializer(TenantModelSerializer):
                     result['blank_width'] = str(child.blank_width) if child.blank_width else None
                     result['out_per_rotary'] = child.out_per_rotary
                 return result
-            except Exception:
+            except ObjectDoesNotExist:
                 continue
         return None
 
@@ -342,7 +349,7 @@ class ItemDetailSerializer(TenantModelSerializer):
         """Return packaging-specific fields if this is a packaging item."""
         try:
             pkg = obj.packagingitem
-        except Exception:
+        except ObjectDoesNotExist:
             return None
         return {
             'sub_type': pkg.sub_type,

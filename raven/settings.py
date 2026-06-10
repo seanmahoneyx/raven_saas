@@ -10,8 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import logging
 from pathlib import Path
 from decouple import config, Csv
+
+logger = logging.getLogger(__name__)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -342,7 +345,7 @@ def _get_channel_layer_config():
             sock.close()
             if result != 0:
                 # Redis not available, use InMemoryChannelLayer
-                print("[WARNING] Redis not available - using InMemoryChannelLayer (multi-user sync disabled)")
+                logger.warning("Redis not available - using InMemoryChannelLayer (multi-user sync disabled)")
                 return {
                     'default': {
                         'BACKEND': 'channels.layers.InMemoryChannelLayer',
@@ -350,7 +353,7 @@ def _get_channel_layer_config():
                 }
         except Exception:
             # Any error checking Redis, fall back to InMemory
-            print("[WARNING] Redis check failed - using InMemoryChannelLayer (multi-user sync disabled)")
+            logger.warning("Redis check failed - using InMemoryChannelLayer (multi-user sync disabled)")
             return {
                 'default': {
                     'BACKEND': 'channels.layers.InMemoryChannelLayer',
