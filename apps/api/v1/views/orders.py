@@ -35,6 +35,7 @@ from apps.api.v1.serializers.orders import (
 from apps.api.v1.serializers.contracts import ContractSerializer
 from apps.api.v1.serializers.pricing import PriceListHeadSerializer
 from apps.api.v1.views.documents import PDFActionMixin
+from apps.api.v1.views.base import pdf_response
 
 
 @extend_schema_view(
@@ -440,9 +441,7 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
         from apps.documents.pdf import PDFService
         pdf_bytes = PDFService.render_pick_ticket(order)
         from django.http import HttpResponse
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="pick-ticket-{order.order_number}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"pick-ticket-{order.order_number}.pdf", inline=True)
 
     @extend_schema(
         tags=['orders'],

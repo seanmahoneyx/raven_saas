@@ -1,45 +1,24 @@
 from decimal import Decimal
-from django.test import TestCase
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 from rest_framework import status
 
-from apps.tenants.models import Tenant
 from apps.parties.models import Party, Vendor, Location
-from apps.items.models import UnitOfMeasure, Item
+from apps.items.models import Item
 from apps.orders.models import RFQ, RFQLine, PurchaseOrder, PurchaseOrderLine
 from apps.orders.services import convert_rfq_to_po
 from apps.warehousing.models import Warehouse
 from shared.managers import set_current_tenant
+from shared.testing import BaseTestCase
 
-User = get_user_model()
 
-
-class RFQTestCase(TestCase):
+class RFQTestCase(BaseTestCase):
     """Base test case for RFQ tests with common setup."""
 
     @classmethod
     def setUpTestData(cls):
         """Set up test data for all RFQ tests."""
-        cls.tenant = Tenant.objects.create(
-            name='Test Co',
-            subdomain='test-rfqs',
-            is_default=True
-        )
-        cls.user = User.objects.create_user(
-            username='testuser',
-            email='test@test.com',
-            password='testpass123'
-        )
-        set_current_tenant(cls.tenant)
-
-        cls.uom = UnitOfMeasure.objects.create(
-            tenant=cls.tenant,
-            code='ea',
-            name='Each',
-            is_active=True
-        )
+        super().setUpTestData()
 
         # Vendor party and location
         cls.vendor_party = Party.objects.create(

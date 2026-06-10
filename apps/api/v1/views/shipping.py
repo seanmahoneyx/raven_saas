@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from apps.api.v1.views.base import pdf_response
 from apps.shipping.models import Shipment, ShipmentLine, BillOfLading, BOLLine
 from apps.shipping.services import ShippingService
 from apps.scheduling.models import DeliveryRun
@@ -195,9 +196,7 @@ class BillOfLadingViewSet(viewsets.ModelViewSet):
         from apps.documents.pdf import PDFService
         from django.http import HttpResponse
         pdf_bytes = PDFService.render_bill_of_lading(bol)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="bol-{bol.bol_number}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"bol-{bol.bol_number}.pdf", inline=True)
 
 
 class DeliveryRunCreateShipmentView(APIView):

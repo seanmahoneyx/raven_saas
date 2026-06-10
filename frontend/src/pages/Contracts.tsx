@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -26,7 +26,8 @@ import type { Contract, ContractStatus } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
-import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { ReportFilterModal, type ReportFilterConfig } from '@/components/common/ReportFilterModal'
+import { useReportExport } from '@/hooks/useReportExport'
 import { PageHeader } from '@/components/page'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
@@ -58,19 +59,6 @@ export default function Contracts() {
   const [pendingCancelId, setPendingCancelId] = useState<number | null>(null)
 
   const { data: settingsData } = useSettings()
-  const [printFilterOpen, setPrintFilterOpen] = useState(false)
-  const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
-  const [isPrintMode, setIsPrintMode] = useState(false)
-
-  useEffect(() => {
-    if (isPrintMode) {
-      requestAnimationFrame(() => {
-        window.print()
-        setIsPrintMode(false)
-      })
-    }
-  }, [isPrintMode])
 
   const { data: contractsData, isLoading } = useContracts()
   const deleteContract = useDeleteContract()
@@ -357,32 +345,22 @@ export default function Contracts() {
     ],
   }
 
-  const handleFilteredPrint = (filters: ReportFilterResult) => {
-    setPrintFilters(filters)
-    setIsPrintMode(true)
-  }
-
-  const handleFilteredExport = (filters: ReportFilterResult) => {
-    let rows = contracts
-    if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
-      rows = rows.filter(r => r.status === filters.rowFilters.status)
-    }
-    if (rows.length === 0) return
-
-    const allCols = reportFilterConfig.columns
-    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-    }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `contracts-${new Date().toISOString().split('T')[0]}.csv`; a.style.display = 'none'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+  const {
+    printFilterOpen, setPrintFilterOpen,
+    exportFilterOpen, setExportFilterOpen,
+    printFilters,
+    handleFilteredPrint, handleFilteredExport,
+  } = useReportExport<Contract>({
+    getRows: () => contracts,
+    columns: reportFilterConfig.columns,
+    filename: () => `contracts-${new Date().toISOString().split('T')[0]}`,
+    applyFilters: (rows, filters) => {
+      if (filters.rowFilters.status && filters.rowFilters.status !== 'all') {
+        rows = rows.filter(r => r.status === filters.rowFilters.status)
+      }
+      return rows
+    },
+  })
 
   const printFilteredData = useMemo(() => {
     let rows = contracts

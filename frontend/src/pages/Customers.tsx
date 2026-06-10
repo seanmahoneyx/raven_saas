@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -19,11 +19,13 @@ import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useSettings } from '@/api/settings'
-import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { ReportFilterModal, type ReportFilterConfig } from '@/components/common/ReportFilterModal'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { CustomerCard } from '@/components/parties/CustomerCard'
 import { PageHeader } from '@/components/page'
+import { byFavoriteThenOther } from '@/lib/sort'
+import { useReportExport } from '@/hooks/useReportExport'
 
 export default function Customers() {
   usePageTitle('Customer Center')
@@ -57,11 +59,7 @@ export default function Customers() {
   const sortedCustomers = useMemo(() => {
     const rows = customersData?.results ?? []
     if (favoritedCustomerIds.size === 0) return rows
-    return [...rows].sort((a, b) => {
-      const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
-      const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
-      return aFav - bFav
-    })
+    return [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedCustomerIds))
   }, [customersData, favoritedCustomerIds])
 
   const mobileCustomers = useMemo(() => {
@@ -101,11 +99,7 @@ export default function Customers() {
     })
     // Favorites first
     if (favoritedCustomerIds.size > 0) {
-      rows = [...rows].sort((a, b) => {
-        const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
-        const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
-        return aFav - bFav
-      })
+      rows = [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedCustomerIds))
     }
     return rows
   }, [customersData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedCustomerIds])
@@ -114,20 +108,6 @@ export default function Customers() {
     () => Array.from(new Set((customersData?.results ?? []).map(c => c.customer_type).filter(Boolean))).sort() as string[],
     [customersData]
   )
-
-  const [printFilterOpen, setPrintFilterOpen] = useState(false)
-  const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
-  const [isPrintMode, setIsPrintMode] = useState(false)
-
-  useEffect(() => {
-    if (isPrintMode) {
-      requestAnimationFrame(() => {
-        window.print()
-        setIsPrintMode(false)
-      })
-    }
-  }, [isPrintMode])
 
   const reportFilterConfig: ReportFilterConfig = {
     title: 'Customer List',
@@ -150,21 +130,16 @@ export default function Customers() {
     ],
   }
 
-  const handleFilteredPrint = (filters: ReportFilterResult) => {
-    setPrintFilters(filters)
-    setIsPrintMode(true)
-  }
-
-  const handleFilteredExport = (filters: ReportFilterResult) => {
-    let rows = customersData?.results ?? []
-    if (rows.length === 0) return
-
-    // Apply row filters
-    if (filters.rowFilters.customer_type && filters.rowFilters.customer_type !== 'all') {
-      rows = rows.filter(r => r.customer_type === filters.rowFilters.customer_type)
-    }
-
-    const allCols = [
+  const {
+    printFilterOpen, setPrintFilterOpen,
+    exportFilterOpen, setExportFilterOpen,
+    printFilters,
+    handleFilteredPrint, handleFilteredExport,
+  } = useReportExport<Customer>({
+    getRows: () => customersData?.results ?? [],
+    // Export header set is intentionally distinct from the modal's column
+    // labels (e.g. 'Open Sales Total' vs 'Open Sales' on screen).
+    columns: [
       { key: 'party_display_name', header: 'Customer Name' },
       { key: 'party_code', header: 'Code' },
       { key: 'customer_type', header: 'Customer Type' },
@@ -173,21 +148,15 @@ export default function Customers() {
       { key: 'csr_name', header: 'CSR' },
       { key: 'open_sales_total', header: 'Open Sales Total' },
       { key: 'open_balance', header: 'Open Balance' },
-    ]
-    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
-
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-    }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'customers.csv'; a.style.display = 'none'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+    ],
+    filename: 'customers.csv',
+    applyFilters: (rows, filters) => {
+      if (filters.rowFilters.customer_type && filters.rowFilters.customer_type !== 'all') {
+        rows = rows.filter(r => r.customer_type === filters.rowFilters.customer_type)
+      }
+      return rows
+    },
+  })
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteId) return

@@ -4,31 +4,25 @@ Tests for InvoicingService and VendorBillService.
 """
 from decimal import Decimal
 from datetime import timedelta
-from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.tenants.models import Tenant
 from apps.parties.models import Party, Customer, Vendor, Location
-from apps.items.models import UnitOfMeasure, Item
+from apps.items.models import Item
 from apps.orders.models import SalesOrder, SalesOrderLine
 from apps.invoicing.models import Invoice, InvoiceLine, VendorBill, VendorBillLine
 from apps.invoicing.services import InvoicingService, VendorBillService
 from apps.accounting.models import Account, AccountType, AccountingSettings
 from shared.managers import set_current_tenant
-from users.models import User
+from shared.testing import BaseTestCase
 
 
-class InvoicingBaseTestCase(TestCase):
+class InvoicingBaseTestCase(BaseTestCase):
     """Base test case for invoicing tests."""
 
     @classmethod
     def setUpTestData(cls):
-        cls.tenant = Tenant.objects.create(name='Inv Co', subdomain='test-invoicing')
-        cls.user = User.objects.create_user(username='invuser', password='pass')
-        set_current_tenant(cls.tenant)
-
-        cls.uom = UnitOfMeasure.objects.create(tenant=cls.tenant, code='ea', name='Each')
+        super().setUpTestData()
 
         # Customer
         cls.cust_party = Party.objects.create(

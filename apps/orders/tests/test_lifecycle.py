@@ -4,12 +4,10 @@ End-to-end order lifecycle test: PO receive -> SO confirm -> ship -> invoice -> 
 """
 from decimal import Decimal
 from datetime import timedelta
-from django.test import TestCase
 from django.utils import timezone
 
-from apps.tenants.models import Tenant
 from apps.parties.models import Party, Customer, Vendor, Location
-from apps.items.models import UnitOfMeasure, Item
+from apps.items.models import Item
 from apps.warehousing.models import Warehouse
 from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
@@ -23,10 +21,10 @@ from apps.accounting.models import (
     Account, AccountType, AccountingSettings, JournalEntry, JournalEntryLine,
 )
 from shared.managers import set_current_tenant
-from users.models import User
+from shared.testing import BaseTestCase
 
 
-class OrderLifecycleTestCase(TestCase):
+class OrderLifecycleTestCase(BaseTestCase):
     """
     Task 5.7: Full order-to-cash E2E lifecycle test.
 
@@ -41,14 +39,7 @@ class OrderLifecycleTestCase(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.tenant = Tenant.objects.create(name='Lifecycle Co', subdomain='test-lifecycle')
-        cls.user = User.objects.create_user(username='lcuser', password='pass')
-        set_current_tenant(cls.tenant)
-
-        # UOM
-        cls.uom = UnitOfMeasure.objects.create(
-            tenant=cls.tenant, code='ea', name='Each',
-        )
+        super().setUpTestData()
 
         # Vendor
         cls.vend_party = Party.objects.create(

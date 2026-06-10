@@ -14,6 +14,8 @@ from rest_framework import status
 from django.http import HttpResponse
 from drf_spectacular.utils import extend_schema
 
+from apps.api.v1.views.base import pdf_response
+
 
 class BaseReportView(APIView):
     """Base class for all canned reports with date range + CSV export."""
@@ -327,9 +329,7 @@ class GrossMarginDetailPDFView(BaseReportView):
             return err
         from apps.documents.pdf import PDFService
         pdf = PDFService.render_gross_margin_detail(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="gross-margin-detail-{start_date}-{end_date}.pdf"'
-        return response
+        return pdf_response(pdf, f"gross-margin-detail-{start_date}-{end_date}.pdf", inline=True)
 
 
 # ==================== PDF REPORT VIEWS ====================
@@ -372,9 +372,7 @@ class OpenSalesOrdersPDFView(BaseReportView):
             end_date=end_date,
         )
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="open-sales-orders-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"open-sales-orders-{today}.pdf", inline=True)
 
 
 class OpenPurchaseOrdersPDFView(BaseReportView):
@@ -415,9 +413,7 @@ class OpenPurchaseOrdersPDFView(BaseReportView):
             end_date=end_date,
         )
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="open-purchase-orders-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"open-purchase-orders-{today}.pdf", inline=True)
 
 
 class InventoryValuationPDFView(BaseReportView):
@@ -429,9 +425,7 @@ class InventoryValuationPDFView(BaseReportView):
         from datetime import date as date_cls
         pdf_bytes = PDFService.render_inventory_valuation(request.tenant)
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="inventory-valuation-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"inventory-valuation-{today}.pdf", inline=True)
 
 
 class StockStatusPDFView(BaseReportView):
@@ -443,9 +437,7 @@ class StockStatusPDFView(BaseReportView):
         from datetime import date as date_cls
         pdf_bytes = PDFService.render_stock_status(request.tenant)
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="stock-status-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"stock-status-{today}.pdf", inline=True)
 
 
 class SalesByCustomerPDFView(BaseReportView):
@@ -458,11 +450,7 @@ class SalesByCustomerPDFView(BaseReportView):
         if err:
             return err
         pdf_bytes = PDFService.render_sales_by_customer(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="sales-by-customer-{start_date}-{end_date}.pdf"'
-        )
-        return response
+        return pdf_response(pdf_bytes, f"sales-by-customer-{start_date}-{end_date}.pdf", inline=True)
 
 
 class SalesByItemPDFView(BaseReportView):
@@ -475,11 +463,7 @@ class SalesByItemPDFView(BaseReportView):
         if err:
             return err
         pdf_bytes = PDFService.render_sales_by_item(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="sales-by-item-{start_date}-{end_date}.pdf"'
-        )
-        return response
+        return pdf_response(pdf_bytes, f"sales-by-item-{start_date}-{end_date}.pdf", inline=True)
 
 
 class VendorPerformancePDFView(BaseReportView):
@@ -492,11 +476,7 @@ class VendorPerformancePDFView(BaseReportView):
         if err:
             return err
         pdf_bytes = PDFService.render_vendor_performance(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="vendor-performance-{start_date}-{end_date}.pdf"'
-        )
-        return response
+        return pdf_response(pdf_bytes, f"vendor-performance-{start_date}-{end_date}.pdf", inline=True)
 
 
 class PurchaseHistoryPDFView(BaseReportView):
@@ -509,11 +489,7 @@ class PurchaseHistoryPDFView(BaseReportView):
         if err:
             return err
         pdf_bytes = PDFService.render_purchase_history(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="purchase-history-{start_date}-{end_date}.pdf"'
-        )
-        return response
+        return pdf_response(pdf_bytes, f"purchase-history-{start_date}-{end_date}.pdf", inline=True)
 
 
 class SalesTaxLiabilityPDFView(BaseReportView):
@@ -526,11 +502,7 @@ class SalesTaxLiabilityPDFView(BaseReportView):
         if err:
             return err
         pdf_bytes = PDFService.render_sales_tax_liability(request.tenant, start_date, end_date)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = (
-            f'inline; filename="sales-tax-liability-{start_date}-{end_date}.pdf"'
-        )
-        return response
+        return pdf_response(pdf_bytes, f"sales-tax-liability-{start_date}-{end_date}.pdf", inline=True)
 
 
 class BackorderReportPDFView(BaseReportView):
@@ -542,9 +514,7 @@ class BackorderReportPDFView(BaseReportView):
         from datetime import date as date_cls
         pdf_bytes = PDFService.render_backorder_report(request.tenant)
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="backorder-report-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"backorder-report-{today}.pdf", inline=True)
 
 
 class LowStockAlertPDFView(BaseReportView):
@@ -556,9 +526,7 @@ class LowStockAlertPDFView(BaseReportView):
         from datetime import date as date_cls
         pdf_bytes = PDFService.render_low_stock_alert(request.tenant)
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="low-stock-alert-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"low-stock-alert-{today}.pdf", inline=True)
 
 
 class DeadStockPDFView(BaseReportView):
@@ -574,6 +542,4 @@ class DeadStockPDFView(BaseReportView):
             return HttpResponse({'error': 'days must be an integer.'}, status=400)
         pdf_bytes = PDFService.render_dead_stock(request.tenant, days=days)
         today = date_cls.today()
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="dead-stock-{today}.pdf"'
-        return response
+        return pdf_response(pdf_bytes, f"dead-stock-{today}.pdf", inline=True)

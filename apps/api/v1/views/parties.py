@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from django.db.models import Sum, Count, Min, Q, DecimalField, Value, F, Exists, OuterRef
+from django.db.models import Sum, Count, Min, Q, DecimalField, Value, F, Exists, OuterRef, Subquery
 from django.db.models.functions import Coalesce
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -148,20 +148,55 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Get queryset at request time with KPI annotations."""
+        from apps.orders.models import SalesOrderLine
+        from apps.invoicing.models import Invoice
+
         active_statuses = ['confirmed', 'scheduled', 'picking']
+        today = timezone.now().date()
         party_ct = ContentType.objects.get_for_model(Party)
+
+        # SUM aggregates use correlated subqueries instead of joined annotations
+        # so that summing over one to-many relation (sales-order lines, invoices)
+        # is not multiplied by the row counts of the others (cross-join fan-out).
+        def _scalar_sum(subquery):
+            return Coalesce(
+                Subquery(subquery, output_field=DecimalField()),
+                Value(0),
+                output_field=DecimalField(),
+            )
+
+        open_sales_subq = (
+            SalesOrderLine.objects
+            .filter(sales_order__customer=OuterRef('pk'), sales_order__status__in=active_statuses)
+            .values('sales_order__customer')
+            .annotate(total=Sum(F('unit_price') * F('quantity_ordered')))
+            .values('total')
+        )
+        overdue_subq = (
+            Invoice.objects
+            .filter(customer=OuterRef('pk'))
+            .filter(
+                Q(status='overdue') | Q(
+                    due_date__lt=today,
+                    status__in=['posted', 'sent', 'partial'],
+                )
+            )
+            .values('customer')
+            .annotate(total=Sum(F('total_amount') - F('amount_paid')))
+            .values('total')
+        )
+        open_balance_subq = (
+            Invoice.objects
+            .filter(customer=OuterRef('pk'), status__in=['posted', 'sent', 'partial', 'overdue'])
+            .values('customer')
+            .annotate(total=Sum(F('total_amount') - F('amount_paid')))
+            .values('total')
+        )
+
         return Customer.objects.select_related(
             'party', 'sales_rep', 'csr',
         ).annotate(
-            open_sales_total=Coalesce(
-                Sum(
-                    F('sales_orders__lines__unit_price') * F('sales_orders__lines__quantity_ordered'),
-                    filter=Q(sales_orders__status__in=active_statuses),
-                    output_field=DecimalField(),
-                ),
-                Value(0),
-                output_field=DecimalField(),
-            ),
+            open_sales_total=_scalar_sum(open_sales_subq),
             open_order_count=Count(
                 'sales_orders',
                 filter=Q(sales_orders__status__in=active_statuses),
@@ -171,35 +206,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
                 'sales_orders__scheduled_date',
                 filter=Q(
                     sales_orders__status__in=['scheduled', 'picking'],
-                    sales_orders__scheduled_date__gte=timezone.now().date(),
+                    sales_orders__scheduled_date__gte=today,
                 ),
             ),
-            overdue_balance=Coalesce(
-                Sum(
-                    F('invoices__total_amount') - F('invoices__amount_paid'),
-                    filter=Q(invoices__status='overdue') | Q(
-                        invoices__due_date__lt=timezone.now().date(),
-                        invoices__status__in=['posted', 'sent', 'partial'],
-                    ),
-                    output_field=DecimalField(),
-                ),
-                Value(0),
-                output_field=DecimalField(),
-            ),
+            overdue_balance=_scalar_sum(overdue_subq),
             active_estimate_count=Count(
                 'estimates',
                 filter=Q(estimates__status__in=['draft', 'sent']),
                 distinct=True,
             ),
-            open_balance=Coalesce(
-                Sum(
-                    F('invoices__total_amount') - F('invoices__amount_paid'),
-                    filter=Q(invoices__status__in=['posted', 'sent', 'partial', 'overdue']),
-                    output_field=DecimalField(),
-                ),
-                Value(0),
-                output_field=DecimalField(),
-            ),
+            open_balance=_scalar_sum(open_balance_subq),
             has_attachments=Exists(
                 Attachment.objects.filter(
                     content_type=party_ct,
@@ -428,17 +444,51 @@ class VendorViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Get queryset at request time with KPI annotations."""
+        from apps.orders.models import PurchaseOrderLine
+        from apps.invoicing.models import VendorBill
+
         active_statuses = ['confirmed', 'scheduled', 'shipped']
-        return Vendor.objects.select_related('party', 'buyer').annotate(
-            open_po_total=Coalesce(
-                Sum(
-                    F('purchase_orders__lines__unit_cost') * F('purchase_orders__lines__quantity_ordered'),
-                    filter=Q(purchase_orders__status__in=active_statuses),
-                    output_field=DecimalField(),
-                ),
+        today = timezone.now().date()
+
+        # Correlated subqueries avoid the cross-join fan-out that would
+        # otherwise multiply each SUM by the row counts of the other relations.
+        def _scalar_sum(subquery):
+            return Coalesce(
+                Subquery(subquery, output_field=DecimalField()),
                 Value(0),
                 output_field=DecimalField(),
-            ),
+            )
+
+        open_po_subq = (
+            PurchaseOrderLine.objects
+            .filter(purchase_order__vendor=OuterRef('pk'), purchase_order__status__in=active_statuses)
+            .values('purchase_order__vendor')
+            .annotate(total=Sum(F('unit_cost') * F('quantity_ordered')))
+            .values('total')
+        )
+        overdue_bill_subq = (
+            VendorBill.objects
+            .filter(vendor=OuterRef('pk'))
+            .filter(
+                Q(status='overdue') | Q(
+                    due_date__lt=today,
+                    status__in=['posted', 'partial'],
+                )
+            )
+            .values('vendor')
+            .annotate(total=Sum(F('total_amount') - F('amount_paid')))
+            .values('total')
+        )
+        open_balance_subq = (
+            VendorBill.objects
+            .filter(vendor=OuterRef('pk'), status__in=['posted', 'partial', 'overdue'])
+            .values('vendor')
+            .annotate(total=Sum(F('total_amount') - F('amount_paid')))
+            .values('total')
+        )
+
+        return Vendor.objects.select_related('party', 'buyer').annotate(
+            open_po_total=_scalar_sum(open_po_subq),
             open_po_count=Count(
                 'purchase_orders',
                 filter=Q(purchase_orders__status__in=active_statuses),
@@ -448,35 +498,16 @@ class VendorViewSet(viewsets.ModelViewSet):
                 'purchase_orders__scheduled_date',
                 filter=Q(
                     purchase_orders__status__in=['scheduled', 'shipped'],
-                    purchase_orders__scheduled_date__gte=timezone.now().date(),
+                    purchase_orders__scheduled_date__gte=today,
                 ),
             ),
-            overdue_bill_balance=Coalesce(
-                Sum(
-                    F('bills__total_amount') - F('bills__amount_paid'),
-                    filter=Q(bills__status='overdue') | Q(
-                        bills__due_date__lt=timezone.now().date(),
-                        bills__status__in=['posted', 'partial'],
-                    ),
-                    output_field=DecimalField(),
-                ),
-                Value(0),
-                output_field=DecimalField(),
-            ),
+            overdue_bill_balance=_scalar_sum(overdue_bill_subq),
             active_rfq_count=Count(
                 'rfqs',
                 filter=Q(rfqs__status__in=['draft', 'sent']),
                 distinct=True,
             ),
-            open_balance=Coalesce(
-                Sum(
-                    F('bills__total_amount') - F('bills__amount_paid'),
-                    filter=Q(bills__status__in=['posted', 'partial', 'overdue']),
-                    output_field=DecimalField(),
-                ),
-                Value(0),
-                output_field=DecimalField(),
-            ),
+            open_balance=_scalar_sum(open_balance_subq),
             has_attachments=Exists(
                 Attachment.objects.filter(
                     content_type=ContentType.objects.get_for_model(Party),

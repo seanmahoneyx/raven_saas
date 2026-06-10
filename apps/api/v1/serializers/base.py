@@ -69,3 +69,26 @@ class TimestampMixin(serializers.Serializer):
     """Mixin that adds read-only timestamp fields."""
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+
+
+class NavigationMixin(serializers.Serializer):
+    """
+    Adds `prev_id`/`next_id` for record-to-record navigation within a tenant.
+
+    The model is inferred from the serialized instance, so this works for any
+    tenant-scoped model with an integer `id` (PurchaseOrder, SalesOrder,
+    Contract, ...). Subclasses must still list 'prev_id'/'next_id' in
+    Meta.fields.
+    """
+    prev_id = serializers.SerializerMethodField()
+    next_id = serializers.SerializerMethodField()
+
+    def get_prev_id(self, obj):
+        return type(obj).objects.filter(
+            tenant=obj.tenant, id__lt=obj.id
+        ).order_by('-id').values_list('id', flat=True).first()
+
+    def get_next_id(self, obj):
+        return type(obj).objects.filter(
+            tenant=obj.tenant, id__gt=obj.id
+        ).order_by('id').values_list('id', flat=True).first()

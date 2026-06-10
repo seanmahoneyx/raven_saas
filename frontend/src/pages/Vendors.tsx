@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -22,7 +22,9 @@ import { PageHeader } from '@/components/page'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { VendorCard } from '@/components/parties/VendorCard'
-import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { ReportFilterModal, type ReportFilterConfig } from '@/components/common/ReportFilterModal'
+import { byFavoriteThenOther } from '@/lib/sort'
+import { useReportExport } from '@/hooks/useReportExport'
 
 export default function Vendors() {
   usePageTitle('Vendor Center')
@@ -38,19 +40,6 @@ export default function Vendors() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
-  const [printFilterOpen, setPrintFilterOpen] = useState(false)
-  const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [_printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
-  const [isPrintMode, setIsPrintMode] = useState(false)
-
-  useEffect(() => {
-    if (isPrintMode) {
-      requestAnimationFrame(() => {
-        window.print()
-        setIsPrintMode(false)
-      })
-    }
-  }, [isPrintMode])
 
   // Load every vendor (not just the first server page) so the table can
   // paginate through all of them. Re-wrap the flat array as { results } to keep
@@ -68,11 +57,7 @@ export default function Vendors() {
   const sortedVendors = useMemo(() => {
     const rows = vendorsData?.results ?? []
     if (favoritedVendorIds.size === 0) return rows
-    return [...rows].sort((a, b) => {
-      const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
-      const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
-      return aFav - bFav
-    })
+    return [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedVendorIds))
   }, [vendorsData, favoritedVendorIds])
 
   const mobileVendors = useMemo(() => {
@@ -112,11 +97,7 @@ export default function Vendors() {
     })
     // Favorites first
     if (favoritedVendorIds.size > 0) {
-      rows = [...rows].sort((a, b) => {
-        const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
-        const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
-        return aFav - bFav
-      })
+      rows = [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedVendorIds))
     }
     return rows
   }, [vendorsData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedVendorIds])
@@ -158,20 +139,13 @@ export default function Vendors() {
     ],
   }
 
-  const handleFilteredPrint = (filters: ReportFilterResult) => {
-    setPrintFilters(filters)
-    setIsPrintMode(true)
-  }
-
-  const handleFilteredExport = (filters: ReportFilterResult) => {
-    let rows = vendorsData?.results ?? []
-    if (rows.length === 0) return
-
-    if (filters.rowFilters.vendor_type && filters.rowFilters.vendor_type !== 'all') {
-      rows = rows.filter(r => r.vendor_type === filters.rowFilters.vendor_type)
-    }
-
-    const allCols = [
+  const {
+    printFilterOpen, setPrintFilterOpen,
+    exportFilterOpen, setExportFilterOpen,
+    handleFilteredPrint, handleFilteredExport,
+  } = useReportExport<Vendor>({
+    getRows: () => vendorsData?.results ?? [],
+    columns: [
       { key: 'party_display_name', header: 'Vendor Name' },
       { key: 'party_code', header: 'Code' },
       { key: 'vendor_type', header: 'Vendor Type' },
@@ -179,21 +153,15 @@ export default function Vendors() {
       { key: 'buyer_name', header: 'Buyer' },
       { key: 'open_po_total', header: 'Open PO Total' },
       { key: 'open_balance', header: 'Open Balance' },
-    ]
-    const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
-
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-    }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'vendors.csv'; a.style.display = 'none'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
+    ],
+    filename: 'vendors.csv',
+    applyFilters: (rows, filters) => {
+      if (filters.rowFilters.vendor_type && filters.rowFilters.vendor_type !== 'all') {
+        rows = rows.filter(r => r.vendor_type === filters.rowFilters.vendor_type)
+      }
+      return rows
+    },
+  })
 
   const vendorColumns: ColumnDef<Vendor>[] = useMemo(
     () => [

@@ -2,6 +2,7 @@
 """
 Serializers for Order models: PurchaseOrder, SalesOrder, and their lines.
 """
+from django.db import transaction
 from rest_framework import serializers
 from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
@@ -10,7 +11,7 @@ from apps.orders.models import (
     RFQ, RFQLine,
 )
 from apps.contracts.models import ContractRelease
-from .base import TenantModelSerializer
+from .base import TenantModelSerializer, NavigationMixin
 
 
 # ==================== Purchase Order Serializers ====================
@@ -73,7 +74,7 @@ class PurchaseOrderSerializer(TenantModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class PurchaseOrderDetailSerializer(TenantModelSerializer):
+class PurchaseOrderDetailSerializer(NavigationMixin, TenantModelSerializer):
     """Detailed serializer for PurchaseOrder with nested lines."""
     vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
     vendor_payment_terms = serializers.CharField(source='vendor.payment_terms', read_only=True, default='')
@@ -84,8 +85,6 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
     num_lines = serializers.IntegerField(read_only=True)
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
-    prev_id = serializers.SerializerMethodField()
-    next_id = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseOrder
@@ -110,16 +109,6 @@ class PurchaseOrderDetailSerializer(TenantModelSerializer):
                 return loc.full_address
         return None
 
-    def get_prev_id(self, obj):
-        return PurchaseOrder.objects.filter(
-            tenant=obj.tenant, id__lt=obj.id
-        ).order_by('-id').values_list('id', flat=True).first()
-
-    def get_next_id(self, obj):
-        return PurchaseOrder.objects.filter(
-            tenant=obj.tenant, id__gt=obj.id
-        ).order_by('id').values_list('id', flat=True).first()
-
 
 class PurchaseOrderWriteSerializer(TenantModelSerializer):
     """Serializer for creating/updating PurchaseOrder with nested lines."""
@@ -134,6 +123,7 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             'scheduled_truck', 'ship_to', 'notes', 'priority', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -165,6 +155,7 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             )
         return purchase_order
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -258,7 +249,7 @@ class SalesOrderSerializer(TenantModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
-class SalesOrderDetailSerializer(TenantModelSerializer):
+class SalesOrderDetailSerializer(NavigationMixin, TenantModelSerializer):
     """Detailed serializer for SalesOrder with nested lines."""
     customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
     customer_payment_terms = serializers.CharField(source='customer.payment_terms', read_only=True, default='')
@@ -271,8 +262,6 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     is_editable = serializers.BooleanField(read_only=True)
     contract_reference = serializers.SerializerMethodField()
-    prev_id = serializers.SerializerMethodField()
-    next_id = serializers.SerializerMethodField()
 
     class Meta:
         model = SalesOrder
@@ -286,18 +275,6 @@ class SalesOrderDetailSerializer(TenantModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
-
-    def get_prev_id(self, obj):
-        prev_order = SalesOrder.objects.filter(
-            tenant=obj.tenant, id__lt=obj.id
-        ).order_by('-id').values_list('id', flat=True).first()
-        return prev_order
-
-    def get_next_id(self, obj):
-        next_order = SalesOrder.objects.filter(
-            tenant=obj.tenant, id__gt=obj.id
-        ).order_by('id').values_list('id', flat=True).first()
-        return next_order
 
     def get_contract_reference(self, obj):
         """Get contract info from the first line's contract release (if any)."""
@@ -333,6 +310,7 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             'source_estimate', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -364,6 +342,7 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             )
         return sales_order
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -497,6 +476,7 @@ class EstimateWriteSerializer(TenantModelSerializer):
             'notes', 'terms_and_conditions', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -520,6 +500,7 @@ class EstimateWriteSerializer(TenantModelSerializer):
         estimate.save()
         return estimate
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -646,6 +627,7 @@ class RFQWriteSerializer(TenantModelSerializer):
             'notes', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -666,6 +648,7 @@ class RFQWriteSerializer(TenantModelSerializer):
             )
         return rfq
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
