@@ -1,45 +1,24 @@
 from decimal import Decimal
-from django.test import TestCase
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from django.utils import timezone
 from datetime import timedelta
 
-from apps.tenants.models import Tenant
 from apps.parties.models import Party, Customer, Location
-from apps.items.models import UnitOfMeasure, Item
+from apps.items.models import Item
 from apps.orders.models import Estimate, EstimateLine, SalesOrder, SalesOrderLine
 from apps.orders.services import convert_estimate_to_order
 from shared.managers import set_current_tenant
+from shared.testing import BaseTestCase
 
-User = get_user_model()
 
-
-class EstimateTestCase(TestCase):
+class EstimateTestCase(BaseTestCase):
     """Base test case with common setup for all estimate tests."""
 
     @classmethod
     def setUpTestData(cls):
         """Set up test data that is shared across all tests."""
-        cls.tenant = Tenant.objects.create(
-            name='Test Co',
-            subdomain='test-estimates',
-            is_default=True
-        )
-        cls.user = User.objects.create_user(
-            username='testuser',
-            email='test@test.com',
-            password='testpass123'
-        )
-        set_current_tenant(cls.tenant)
-
-        cls.uom = UnitOfMeasure.objects.create(
-            tenant=cls.tenant,
-            code='ea',
-            name='Each',
-            is_active=True
-        )
+        super().setUpTestData()
 
         cls.customer_party = Party.objects.create(
             tenant=cls.tenant,
