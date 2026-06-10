@@ -24,6 +24,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { CustomerCard } from '@/components/parties/CustomerCard'
 import { PageHeader } from '@/components/page'
+import { byFavoriteThenOther } from '@/lib/sort'
+import { downloadCsv } from '@/lib/csv'
 
 export default function Customers() {
   usePageTitle('Customer Center')
@@ -53,11 +55,7 @@ export default function Customers() {
   const sortedCustomers = useMemo(() => {
     const rows = customersData?.results ?? []
     if (favoritedCustomerIds.size === 0) return rows
-    return [...rows].sort((a, b) => {
-      const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
-      const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
-      return aFav - bFav
-    })
+    return [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedCustomerIds))
   }, [customersData, favoritedCustomerIds])
 
   const mobileCustomers = useMemo(() => {
@@ -97,11 +95,7 @@ export default function Customers() {
     })
     // Favorites first
     if (favoritedCustomerIds.size > 0) {
-      rows = [...rows].sort((a, b) => {
-        const aFav = favoritedCustomerIds.has(a.id) ? 0 : 1
-        const bFav = favoritedCustomerIds.has(b.id) ? 0 : 1
-        return aFav - bFav
-      })
+      rows = [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedCustomerIds))
     }
     return rows
   }, [customersData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedCustomerIds])
@@ -172,17 +166,7 @@ export default function Customers() {
     ]
     const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
 
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-    }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'customers.csv'; a.style.display = 'none'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadCsv(rows as unknown as Record<string, unknown>[], cols, 'customers.csv')
   }
 
   const handleConfirmDelete = async () => {

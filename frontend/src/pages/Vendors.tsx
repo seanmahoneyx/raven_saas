@@ -23,6 +23,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { VendorCard } from '@/components/parties/VendorCard'
 import { ReportFilterModal, type ReportFilterConfig, type ReportFilterResult } from '@/components/common/ReportFilterModal'
+import { byFavoriteThenOther } from '@/lib/sort'
+import { downloadCsv } from '@/lib/csv'
 
 export default function Vendors() {
   usePageTitle('Vendor Center')
@@ -40,7 +42,6 @@ export default function Vendors() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null)
   const [printFilterOpen, setPrintFilterOpen] = useState(false)
   const [exportFilterOpen, setExportFilterOpen] = useState(false)
-  const [_printFilters, setPrintFilters] = useState<ReportFilterResult | null>(null)
   const [isPrintMode, setIsPrintMode] = useState(false)
 
   useEffect(() => {
@@ -64,11 +65,7 @@ export default function Vendors() {
   const sortedVendors = useMemo(() => {
     const rows = vendorsData?.results ?? []
     if (favoritedVendorIds.size === 0) return rows
-    return [...rows].sort((a, b) => {
-      const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
-      const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
-      return aFav - bFav
-    })
+    return [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedVendorIds))
   }, [vendorsData, favoritedVendorIds])
 
   const mobileVendors = useMemo(() => {
@@ -108,11 +105,7 @@ export default function Vendors() {
     })
     // Favorites first
     if (favoritedVendorIds.size > 0) {
-      rows = [...rows].sort((a, b) => {
-        const aFav = favoritedVendorIds.has(a.id) ? 0 : 1
-        const bFav = favoritedVendorIds.has(b.id) ? 0 : 1
-        return aFav - bFav
-      })
+      rows = [...rows].sort((a, b) => byFavoriteThenOther(a, b, favoritedVendorIds))
     }
     return rows
   }, [vendorsData, mobileSearch, mobileSortKey, mobileSortDir, mobileTypeFilter, favoritedVendorIds])
@@ -154,8 +147,7 @@ export default function Vendors() {
     ],
   }
 
-  const handleFilteredPrint = (filters: ReportFilterResult) => {
-    setPrintFilters(filters)
+  const handleFilteredPrint = (_filters: ReportFilterResult) => {
     setIsPrintMode(true)
   }
 
@@ -178,17 +170,7 @@ export default function Vendors() {
     ]
     const cols = allCols.filter(c => filters.visibleColumns.includes(c.key))
 
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[,"\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-    }
-    const csv = [cols.map(c => esc(c.header)).join(','), ...rows.map(r => cols.map(c => esc((r as unknown as Record<string, unknown>)[c.key])).join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'vendors.csv'; a.style.display = 'none'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    downloadCsv(rows as unknown as Record<string, unknown>[], cols, 'vendors.csv')
   }
 
   const vendorColumns: ColumnDef<Vendor>[] = useMemo(
