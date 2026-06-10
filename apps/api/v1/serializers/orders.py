@@ -39,8 +39,10 @@ class PurchaseOrderLineSerializer(TenantModelSerializer):
 class PurchaseOrderListSerializer(TenantModelSerializer):
     """Lightweight serializer for PurchaseOrder list views."""
     vendor_name = serializers.CharField(source='vendor.party.display_name', read_only=True)
-    num_lines = serializers.IntegerField(read_only=True)
-    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Read SQL annotations (see PurchaseOrderViewSet.get_queryset) instead of the
+    # per-row subtotal/num_lines @property, which caused a query per listed order.
+    num_lines = serializers.IntegerField(source='line_count', read_only=True)
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, source='subtotal_amount', read_only=True)
 
     class Meta:
         model = PurchaseOrder
@@ -221,8 +223,10 @@ class SalesOrderLineSerializer(TenantModelSerializer):
 class SalesOrderListSerializer(TenantModelSerializer):
     """Lightweight serializer for SalesOrder list views."""
     customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
-    num_lines = serializers.IntegerField(read_only=True)
-    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    # Read SQL annotations (see SalesOrderViewSet.get_queryset) instead of the
+    # per-row subtotal/num_lines @property, which caused a query per listed order.
+    num_lines = serializers.IntegerField(source='line_count', read_only=True)
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2, source='subtotal_amount', read_only=True)
 
     class Meta:
         model = SalesOrder

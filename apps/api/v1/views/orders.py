@@ -2,10 +2,13 @@
 """
 ViewSets for Order models: PurchaseOrder, SalesOrder, and their lines.
 """
+from decimal import Decimal
 from rest_framework import serializers as drf_serializers, viewsets, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count, Sum, F, DecimalField, ExpressionWrapper, Value
+from django.db.models.functions import Coalesce
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 
 from apps.orders.models import (
@@ -57,9 +60,26 @@ class PurchaseOrderViewSet(PDFActionMixin, viewsets.ModelViewSet):
         return f'PO_{obj.po_number}.pdf'
 
     def get_queryset(self):
-        return PurchaseOrder.objects.select_related(
+        qs = PurchaseOrder.objects.select_related(
             'vendor__party', 'ship_to', 'scheduled_truck'
-        ).prefetch_related('lines__item', 'lines__uom').all()
+        ).annotate(
+            # Compute subtotal + line count in SQL instead of iterating each order's
+            # lines in Python (the old subtotal/num_lines @property pattern, which fired
+            # a query per row on list views).
+            line_count=Count('lines', distinct=True),
+            subtotal_amount=Coalesce(
+                Sum(ExpressionWrapper(
+                    F('lines__quantity_ordered') * F('lines__unit_cost'),
+                    output_field=DecimalField(max_digits=14, decimal_places=4),
+                )),
+                Value(Decimal('0')),
+                output_field=DecimalField(max_digits=14, decimal_places=4),
+            ),
+        )
+        # Nested lines are only serialized on detail/non-list actions.
+        if self.action != 'list':
+            qs = qs.prefetch_related('lines__item', 'lines__uom')
+        return qs
     filterset_fields = ['status', 'vendor', 'scheduled_date', 'scheduled_truck']
     search_fields = ['po_number', 'vendor__party__display_name', 'notes']
     ordering_fields = [
@@ -218,9 +238,24 @@ class SalesOrderViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
 
     def get_queryset(self):
-        return SalesOrder.objects.select_related(
+        qs = SalesOrder.objects.select_related(
             'customer__party', 'ship_to', 'bill_to', 'scheduled_truck'
-        ).prefetch_related('lines__item', 'lines__uom').all()
+        ).annotate(
+            # SQL-side subtotal + line count (see PurchaseOrderViewSet for rationale).
+            line_count=Count('lines', distinct=True),
+            subtotal_amount=Coalesce(
+                Sum(ExpressionWrapper(
+                    F('lines__quantity_ordered') * F('lines__unit_price'),
+                    output_field=DecimalField(max_digits=14, decimal_places=4),
+                )),
+                Value(Decimal('0')),
+                output_field=DecimalField(max_digits=14, decimal_places=4),
+            ),
+        )
+        # Nested lines are only serialized on detail/non-list actions.
+        if self.action != 'list':
+            qs = qs.prefetch_related('lines__item', 'lines__uom')
+        return qs
     filterset_fields = ['status', 'customer', 'scheduled_date', 'scheduled_truck']
     search_fields = ['order_number', 'customer__party__display_name', 'customer_po', 'notes']
     ordering_fields = [

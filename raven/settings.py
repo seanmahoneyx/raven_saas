@@ -137,6 +137,11 @@ DATABASES = {
         'PASSWORD': config('DB_PASSWORD', default=''),
         'HOST': config('DB_HOST', default=''),
         'PORT': config('DB_PORT', default=''),
+        # Reuse DB connections across requests instead of reconnecting each time.
+        # CONN_HEALTH_CHECKS verifies a pooled connection is alive before reuse so a
+        # dropped connection doesn't surface as a request error.
+        'CONN_MAX_AGE': config('CONN_MAX_AGE', default=60, cast=int),
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
@@ -368,6 +373,43 @@ def _get_channel_layer_config():
     }
 
 CHANNEL_LAYERS = _get_channel_layer_config()
+
+# Cache backend.
+# Reuse the same Redis that powers Channels as Django's cache when it's reachable;
+# otherwise fall back to a per-process in-memory cache so dev/CI (and a Redis outage)
+# degrade gracefully instead of erroring. Availability is probed once at startup.
+def _redis_available(redis_url):
+    """Return True if a TCP connection to the Redis host succeeds quickly."""
+    try:
+        import socket
+        from urllib.parse import urlparse
+        parsed = urlparse(redis_url)
+        host = parsed.hostname or '127.0.0.1'
+        port = parsed.port or 6379
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+_cache_redis_url = config('REDIS_URL', default='redis://127.0.0.1:6379')
+if _redis_available(_cache_redis_url):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _cache_redis_url,
+            'KEY_PREFIX': 'raven',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
 
 # Sentry (crash + error monitoring)
 # Dormant unless SENTRY_DSN is set, so the user can flip this on without
