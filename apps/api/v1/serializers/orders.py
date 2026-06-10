@@ -2,6 +2,7 @@
 """
 Serializers for Order models: PurchaseOrder, SalesOrder, and their lines.
 """
+from django.db import transaction
 from rest_framework import serializers
 from apps.orders.models import (
     PurchaseOrder, PurchaseOrderLine,
@@ -120,6 +121,7 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             'scheduled_truck', 'ship_to', 'notes', 'priority', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -151,6 +153,7 @@ class PurchaseOrderWriteSerializer(TenantModelSerializer):
             )
         return purchase_order
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -303,6 +306,7 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             'source_estimate', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -334,6 +338,7 @@ class SalesOrderWriteSerializer(TenantModelSerializer):
             )
         return sales_order
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -467,6 +472,7 @@ class EstimateWriteSerializer(TenantModelSerializer):
             'notes', 'terms_and_conditions', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -490,6 +496,7 @@ class EstimateWriteSerializer(TenantModelSerializer):
         estimate.save()
         return estimate
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
@@ -616,6 +623,7 @@ class RFQWriteSerializer(TenantModelSerializer):
             'notes', 'lines',
         ]
 
+    @transaction.atomic
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
 
@@ -636,6 +644,7 @@ class RFQWriteSerializer(TenantModelSerializer):
             )
         return rfq
 
+    @transaction.atomic
     def update(self, instance, validated_data):
         lines_data = validated_data.pop('lines', None)
         instance = super().update(instance, validated_data)
