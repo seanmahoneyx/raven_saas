@@ -24,6 +24,7 @@ import {
 import { useEstimate, useUpdateEstimate, useConvertEstimateToContract } from '@/api/estimates'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import type { EstimateStatus } from '@/types/api'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -91,6 +92,11 @@ export default function EstimateDetail() {
   const locations = locationsData ?? []
   const items = itemsData ?? []
   const uoms = uomData ?? []
+  // Label for a selected item id (shown before the combobox's own search resolves).
+  const itemLabel = (val: string) => {
+    const it = items.find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
   const customerLocations = selectedCustomer
@@ -659,8 +665,8 @@ export default function EstimateDetail() {
           )}
         </div>
 
-        {/* ── Line Items Card ────────────────────── */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+        {/* ── Line Items Card — no `overflow-hidden`: the edit-mode item picker dropdown must overflow the card. */}
+        <div className="rounded-[14px] border mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           {/* Card header */}
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Line Items</span>
@@ -706,18 +712,13 @@ export default function EstimateDetail() {
                         <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                           {/* Item */}
                           <td className="py-1 px-1 pl-6">
-                            <Select value={line.item} onValueChange={(v) => handleLineChange(index, 'item', v)}>
-                              <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
-                                <SelectValue placeholder="Select item..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {items.map((item) => (
-                                  <SelectItem key={item.id} value={String(item.id)}>
-                                    {item.sku} - {item.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <SearchableCombobox
+                              entityType="item"
+                              value={line.item ? Number(line.item) : null}
+                              initialLabel={itemLabel(line.item)}
+                              onChange={(id) => handleLineChange(index, 'item', id ? String(id) : '')}
+                              placeholder="Select item..."
+                            />
                           </td>
                           {/* Description */}
                           <td className="py-1 px-1">

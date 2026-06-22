@@ -658,6 +658,7 @@ export default function SalesOrderDetail() {
           headerRight={<span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>}
           className="mb-4"
           animateDelay="delay-3"
+          noOverflowClip
         >
 
           {/* ── EDIT MODE TABLE ──────────────────── */}

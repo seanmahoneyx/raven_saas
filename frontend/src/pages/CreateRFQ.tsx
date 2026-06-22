@@ -55,6 +55,12 @@ export default function CreateRFQ() {
   const warehouseLocations =
     (locationsData ?? []).filter((l) => l.location_type === 'WAREHOUSE')
 
+  // Label for a selected item id (shown before the combobox's own search resolves).
+  const itemLabel = (val: string) => {
+    const it = (itemsData ?? []).find((i) => String(i.id) === val)
+    return it ? `${it.sku} - ${it.name}` : undefined
+  }
+
   const handleAddLine = () => {
     setLines([
       ...lines,
@@ -194,8 +200,8 @@ export default function CreateRFQ() {
             </div>
           </div>
 
-          {/* RFQ Lines */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* RFQ Lines — no `overflow-hidden`: the item picker dropdown must overflow the card. */}
+          <div className="rounded-[14px] border animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">RFQ Lines</span>
               <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
@@ -214,10 +220,13 @@ export default function CreateRFQ() {
                   </div>
                   {lines.map((line) => (
                     <div key={line.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
-                      <Select value={line.item} onValueChange={(v) => handleLineChange(line.id, 'item', v)}>
-                        <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="Select item..." /></SelectTrigger>
-                        <SelectContent>{(itemsData ?? []).map((item) => (<SelectItem key={item.id} value={String(item.id)}>{item.sku} - {item.name}</SelectItem>))}</SelectContent>
-                      </Select>
+                      <SearchableCombobox
+                        entityType="item"
+                        value={line.item ? Number(line.item) : null}
+                        initialLabel={itemLabel(line.item)}
+                        onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
+                        placeholder="Select item..."
+                      />
                       <Input placeholder="Line description" value={line.description} onChange={(e) => handleLineChange(line.id, 'description', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Input type="number" min="0" step="1" placeholder="Qty" value={line.quantity} onChange={(e) => handleLineChange(line.id, 'quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>

@@ -14,6 +14,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { useParties } from '@/api/parties'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useCreateDesignRequest } from '@/api/design'
 import type { DesignRequestInput } from '@/types/api'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
@@ -74,6 +75,10 @@ export default function CreateDesignRequest() {
   const createMutation = useCreateDesignRequest()
   const { data: partiesData } = useParties({ party_type: 'CUSTOMER' })
   const customers = partiesData?.results ?? []
+  const customerLabel = (val: string) => {
+    const c = customers.find((c) => String(c.id) === val)
+    return c ? c.display_name : undefined
+  }
 
   const [error, setError] = useState('')
   const [ident, setIdent] = useState('')
@@ -174,7 +179,7 @@ export default function CreateDesignRequest() {
 
         <form onSubmit={handleSubmit}>
           {/* Design Information + Dimensions */}
-          <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <div className="rounded-[14px] border mb-4 animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Design Information</span>
               <span className="text-[12px] font-medium" style={{ color: 'var(--so-text-tertiary)' }}>
@@ -210,16 +215,14 @@ export default function CreateDesignRequest() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5 col-span-2">
                   <Label htmlFor="customer" style={{ color: 'var(--so-text-secondary)' }}>Customer</Label>
-                  <Select value={customer} onValueChange={setCustomer}>
-                    <SelectTrigger style={inputStyle}>
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c) => (
-                        <SelectItem key={c.id} value={String(c.id)}>{c.display_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={customer ? Number(customer) : null}
+                    initialLabel={customerLabel(customer)}
+                    onChange={(id) => setCustomer(id ? String(id) : '')}
+                    placeholder="Select customer"
+                    allowClear
+                  />
                 </div>
               </div>
               <div style={{ paddingTop: '4px', borderTop: '1px solid var(--so-border-light)' }}>

@@ -529,8 +529,8 @@ export default function RFQDetail() {
           )}
         </div>
 
-        {/* ── Line Items Card ────────────────────── */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+        {/* ── Line Items Card — no `overflow-hidden`: the edit-mode item picker dropdown must overflow the card. */}
+        <div className="rounded-[14px] border mb-4 animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           {/* Card header */}
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Line Items</span>
@@ -575,28 +575,13 @@ export default function RFQDetail() {
                         <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                           {/* Item */}
                           <td className="py-1 px-1 pl-6">
-                            {(() => {
-                              const currentInList = items.some(i => String(i.id) === line.item)
-                              return (
-                                <Select value={line.item} onValueChange={(v) => handleLineItemChange(index, v)}>
-                                  <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left">
-                                    <SelectValue placeholder="Select item..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {!currentInList && line.item && line.item_name && (
-                                      <SelectItem key={line.item} value={line.item}>
-                                        {line.item_sku} - {line.item_name}
-                                      </SelectItem>
-                                    )}
-                                    {items.map((item) => (
-                                      <SelectItem key={item.id} value={String(item.id)}>
-                                        {item.sku} - {item.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )
-                            })()}
+                            <SearchableCombobox
+                              entityType="item"
+                              value={line.item ? Number(line.item) : null}
+                              initialLabel={line.item_name ? `${line.item_sku} - ${line.item_name}` : undefined}
+                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                              placeholder="Select item..."
+                            />
                           </td>
                           {/* Qty */}
                           <td className="py-1 px-1">

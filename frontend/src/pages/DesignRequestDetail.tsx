@@ -24,6 +24,7 @@ import {
   useCreateEstimateFromDesign, useCheckoutDesign, useReleaseDesign,
 } from '@/api/design'
 import { useCustomers } from '@/api/parties'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useUnitsOfMeasure } from '@/api/items'
 import { useAuth } from '@/hooks/useAuth'
 import type { DesignRequestStatus } from '@/types/api'
@@ -170,6 +171,10 @@ export default function DesignRequestDetail() {
   }, [isEditing])
 
   const customers = customersData?.results ?? []
+  const customerLabel = (val: string) => {
+    const c = customers.find((c) => String(c.id) === val)
+    return c ? `${c.party_code} - ${c.party_display_name}` : undefined
+  }
 
   const handleSave = async () => {
     if (!designRequest) return
@@ -418,7 +423,7 @@ export default function DesignRequestDetail() {
           <div className="lg:col-span-2">
 
             {/* Request Information Card */}
-            <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2"
+            <div className="rounded-[14px] border mb-4 animate-in delay-2"
               style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
               <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                 <span className="text-sm font-semibold">Request Information</span>
@@ -452,19 +457,14 @@ export default function DesignRequestDetail() {
                       </div>
                       <div className="space-y-2">
                         <Label>Customer</Label>
-                        <Select
-                          value={formData.customer}
-                          onValueChange={(value) => setFormData({ ...formData, customer: value })}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                          <SelectContent>
-                            {customers.map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.party_code} - {c.party_display_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SearchableCombobox
+                          entityType="customer"
+                          value={formData.customer ? Number(formData.customer) : null}
+                          initialLabel={customerLabel(formData.customer)}
+                          onChange={(id) => setFormData({ ...formData, customer: id ? String(id) : '' })}
+                          placeholder="Select customer..."
+                          allowClear
+                        />
                       </div>
                     </div>
                     <div className="space-y-2">

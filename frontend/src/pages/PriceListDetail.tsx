@@ -9,13 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { usePriceList, useUpdatePriceList } from '@/api/priceLists'
 import { useCustomers } from '@/api/parties'
 import { useAllItems } from '@/api/items'
@@ -83,6 +76,10 @@ export default function PriceListDetail() {
   const itemLabel = (val: string) => {
     const it = items.find((i) => String(i.id) === val)
     return it ? `${it.name} – ${it.sku}` : undefined
+  }
+  const customerLabel = (val: string) => {
+    const c = customers.find((c) => String(c.id) === val)
+    return c ? `${c.party_code} - ${c.party_display_name}` : undefined
   }
 
   const handleAddLine = () => {
@@ -243,8 +240,8 @@ export default function PriceListDetail() {
           </div>
         </div>
 
-        {/* Details Card */}
-        <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+        {/* Details Card — no `overflow-hidden`: hosts customer/item picker dropdowns that must overflow. */}
+        <div className="rounded-[14px] border mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
           <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Details</span>
           </div>
@@ -254,21 +251,14 @@ export default function PriceListDetail() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Customer</Label>
-                    <Select
-                      value={formData.customer}
-                      onValueChange={(value) => setFormData({ ...formData, customer: value })}
-                    >
-                      <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                        <SelectValue placeholder="Select customer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((c) => (
-                          <SelectItem key={c.id} value={String(c.id)}>
-                            {c.party_code} - {c.party_display_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableCombobox
+                      entityType="customer"
+                      value={formData.customer ? Number(formData.customer) : null}
+                      initialLabel={customerLabel(formData.customer)}
+                      onChange={(id) => setFormData({ ...formData, customer: id ? String(id) : '' })}
+                      placeholder="Select customer..."
+                      allowClear
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[12px] font-medium uppercase tracking-wider" style={{ color: 'var(--so-text-tertiary)' }}>Item</Label>

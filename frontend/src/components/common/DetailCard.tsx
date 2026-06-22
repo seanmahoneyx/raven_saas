@@ -13,12 +13,15 @@ interface DetailCardProps {
   style?: CSSProperties
   /** Animation delay class like "delay-2", "delay-3" etc */
   animateDelay?: string
+  /** Omit `overflow-hidden` so descendant dropdowns (e.g. SearchableCombobox in an
+   *  editable line-item row) can overflow the card instead of being clipped. */
+  noOverflowClip?: boolean
 }
 
-export function DetailCard({ title, headerRight, children, className = '', style, animateDelay }: DetailCardProps) {
+export function DetailCard({ title, headerRight, children, className = '', style, animateDelay, noOverflowClip = false }: DetailCardProps) {
   return (
     <div
-      className={`rounded-[14px] border overflow-hidden ${animateDelay ? `animate-in ${animateDelay}` : ''} ${className}`}
+      className={`rounded-[14px] border ${noOverflowClip ? '' : 'overflow-hidden'} ${animateDelay ? `animate-in ${animateDelay}` : ''} ${className}`}
       style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', ...style }}
     >
       {title && (

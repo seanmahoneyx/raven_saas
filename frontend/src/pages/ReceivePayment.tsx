@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { ArrowLeft, DollarSign } from 'lucide-react'
 import type { Customer } from '@/types/api'
 import { toast } from 'sonner'
@@ -64,6 +65,11 @@ export default function ReceivePayment() {
   })
 
   const customers = customersData?.results || []
+  const customerLabel = (id: number | null) => {
+    if (!id) return undefined
+    const c = customers.find((c: Customer) => c.id === id)
+    return c ? c.party_display_name : undefined
+  }
 
   // Fetch open invoices when customer selected
   const { data: openInvoices, isLoading: loadingInvoices } = useQuery({
@@ -280,7 +286,8 @@ export default function ReceivePayment() {
 
         <div className="space-y-5">
           {/* Payment Info Section */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* No `overflow-hidden`: the customer picker dropdown must overflow the card. */}
+          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <DollarSign className="h-4 w-4" style={{ color: 'var(--so-text-tertiary)' }} />
               <span className="text-sm font-semibold">Payment Information</span>
@@ -289,23 +296,18 @@ export default function ReceivePayment() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={labelStyle}>Customer *</Label>
-                  <Select
-                    value={selectedCustomerId?.toString() || ''}
-                    onValueChange={(val) => {
-                      setSelectedCustomerId(parseInt(val))
+                  <SearchableCombobox
+                    entityType="customer"
+                    value={selectedCustomerId}
+                    initialLabel={customerLabel(selectedCustomerId)}
+                    onChange={(id) => {
+                      setSelectedCustomerId(id)
                       setApplications({})
                       setSelectedInvoices(new Set())
                     }}
-                  >
-                    <SelectTrigger style={inputStyle}><SelectValue placeholder="Select customer..." /></SelectTrigger>
-                    <SelectContent>
-                      {customers.map((customer: Customer) => (
-                        <SelectItem key={customer.id} value={customer.id.toString()}>
-                          {customer.party_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select customer..."
+                    allowClear
+                  />
                 </div>
 
                 <div className="space-y-2">
