@@ -347,8 +347,8 @@ export default function CreateBill() {
               <span className="text-sm font-semibold">Line Items</span>
               <button
                 type="button"
-                className={outlineBtnClass}
-                style={{ ...outlineBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                className={primaryBtnClass}
+                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
                 onClick={handleAddLine}
               >
                 <Plus className="h-3.5 w-3.5" />

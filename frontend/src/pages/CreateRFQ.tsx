@@ -204,7 +204,7 @@ export default function CreateRFQ() {
           <div className="rounded-[14px] border animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">RFQ Lines</span>
-              <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
+              <button type="button" className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddLine}>
                 <Plus className="h-3.5 w-3.5" /> Add Line
               </button>
             </div>
