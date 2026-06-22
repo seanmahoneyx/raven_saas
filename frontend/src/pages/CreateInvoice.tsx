@@ -39,8 +39,6 @@ const TERMS_OPTIONS = [
 
 const EMPTY_LINE = { item: '', description: '', quantity: '', unit_price: '', notes: '' }
 
-const INITIAL_EMPTY_ROWS = 5
-
 const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
 const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
 
@@ -65,17 +63,16 @@ export default function CreateInvoice() {
 
   const buildInitialLines = () => {
     if (prefill.lines?.length) {
-      const copied = prefill.lines.map((l: any) => ({
+      return prefill.lines.map((l: any) => ({
         item: l.item ? String(l.item) : '',
         description: l.description || '',
         quantity: l.quantity ? String(l.quantity) : '',
         unit_price: l.unit_price ? String(l.unit_price) : '',
         notes: l.notes || '',
       }))
-      while (copied.length < INITIAL_EMPTY_ROWS) copied.push({ ...EMPTY_LINE })
-      return copied
     }
-    return Array.from({ length: INITIAL_EMPTY_ROWS }, () => ({ ...EMPTY_LINE }))
+    // Start with no lines — add them one at a time (matches estimate/contract/SO).
+    return []
   }
 
   const [linesFormData, setLinesFormData] = useState<
@@ -120,17 +117,10 @@ export default function CreateInvoice() {
   }
 
   const handleRemoveLine = (index: number) => {
-    setLinesFormData(prev => {
-      const next = prev.filter((_, i) => i !== index)
-      while (next.length < INITIAL_EMPTY_ROWS) next.push({ ...EMPTY_LINE })
-      return next
-    })
+    setLinesFormData(prev => prev.filter((_, i) => i !== index))
   }
 
   /* ---- Computed ---- */
-  const lineHasData = (line: typeof linesFormData[number]) =>
-    !!(line.item || line.quantity || line.notes)
-
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity) || 0
     const price = parseFloat(line.unit_price) || 0
@@ -284,8 +274,10 @@ export default function CreateInvoice() {
           )}
 
           {/* ============ UNIFIED CARD ============ */}
+          {/* No `overflow-hidden`: line-item rows host SearchableCombobox dropdowns that
+              must overflow the card instead of being clipped. */}
           <div
-            className="rounded-[14px] border overflow-hidden animate-in delay-2"
+            className="rounded-[14px] border animate-in delay-2"
             style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}
           >
             {/* Card header */}
@@ -368,6 +360,23 @@ export default function CreateInvoice() {
             <div style={{ borderTop: '1px solid var(--so-border)' }} />
 
             {/* ---- Line Items ---- */}
+            <div className="px-6 py-4 flex items-center justify-between">
+              <span className="text-sm font-semibold">Line Items</span>
+              <button
+                type="button"
+                className={outlineBtnClass}
+                style={{ ...outlineBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                onClick={handleAddLine}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Line
+              </button>
+            </div>
+            {linesFormData.length === 0 ? (
+              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
+                No lines added. Click "Add Line" to add items to this invoice.
+              </p>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead>
@@ -394,28 +403,11 @@ export default function CreateInvoice() {
                 <tbody>
                   {linesFormData.map((line, index) => {
                     const lineAmount = (parseFloat(line.quantity) || 0) * (parseFloat(line.unit_price) || 0)
-                    const isEmpty = !lineHasData(line)
 
                     return (
                       <tr
                         key={index}
-                        style={{
-                          borderBottom: '1px solid var(--so-border-light)',
-                          opacity: isEmpty ? 0.5 : 1,
-                          transition: 'opacity 0.15s',
-                        }}
-                        onFocus={(e) => { e.currentTarget.style.opacity = '1' }}
-                        onBlur={(e) => {
-                          const tr = e.currentTarget
-                          setTimeout(() => {
-                            if (!tr.contains(document.activeElement)) {
-                              const currentLine = linesFormData[index]
-                              if (currentLine && !lineHasData(currentLine)) {
-                                tr.style.opacity = '0.5'
-                              }
-                            }
-                          }, 0)
-                        }}
+                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
                       >
                         {/* Item */}
                         <td className="py-1.5 px-1 pl-6">
@@ -481,40 +473,23 @@ export default function CreateInvoice() {
                         </td>
                         {/* Delete */}
                         <td className="py-1.5 px-1 pr-6">
-                          {lineHasData(line) && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLine(index)}
-                              className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
-                              style={{ color: '#dc2626' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                              tabIndex={0}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLine(index)}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
+                            style={{ color: '#dc2626' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            tabIndex={0}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
                 <tfoot>
-                  <tr>
-                    <td colSpan={7} className="py-2 px-6">
-                      <button
-                        type="button"
-                        onClick={handleAddLine}
-                        className="inline-flex items-center gap-1.5 text-[12.5px] font-medium transition-colors cursor-pointer"
-                        style={{ color: 'var(--so-accent)' }}
-                        onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
-                        onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Add Line
-                      </button>
-                    </td>
-                  </tr>
                   <tr style={{ borderTop: '2px solid var(--so-border)' }}>
                     <td colSpan={4} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
                     <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</td>
@@ -523,6 +498,7 @@ export default function CreateInvoice() {
                 </tfoot>
               </table>
             </div>
+            )}
           </div>
         </form>
 
