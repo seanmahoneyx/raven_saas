@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
@@ -71,6 +71,11 @@ export function useItemsInfinite(params?: ItemsListParams, options?: { enabled?:
     },
     getNextPageParam: (lastPage, allPages) => (lastPage.next ? allPages.length + 1 : undefined),
     staleTime: 30_000,
+    // Keep the previous results mounted while a new search/sort query loads. Without this
+    // a changed query key flips `isLoading` true (no cache for the new key), which swaps the
+    // table for a skeleton and unmounts the search input mid-typing — the box "unclicks" and
+    // refocusing is required to keep typing. keepPreviousData also avoids a skeleton flash.
+    placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
   })
 }

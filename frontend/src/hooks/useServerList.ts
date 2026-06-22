@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, keepPreviousData } from '@tanstack/react-query'
 import type { SortingState } from '@tanstack/react-table'
 import type { AxiosInstance } from 'axios'
 import type { ServerTableConfig } from '@/components/ui/data-table'
@@ -74,6 +74,10 @@ export function useServerList<T>(opts: UseServerListOptions) {
     },
     getNextPageParam: (lastPage, allPages) => (lastPage.next ? allPages.length + 1 : undefined),
     staleTime: 30_000,
+    // Keep previous rows mounted while a new search/sort query loads. A changed query key
+    // otherwise flips `isLoading` true (no cache for the new key), and callers that render a
+    // skeleton on `isLoading` unmount the search input mid-typing — the box loses focus.
+    placeholderData: keepPreviousData,
     enabled,
   })
 
