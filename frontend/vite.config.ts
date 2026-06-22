@@ -28,7 +28,12 @@ export default defineConfig({
           if (id.includes('@tanstack')) return 'tanstack'
           if (id.includes('date-fns')) return 'date-fns'
           if (id.includes('lucide-react')) return 'icons'
-          if (id.includes('react-router') || id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'react-vendor'
+          // NOTE: do NOT split React (react / react-dom / react-router / scheduler)
+          // into its own chunk. Doing so created a circular chunk dependency
+          // (react-vendor <-> vendor: react-router's deps live in vendor, while
+          // vendor libs import React) which crashes at runtime with
+          // "Cannot access 'X' before initialization" (chunk init-order TDZ).
+          // Keeping React in the single `vendor` chunk keeps the graph acyclic.
           return 'vendor'
         },
       },
