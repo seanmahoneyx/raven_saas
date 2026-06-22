@@ -80,6 +80,13 @@ export default function CreateEstimate() {
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
 
+  // Label for a selected item id (so the combobox shows it before its own search resolves).
+  const itemLabel = (id: string) => {
+    if (!id) return ''
+    const it = items.find((i) => String(i.id) === id)
+    return it ? `${it.sku} - ${it.name}` : ''
+  }
+
   const handleAddLine = () => {
     setLines([...lines, { item: '', description: '', quantity: '1', uom: '', unit_price: '0.00' }])
   }
@@ -317,7 +324,9 @@ export default function CreateEstimate() {
           </div>
 
           {/* Line Items */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* No `overflow-hidden` here: the line-item rows host SearchableCombobox dropdowns
+              that must overflow the card downward instead of being clipped by it. */}
+          <div className="rounded-[14px] border animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Line Items</span>
               <button type="button" className={outlineBtnClass} style={{ ...outlineBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
@@ -341,21 +350,13 @@ export default function CreateEstimate() {
                       <div className="grid grid-cols-12 gap-2 items-end">
                         <div className="col-span-4 space-y-1">
                           <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Item</Label>
-                          <Select
-                            value={line.item}
-                            onValueChange={(v) => handleLineChange(index, 'item', v)}
-                          >
-                            <SelectTrigger className="h-9" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                              <SelectValue placeholder="Select item..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {items.map((item) => (
-                                <SelectItem key={item.id} value={String(item.id)}>
-                                  {item.sku} - {item.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <SearchableCombobox
+                            entityType="item"
+                            value={line.item ? Number(line.item) : null}
+                            initialLabel={itemLabel(line.item)}
+                            onChange={(id) => handleLineChange(index, 'item', id ? String(id) : '')}
+                            placeholder="Select item..."
+                          />
                         </div>
                         <div className="col-span-2 space-y-1">
                           <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Qty</Label>

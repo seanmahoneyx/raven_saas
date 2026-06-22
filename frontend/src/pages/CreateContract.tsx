@@ -240,7 +240,9 @@ export default function CreateContract() {
           </div>
 
           {/* Contract Lines */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          {/* No `overflow-hidden` here: the line-item rows host SearchableCombobox dropdowns
+              that must overflow the card downward instead of being clipped by it. */}
+          <div className="rounded-[14px] border animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Contract Lines</span>
               <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
