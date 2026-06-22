@@ -10,6 +10,7 @@ import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { toastApiError } from '@/lib/errors'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, X, Save, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import api from '@/api/client'
@@ -52,6 +53,9 @@ const ORDER_STATUSES = [
   { value: 'complete', label: 'Complete' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
+
+const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
+const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
 
 interface CopyFromPurchaseOrderLine {
   item: string
@@ -260,95 +264,111 @@ export default function CreatePurchaseOrder() {
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
-      <div className={`max-w-[1080px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-7 animate-in">
-          <button className={outlineBtnClass + ' !px-2'} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4" />
+      <div className={`max-w-[1280px] mx-auto px-4 md:px-8 py-7 ${isMobile ? 'pb-32 px-4' : 'pb-16'}`}>
+
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 mb-5 animate-in">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 text-[13px] font-medium transition-colors cursor-pointer"
+            style={{ color: 'var(--so-text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--so-text-secondary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--so-text-tertiary)')}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Purchase Orders
           </button>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>{copyData ? 'Copy Purchase Order' : 'New Purchase Order'}</h1>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger className="w-[130px] h-8 text-xs" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ORDER_STATUSES.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {selectedVendor && (
-                <span className="text-[13px]" style={{ color: 'var(--so-text-tertiary)' }}>
-                  {selectedVendor.party_display_name}
-                </span>
-              )}
-            </div>
-            {!copyData && (
-              <div className="mt-1 font-mono text-[13px] font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                {nextPONumber ?? '…'}
-              </div>
-            )}
-          </div>
+          <span style={{ color: 'var(--so-border)' }} className="text-[13px]">/</span>
+          <span className="text-[13px] font-medium" style={{ color: 'var(--so-text-secondary)' }}>
+            {copyData ? 'Copy Purchase Order' : 'New Purchase Order'}
+          </span>
         </div>
 
-        {/* Main Card */}
-        <form id="create-po-form" onSubmit={onSubmit}>
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Details</span>
-              {!isMobile && (
-                <div className="flex items-center gap-2">
-                  <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
-                    <X className="h-3.5 w-3.5" /> Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className={`${primaryBtnClass} ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
-                    style={primaryBtnStyle}
-                    disabled={isPending}
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    {isPending ? 'Creating...' : 'Create'}
-                  </button>
-                </div>
-              )}
+        {/* Header */}
+        <div className="flex items-center justify-between mb-7 animate-in delay-1">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ letterSpacing: '-0.03em' }}>
+              {copyData ? 'Copy Purchase Order' : 'New Purchase Order'}
+            </h1>
+            {!copyData && (
+              <div className="mt-1 text-[13px] inline-flex items-center gap-2">
+                <span className="font-mono font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                  {nextPONumber ?? '…'}
+                </span>
+                {selectedVendor && (
+                  <>
+                    <span style={{ color: 'var(--so-border)' }}>·</span>
+                    <span style={{ color: 'var(--so-text-tertiary)' }}>{selectedVendor.party_display_name}</span>
+                  </>
+                )}
+              </div>
+            )}
+            {copyData && (
+              <p className="text-[13px] mt-1" style={{ color: 'var(--so-text-tertiary)' }}>
+                {selectedVendor ? selectedVendor.party_display_name : 'Fill in order details below'}
+              </p>
+            )}
+          </div>
+          {!isMobile && (
+            <div className="flex items-center gap-2">
+              <button className={outlineBtnClass} style={outlineBtnStyle} onClick={() => navigate(-1)}>
+                Cancel
+              </button>
+              <button
+                className={primaryBtnClass + (isPending ? ' opacity-50 pointer-events-none' : '')}
+                style={primaryBtnStyle}
+                type="submit"
+                form="create-po-form"
+              >
+                <Save className="h-3.5 w-3.5" />
+                {isPending ? 'Creating...' : 'Create Order'}
+              </button>
             </div>
-            <div className="px-6 pt-0 pb-4">
-              {/* Error */}
-              {error && (
-                <div className="text-[13px] rounded-md px-3 py-2.5 mb-4 mt-4"
-                  style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)' }}>
-                  {error}
-                </div>
-              )}
+          )}
+        </div>
 
-              {/* Field Strip */}
-              <div className="rounded-lg p-4 flex flex-wrap items-end gap-4 mt-4" style={{ background: 'var(--so-bg)' }}>
-                <div className="flex flex-col">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Vendor *</span>
+        <form id="create-po-form" onSubmit={onSubmit}>
+          {/* Error */}
+          {error && (
+            <div
+              className="rounded-md p-3 mb-4 text-sm animate-in"
+              style={{ background: 'var(--so-danger-bg)', color: 'var(--so-danger-text)', border: '1px solid var(--so-danger-text)' }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* ============ UNIFIED CARD ============ */}
+          <div
+            className="rounded-[14px] border animate-in delay-2"
+            style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}
+          >
+            {/* Card header */}
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+              <span className="text-sm font-semibold">Order Details</span>
+            </div>
+
+            {/* ---- Header Fields ---- */}
+            <div className="px-6 py-5">
+              {/* Row 1: Vendor (span 2) | Ship To | Order Date | Expected Date | Status */}
+              <div className="grid grid-cols-6 gap-4">
+                <div className="col-span-2">
+                  <label className={labelClass} style={labelStyle}>Vendor *</label>
                   <SearchableCombobox
                     entityType="vendor"
                     value={formData.vendor ? Number(formData.vendor) : null}
                     onChange={(id) => setFormData({ ...formData, vendor: id ? String(id) : '' })}
                     placeholder="Select vendor..."
                     allowClear
-                    className="w-[220px]"
                   />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Ship To Warehouse *</span>
+                <div>
+                  <label className={labelClass} style={labelStyle}>Ship To Warehouse *</label>
                   <Select
                     value={formData.ship_to}
                     onValueChange={(value) => setFormData({ ...formData, ship_to: value })}
                   >
-                    <SelectTrigger className="h-9 text-sm w-[220px]" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                    <SelectTrigger className="h-9 text-sm" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
                       <SelectValue placeholder="Select warehouse..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -360,233 +380,285 @@ export default function CreatePurchaseOrder() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Order Date</span>
+                <div>
+                  <label className={labelClass} style={labelStyle}>Order Date</label>
                   <Input
                     type="date"
-                    className="h-9 text-sm w-[150px]"
                     value={formData.order_date}
                     onChange={(e) => setFormData({ ...formData, order_date: e.target.value })}
+                    className="h-9 text-sm"
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Expected Date</span>
+                <div>
+                  <label className={labelClass} style={labelStyle}>Expected Date</label>
                   <Input
                     type="date"
-                    className="h-9 text-sm w-[150px]"
                     value={formData.expected_date}
                     onChange={(e) => setFormData({ ...formData, expected_date: e.target.value })}
+                    className="h-9 text-sm"
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Scheduled Date</span>
+                <div>
+                  <label className={labelClass} style={labelStyle}>Status</label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => setFormData({ ...formData, status: value })}
+                  >
+                    <SelectTrigger className="h-9 text-sm" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORDER_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Row 2: Scheduled Date */}
+              <div className="grid grid-cols-6 gap-4 mt-4">
+                <div>
+                  <label className={labelClass} style={labelStyle}>Scheduled Date</label>
                   <Input
                     type="date"
-                    className="h-9 text-sm w-[150px]"
                     value={formData.scheduled_date}
                     onChange={(e) => setFormData({ ...formData, scheduled_date: e.target.value })}
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
-                <div className="flex flex-col flex-1 min-w-[200px]">
-                  <span className="text-[11px] uppercase tracking-widest font-semibold mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Notes</span>
-                  <Input
                     className="h-9 text-sm"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Order notes..."
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
               </div>
 
-              {/* Line Items Table */}
-              {isMobile ? (
-                <MobileLineItemList
-                  lines={linesFormData}
-                  items={items.map(i => ({ value: String(i.id), label: `${i.name} – ${i.sku}` }))}
-                  uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
-                  fulfillmentMethods={[
-                    { value: 'stock', label: 'Stock' },
-                    { value: 'direct', label: 'Direct Ship' },
-                    { value: 'crossdock', label: 'Crossdock' },
-                  ]}
-                  priceField="unit_cost"
-                  onLineChange={handleLineChange}
-                  onRemove={handleRemoveLine}
-                  onAdd={handleAddLine}
-                  total={editTotal}
+              {/* Row 3: Notes (full width) */}
+              <div className="mt-4">
+                <label className={labelClass} style={labelStyle}>Notes</label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Order notes..."
+                  rows={3}
+                  className="text-sm min-h-0"
+                  style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)', minHeight: '72px' }}
                 />
-              ) : (
-              <div className="mt-4 overflow-x-auto -mx-6">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr style={{ borderTop: '1px solid var(--so-border-light)', borderBottom: '1px solid var(--so-border-light)' }}>
-                      <th className="text-left py-2 px-3 pl-6 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Item</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Description</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Fulfill</th>
-                      <th className="text-right py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Qty</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>UOM</th>
-                      <th className="text-right py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Rate</th>
-                      <th className="text-right py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Amount</th>
-                      <th className="text-left py-2 px-3 text-[11px] uppercase tracking-widest font-semibold" style={{ color: 'var(--so-text-tertiary)', background: 'var(--so-bg)' }}>Notes</th>
-                      <th className="py-2 px-3 pr-6" style={{ background: 'var(--so-bg)' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linesFormData.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="text-center py-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                          No lines. Click &quot;Add Line&quot; to add items.
+              </div>
+            </div>
+
+            {/* ---- Separator between header and line items ---- */}
+            <div style={{ borderTop: '1px solid var(--so-border)' }} />
+
+            {/* ---- Line Items ---- */}
+            {isMobile ? (
+              <MobileLineItemList
+                lines={linesFormData}
+                items={items.map(i => ({ value: String(i.id), label: `${i.name} – ${i.sku}` }))}
+                uoms={uoms.map(u => ({ value: String(u.id), label: u.code }))}
+                fulfillmentMethods={[
+                  { value: 'stock', label: 'Stock' },
+                  { value: 'direct', label: 'Direct Ship' },
+                  { value: 'crossdock', label: 'Crossdock' },
+                ]}
+                priceField="unit_cost"
+                onLineChange={handleLineChange}
+                onRemove={handleRemoveLine}
+                onAdd={handleAddLine}
+                total={editTotal}
+              />
+            ) : (
+            <>
+            <div className="px-6 py-4 flex items-center justify-between">
+              <span className="text-sm font-semibold">Line Items</span>
+              <button
+                type="button"
+                className={primaryBtnClass}
+                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                onClick={handleAddLine}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Line
+              </button>
+            </div>
+            {linesFormData.length === 0 ? (
+              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
+                No lines added. Click "Add Line" to add items to this order.
+              </p>
+            ) : (
+            // focus-within:overflow-visible lifts the clip while a cell is focused so the
+            // item-picker dropdown can extend past the table (overflow-x:auto would clip it).
+            <div className="overflow-x-auto focus-within:overflow-visible">
+              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {[
+                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[22%]' },
+                      { label: 'Description', align: 'text-left', cls: 'w-[18%]' },
+                      { label: 'Fulfill', align: 'text-left', cls: 'w-[8%]' },
+                      { label: 'Qty', align: 'text-right', cls: 'w-[8%]' },
+                      { label: 'UOM', align: 'text-left', cls: 'w-[8%]' },
+                      { label: 'Rate', align: 'text-right', cls: 'w-[10%]' },
+                      { label: 'Amount', align: 'text-right', cls: 'w-[10%]' },
+                      { label: 'Notes', align: 'text-left', cls: 'w-[12%]' },
+                      { label: '', align: '', cls: 'pr-6 w-10' },
+                    ].map((col, i) => (
+                      <th
+                        key={col.label || `blank-${i}`}
+                        className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-3 ${col.align} ${col.cls}`}
+                        style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {linesFormData.map((line, index) => {
+                    const selectedItem = items.find(i => String(i.id) === line.item)
+                    const lineAmount = calcLineAmount(line.quantity_ordered, line.unit_cost)
+                    const warning = similarWarnings[index]
+                    return (
+                      <React.Fragment key={index}>
+                      <tr style={{ borderBottom: warning ? 'none' : '1px solid var(--so-border-light)' }}>
+                        {/* Item */}
+                        <td className="py-1.5 px-1 pl-6">
+                          <SearchableCombobox
+                            entityType="item"
+                            value={line.item ? Number(line.item) : null}
+                            initialLabel={itemLabel(line.item)}
+                            onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
+                            placeholder="Select item..."
+                          />
                         </td>
-                      </tr>
-                    ) : (
-                      linesFormData.map((line, index) => {
-                        const selectedItem = items.find(i => String(i.id) === line.item)
-                        const lineAmount = calcLineAmount(line.quantity_ordered, line.unit_cost)
-                        const warning = similarWarnings[index]
-                        return (
-                          <React.Fragment key={index}>
-                          <tr style={{ borderBottom: warning ? 'none' : '1px solid var(--so-border-light)', background: index % 2 === 1 ? 'var(--so-bg)' : 'transparent' }}>
-                            <td className="py-1.5 px-1 pl-6">
-                              <SearchableCombobox
-                                entityType="item"
-                                value={line.item ? Number(line.item) : null}
-                                initialLabel={itemLabel(line.item)}
-                                onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                                placeholder="Select item..."
-                              />
-                            </td>
-                            <td className="py-1.5 px-1 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                              {selectedItem?.name || ''}
-                            </td>
-                            <td className="py-1.5 px-1">
-                              {(() => {
-                                const itemType = selectedItem?.item_type
-                                if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
-                                if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
-                                const opts = FULFILLMENT_OPTIONS[itemType] || []
-                                return (
-                                  <Select
-                                    value={line.fulfillment_method || opts[0]?.value || ''}
-                                    onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
-                                  >
-                                    <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                                    </SelectContent>
-                                  </Select>
-                                )
-                              })()}
-                            </td>
-                            <td className="py-1.5 px-1">
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={line.quantity_ordered}
-                                onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                                className="h-9 text-sm text-right border shadow-none font-mono"
-                              />
-                            </td>
-                            <td className="py-1.5 px-1">
+                        {/* Description (read-only) */}
+                        <td className="py-1.5 px-3 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
+                          {selectedItem?.name || '—'}
+                        </td>
+                        {/* Fulfillment */}
+                        <td className="py-1.5 px-1">
+                          {(() => {
+                            const itemType = selectedItem?.item_type
+                            if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
+                            if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
+                            const opts = FULFILLMENT_OPTIONS[itemType] || []
+                            return (
                               <Select
-                                value={line.uom}
-                                onValueChange={(v) => handleLineChange(index, 'uom', v)}
+                                value={line.fulfillment_method || opts[0]?.value || ''}
+                                onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
                               >
                                 <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
-                                  <SelectValue placeholder="UOM" />
+                                  <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {uoms.map((uom) => (
-                                    <SelectItem key={uom.id} value={String(uom.id)}>
-                                      {uom.code}
-                                    </SelectItem>
-                                  ))}
+                                  {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
                                 </SelectContent>
                               </Select>
-                            </td>
-                            <td className="py-1.5 px-1">
-                              <Input
-                                type="text"
-                                inputMode="decimal"
-                                value={line.unit_cost}
-                                onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
-                                className="h-9 text-sm text-right border shadow-none font-mono"
-                              />
-                            </td>
-                            <td className="py-1.5 px-3 text-right font-mono text-sm" style={{ color: 'var(--so-text-primary)' }}>
-                              {formatCurrency(lineAmount.toFixed(2))}
-                            </td>
-                            <td className="py-1.5 px-1">
-                              <Input
-                                value={line.notes}
-                                onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                                className="h-9 text-sm border shadow-none bg-transparent"
-                                placeholder="Notes..."
-                              />
-                            </td>
-                            <td className="py-1.5 px-1 pr-6">
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveLine(index)}
-                                className="inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer"
-                                style={{ color: 'var(--so-danger-text)' }}
+                            )
+                          })()}
+                        </td>
+                        {/* Qty */}
+                        <td className="py-1.5 px-1">
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={line.quantity_ordered}
+                            onChange={(e) => handleLineQtyChange(index, e.target.value)}
+                            className="h-9 text-sm text-right border shadow-none font-mono"
+                          />
+                        </td>
+                        {/* UOM */}
+                        <td className="py-1.5 px-1">
+                          <Select
+                            value={line.uom}
+                            onValueChange={(v) => handleLineChange(index, 'uom', v)}
+                          >
+                            <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
+                              <SelectValue placeholder="UOM" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {uoms.map((uom) => (
+                                <SelectItem key={uom.id} value={String(uom.id)}>
+                                  {uom.code}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        {/* Rate */}
+                        <td className="py-1.5 px-1">
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={line.unit_cost}
+                            onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
+                            className="h-9 text-sm text-right border shadow-none font-mono"
+                          />
+                        </td>
+                        {/* Amount (read-only) */}
+                        <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                          {line.item ? formatCurrency(lineAmount.toFixed(2)) : '—'}
+                        </td>
+                        {/* Notes */}
+                        <td className="py-1.5 px-1">
+                          <Input
+                            value={line.notes}
+                            onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
+                            className="h-9 text-sm border shadow-none bg-transparent"
+                            placeholder="Notes..."
+                          />
+                        </td>
+                        {/* Delete */}
+                        <td className="py-1.5 px-1 pr-6">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveLine(index)}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer"
+                            style={{ color: 'var(--so-danger-text)' }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                      {warning && (
+                        <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+                          <td colSpan={9} className="px-6 py-2">
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              <span className="font-medium">
+                                {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
+                              </span>
+                              <span className="mx-1">·</span>
+                              <a
+                                href={`/items/${line.item}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline font-medium"
+                                style={{ color: 'var(--so-warning-text)' }}
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                          {warning && (
-                            <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                              <td colSpan={9} className="px-6 py-2">
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
-                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="font-medium">
-                                    {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
-                                  </span>
-                                  <span className="mx-1">·</span>
-                                  <a
-                                    href={`/items/${line.item}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline font-medium"
-                                    style={{ color: 'var(--so-warning-text)' }}
-                                  >
-                                    View similar items
-                                  </a>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          </React.Fragment>
-                        )
-                      })
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={9} className="py-2 px-2 pl-6">
-                        <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
-                          <Plus className="h-3.5 w-3.5" /> Add Line
-                        </button>
-                      </td>
-                    </tr>
-                    <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                      <td colSpan={6} className="py-2 px-3 text-right text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>TOTAL</td>
-                      <td className="py-2 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                        {formatCurrency(editTotal.toFixed(2))}
-                      </td>
-                      <td colSpan={2}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              )}
+                                View similar items
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid var(--so-border)' }}>
+                    <td colSpan={6} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
+                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal.toFixed(2))}</td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
+            )}
+            </>
+            )}
           </div>
         </form>
       </div>
@@ -597,11 +669,20 @@ export default function CreatePurchaseOrder() {
           className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
           style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
         >
+          <button
+            type="button"
+            className={outlineBtnClass}
+            style={{ ...outlineBtnStyle, minHeight: 44 }}
+            onClick={handleAddLine}
+          >
+            <Plus className="h-4 w-4" />
+            Add Line
+          </button>
           <span
-            className="flex-1 font-mono text-sm font-semibold"
+            className="flex-1 text-center font-mono text-sm font-semibold"
             style={{ color: 'var(--so-text-primary)' }}
           >
-            Total: {formatCurrency(editTotal.toFixed(2))}
+            {formatCurrency(editTotal.toFixed(2))}
           </span>
           <button
             type="submit"
