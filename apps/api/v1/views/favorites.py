@@ -229,6 +229,10 @@ class SuggestionsAPI(APIView):
             for field in search_fields:
                 q |= Q(**{f'{field}__icontains': search})
             qs = qs.filter(q)
+            # Surface names that START WITH the query ahead of substring-only
+            # matches, so the 20-row cap doesn't bury prefix matches.
+            from shared.search import prefix_ranked
+            qs = prefix_ranked(qs, search_fields, search)
         qs = qs[:20]
 
         # Determine which results are already favorited

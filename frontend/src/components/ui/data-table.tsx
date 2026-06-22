@@ -17,6 +17,7 @@ import { Button } from './button'
 import { Checkbox } from './checkbox'
 import { Input } from './input'
 import { cn } from '@/lib/utils'
+import { rankByPrefix } from '@/lib/search'
 
 /** Map column accessorKey/id → minimum breakpoint width (px) to show that column.
  *  Columns not listed are always visible. */
@@ -285,8 +286,17 @@ export function DataTable<TData, TValue>({
       ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ''
       : ''
 
+  // Rank dropdown results so names that START WITH the query come first, then
+  // substring matches, before capping at 20. Without this the alphabetical
+  // substring filter buries prefix matches: typing "D" matches every name
+  // containing a "d" anywhere ("...DBA...", "...PRODUCTS"), and the 20-row cap
+  // fills with A/B/C companies before any name that actually starts with "D".
   const dropdownItems = showSearchDropdown && searchDropdownLabel
-    ? table.getFilteredRowModel().rows.slice(0, 20)
+    ? rankByPrefix(
+        table.getFilteredRowModel().rows,
+        searchValue,
+        (row) => searchDropdownLabel(row.original)
+      ).slice(0, 20)
     : []
 
   const selectedCount = Object.keys(rowSelection).length

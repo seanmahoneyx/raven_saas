@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.db.models import Q, Value, CharField
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from shared.search import prefix_ranked
 
 
 @extend_schema(
@@ -31,8 +32,9 @@ class GlobalSearchView(APIView):
 
         # Items - search sku and name
         from apps.items.models import Item
-        items = Item.objects.filter(
-            Q(sku__icontains=q) | Q(name__icontains=q)
+        items = prefix_ranked(
+            Item.objects.filter(Q(sku__icontains=q) | Q(name__icontains=q)),
+            ['sku', 'name'], q,
         )[:5]
         for item in items:
             results.append({
@@ -45,8 +47,11 @@ class GlobalSearchView(APIView):
 
         # Customers - search party display_name and party name
         from apps.parties.models import Customer
-        customers = Customer.objects.select_related('party').filter(
-            Q(party__display_name__icontains=q) | Q(party__name__icontains=q)
+        customers = prefix_ranked(
+            Customer.objects.select_related('party').filter(
+                Q(party__display_name__icontains=q) | Q(party__name__icontains=q)
+            ),
+            ['party__display_name', 'party__name'], q,
         )[:5]
         for cust in customers:
             results.append({
@@ -59,8 +64,11 @@ class GlobalSearchView(APIView):
 
         # Sales Orders - search order_number
         from apps.orders.models import SalesOrder
-        orders = SalesOrder.objects.select_related('customer__party').filter(
-            Q(order_number__icontains=q)
+        orders = prefix_ranked(
+            SalesOrder.objects.select_related('customer__party').filter(
+                Q(order_number__icontains=q)
+            ),
+            ['order_number'], q,
         )[:5]
         for order in orders:
             customer_name = ''
@@ -76,8 +84,11 @@ class GlobalSearchView(APIView):
 
         # Invoices - search invoice_number
         from apps.invoicing.models import Invoice
-        invoices = Invoice.objects.select_related('customer__party').filter(
-            Q(invoice_number__icontains=q)
+        invoices = prefix_ranked(
+            Invoice.objects.select_related('customer__party').filter(
+                Q(invoice_number__icontains=q)
+            ),
+            ['invoice_number'], q,
         )[:5]
         for inv in invoices:
             customer_name = ''

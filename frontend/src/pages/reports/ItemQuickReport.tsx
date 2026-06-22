@@ -20,6 +20,7 @@ import ReportErrorBlock from '@/components/common/ReportErrorBlock'
 import { downloadAuthed } from '@/lib/downloads'
 import { parseLocalDate } from '@/lib/dates'
 import { formatCurrency } from '@/lib/format'
+import { rankByPrefix } from '@/lib/search'
 
 // ─── Column Definitions ─────────────────────────────────────────────────────
 
@@ -399,7 +400,7 @@ export default function ItemQuickReport() {
                   {dropdownOpen && (
                     <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-64 overflow-auto">
                       {filteredItems.length > 0 ? (
-                        filteredItems.slice(0, 50).map((item) => (
+                        rankByPrefix(filteredItems, itemSearch, (i) => i.sku, (i) => i.name).slice(0, 50).map((item) => (
                           <button
                             key={item.id}
                             className="w-full text-left px-3 py-2 hover:bg-accent text-sm"

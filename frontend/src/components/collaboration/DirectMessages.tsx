@@ -8,6 +8,7 @@ import {
 import { useUsers } from '@/api/users'
 import { useAuth } from '@/hooks/useAuth'
 import { getInitials } from '@/lib/utils'
+import { rankByPrefix } from '@/lib/search'
 
 interface ChatViewProps {
   partnerId: number
@@ -155,14 +156,16 @@ export function DirectMessages() {
 
   // Filter users for new chat (exclude self and existing conversations)
   const existingPartnerIds = new Set(conversations.map(c => c.user_id))
-  const filteredUsers = allUsers
+  const matchedUsers = allUsers
     .filter(u => u.id !== user?.id)
     .filter(u => {
       if (!userSearch.trim()) return !existingPartnerIds.has(u.id)
       const q = userSearch.toLowerCase()
       return (u.name?.toLowerCase().includes(q) || u.username.toLowerCase().includes(q))
     })
-    .slice(0, 20)
+  // Surface users whose name/username starts with the query ahead of substring
+  // matches before capping, so prefix matches aren't buried past row 20.
+  const filteredUsers = rankByPrefix(matchedUsers, userSearch, u => u.name, u => u.username).slice(0, 20)
 
   if (activeChat) {
     return (
