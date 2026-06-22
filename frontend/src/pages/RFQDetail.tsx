@@ -546,7 +546,7 @@ export default function RFQDetail() {
                 No lines. Click "Add Line" below to add items.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto focus-within:overflow-visible">
                 <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>

@@ -715,7 +715,11 @@ export default function CreateSalesOrder() {
                 No lines added. Click "Add Line" to add items to this order.
               </p>
             ) : (
-            <div className="overflow-x-auto">
+            // focus-within:overflow-visible — `overflow-x: auto` forces overflow-y to auto,
+            // which clips the item-picker dropdown. While a cell is focused (combobox open) we
+            // drop the clip so the dropdown can extend past the table; otherwise horizontal
+            // scroll is preserved for the wide table.
+            <div className="overflow-x-auto focus-within:overflow-visible">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>

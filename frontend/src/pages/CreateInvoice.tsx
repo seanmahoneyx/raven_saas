@@ -377,7 +377,9 @@ export default function CreateInvoice() {
                 No lines added. Click "Add Line" to add items to this invoice.
               </p>
             ) : (
-            <div className="overflow-x-auto">
+            // focus-within:overflow-visible lifts the overflow clip while a cell is focused so
+            // the item-picker dropdown can extend past the table (overflow-x:auto would clip it).
+            <div className="overflow-x-auto focus-within:overflow-visible">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
