@@ -655,7 +655,13 @@ export default function SalesOrderDetail() {
         {/* ── Line Items Card ────────────────────── */}
         <DetailCard
           title="Line Items"
-          headerRight={<span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>}
+          headerRight={isEditing ? (
+            <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
+              <Plus className="h-3.5 w-3.5" /> Add Line
+            </button>
+          ) : (
+            <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>
+          )}
           className="mb-4"
           animateDelay="delay-3"
           noOverflowClip
@@ -809,20 +815,6 @@ export default function SalesOrderDetail() {
                       )
                     })}
                   </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={8} className="py-2 px-2 pl-6">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors cursor-pointer"
-                          style={{ color: 'var(--so-accent)' }}
-                          onClick={handleAddLine}
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add Line
-                        </button>
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             )

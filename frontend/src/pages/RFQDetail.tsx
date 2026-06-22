@@ -534,9 +534,15 @@ export default function RFQDetail() {
           {/* Card header */}
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Line Items</span>
-            <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-              {(isEditing ? linesFormData.length : lineCount)} {(isEditing ? linesFormData.length : lineCount) === 1 ? 'item' : 'items'}
-            </span>
+            {isEditing ? (
+              <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
+                <Plus className="h-3.5 w-3.5" /> Add Line
+              </button>
+            ) : (
+              <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
+                {lineCount} {lineCount === 1 ? 'item' : 'items'}
+              </span>
+            )}
           </div>
 
           {/* ── EDIT MODE TABLE ──────────────────── */}
@@ -664,20 +670,6 @@ export default function RFQDetail() {
                       )
                     })}
                   </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={7} className="py-2 px-2 pl-6">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors cursor-pointer"
-                          style={{ color: 'var(--so-accent)' }}
-                          onClick={handleAddLine}
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add Line
-                        </button>
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
               </div>
             )
