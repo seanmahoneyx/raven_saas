@@ -66,9 +66,6 @@ const FULFILLMENT_OPTIONS: Record<string, { value: string; label: string }[]> = 
   other_charge: [],
 }
 
-/** Number of pre-rendered blank rows */
-const INITIAL_EMPTY_ROWS = 5
-
 /** Column indices for keyboard navigation */
 const COL_COUNT = 6 // item, qty, uom, rate, notes, (contract is conditional but skip it for tab)
 
@@ -114,12 +111,11 @@ export default function CreateSalesOrder() {
 
   const buildInitialLines = () => {
     if (copyData?.lines?.length) {
-      const copied = copyData.lines.map((l: any) => ({ ...l, notes: l.notes || '', contract: '' }))
-      // pad to at least INITIAL_EMPTY_ROWS
-      while (copied.length < INITIAL_EMPTY_ROWS) copied.push({ ...EMPTY_LINE })
-      return copied
+      return copyData.lines.map((l: any) => ({ ...l, notes: l.notes || '', contract: '' }))
     }
-    return Array.from({ length: INITIAL_EMPTY_ROWS }, () => ({ ...EMPTY_LINE }))
+    // Start with no lines — the user adds them one at a time, matching the
+    // estimate/contract create screens (no pre-rendered blank rows).
+    return []
   }
 
   const [linesFormData, setLinesFormData] = useState<
@@ -248,13 +244,12 @@ export default function CreateSalesOrder() {
   }
 
   /* ---- Line handlers ---- */
+  const handleAddLine = () => {
+    setLinesFormData(prev => [...prev, { ...EMPTY_LINE }])
+  }
+
   const handleRemoveLine = (index: number) => {
-    setLinesFormData(prev => {
-      const next = prev.filter((_, i) => i !== index)
-      // Keep at least INITIAL_EMPTY_ROWS
-      while (next.length < INITIAL_EMPTY_ROWS) next.push({ ...EMPTY_LINE })
-      return next
-    })
+    setLinesFormData(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleLineChange = (index: number, field: string, value: string) => {
@@ -330,10 +325,6 @@ export default function CreateSalesOrder() {
 
   const isPending = createOrder.isPending
   const isMobile = useIsMobile()
-
-  /* ---- Check if a line row has any data ---- */
-  const lineHasData = (line: typeof linesFormData[number]) =>
-    !!(line.item || line.quantity_ordered || line.notes)
 
   /* ---- Submit ---- */
   const handleSubmit = async () => {
@@ -702,9 +693,27 @@ export default function CreateSalesOrder() {
                 ]}
                 onLineChange={handleLineChange}
                 onRemove={handleRemoveLine}
-                onAdd={() => setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '', uom: '', unit_price: '', notes: '', contract: '', fulfillment_method: '' }])}
+                onAdd={handleAddLine}
                 total={editTotal}
               />
+            ) : (
+            <>
+            <div className="px-6 py-4 flex items-center justify-between">
+              <span className="text-sm font-semibold">Line Items</span>
+              <button
+                type="button"
+                className={outlineBtnClass}
+                style={{ ...outlineBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                onClick={handleAddLine}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Line
+              </button>
+            </div>
+            {linesFormData.length === 0 ? (
+              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
+                No lines added. Click "Add Line" to add items to this order.
+              </p>
             ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
@@ -737,35 +746,11 @@ export default function CreateSalesOrder() {
                     const selectedItem = items.find(i => String(i.id) === line.item)
                     const itemContracts = line.item ? contractsByItem.get(Number(line.item)) : undefined
                     const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_price) || 0)
-                    const isEmpty = !lineHasData(line)
 
                     const warning = similarWarnings[index]
                     return (
                       <React.Fragment key={index}>
-                      <tr
-                        style={{
-                          borderBottom: '1px solid var(--so-border-light)',
-                          opacity: isEmpty ? 0.5 : 1,
-                          transition: 'opacity 0.15s',
-                        }}
-                        onFocus={() => {
-                          // Make the row fully visible when focused
-                          const tr = cellRefs.current[index]?.[0]?.closest('tr')
-                          if (tr) tr.style.opacity = '1'
-                        }}
-                        onBlur={(e) => {
-                          // Restore placeholder styling if still empty after blur
-                          const tr = e.currentTarget
-                          setTimeout(() => {
-                            if (!tr.contains(document.activeElement)) {
-                              const currentLine = linesFormData[index]
-                              if (currentLine && !lineHasData(currentLine)) {
-                                tr.style.opacity = '0.5'
-                              }
-                            }
-                          }, 0)
-                        }}
-                      >
+                      <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
                         {/* Item (col 0) */}
                         <td className="py-1.5 px-1 pl-6">
                           <div ref={(el) => setCellRef(index, 0, el)} onKeyDown={(e) => handleKeyDown(e, index, 0)}>
@@ -902,21 +887,19 @@ export default function CreateSalesOrder() {
                         </td>
                         {/* Delete (col 5 for keyboard, but button only) */}
                         <td className="py-1.5 px-1 pr-6">
-                          {lineHasData(line) && (
-                            <button
-                              ref={(el) => setCellRef(index, 5, el as any)}
-                              type="button"
-                              onClick={() => handleRemoveLine(index)}
-                              onKeyDown={(e) => handleKeyDown(e, index, 5)}
-                              className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
-                              style={{ color: '#dc2626' }}
-                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
-                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                              tabIndex={0}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
+                          <button
+                            ref={(el) => setCellRef(index, 5, el as any)}
+                            type="button"
+                            onClick={() => handleRemoveLine(index)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 5)}
+                            className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
+                            style={{ color: '#dc2626' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            tabIndex={0}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </td>
                       </tr>
                       {warning && (
@@ -955,6 +938,8 @@ export default function CreateSalesOrder() {
               </table>
             </div>
             )}
+            </>
+            )}
           </div>
         </form>
 
@@ -986,9 +971,7 @@ export default function CreateSalesOrder() {
             type="button"
             className={outlineBtnClass}
             style={{ ...outlineBtnStyle, minHeight: 44 }}
-            onClick={() => {
-              setLinesFormData(prev => [...prev, { ...EMPTY_LINE }])
-            }}
+            onClick={handleAddLine}
           >
             <Plus className="h-4 w-4" />
             Add Line
