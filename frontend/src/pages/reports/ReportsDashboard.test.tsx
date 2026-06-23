@@ -13,6 +13,11 @@ vi.mock('@/hooks/usePageTitle', () => ({
   usePageTitle: vi.fn(),
 }))
 
+// ReportsDashboard reads useAuth() for admin gating; provide a context-free stub.
+vi.mock('@/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { is_staff: true, is_superuser: true } }),
+}))
+
 // Mock useNavigate so we can spy on navigation calls
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {

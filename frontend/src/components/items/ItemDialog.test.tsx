@@ -48,61 +48,48 @@ const mockUpdateBoxItem = vi.fn()
 const mockCreatePkgItem = vi.fn()
 const mockUpdatePkgItem = vi.fn()
 
-vi.mock('@/api/items', () => ({
-  useCreateItem: () => ({
-    mutateAsync: mockCreateItem,
-    isPending: false,
-  }),
-  useUpdateItem: () => ({
-    mutateAsync: mockUpdateItem,
-    isPending: false,
-  }),
-  useUnitsOfMeasure: () => ({
+// NOTE: each hook returns a *stable* reference (defined once in the factory
+// closure, not a fresh object literal per call). ItemDialog's effects key on
+// these objects; returning a new reference every render previously retriggered
+// the form-reset/feature-selection effects on every render, causing an infinite
+// render → OOM loop that crashed the Vitest worker.
+vi.mock('@/api/items', () => {
+  const unitsOfMeasure = {
     data: {
       results: [
         { id: 1, code: 'ea', name: 'Each' },
         { id: 2, code: 'cs', name: 'Case' },
       ] as UnitOfMeasure[],
     },
-  }),
-  useCreateBoxItem: () => ({
-    mutateAsync: mockCreateBoxItem,
-    isPending: false,
-  }),
-  useUpdateBoxItem: () => ({
-    mutateAsync: mockUpdateBoxItem,
-    isPending: false,
-  }),
-  useBoxItem: () => ({
-    data: null,
-    isLoading: false,
-  }),
-  useCorrugatedFeatures: () => ({
-    data: { results: [] },
-  }),
-  useCreatePackagingItem: () => ({
-    mutateAsync: mockCreatePkgItem,
-    isPending: false,
-  }),
-  useUpdatePackagingItem: () => ({
-    mutateAsync: mockUpdatePkgItem,
-    isPending: false,
-  }),
-  usePackagingItem: () => ({
-    data: null,
-    isLoading: false,
-  }),
-}))
+  }
+  const corrugatedFeatures = { data: { results: [] } }
+  const emptyFetch = { data: null, isLoading: false }
+  return {
+    useCreateItem: () => ({ mutateAsync: mockCreateItem, isPending: false }),
+    useUpdateItem: () => ({ mutateAsync: mockUpdateItem, isPending: false }),
+    useUnitsOfMeasure: () => unitsOfMeasure,
+    useCreateBoxItem: () => ({ mutateAsync: mockCreateBoxItem, isPending: false }),
+    useUpdateBoxItem: () => ({ mutateAsync: mockUpdateBoxItem, isPending: false }),
+    useBoxItem: () => emptyFetch,
+    useCorrugatedFeatures: () => corrugatedFeatures,
+    useCreatePackagingItem: () => ({ mutateAsync: mockCreatePkgItem, isPending: false }),
+    useUpdatePackagingItem: () => ({ mutateAsync: mockUpdatePkgItem, isPending: false }),
+    usePackagingItem: () => emptyFetch,
+  }
+})
 
-vi.mock('@/api/parties', () => ({
-  useParties: () => ({
+vi.mock('@/api/parties', () => {
+  const parties = {
     data: {
       results: [
         { id: 1, code: 'CUST001', display_name: 'Test Customer' },
       ] as Party[],
     },
-  }),
-}))
+  }
+  return {
+    useParties: () => parties,
+  }
+})
 
 // Test wrapper
 function createWrapper() {
@@ -190,22 +177,24 @@ describe('ItemDialog', () => {
 
     it('shows division label', () => {
       renderDialog()
-      expect(screen.getByText('Division *')).toBeInTheDocument()
+      // FormField renders the label and the required "*" as separate nodes,
+      // so match the label text only.
+      expect(screen.getByText('Division')).toBeInTheDocument()
     })
 
     it('shows MSPN input', () => {
       renderDialog()
-      expect(screen.getByText('MSPN *')).toBeInTheDocument()
+      expect(screen.getByText('MSPN')).toBeInTheDocument()
     })
 
     it('shows Name input', () => {
       renderDialog()
-      expect(screen.getByText('Name *')).toBeInTheDocument()
+      expect(screen.getByText('Name')).toBeInTheDocument()
     })
 
     it('shows Unit of Measure label', () => {
       renderDialog()
-      expect(screen.getByText('Unit of Measure *')).toBeInTheDocument()
+      expect(screen.getByText('Unit of Measure')).toBeInTheDocument()
     })
 
     it('shows collapsible sections', () => {
@@ -368,7 +357,7 @@ describe('ItemDialog Packaging Mode', () => {
     })
     renderDialog({ item: pkgItem })
     // Type selector should be visible for packaging items
-    expect(screen.getByText('Type *')).toBeInTheDocument()
+    expect(screen.getByText('Type')).toBeInTheDocument()
   })
 
   it('shows packaging material fields when editing packaging item', () => {
@@ -389,6 +378,6 @@ describe('ItemDialog Packaging Mode', () => {
     renderDialog({ item: pkgItem })
     expect(screen.queryByText('Test (ECT)')).not.toBeInTheDocument()
     expect(screen.queryByText('Flute')).not.toBeInTheDocument()
-    expect(screen.queryByText('Box Type *')).not.toBeInTheDocument()
+    expect(screen.queryByText('Box Type')).not.toBeInTheDocument()
   })
 })

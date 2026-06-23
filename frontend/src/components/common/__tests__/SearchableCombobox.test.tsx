@@ -298,14 +298,14 @@ describe('SearchableCombobox', () => {
   // ── 11. Shows empty state ────────────────────────────────────────────────────
 
   describe('shows empty state', () => {
-    it('shows "Start typing to search…" when no data and no search text', async () => {
+    it('shows "No items available" when no data and no search text', async () => {
       setupMocks(emptySuggestions, [])
       const user = userEvent.setup()
       renderCombobox()
 
       await user.click(screen.getByRole('combobox'))
 
-      expect(screen.getByText('Start typing to search…')).toBeInTheDocument()
+      expect(screen.getByText('No items available')).toBeInTheDocument()
     })
   })
 

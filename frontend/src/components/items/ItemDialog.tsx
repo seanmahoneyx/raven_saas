@@ -250,35 +250,54 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
         pallet_height: sourceData.pallet_height ?? '',
         pallet_footprint: sourceData.pallet_footprint ?? '',
       })
-      // Initialize feature selections from existing item features
-      const itemAnyFeatures = (fullBoxItem ?? item) as any
-      const existingFeatures: { feature: number; details: string }[] = itemAnyFeatures?.item_features ?? []
-      if (featuresData?.results) {
-        setFeatureSelections(
-          featuresData.results.map((f: CorrugatedFeature) => {
-            const existing = existingFeatures.find((ef) => ef.feature === f.id)
-            return {
-              featureId: f.id,
-              selected: !!existing,
-              details: existing?.details ?? '',
-            }
-          })
-        )
-      }
     } else {
       reset(defaultValues)
-      // Reset feature selections for new items
-      if (featuresData?.results) {
-        setFeatureSelections(
-          featuresData.results.map((f: CorrugatedFeature) => ({
-            featureId: f.id,
-            selected: false,
-            details: '',
-          }))
-        )
-      }
     }
-  }, [item, fullBoxItem, fullPkgItem, open, reset, featuresData])
+  }, [item, fullBoxItem, fullPkgItem, open, reset])
+
+  // Feature selections are initialised in a separate effect so the form-reset
+  // effect above does not depend on `featuresData`. If `featuresData` is ever an
+  // unstable reference across renders, the guarded setter below returns the
+  // previous state (same reference) so React skips the re-render — preventing the
+  // infinite render → OOM loop that otherwise crashes the test worker.
+  useEffect(() => {
+    if (!featuresData?.results) return
+    const applyFeatureSelections = (next: FeatureSelection[]) =>
+      setFeatureSelections((prev) =>
+        prev.length === next.length &&
+        prev.every(
+          (p, i) =>
+            p.featureId === next[i].featureId &&
+            p.selected === next[i].selected &&
+            p.details === next[i].details,
+        )
+          ? prev
+          : next,
+      )
+    if (item) {
+      const itemAnyFeatures = (fullBoxItem ?? item) as any
+      const existingFeatures: { feature: number; details: string }[] =
+        itemAnyFeatures?.item_features ?? []
+      applyFeatureSelections(
+        featuresData.results.map((f: CorrugatedFeature) => {
+          const existing = existingFeatures.find((ef) => ef.feature === f.id)
+          return {
+            featureId: f.id,
+            selected: !!existing,
+            details: existing?.details ?? '',
+          }
+        }),
+      )
+    } else {
+      applyFeatureSelections(
+        featuresData.results.map((f: CorrugatedFeature) => ({
+          featureId: f.id,
+          selected: false,
+          details: '',
+        })),
+      )
+    }
+  }, [item, fullBoxItem, open, featuresData])
 
   const onSubmit = async (formData: ItemFormData) => {
     // Build payload based on division and box type

@@ -52,7 +52,7 @@ describe('DataTable', () => {
 
     it('renders row count', () => {
       render(<DataTable columns={testColumns} data={testData} />)
-      expect(screen.getByText('3 row(s)')).toBeInTheDocument()
+      expect(screen.getByText('1–3 of 3')).toBeInTheDocument()
     })
   })
 
