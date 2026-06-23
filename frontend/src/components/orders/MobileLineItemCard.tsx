@@ -21,6 +21,8 @@ interface MobileLineItemCardProps {
   contracts?: Array<{ value: string; label: string }>
   fulfillmentMethods?: Array<{ value: string; label: string }>
   priceField?: 'unit_price' | 'unit_cost'
+  /** When true, UOM is fixed to the item's base unit and shown as read-only text. */
+  lockUom?: boolean
   onLineChange: (index: number, field: string, value: string) => void
   onRemove: (index: number) => void
   amount: number
@@ -55,6 +57,7 @@ export function MobileLineItemCard({
   contracts,
   fulfillmentMethods,
   priceField = 'unit_price',
+  lockUom = false,
   onLineChange,
   onRemove,
   amount,
@@ -135,18 +138,34 @@ export function MobileLineItemCard({
         </div>
         <div style={{ flex: '0 0 calc(40% - 12px)' }}>
           <label style={fieldLabel}>UOM</label>
-          <select
-            value={line.uom}
-            onChange={(e) => onLineChange(index, 'uom', e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">UOM</option>
-            {uoms.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+          {lockUom ? (
+            <div
+              title="Unit of measure is fixed to the item's base unit"
+              style={{
+                minHeight: 44,
+                display: 'flex',
+                alignItems: 'center',
+                fontFamily: 'monospace',
+                fontSize: 14,
+                color: 'var(--so-text-secondary)',
+              }}
+            >
+              {uoms.find((u) => u.value === line.uom)?.label ?? '—'}
+            </div>
+          ) : (
+            <select
+              value={line.uom}
+              onChange={(e) => onLineChange(index, 'uom', e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">UOM</option>
+              {uoms.map((u) => (
+                <option key={u.value} value={u.value}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 

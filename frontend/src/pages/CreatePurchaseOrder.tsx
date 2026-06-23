@@ -463,6 +463,7 @@ export default function CreatePurchaseOrder() {
                   { value: 'crossdock', label: 'Crossdock' },
                 ]}
                 priceField="unit_cost"
+                lockUom
                 onLineChange={handleLineChange}
                 onRemove={handleRemoveLine}
                 onAdd={handleAddLine}
@@ -568,23 +569,15 @@ export default function CreatePurchaseOrder() {
                             className="h-9 text-sm text-right border shadow-none font-mono"
                           />
                         </td>
-                        {/* UOM */}
+                        {/* UOM — fixed to the item's base unit, not editable */}
                         <td className="py-1.5 px-1">
-                          <Select
-                            value={line.uom}
-                            onValueChange={(v) => handleLineChange(index, 'uom', v)}
+                          <div
+                            title="Unit of measure is fixed to the item's base unit"
+                            className="h-9 flex items-center justify-center text-sm rounded font-mono"
+                            style={{ color: 'var(--so-text-secondary)' }}
                           >
-                            <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
-                              <SelectValue placeholder="UOM" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {uoms.map((uom) => (
-                                <SelectItem key={uom.id} value={String(uom.id)}>
-                                  {uom.code}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            {selectedItem?.base_uom_code ?? '—'}
+                          </div>
                         </td>
                         {/* Rate */}
                         <td className="py-1.5 px-1">

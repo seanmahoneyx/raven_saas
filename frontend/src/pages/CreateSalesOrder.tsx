@@ -691,6 +691,7 @@ export default function CreateSalesOrder() {
                   { value: 'direct', label: 'Direct Ship' },
                   { value: 'crossdock', label: 'Crossdock' },
                 ]}
+                lockUom
                 onLineChange={handleLineChange}
                 onRemove={handleRemoveLine}
                 onAdd={handleAddLine}
@@ -833,27 +834,17 @@ export default function CreateSalesOrder() {
                             tabIndex={0}
                           />
                         </td>
-                        {/* UOM (col 2) */}
+                        {/* UOM (col 2) — fixed to the item's base unit, not editable */}
                         <td className="py-1.5 px-1">
-                          <div ref={(el) => setCellRef(index, 2, el)} onKeyDown={(e) => handleKeyDown(e, index, 2)}>
-                            <Select
-                              value={line.uom}
-                              onValueChange={(v) => handleLineChange(index, 'uom', v)}
-                            >
-                              <SelectTrigger
-                                className="h-9 text-sm border shadow-none"
-                                style={{ borderColor: 'var(--so-border)', background: 'transparent' }}
-                              >
-                                <SelectValue placeholder="UOM" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {uoms.map((uom) => (
-                                  <SelectItem key={uom.id} value={String(uom.id)}>
-                                    {uom.code}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div
+                            ref={(el) => setCellRef(index, 2, el)}
+                            onKeyDown={(e) => handleKeyDown(e, index, 2)}
+                            tabIndex={-1}
+                            title="Unit of measure is fixed to the item's base unit"
+                            className="h-9 flex items-center justify-center text-sm rounded outline-none font-mono"
+                            style={{ color: 'var(--so-text-secondary)' }}
+                          >
+                            {selectedItem?.base_uom_code ?? '—'}
                           </div>
                         </td>
                         {/* Rate (col 3) */}

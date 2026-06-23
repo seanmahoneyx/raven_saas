@@ -8,6 +8,8 @@ interface MobileLineItemListProps {
   contracts?: Array<{ value: string; label: string }>
   fulfillmentMethods?: Array<{ value: string; label: string }>
   priceField?: 'unit_price' | 'unit_cost'
+  /** When true, UOM is fixed to the item's base unit and shown as read-only text. */
+  lockUom?: boolean
   onLineChange: (index: number, field: string, value: string) => void
   onRemove: (index: number) => void
   onAdd: () => void
@@ -21,6 +23,7 @@ export function MobileLineItemList({
   contracts,
   fulfillmentMethods,
   priceField = 'unit_price',
+  lockUom = false,
   onLineChange,
   onRemove,
   onAdd,
@@ -41,6 +44,7 @@ export function MobileLineItemList({
             contracts={contracts}
             fulfillmentMethods={fulfillmentMethods}
             priceField={priceField}
+            lockUom={lockUom}
             onLineChange={onLineChange}
             onRemove={onRemove}
             amount={amount}
