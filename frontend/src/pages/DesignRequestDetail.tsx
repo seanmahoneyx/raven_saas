@@ -9,6 +9,7 @@ import {
   CheckCircle, Paperclip, Upload, Trash2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -469,12 +470,10 @@ export default function DesignRequestDetail() {
                     </div>
                     <div className="space-y-2">
                       <Label>Sample Quantity</Label>
-                      <Input
-                        type="number"
-                        min="0"
+                      <NumericInput
                         className="max-w-[200px]"
                         value={formData.sample_quantity}
-                        onChange={(e) => setFormData({ ...formData, sample_quantity: e.target.value })}
+                        onValueChange={(v) => setFormData({ ...formData, sample_quantity: v })}
                         placeholder="Sample qty"
                         style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                       />
@@ -538,30 +537,27 @@ export default function DesignRequestDetail() {
                     <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
                         <Label>Length</Label>
-                        <Input
-                          type="number" step="0.01"
+                        <NumericInput
                           value={formData.length}
-                          onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                          onValueChange={(v) => setFormData({ ...formData, length: v })}
                           placeholder="Length"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Width</Label>
-                        <Input
-                          type="number" step="0.01"
+                        <NumericInput
                           value={formData.width}
-                          onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                          onValueChange={(v) => setFormData({ ...formData, width: v })}
                           placeholder="Width"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Depth</Label>
-                        <Input
-                          type="number" step="0.01"
+                        <NumericInput
                           value={formData.depth}
-                          onChange={(e) => setFormData({ ...formData, depth: e.target.value })}
+                          onValueChange={(v) => setFormData({ ...formData, depth: v })}
                           placeholder="Depth"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
@@ -964,25 +960,20 @@ function CreateEstimateDialog({
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="estimate-quantity">Quantity</Label>
-            <Input
+            <NumericInput
               id="estimate-quantity"
-              type="number"
-              min="1"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onValueChange={(v) => setQuantity(v)}
               placeholder="1"
               style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="estimate-unit-price">Unit Price (optional)</Label>
-            <Input
+            <NumericInput
               id="estimate-unit-price"
-              type="number"
-              step="0.01"
-              min="0"
               value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
+              onValueChange={(v) => setUnitPrice(v)}
               placeholder="0.00"
               style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
             />

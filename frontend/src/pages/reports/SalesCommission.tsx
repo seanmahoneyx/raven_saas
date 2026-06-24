@@ -6,6 +6,7 @@ import type { SalesCommissionRep } from '@/api/reports'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowLeft, Printer, Download, FileText } from 'lucide-react'
@@ -103,14 +104,10 @@ export default function SalesCommission() {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Commission Rate (%)</Label>
-          <Input
-            type="number"
-            step="0.5"
-            min="0"
-            max="100"
+          <NumericInput
             placeholder="e.g. 5"
             value={commissionRate}
-            onChange={(e) => setCommissionRate(e.target.value)}
+            onValueChange={(v) => setCommissionRate(v)}
             className="w-32 h-8"
           />
         </div>

@@ -370,6 +370,10 @@ class SalesOrderLine(TenantMixin, TimestampMixin):
     quantity_ordered = models.PositiveIntegerField(
         help_text="Quantity ordered"
     )
+    quantity_invoiced = models.PositiveIntegerField(
+        default=0,
+        help_text="Quantity already rolled into invoices"
+    )
     uom = models.ForeignKey(
         'items.UnitOfMeasure',
         on_delete=models.PROTECT,
@@ -408,6 +412,16 @@ class SalesOrderLine(TenantMixin, TimestampMixin):
     def line_total(self):
         """Calculate line total (quantity * unit_price)."""
         return Decimal(self.quantity_ordered) * self.unit_price
+
+    @property
+    def is_fully_invoiced(self):
+        """Returns True if all ordered quantity has been invoiced."""
+        return self.quantity_invoiced >= self.quantity_ordered
+
+    @property
+    def quantity_remaining_to_invoice(self):
+        """Quantity still to be invoiced."""
+        return max(self.quantity_ordered - self.quantity_invoiced, 0)
 
     @property
     def quantity_in_base_uom(self):

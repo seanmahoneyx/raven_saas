@@ -115,6 +115,33 @@ export function useDeleteComment() {
   })
 }
 
+// ── Comment counts (bulk, for list views) ─────────────
+
+export type CommentCounts = Record<string, number>
+
+/**
+ * Bulk comment counts for many records of one content type, resolved server-side
+ * in a single aggregate query. Returns a map of objectId (string) -> count.
+ * Object ids with zero comments are absent from the map. Only enabled when ids
+ * are present so empty list pages don't fire a request.
+ */
+export function useCommentCounts(contentType: string, objectIds: number[]) {
+  // Stable, order-independent cache key for the visible row ids.
+  const sortedIds = [...objectIds].sort((a, b) => a - b)
+  const idsKey = sortedIds.join(',')
+  return useQuery<CommentCounts>({
+    queryKey: ['comment-counts', contentType, idsKey],
+    queryFn: () =>
+      apiClient
+        .get('/collaboration/comments/counts/', {
+          params: { content_type: contentType, object_ids: idsKey },
+        })
+        .then(r => r.data),
+    enabled: objectIds.length > 0,
+    staleTime: 30000,
+  })
+}
+
 // ── Tasks ──────────────────────────────────────────────
 
 export function useTasks(contentType: string, objectId: number | undefined) {

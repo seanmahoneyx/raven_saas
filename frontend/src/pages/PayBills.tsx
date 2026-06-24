@@ -5,6 +5,7 @@ import { ArrowLeft, DollarSign } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -286,12 +287,10 @@ export default function PayBills() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={labelStyle}>Amount *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <NumericInput
                     placeholder="0.00"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onValueChange={(v) => setAmount(v)}
                     className="font-mono"
                     style={inputStyle}
                   />
@@ -432,12 +431,10 @@ export default function PayBills() {
                               {formatCurrency(balance)}
                             </td>
                             <td className="py-2.5 px-3">
-                              <Input
-                                type="number"
-                                step="0.01"
+                              <NumericInput
                                 placeholder="0.00"
                                 value={applications[bill.id] ?? ''}
-                                onChange={(e) => handleApplicationChange(bill.id, e.target.value)}
+                                onValueChange={(v) => handleApplicationChange(bill.id, v)}
                                 className="h-8 w-28 text-right font-mono text-sm"
                                 style={inputStyle}
                               />

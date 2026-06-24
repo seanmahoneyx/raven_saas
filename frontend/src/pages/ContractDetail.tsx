@@ -18,6 +18,7 @@ import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -924,16 +925,13 @@ export default function ContractDetail() {
                           {contractLine.remaining_qty.toLocaleString()}
                         </td>
                         <td className="py-2.5 px-3 text-right">
-                          <input
-                            type="number"
-                            min={1}
-                            max={contractLine.remaining_qty}
+                          <NumericInput
                             value={rl.quantity}
                             placeholder="0"
                             disabled={!rl.selected}
-                            onChange={(e) =>
+                            onValueChange={(v) =>
                               setReleaseLines(prev =>
-                                prev.map(l => l.lineId === rl.lineId ? { ...l, quantity: e.target.value } : l)
+                                prev.map(l => l.lineId === rl.lineId ? { ...l, quantity: v } : l)
                               )
                             }
                             className="h-8 text-sm font-mono text-right rounded-md px-2"

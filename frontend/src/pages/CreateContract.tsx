@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -272,7 +273,7 @@ export default function CreateContract() {
                         onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
                         placeholder="Select item..."
                       />
-                      <Input type="number" min="0" step="1" placeholder="Qty" value={line.blanket_qty} onChange={(e) => handleLineChange(line.id, 'blanket_qty', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Qty" value={line.blanket_qty} onValueChange={(v) => handleLineChange(line.id, 'blanket_qty', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
                           <SelectValue placeholder="UOM" />
@@ -285,7 +286,7 @@ export default function CreateContract() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input type="number" min="0" step="0.01" placeholder="Price" value={line.unit_price} onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Price" value={line.unit_price} onValueChange={(v) => handleLineChange(line.id, 'unit_price', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-colors" style={{ color: 'var(--so-danger-text)' }}>
                         <Trash2 className="h-4 w-4" />
                       </button>

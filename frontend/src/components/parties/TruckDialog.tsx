@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -107,13 +108,11 @@ export function TruckDialog({ open, onOpenChange, truck }: TruckDialogProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="capacity_pallets">Capacity (Pallets)</Label>
-                <Input
+                <NumericInput
                   id="capacity_pallets"
-                  type="number"
                   value={formData.capacity_pallets}
-                  onChange={(e) => setFormData({ ...formData, capacity_pallets: e.target.value })}
+                  onValueChange={(v) => setFormData({ ...formData, capacity_pallets: v })}
                   placeholder="20"
-                  min="0"
                 />
               </div>
             </div>

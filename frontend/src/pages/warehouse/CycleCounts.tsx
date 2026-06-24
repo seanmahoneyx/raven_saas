@@ -5,6 +5,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
@@ -330,14 +331,11 @@ export default function CycleCounts() {
                           <td className="py-2 pr-4 text-right">
                             {detail.status === 'in_progress' && !line.is_counted ? (
                               <div className="flex items-center gap-1 justify-end">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
+                                <NumericInput
                                   inputMode="decimal"
                                   className="w-24 h-8 text-right"
                                   value={countInputs[line.id] ?? ''}
-                                  onChange={(e) => setCountInputs({ ...countInputs, [line.id]: e.target.value })}
+                                  onValueChange={(v) => setCountInputs({ ...countInputs, [line.id]: v })}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                       submitCount(detail.id, line.id, countInputs[line.id])

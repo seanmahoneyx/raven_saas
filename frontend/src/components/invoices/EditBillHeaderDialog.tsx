@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useUpdateBill, type Bill } from '@/api/invoicing'
@@ -115,12 +116,11 @@ export function EditBillHeaderDialog({ open, onOpenChange, bill }: EditBillHeade
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="purchase_order" className="text-[12.5px]">PO # (optional)</Label>
-              <Input
+              <NumericInput
                 id="purchase_order"
-                type="number"
                 inputMode="numeric"
                 value={purchaseOrder}
-                onChange={(e) => setPurchaseOrder(e.target.value)}
+                onValueChange={(v) => setPurchaseOrder(v)}
                 placeholder="—"
                 className="h-9 text-sm font-mono"
               />

@@ -133,6 +133,32 @@ class Bin(TenantMixin, TimestampMixin):
         default=True,
         help_text="Inactive bins are hidden from selections"
     )
+    length = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Bin length (inches)"
+    )
+    width = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Bin width (inches)"
+    )
+    height = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Bin height (inches)"
+    )
+    max_capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Maximum units/pallets this bin can hold"
+    )
 
     class Meta:
         unique_together = [('warehouse', 'code')]
@@ -156,6 +182,13 @@ class Bin(TenantMixin, TimestampMixin):
         if self.level:
             parts.append(self.level)
         return '-'.join(parts) if len(parts) > 1 else self.code
+
+    @property
+    def volume(self):
+        """Computed bin volume (L×W×H, cubic inches). Not stored."""
+        if self.length is not None and self.width is not None and self.height is not None:
+            return self.length * self.width * self.height
+        return None
 
     def save(self, *args, **kwargs):
         """Ensure tenant matches warehouse."""

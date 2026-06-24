@@ -6,6 +6,7 @@ import { useOtherNames, type OtherName } from '@/api/otherNames'
 import { useAllVendors } from '@/api/parties'
 import { useAllAccounts } from '@/api/accounting'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { primaryBtnClass, primaryBtnStyle, outlineBtnClass, outlineBtnStyle } from '@/components/ui/button-styles'
@@ -293,12 +294,9 @@ export default function CreateCheck() {
                 {/* Amount */}
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Amount</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
+                  <NumericInput
                     value={formData.amount}
-                    onChange={(e) => update('amount', e.target.value)}
+                    onValueChange={(v) => update('amount', v)}
                     placeholder="0.00"
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />

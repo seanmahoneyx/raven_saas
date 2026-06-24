@@ -40,7 +40,7 @@ from .views.importers import DataImportView, DataImportTemplateBundleView
 from .views.inventory import (
     InventoryLotViewSet, InventoryPalletViewSet,
     InventoryBalanceViewSet, InventoryTransactionViewSet,
-    WarehousePalletSummaryView, ItemReceiptViewSet,
+    WarehousePalletSummaryView, ItemReceiptViewSet, PickTicketViewSet,
 )
 from .views.shipping import ShipmentViewSet, BillOfLadingViewSet, DeliveryRunCreateShipmentView
 from .views.invoicing import (
@@ -103,7 +103,7 @@ from .views.email import SendInvoiceEmailView, SendPurchaseOrderEmailView
 from .views.notifications import NotificationListView, NotificationMarkReadView
 from .views.approvals import ApprovalRequestViewSet, TokenApproveView, TokenRejectView
 from .views.collaboration import (
-    CommentListCreateView, CommentDetailView,
+    CommentListCreateView, CommentDetailView, CommentCountsView,
     TaskListCreateView, TaskDetailView, MyTasksView,
     MentionableUsersView,
     ConversationListView, DirectMessageListView, UnreadMessageCountView,
@@ -188,6 +188,7 @@ router.register(r'inventory/pallets', InventoryPalletViewSet, basename='inventor
 router.register(r'inventory/balances', InventoryBalanceViewSet, basename='inventorybalance')
 router.register(r'inventory/transactions', InventoryTransactionViewSet, basename='inventorytransaction')
 router.register(r'item-receipts', ItemReceiptViewSet, basename='item-receipt')
+router.register(r'pick-tickets', PickTicketViewSet, basename='pick-ticket')
 
 # Shipping
 router.register(r'shipments', ShipmentViewSet, basename='shipment')
@@ -402,6 +403,7 @@ urlpatterns = [
 
     # Collaboration (comments, tasks, mentions)
     path('collaboration/comments/', CommentListCreateView.as_view(), name='collaboration-comments'),
+    path('collaboration/comments/counts/', CommentCountsView.as_view(), name='collaboration-comment-counts'),
     path('collaboration/comments/<int:pk>/', CommentDetailView.as_view(), name='collaboration-comment-detail'),
     path('collaboration/tasks/', TaskListCreateView.as_view(), name='collaboration-tasks'),
     path('collaboration/tasks/my/', MyTasksView.as_view(), name='collaboration-my-tasks'),

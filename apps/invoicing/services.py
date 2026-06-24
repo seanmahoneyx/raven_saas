@@ -241,6 +241,198 @@ class InvoicingService:
 
             return invoice
 
+    # ===== PICK TICKET → PARTIAL INVOICE (AR mirror of Receipt → Bill) =====
+
+    def add_line_from_pick(
+        self,
+        invoice,
+        description,
+        quantity,
+        unit_price,
+        item,
+        uom,
+        sales_order_line=None,
+        pick_ticket_line=None,
+    ):
+        """
+        Add a line to a draft invoice, optionally sourced from a pick line.
+
+        AR analog of VendorBillService.add_line. When `pick_ticket_line` is set
+        this guards against double-invoicing the pick line beyond its picked
+        quantity, increments the pick line's (and any linked SO line's)
+        `quantity_invoiced` counter, and rolls the pick header status.
+
+        Args:
+            invoice: Invoice instance (must be draft)
+            description: Line description
+            quantity: Quantity to invoice
+            unit_price: Unit price
+            item: Item instance
+            uom: UnitOfMeasure instance (required by InvoiceLine)
+            sales_order_line: Optional SalesOrderLine reference
+            pick_ticket_line: Optional PickTicketLine reference
+
+        Returns:
+            InvoiceLine instance
+        """
+        if invoice.status != 'draft':
+            raise ValidationError("Cannot modify a posted/paid invoice")
+
+        from django.db.models import Max
+        max_line = invoice.lines.aggregate(max_line=Max('line_number'))['max_line'] or 0
+        line_number = max_line + 10
+
+        # Guard against double-invoicing a pick line beyond its quantity.
+        if pick_ticket_line is not None:
+            remaining = pick_ticket_line.quantity_remaining_to_invoice
+            if Decimal(str(quantity)) > Decimal(str(remaining)):
+                raise ValidationError(
+                    f"Quantity {quantity} exceeds remaining uninvoiced "
+                    f"quantity {remaining} on pick line "
+                    f"{pick_ticket_line.pick_ticket.pick_number} "
+                    f"L{pick_ticket_line.line_number}."
+                )
+
+        line = InvoiceLine.objects.create(
+            tenant=self.tenant,
+            invoice=invoice,
+            line_number=line_number,
+            item=item,
+            description=description,
+            quantity=quantity,
+            uom=uom,
+            unit_price=unit_price,
+            sales_order_line=sales_order_line,
+            pick_ticket_line=pick_ticket_line,
+        )
+
+        # Update the pick line counter and roll the pick header status
+        # so the picks list reflects "Partially Invoiced" / "Invoiced".
+        if pick_ticket_line is not None:
+            pick_ticket_line.quantity_invoiced = (pick_ticket_line.quantity_invoiced or 0) + int(quantity)
+            pick_ticket_line.save(update_fields=['quantity_invoiced'])
+
+            # Mirror the increment onto the linked SO line when present.
+            if sales_order_line is not None:
+                sales_order_line.quantity_invoiced = (sales_order_line.quantity_invoiced or 0) + int(quantity)
+                sales_order_line.save(update_fields=['quantity_invoiced'])
+
+            pick = pick_ticket_line.pick_ticket
+            if hasattr(pick, '_prefetched_objects_cache'):
+                pick._prefetched_objects_cache.pop('lines', None)
+            pick.recompute_invoicing_status()
+            pick.save(update_fields=['status'])
+
+        invoice.calculate_totals()
+        invoice.save()
+
+        return line
+
+    def create_invoice_from_picks(
+        self,
+        customer,
+        pick_lines,
+        payment_terms='NET30',
+        invoice_number=None,
+        invoice_date=None,
+        freight_amount=Decimal('0'),
+        notes='',
+    ):
+        """
+        Create a draft Invoice from one or more PickTicketLines.
+
+        AR analog of VendorBillService.create_bill_from_receipts.
+
+        Each input dict represents a portion of a pick line being invoiced:
+            {'pick_line': PickTicketLine, 'quantity': int (optional),
+             'unit_price': Decimal (optional)}
+
+        If `quantity` is omitted, the pick line's remaining uninvoiced quantity
+        is used. If `unit_price` is omitted, the pick line's unit_price is used.
+
+        All pick lines must belong to picks for the same `customer`.
+
+        Returns:
+            Invoice in draft status with all lines added.
+        """
+        if not pick_lines:
+            raise ValidationError("Cannot create an invoice from zero pick lines.")
+
+        # All picks must belong to the same customer as the invoice.
+        for entry in pick_lines:
+            pl = entry['pick_line']
+            if pl.pick_ticket.customer_id != customer.pk:
+                raise ValidationError(
+                    f"Pick {pl.pick_ticket.pick_number} is not for customer "
+                    f"{customer.party.display_name}."
+                )
+
+        # Pick a representative SO to link on the invoice header, if all the
+        # supplied picks share the same one. (A consolidated invoice across
+        # multiple SOs leaves the invoice's sales_order blank.)
+        so_ids = {entry['pick_line'].pick_ticket.sales_order_id for entry in pick_lines}
+        header_so = None
+        if len(so_ids) == 1 and so_ids != {None}:
+            header_so = pick_lines[0]['pick_line'].pick_ticket.sales_order
+
+        if invoice_number is None:
+            invoice_number = self._generate_invoice_number()
+        if invoice_date is None:
+            invoice_date = timezone.now().date()
+        due_date = self._calculate_due_date(invoice_date, payment_terms)
+
+        with transaction.atomic():
+            ship_to = header_so.ship_to if header_so else None
+            bill_to = (header_so.bill_to or header_so.ship_to) if header_so else None
+            ship_to_postal = ''
+            if ship_to and getattr(ship_to, 'postal_code', None):
+                ship_to_postal = ship_to.postal_code or ''
+
+            invoice = Invoice.objects.create(
+                tenant=self.tenant,
+                invoice_number=invoice_number,
+                customer=customer,
+                sales_order=header_so,
+                invoice_date=invoice_date,
+                due_date=due_date,
+                payment_terms=payment_terms,
+                status='draft',
+                bill_to_name=customer.party.display_name,
+                bill_to_address=self._format_address(bill_to),
+                ship_to_name=customer.party.display_name,
+                ship_to_address=self._format_address(ship_to),
+                ship_to_postal_code=ship_to_postal,
+                customer_po=header_so.customer_po if header_so else '',
+                tax_rate=Decimal('0'),
+                freight_amount=freight_amount,
+                notes=notes or '',
+            )
+
+            for entry in pick_lines:
+                pl = entry['pick_line']
+                qty = entry.get('quantity', pl.quantity_remaining_to_invoice)
+                price = entry.get('unit_price', pl.unit_price)
+                if qty <= 0:
+                    continue
+                # InvoiceLine requires a uom: prefer the SO line's uom, else
+                # fall back to the item's base_uom.
+                if pl.sales_order_line is not None and pl.sales_order_line.uom_id:
+                    uom = pl.sales_order_line.uom
+                else:
+                    uom = pl.item.base_uom
+                self.add_line_from_pick(
+                    invoice=invoice,
+                    description=f"{pl.item.name} ({pl.item.sku})",
+                    quantity=qty,
+                    unit_price=Decimal(str(price)),
+                    item=pl.item,
+                    uom=uom,
+                    sales_order_line=pl.sales_order_line,
+                    pick_ticket_line=pl,
+                )
+
+            return invoice
+
     def create_blank_invoice(
         self,
         customer,

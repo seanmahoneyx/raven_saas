@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -241,15 +242,15 @@ export function DesignRequestDialog({
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="length">Length</Label>
-              <Input id="length" type="number" step="0.0001" value={length} onChange={(e) => setLength(e.target.value)} placeholder="0.0000" />
+              <NumericInput id="length" value={length} onValueChange={(v) => setLength(v)} placeholder="0.0000" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="width">Width</Label>
-              <Input id="width" type="number" step="0.0001" value={width} onChange={(e) => setWidth(e.target.value)} placeholder="0.0000" />
+              <NumericInput id="width" value={width} onValueChange={(v) => setWidth(v)} placeholder="0.0000" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="depth">Depth</Label>
-              <Input id="depth" type="number" step="0.0001" value={depth} onChange={(e) => setDepth(e.target.value)} placeholder="0.0000" />
+              <NumericInput id="depth" value={depth} onValueChange={(v) => setDepth(v)} placeholder="0.0000" />
             </div>
           </div>
 
@@ -294,7 +295,7 @@ export function DesignRequestDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="sampleQty">Sample Quantity</Label>
-              <Input id="sampleQty" type="number" value={sampleQuantity} onChange={(e) => setSampleQuantity(e.target.value)} placeholder="0" />
+              <NumericInput id="sampleQty" value={sampleQuantity} onValueChange={(v) => setSampleQuantity(v)} placeholder="0" />
             </div>
           </div>
 

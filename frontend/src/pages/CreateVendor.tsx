@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useCreateParty, useCreateVendor } from '@/api/parties'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -163,11 +164,10 @@ export default function CreateVendor() {
             </div>
             <div className="px-6 py-5 space-y-1.5">
               <Label htmlFor="payable_account" className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>A/P Account</Label>
-              <Input
+              <NumericInput
                 id="payable_account"
-                type="number"
                 value={formData.payable_account}
-                onChange={(e) => update('payable_account', e.target.value)}
+                onValueChange={(v) => update('payable_account', v)}
                 placeholder="Leave blank to use tenant default"
                 style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
               />

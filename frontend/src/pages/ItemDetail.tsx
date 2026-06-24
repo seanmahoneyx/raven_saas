@@ -8,6 +8,7 @@ import { openAuthedInTab } from '@/lib/downloads'
 import { useAuth } from '@/hooks/useAuth'
 import FileUpload from '@/components/common/FileUpload'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -886,24 +887,20 @@ export default function ItemDetail() {
                       </div>
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Lead Time (days)</div>
-                        <Input
-                          type="number"
+                        <NumericInput
                           value={addVendorForm.lead_time_days}
-                          onChange={(e) => setAddVendorForm({ ...addVendorForm, lead_time_days: e.target.value })}
+                          onValueChange={(v) => setAddVendorForm({ ...addVendorForm, lead_time_days: v })}
                           placeholder="-"
-                          min="0"
                           className="h-9 text-sm border rounded-md px-2"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
                       </div>
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Min Order Qty</div>
-                        <Input
-                          type="number"
+                        <NumericInput
                           value={addVendorForm.min_order_qty}
-                          onChange={(e) => setAddVendorForm({ ...addVendorForm, min_order_qty: e.target.value })}
+                          onValueChange={(v) => setAddVendorForm({ ...addVendorForm, min_order_qty: v })}
                           placeholder="-"
-                          min="0"
                           className="h-9 text-sm border rounded-md px-2"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
@@ -955,11 +952,9 @@ export default function ItemDetail() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Unit Cost *</div>
-                        <Input
-                          type="number"
-                          step="0.01"
+                        <NumericInput
                           value={costListForm.unit_cost}
-                          onChange={(e) => setCostListForm({ ...costListForm, unit_cost: e.target.value })}
+                          onValueChange={(v) => setCostListForm({ ...costListForm, unit_cost: v })}
                           placeholder="0.00"
                           className="h-9 text-sm border rounded-md px-2"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
@@ -967,12 +962,10 @@ export default function ItemDetail() {
                       </div>
                       <div>
                         <div className="text-[11.5px] font-medium uppercase tracking-widest mb-1" style={{ color: 'var(--so-text-tertiary)' }}>Min Quantity</div>
-                        <Input
-                          type="number"
+                        <NumericInput
                           value={costListForm.min_quantity}
-                          onChange={(e) => setCostListForm({ ...costListForm, min_quantity: e.target.value })}
+                          onValueChange={(v) => setCostListForm({ ...costListForm, min_quantity: v })}
                           placeholder="1"
-                          min="1"
                           className="h-9 text-sm border rounded-md px-2"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />

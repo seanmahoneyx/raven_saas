@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, FileText } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -391,12 +392,9 @@ export default function FixedAssetDetail() {
               </div>
               <div className="space-y-1.5">
                 <Label style={{ color: 'var(--so-text-secondary)' }}>Disposal Amount</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <NumericInput
                   value={disposeForm.disposal_amount}
-                  onChange={(e) => setDisposeForm(p => ({ ...p, disposal_amount: e.target.value }))}
+                  onValueChange={(v) => setDisposeForm(p => ({ ...p, disposal_amount: v }))}
                   className="font-mono"
                   style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />

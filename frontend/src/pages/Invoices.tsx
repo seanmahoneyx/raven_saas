@@ -11,19 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ExportButton } from '@/components/ui/export-button'
 import { DataTable } from '@/components/ui/data-table'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { useInvoices, usePayments, useBills, type Invoice, type Payment, type Bill } from '@/api/invoicing'
+import { useInvoices, usePayments, type Invoice, type Payment } from '@/api/invoicing'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/format'
 import { downloadAuthed } from '@/lib/downloads'
-
-type Tab = 'invoices' | 'payments'
-type InvoiceKind = 'AR' | 'AP'
-
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { useCommentCounts } from '@/api/collaboration'
+import { CommentCountBadge } from '@/components/collaboration/CommentCountBadge'
 import { PageHeader } from '@/components/page'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
 import { InvoiceCard } from '@/components/invoices/InvoiceCard'
+
+type Tab = 'invoices' | 'payments'
 
 export default function Invoices() {
   usePageTitle('Invoices')
@@ -35,7 +35,6 @@ export default function Invoices() {
   const [mobileSortDir, setMobileSortDir] = useState<'asc' | 'desc'>('desc')
 
   const [activeTab, setActiveTab] = useState<Tab>('invoices')
-  const [invoiceKind, setInvoiceKind] = useState<InvoiceKind>('AR')
 
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedParty, setSelectedParty] = useState<string>('all')
@@ -43,11 +42,15 @@ export default function Invoices() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
-  // Keep both queries live so KPIs (totalAR / totalAP) reflect full exposure
-  // regardless of which kind is currently selected.
   const { data: invoicesData, isLoading: invoicesLoading } = useInvoices()
-  const { data: billsData, isLoading: billsLoading } = useBills()
   const { data: paymentsData, isLoading: paymentsLoading } = usePayments()
+
+  // Bulk comment counts for the loaded invoice rows (single aggregate query).
+  const invoiceIds = useMemo(
+    () => (invoicesData?.results ?? []).map(i => i.id),
+    [invoicesData],
+  )
+  const { data: invoiceCommentCounts } = useCommentCounts('invoice', invoiceIds)
 
   const invoiceColumns: ColumnDef<Invoice>[] = useMemo(
     () => [
@@ -116,6 +119,17 @@ export default function Invoices() {
         },
       },
       {
+        id: 'comments',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <CommentCountBadge
+            count={invoiceCommentCounts?.[String(row.original.id)] ?? 0}
+            onClick={() => navigate(`/invoices/${row.original.id}`)}
+          />
+        ),
+      },
+      {
         id: 'actions',
         cell: ({ row }) => {
           const invoice = row.original
@@ -133,86 +147,7 @@ export default function Invoices() {
         },
       },
     ],
-    [navigate]
-  )
-
-  const billColumns: ColumnDef<Bill>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'bill_number',
-        header: 'Bill #',
-        cell: ({ row }) => (
-          <button
-            className="font-mono font-medium hover:underline"
-            style={{ color: 'var(--so-accent)' }}
-            onClick={() => navigate(`/bills/${row.original.id}`)}
-          >
-            {row.getValue('bill_number')}
-          </button>
-        ),
-      },
-      {
-        accessorKey: 'vendor_name',
-        header: 'Vendor',
-        cell: ({ row }) => (
-          <span style={{ color: 'var(--so-text-primary)' }}>{row.getValue('vendor_name')}</span>
-        ),
-      },
-      {
-        accessorKey: 'vendor_invoice_number',
-        header: 'Vendor Inv #',
-        cell: ({ row }) => (
-          <span className="font-mono text-[12.5px]" style={{ color: 'var(--so-text-secondary)' }}>
-            {(row.getValue('vendor_invoice_number') as string) || '—'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'bill_date',
-        header: 'Date',
-        cell: ({ row }) => (
-          <span style={{ color: 'var(--so-text-secondary)' }}>
-            {format(new Date(row.getValue('bill_date')), 'MMM d, yyyy')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'due_date',
-        header: 'Due',
-        cell: ({ row }) => (
-          <span style={{ color: 'var(--so-text-secondary)' }}>
-            {format(new Date(row.getValue('due_date')), 'MMM d, yyyy')}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }) => getStatusBadge(row.getValue('status') as string),
-      },
-      {
-        accessorKey: 'total_amount',
-        header: 'Total',
-        cell: ({ row }) => (
-          <span className="font-medium" style={{ color: 'var(--so-text-primary)' }}>
-            {formatCurrency(row.getValue('total_amount'))}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'balance_due',
-        header: 'Balance',
-        cell: ({ row }) => {
-          const balance = parseFloat(row.getValue('balance_due'))
-          return (
-            <span className="font-medium" style={{ color: balance > 0 ? 'var(--so-danger-text)' : 'var(--so-success-text)' }}>
-              {formatCurrency(balance)}
-            </span>
-          )
-        },
-      },
-    ],
-    [navigate]
+    [navigate, invoiceCommentCounts]
   )
 
   const paymentColumns: ColumnDef<Payment>[] = useMemo(
@@ -272,56 +207,21 @@ export default function Invoices() {
   )
 
   const invoices = invoicesData?.results ?? []
-  const bills = billsData?.results ?? []
 
   const partyOptions = useMemo(() => {
-    const names = invoiceKind === 'AR'
-      ? new Set(invoices.map(i => i.customer_name).filter(Boolean))
-      : new Set(bills.map(b => b.vendor_name).filter(Boolean))
-    return Array.from(names).sort()
-  }, [invoices, bills, invoiceKind])
+    return Array.from(new Set(invoices.map((i) => i.customer_name).filter(Boolean))).sort()
+  }, [invoices])
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      if (searchTerm && !inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false
-      }
-      if (selectedParty !== 'all' && inv.customer_name !== selectedParty) {
-        return false
-      }
-      if (selectedStatus !== 'all' && inv.status !== selectedStatus) {
-        return false
-      }
-      if (dateFrom && inv.invoice_date < dateFrom) {
-        return false
-      }
-      if (dateTo && inv.invoice_date > dateTo) {
-        return false
-      }
+    return invoices.filter((inv) => {
+      if (searchTerm && !inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())) return false
+      if (selectedParty !== 'all' && inv.customer_name !== selectedParty) return false
+      if (selectedStatus !== 'all' && inv.status !== selectedStatus) return false
+      if (dateFrom && inv.invoice_date < dateFrom) return false
+      if (dateTo && inv.invoice_date > dateTo) return false
       return true
     })
   }, [invoices, searchTerm, selectedParty, selectedStatus, dateFrom, dateTo])
-
-  const filteredBills = useMemo(() => {
-    return bills.filter(bill => {
-      if (searchTerm && !bill.bill_number.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false
-      }
-      if (selectedParty !== 'all' && bill.vendor_name !== selectedParty) {
-        return false
-      }
-      if (selectedStatus !== 'all' && bill.status !== selectedStatus) {
-        return false
-      }
-      if (dateFrom && bill.bill_date < dateFrom) {
-        return false
-      }
-      if (dateTo && bill.bill_date > dateTo) {
-        return false
-      }
-      return true
-    })
-  }, [bills, searchTerm, selectedParty, selectedStatus, dateFrom, dateTo])
 
   const mobileInvoices = useMemo(() => {
     let rows = filteredInvoices
@@ -352,14 +252,10 @@ export default function Invoices() {
     })
   }, [filteredInvoices, mobileSearch, mobileSortKey, mobileSortDir])
 
-  // Summary stats — always sum both AR and AP so the user sees full exposure
-  // in both directions regardless of which kind the toggle is on.
+  // Summary stats (AR only)
   const totalAR = invoices.reduce((sum, i) => sum + parseFloat(i.balance_due || '0'), 0)
-  const totalAP = bills.reduce((sum, b) => sum + parseFloat(b.balance_due || '0'), 0)
-  const overdueCount = invoiceKind === 'AR'
-    ? invoices.filter((i) => i.status === 'overdue').length
-    : bills.filter((b) => b.status !== 'paid' && b.status !== 'void' && b.due_date < new Date().toISOString().slice(0, 10)).length
-  const totalCount = invoiceKind === 'AR' ? (invoicesData?.count ?? 0) : (billsData?.count ?? 0)
+  const overdueCount = invoices.filter((i) => i.status === 'overdue').length
+  const totalCount = invoicesData?.count ?? 0
 
   return (
     <div className="raven-page" style={{ minHeight: '100vh' }}>
@@ -368,55 +264,26 @@ export default function Invoices() {
         {/* Header */}
         <PageHeader
           title="Invoices"
-          description="Manage invoices, bills, and payments"
+          description="Manage customer invoices and payments (Accounts Receivable)"
           primary={{
-            label: activeTab === 'payments'
-              ? (invoiceKind === 'AR' ? 'Receive Payment' : 'Pay Bills')
-              : (invoiceKind === 'AR' ? 'New Invoice' : 'New Bill'),
+            label: activeTab === 'payments' ? 'Receive Payment' : 'New Invoice',
             icon: Plus,
-            onClick: () => {
-              if (activeTab === 'payments') {
-                navigate(invoiceKind === 'AR' ? '/receive-payment' : '/pay-bills')
-              } else if (invoiceKind === 'AR') {
-                navigate('/invoices/new')
-              } else {
-                navigate('/bills/new')
-              }
-            },
+            onClick: () => navigate(activeTab === 'payments' ? '/receive-payment' : '/invoices/new'),
           }}
           trailing={
             <ExportButton
               iconOnly
-              data={(
-                activeTab === 'payments'
-                  ? (paymentsData?.results ?? [])
-                  : (invoiceKind === 'AR' ? (invoicesData?.results ?? []) : (billsData?.results ?? []))
-              ) as unknown as Record<string, unknown>[]}
-              filename={
-                activeTab === 'payments'
-                  ? 'payments'
-                  : (invoiceKind === 'AR' ? 'invoices' : 'bills')
-              }
-              columns={activeTab === 'invoices' ? (
-                invoiceKind === 'AR' ? [
-                  { key: 'invoice_number', header: 'Invoice #' },
-                  { key: 'customer_name', header: 'Customer' },
-                  { key: 'invoice_date', header: 'Date' },
-                  { key: 'due_date', header: 'Due Date' },
-                  { key: 'status', header: 'Status' },
-                  { key: 'total_amount', header: 'Total' },
-                  { key: 'balance_due', header: 'Balance Due' },
-                ] : [
-                  { key: 'bill_number', header: 'Bill #' },
-                  { key: 'vendor_name', header: 'Vendor' },
-                  { key: 'vendor_invoice_number', header: 'Vendor Inv #' },
-                  { key: 'bill_date', header: 'Date' },
-                  { key: 'due_date', header: 'Due Date' },
-                  { key: 'status', header: 'Status' },
-                  { key: 'total_amount', header: 'Total' },
-                  { key: 'balance_due', header: 'Balance Due' },
-                ]
-              ) : undefined}
+              data={(activeTab === 'payments' ? (paymentsData?.results ?? []) : (invoicesData?.results ?? [])) as unknown as Record<string, unknown>[]}
+              filename={activeTab === 'payments' ? 'payments' : 'invoices'}
+              columns={activeTab === 'invoices' ? [
+                { key: 'invoice_number', header: 'Invoice #' },
+                { key: 'customer_name', header: 'Customer' },
+                { key: 'invoice_date', header: 'Date' },
+                { key: 'due_date', header: 'Due Date' },
+                { key: 'status', header: 'Status' },
+                { key: 'total_amount', header: 'Total' },
+                { key: 'balance_due', header: 'Balance Due' },
+              ] : undefined}
             />
           }
         />
@@ -424,7 +291,7 @@ export default function Invoices() {
         {/* KPI Summary Cards */}
         <div className="rounded-[14px] mb-6 animate-in delay-1 overflow-hidden"
           style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}>
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x" style={{ borderColor: 'var(--so-border)' }}>
+          <div className="grid grid-cols-3 divide-x" style={{ borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-5">
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
                 Receivable Balance
@@ -435,15 +302,7 @@ export default function Invoices() {
             </div>
             <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                Payable Balance
-              </div>
-              <div className="text-2xl font-bold" style={{ color: 'var(--so-danger-text)' }}>
-                {formatCurrency(totalAP)}
-              </div>
-            </div>
-            <div className="px-6 py-5" style={{ borderColor: 'var(--so-border)' }}>
-              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--so-text-tertiary)' }}>
-                {invoiceKind === 'AR' ? 'Total Invoices' : 'Total Bills'}
+                Total Invoices
               </div>
               <div className="text-2xl font-bold" style={{ color: 'var(--so-text-primary)' }}>
                 {totalCount}
@@ -461,48 +320,15 @@ export default function Invoices() {
         </div>
 
         {/* Tabs */}
-        <div className="mb-5 animate-in delay-1 flex items-center justify-between flex-wrap gap-3">
+        <div className="mb-5 animate-in delay-1">
           <FolderTabs
             tabs={[
               { id: 'invoices', label: 'Invoices', icon: <FileText className="h-3.5 w-3.5" /> },
               { id: 'payments', label: 'Payments', icon: <CreditCard className="h-3.5 w-3.5" /> },
             ]}
             activeTab={activeTab}
-            onTabChange={(id) => setActiveTab(id as any)}
+            onTabChange={(id) => setActiveTab(id as Tab)}
           />
-          {/* AR / AP toggle (only relevant on Invoices tab) */}
-          {activeTab === 'invoices' && (
-            <div
-              className="inline-flex rounded-md overflow-hidden"
-              style={{ border: '1px solid var(--so-border)', background: 'var(--so-surface)' }}
-              role="tablist"
-              aria-label="Invoice kind"
-            >
-              {(['AR', 'AP'] as const).map((kind) => {
-                const active = invoiceKind === kind
-                return (
-                  <button
-                    key={kind}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => {
-                      setInvoiceKind(kind)
-                      setSelectedParty('all')
-                      setSelectedStatus('all')
-                    }}
-                    className="px-3.5 py-1.5 text-[12.5px] font-semibold uppercase tracking-wider transition-colors cursor-pointer"
-                    style={{
-                      background: active ? 'var(--so-accent)' : 'transparent',
-                      color: active ? '#fff' : 'var(--so-text-secondary)',
-                    }}
-                  >
-                    {kind === 'AR' ? 'Receivable' : 'Payable'}
-                  </button>
-                )
-              })}
-            </div>
-          )}
         </div>
 
         {/* Filters */}
@@ -511,11 +337,9 @@ export default function Invoices() {
             <div className="py-3">
               <div className="grid gap-4 md:grid-cols-5">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>
-                    {invoiceKind === 'AR' ? 'Search Invoice #' : 'Search Bill #'}
-                  </label>
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Search Invoice #</label>
                   <Input
-                    placeholder={invoiceKind === 'AR' ? 'Search invoice number...' : 'Search bill number...'}
+                    placeholder="Search invoice number..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
@@ -523,17 +347,15 @@ export default function Invoices() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Party</label>
+                  <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>Customer</label>
                   <Select value={selectedParty} onValueChange={setSelectedParty}>
                     <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                      <SelectValue placeholder="All parties" />
+                      <SelectValue placeholder="All customers" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All parties</SelectItem>
+                      <SelectItem value="all">All customers</SelectItem>
                       {partyOptions.map(party => (
-                        <SelectItem key={party} value={party}>
-                          {party}
-                        </SelectItem>
+                        <SelectItem key={party} value={party}>{party}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -547,10 +369,7 @@ export default function Invoices() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All statuses</SelectItem>
-                      {(invoiceKind === 'AR'
-                        ? (['draft', 'sent', 'partial', 'paid', 'overdue', 'void'] as const)
-                        : (['draft', 'posted', 'partial', 'paid', 'void'] as const)
-                      ).map(status => (
+                      {(['draft', 'sent', 'partial', 'paid', 'overdue', 'void'] as const).map(status => (
                         <SelectItem key={status} value={status}>
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </SelectItem>
@@ -561,22 +380,14 @@ export default function Invoices() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>From Date</label>
-                  <Input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium" style={{ color: 'var(--so-text-secondary)' }}>To Date</label>
-                  <Input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                 </div>
               </div>
             </div>
@@ -584,7 +395,7 @@ export default function Invoices() {
         )}
 
         {/* DataTable Card / Mobile Cards */}
-        {isMobile && activeTab === 'invoices' && invoiceKind === 'AR' ? (
+        {isMobile && activeTab === 'invoices' ? (
           <MobileCardList
             data={mobileInvoices}
             renderCard={(invoice) => <InvoiceCard invoice={invoice} />}
@@ -612,32 +423,15 @@ export default function Invoices() {
             <div className="px-6 py-4 flex items-center justify-between"
               style={{ borderBottom: '1px solid var(--so-border-light)', background: 'var(--so-surface-raised)' }}>
               <span className="text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                {activeTab === 'payments'
-                  ? 'Payments'
-                  : (invoiceKind === 'AR' ? 'Invoices' : 'Bills')}
+                {activeTab === 'payments' ? 'Payments' : 'Invoices'}
               </span>
             </div>
             <div className="p-4">
-              {activeTab === 'invoices' && invoiceKind === 'AR' && (
+              {activeTab === 'invoices' && (
                 invoicesLoading ? (
                   <TableSkeleton columns={8} rows={8} />
                 ) : (
-                  <DataTable
-                    columns={invoiceColumns}
-                    data={filteredInvoices}
-                    storageKey="invoices"
-                  />
-                )
-              )}
-              {activeTab === 'invoices' && invoiceKind === 'AP' && (
-                billsLoading ? (
-                  <TableSkeleton columns={8} rows={8} />
-                ) : (
-                  <DataTable
-                    columns={billColumns}
-                    data={filteredBills}
-                    storageKey="bills"
-                  />
+                  <DataTable columns={invoiceColumns} data={filteredInvoices} storageKey="invoices" />
                 )
               )}
               {activeTab === 'payments' && (

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Trash2 } from 'lucide-react'
@@ -150,7 +151,7 @@ export default function CreatePriceList() {
           <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
             <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Price Break Lines</span>
-              <button type="button" className={outlineBtnClass} style={outlineBtnStyle} onClick={handleAddLine}>
+              <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
                 <Plus className="h-3.5 w-3.5" /> Add Break
               </button>
             </div>
@@ -166,8 +167,8 @@ export default function CreatePriceList() {
                   </div>
                   {lines.map((line) => (
                     <div key={line.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
-                      <Input type="number" placeholder="Minimum quantity" value={line.min_quantity} onChange={(e) => handleLineChange(line.id, 'min_quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <Input type="number" step="0.01" placeholder="Unit price" value={line.unit_price} onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Minimum quantity" value={line.min_quantity} onValueChange={(v) => handleLineChange(line.id, 'min_quantity', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Unit price" value={line.unit_price} onValueChange={(v) => handleLineChange(line.id, 'unit_price', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer" style={{ color: 'var(--so-danger-text)' }}>
                         <Trash2 className="h-4 w-4" />
                       </button>

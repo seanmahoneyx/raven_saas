@@ -15,6 +15,41 @@ export function formatCurrency(value: string | number | null | undefined, option
   }).format(num)
 }
 
+/**
+ * Strip a user-typed numeric string down to a raw, comma-free value safe to
+ * store in state and send to the API. Keeps an optional leading minus, digits,
+ * and at most one decimal point (preserving a trailing "." while typing).
+ */
+export function parseNumericInput(input: string | number | null | undefined): string {
+  if (input === null || input === undefined) return ''
+  let s = String(input).replace(/,/g, '')
+  const neg = s.startsWith('-')
+  s = s.replace(/[^0-9.]/g, '')
+  const firstDot = s.indexOf('.')
+  if (firstDot !== -1) {
+    // collapse any extra decimal points, keep the first
+    s = s.slice(0, firstDot + 1) + s.slice(firstDot + 1).replace(/\./g, '')
+  }
+  return (neg ? '-' : '') + s
+}
+
+/**
+ * Format a raw numeric string/number for display with thousands separators,
+ * preserving a trailing decimal point and decimal digits as the user types.
+ * Does NOT round — display only. Returns '' for empty/nullish input.
+ */
+export function formatWithCommas(raw: string | number | null | undefined): string {
+  if (raw === null || raw === undefined || raw === '') return ''
+  let s = String(raw)
+  const neg = s.startsWith('-')
+  if (neg) s = s.slice(1)
+  const dot = s.indexOf('.')
+  let intPart = dot === -1 ? s : s.slice(0, dot)
+  const decPart = dot === -1 ? '' : s.slice(dot) // includes the '.'
+  intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return (neg ? '-' : '') + intPart + decPart
+}
+
 export function formatLifeMonths(months: number): string {
   if (!months) return '-'
   const y = Math.floor(months / 12)

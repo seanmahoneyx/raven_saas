@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -126,12 +127,10 @@ export function ReleaseDialog({
             {/* Quantity */}
             <div className="space-y-2">
               <Label htmlFor="quantity">Quantity to Release *</Label>
-              <Input
+              <NumericInput
                 id="quantity"
-                type="number"
-                min="1"
                 value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                onValueChange={(v) => setFormData({ ...formData, quantity: v })}
                 placeholder="Enter quantity"
               />
               {isOverRelease && quantity > 0 && (
@@ -192,12 +191,10 @@ export function ReleaseDialog({
                   </span>
                 )}
               </Label>
-              <Input
+              <NumericInput
                 id="unit_price"
-                type="number"
-                step="0.01"
                 value={formData.unit_price}
-                onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
+                onValueChange={(v) => setFormData({ ...formData, unit_price: v })}
                 placeholder="Leave blank to use contract price"
               />
             </div>

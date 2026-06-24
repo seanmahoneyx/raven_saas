@@ -39,6 +39,9 @@ import {
   Ruler,
   Warehouse,
   Wrench,
+  ReceiptText,
+  Wallet,
+  MessageSquare,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/components/theme-provider'
@@ -78,6 +81,7 @@ const DRAWER_SECTIONS: DrawerSection[] = [
       { icon: FileText, label: 'Estimates', to: '/estimates' },
       { icon: ScrollText, label: 'Contracts', to: '/contracts' },
       { icon: ShoppingCart, label: 'Sales Orders', to: '/customers/open-orders' },
+      { icon: ClipboardList, label: 'Pick Tickets', to: '/pick-tickets' },
       { icon: DollarSign, label: 'Price Lists', to: '/price-lists' },
     ],
   },
@@ -108,6 +112,8 @@ const DRAWER_SECTIONS: DrawerSection[] = [
       { icon: FileSpreadsheet, label: 'Journal Entries', to: '/journal-entries' },
       { icon: FileText, label: 'Invoices', to: '/invoices' },
       { icon: DollarSign, label: 'Receive Payments', to: '/receive-payment' },
+      { icon: ReceiptText, label: 'Bills', to: '/bills' },
+      { icon: Wallet, label: 'Pay Bills', to: '/pay-bills' },
       { icon: PenLine, label: 'Write Checks', to: '/checks' },
       { icon: ContactRound, label: 'Other Names', to: '/other-names' },
     ],
@@ -120,6 +126,7 @@ const DRAWER_SECTIONS: DrawerSection[] = [
       { icon: ScanLine, label: 'Scanner', to: '/warehouse/scanner' },
       { icon: ClipboardList, label: 'Cycle Counts', to: '/warehouse/cycle-counts' },
       { icon: Tags, label: 'Print Labels', to: '/warehouse/print-labels' },
+      { icon: Warehouse, label: 'Warehouses', to: '/warehouse/warehouses' },
       { icon: MapPin, label: 'Locations & Lots', to: '/warehouse/locations' },
       { icon: Navigation, label: 'Logistics', to: '/logistics' },
       { icon: Truck, label: 'Driver Manifest', to: '/logistics/manifest' },
@@ -153,7 +160,8 @@ const DRAWER_SECTIONS: DrawerSection[] = [
     label: 'More',
     icon: Cog,
     items: [
-      { icon: FileText, label: 'Design Requests', to: '/design-requests' },
+      { icon: FileText, label: 'Design Center', to: '/design-requests' },
+      { icon: MessageSquare, label: 'Messages', to: '/messages' },
       { icon: CheckSquare, label: 'Approvals', to: '/approvals' },
     ],
   },

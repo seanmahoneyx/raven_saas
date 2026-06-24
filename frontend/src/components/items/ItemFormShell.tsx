@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -765,7 +766,7 @@ export default function ItemFormShell({
                       <div><Input value={formData.width} onChange={(e) => set('width', e.target.value)} onBlur={() => handleDimBlur('width')} placeholder="W" required style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Width</span></div>
                       <div><Input value={formData.blank_length} onChange={(e) => set('blank_length', e.target.value)} onBlur={() => handleDimBlur('blank_length')} placeholder="BL" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Blank L</span></div>
                       <div><Input value={formData.blank_width} onChange={(e) => set('blank_width', e.target.value)} onBlur={() => handleDimBlur('blank_width')} placeholder="BW" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Blank W</span></div>
-                      <div><Input value={formData.out_per_rotary} onChange={(e) => set('out_per_rotary', e.target.value)} placeholder="#" type="number" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}># Out</span></div>
+                      <div><NumericInput value={formData.out_per_rotary} onValueChange={(v) => set('out_per_rotary', v)} placeholder="#" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}># Out</span></div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -848,7 +849,7 @@ export default function ItemFormShell({
                         <div><Input value={formData.roll_width} onChange={(e) => set('roll_width', e.target.value)} placeholder="W" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Width (in)</span></div>
                         <div><Input value={formData.roll_length} onChange={(e) => set('roll_length', e.target.value)} placeholder="L" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Length (ft)</span></div>
                         {showPkgField('rolls_per_case', formData.pkg_sub_type as PackagingSubType) && (
-                          <div><Input type="number" value={formData.rolls_per_case} onChange={(e) => set('rolls_per_case', e.target.value)} placeholder="#" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Rolls/Case</span></div>
+                          <div><NumericInput value={formData.rolls_per_case} onValueChange={(v) => set('rolls_per_case', v)} placeholder="#" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Rolls/Case</span></div>
                         )}
                         {showPkgField('core_diameter', formData.pkg_sub_type as PackagingSubType) && (
                           <div><Input value={formData.core_diameter} onChange={(e) => set('core_diameter', e.target.value)} placeholder="3" style={inputStyle} /><span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Core (in)</span></div>
@@ -860,10 +861,10 @@ export default function ItemFormShell({
                   {(showPkgField('pieces_per_case', formData.pkg_sub_type as PackagingSubType) || showPkgField('sheets_per_bundle', formData.pkg_sub_type as PackagingSubType)) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                       {showPkgField('pieces_per_case', formData.pkg_sub_type as PackagingSubType) && (
-                        <div className="space-y-1.5"><Label style={labelStyle}>Pieces/Case</Label><Input type="number" value={formData.pieces_per_case} onChange={(e) => set('pieces_per_case', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                        <div className="space-y-1.5"><Label style={labelStyle}>Pieces/Case</Label><NumericInput value={formData.pieces_per_case} onValueChange={(v) => set('pieces_per_case', v)} placeholder="0" style={inputStyle} /></div>
                       )}
                       {showPkgField('sheets_per_bundle', formData.pkg_sub_type as PackagingSubType) && (
-                        <div className="space-y-1.5"><Label style={labelStyle}>Sheets/Bundle</Label><Input type="number" value={formData.sheets_per_bundle} onChange={(e) => set('sheets_per_bundle', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                        <div className="space-y-1.5"><Label style={labelStyle}>Sheets/Bundle</Label><NumericInput value={formData.sheets_per_bundle} onValueChange={(v) => set('sheets_per_bundle', v)} placeholder="0" style={inputStyle} /></div>
                       )}
                       {showPkgField('weight_capacity_lbs', formData.pkg_sub_type as PackagingSubType) && (
                         <div className="space-y-1.5"><Label style={labelStyle}>Weight Cap (lbs)</Label><Input value={formData.weight_capacity_lbs} onChange={(e) => set('weight_capacity_lbs', e.target.value)} placeholder="0" style={inputStyle} /></div>
@@ -920,8 +921,8 @@ export default function ItemFormShell({
                   )}
                   {showPkgField('cells_x', formData.pkg_sub_type as PackagingSubType) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                      <div className="space-y-1.5"><Label style={labelStyle}>Cells Across (X)</Label><Input type="number" value={formData.cells_x} onChange={(e) => set('cells_x', e.target.value)} placeholder="0" style={inputStyle} /></div>
-                      <div className="space-y-1.5"><Label style={labelStyle}>Cells Down (Y)</Label><Input type="number" value={formData.cells_y} onChange={(e) => set('cells_y', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                      <div className="space-y-1.5"><Label style={labelStyle}>Cells Across (X)</Label><NumericInput value={formData.cells_x} onValueChange={(v) => set('cells_x', v)} placeholder="0" style={inputStyle} /></div>
+                      <div className="space-y-1.5"><Label style={labelStyle}>Cells Down (Y)</Label><NumericInput value={formData.cells_y} onValueChange={(v) => set('cells_y', v)} placeholder="0" style={inputStyle} /></div>
                     </div>
                   )}
                   {showPkgField('tape_type', formData.pkg_sub_type as PackagingSubType) && (
@@ -967,7 +968,7 @@ export default function ItemFormShell({
                   )}
                   {showPkgField('stretch_pct', formData.pkg_sub_type as PackagingSubType) && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                      <div className="space-y-1.5"><Label style={labelStyle}>Pre-Stretch %</Label><Input type="number" value={formData.stretch_pct} onChange={(e) => set('stretch_pct', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                      <div className="space-y-1.5"><Label style={labelStyle}>Pre-Stretch %</Label><NumericInput value={formData.stretch_pct} onValueChange={(v) => set('stretch_pct', v)} placeholder="0" style={inputStyle} /></div>
                     </div>
                   )}
                   {showPkgField('inner_diameter', formData.pkg_sub_type as PackagingSubType) && (
@@ -997,7 +998,7 @@ export default function ItemFormShell({
                         </Select>
                       </div>
                       {showPkgField('labels_per_roll', formData.pkg_sub_type as PackagingSubType) && (
-                        <div className="space-y-1.5"><Label style={labelStyle}>Labels/Roll</Label><Input type="number" value={formData.labels_per_roll} onChange={(e) => set('labels_per_roll', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                        <div className="space-y-1.5"><Label style={labelStyle}>Labels/Roll</Label><NumericInput value={formData.labels_per_roll} onValueChange={(v) => set('labels_per_roll', v)} placeholder="0" style={inputStyle} /></div>
                       )}
                     </div>
                   )}
@@ -1037,17 +1038,14 @@ export default function ItemFormShell({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1.5">
                             <Label style={labelStyle}>Panels Printed</Label>
-                            <Input type="number" min="0" value={formData.panels_printed} onChange={(e) => set('panels_printed', e.target.value)} placeholder="0" style={inputStyle} />
+                            <NumericInput value={formData.panels_printed} onValueChange={(v) => set('panels_printed', v)} placeholder="0" style={inputStyle} />
                           </div>
                           <div className="space-y-1.5">
                             <Label style={labelStyle}># of Colors</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="8"
+                            <NumericInput
                               value={formData.colors_printed}
-                              onChange={(e) => {
-                                const raw = e.target.value
+                              onValueChange={(v) => {
+                                const raw = v
                                 if (raw === '') {
                                   set('colors_printed', '')
                                   return
@@ -1140,7 +1138,7 @@ export default function ItemFormShell({
                           )}
                           {line.type === 'handhole' && (
                             <>
-                              <Input type="number" min="0" value={line.qty} onChange={(e) => updateExtraInfo(line.id, { qty: e.target.value })} placeholder="Qty" style={{ ...inputStyle, width: '80px' }} className="shrink-0" />
+                              <NumericInput value={line.qty} onValueChange={(v) => updateExtraInfo(line.id, { qty: v })} placeholder="Qty" style={{ ...inputStyle, width: '80px' }} className="shrink-0" />
                               <Select value={line.hh_type || 'none'} onValueChange={(v) => updateExtraInfo(line.id, { hh_type: v === 'none' ? '' : v })}>
                                 <SelectTrigger style={{ ...inputStyle, width: '160px' }} className="shrink-0"><SelectValue placeholder="Type..." /></SelectTrigger>
                                 <SelectContent>
@@ -1232,8 +1230,8 @@ export default function ItemFormShell({
                 <div style={sectionStyle}>
                   <h3 className="text-[13px] font-semibold tracking-wide uppercase mb-4" style={{ color: 'var(--so-text-tertiary)' }}>Unitizing / Pallet</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                    <div className="space-y-1.5"><Label style={labelStyle}>Units/Bundle</Label><Input type="number" value={formData.units_per_bundle} onChange={(e) => set('units_per_bundle', e.target.value)} placeholder="0" style={inputStyle} /></div>
-                    <div className="space-y-1.5"><Label style={labelStyle}>Units/Pallet</Label><Input type="number" value={formData.units_per_pallet} onChange={(e) => set('units_per_pallet', e.target.value)} placeholder="0" style={inputStyle} /></div>
+                    <div className="space-y-1.5"><Label style={labelStyle}>Units/Bundle</Label><NumericInput value={formData.units_per_bundle} onValueChange={(v) => set('units_per_bundle', v)} placeholder="0" style={inputStyle} /></div>
+                    <div className="space-y-1.5"><Label style={labelStyle}>Units/Pallet</Label><NumericInput value={formData.units_per_pallet} onValueChange={(v) => set('units_per_pallet', v)} placeholder="0" style={inputStyle} /></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1.5"><Label style={labelStyle}>Unit Height</Label><Input value={formData.unit_height} onChange={(e) => set('unit_height', e.target.value)} placeholder='inches' style={inputStyle} /></div>

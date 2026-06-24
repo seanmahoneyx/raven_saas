@@ -21,6 +21,7 @@ import uuid
 from .models import (
     InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction,
     InventoryLayer, ItemReceipt, ItemReceiptLine,
+    PickTicket, PickTicketLine,
 )
 from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
 from apps.tenants.models import get_next_sequence_number
@@ -1269,3 +1270,108 @@ class ReceivingService:
                 pass
 
             return receipt
+
+
+# ─── Picking Service ────────────────────────────────────────────────────────
+
+
+class PickingService:
+    """
+    Service for recording customer fulfillment picks (PickTicket documents).
+
+    A pick records what was physically picked for a customer (optionally
+    against a SalesOrder). Unlike receipts, picks post NO inventory or GL —
+    they are fulfillment + billing-source documents only.
+
+    Picks can later be rolled into partial Invoices via
+    InvoicingService.create_invoice_from_picks(...). Per-line quantity tracking
+    (PickTicketLine.quantity_invoiced) prevents double-invoicing: a single SO
+    can produce multiple partial picks; a single pick's lines can be split
+    across multiple invoices (or vice versa).
+    """
+
+    def __init__(self, tenant, user=None):
+        self.tenant = tenant
+        self.user = user
+
+    def _generate_pick_number(self):
+        return get_next_sequence_number(self.tenant, 'PT')
+
+    def create_pick_ticket(
+        self,
+        customer,
+        warehouse,
+        lines,
+        sales_order=None,
+        picked_date=None,
+        notes='',
+    ):
+        """
+        Create and post a pick ticket in one step.
+
+        Picks post no inventory/GL — they are fulfillment documents that
+        feed partial invoices.
+
+        Args:
+            customer: Customer instance
+            warehouse: new_warehousing.Warehouse instance
+            lines: list of dicts with keys:
+                - item (Item instance)
+                - quantity (int)
+                - unit_price (Decimal, optional — falls back to SO line price)
+                - sales_order_line (optional, SalesOrderLine instance)
+                - notes (optional, str)
+            sales_order: optional SalesOrder instance
+            picked_date: optional date (defaults to today)
+            notes: optional header notes
+
+        Returns:
+            PickTicket with status='posted'.
+
+        Raises:
+            ValidationError on empty lines.
+        """
+        if not lines:
+            raise ValidationError("Cannot create a pick ticket with no lines.")
+
+        if picked_date is None:
+            picked_date = timezone.now().date()
+
+        with transaction.atomic():
+            pick = PickTicket.objects.create(
+                tenant=self.tenant,
+                pick_number=self._generate_pick_number(),
+                sales_order=sales_order,
+                customer=customer,
+                warehouse=warehouse,
+                picked_date=picked_date,
+                picked_by=self.user,
+                status='draft',
+                notes=notes or '',
+            )
+
+            for idx, ln in enumerate(lines):
+                so_line = ln.get('sales_order_line')
+                # Resolve a unit price: explicit > SO line > 0.
+                if ln.get('unit_price') is not None:
+                    unit_price = Decimal(str(ln['unit_price']))
+                elif so_line is not None:
+                    unit_price = Decimal(str(so_line.unit_price))
+                else:
+                    unit_price = Decimal('0')
+
+                PickTicketLine.objects.create(
+                    tenant=self.tenant,
+                    pick_ticket=pick,
+                    line_number=(idx + 1) * 10,
+                    sales_order_line=so_line,
+                    item=ln['item'],
+                    quantity=ln['quantity'],
+                    unit_price=unit_price,
+                    notes=ln.get('notes', ''),
+                )
+
+            pick.status = 'posted'
+            pick.save(update_fields=['status'])
+
+            return pick

@@ -332,6 +332,18 @@ export default function SalesOrderDetail() {
 
   const lineCount = isEditing ? linesFormData.length : (order.lines?.length ?? 0)
 
+  /* ── Invoicing status (derived from SO lines' quantity_invoiced) ── */
+  const invoicingStatus = (() => {
+    const lines = order.lines ?? []
+    if (lines.length === 0) return null
+    const totalOrdered = lines.reduce((s, l) => s + (l.quantity_ordered || 0), 0)
+    const totalInvoiced = lines.reduce((s, l) => s + (l.quantity_invoiced ?? 0), 0)
+    if (totalOrdered <= 0) return null
+    if (totalInvoiced <= 0) return 'Unbilled'
+    if (totalInvoiced >= totalOrdered) return 'Fully Invoiced'
+    return 'Partially Invoiced'
+  })()
+
   /* ── Detail grid data ──────────────────────────── */
   const detailItems = isEditing
     ? [
@@ -518,6 +530,7 @@ export default function SalesOrderDetail() {
               ) : (
                 getStatusBadge(order.status)
               )}
+              {!isEditing && invoicingStatus && getStatusBadge(invoicingStatus)}
             </div>
             <div className="text-sm" style={{ color: 'var(--so-text-secondary)' }}>
               <strong className="font-semibold" style={{ color: 'var(--so-text-primary)' }}>{order.customer_name}</strong>

@@ -6,6 +6,7 @@ import {
   Plus, Trash2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -372,23 +373,18 @@ export default function PriceListDetail() {
                     <div key={index} className="grid grid-cols-12 gap-2 items-end p-3 rounded-[10px]" style={{ background: 'var(--so-bg)' }}>
                       <div className="col-span-5 space-y-1">
                         <Label className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>Min Quantity</Label>
-                        <Input
-                          type="number"
-                          min="1"
+                        <NumericInput
                           value={line.min_quantity}
-                          onChange={(e) => handleLineChange(index, 'min_quantity', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'min_quantity', v)}
                           className="h-9"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />
                       </div>
                       <div className="col-span-5 space-y-1">
                         <Label className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>Unit Price</Label>
-                        <Input
-                          type="number"
-                          step="0.0001"
-                          min="0"
+                        <NumericInput
                           value={line.unit_price}
-                          onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                           className="h-9"
                           style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                         />

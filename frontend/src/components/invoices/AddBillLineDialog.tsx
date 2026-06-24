@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { useAllItems } from '@/api/items'
@@ -140,28 +141,22 @@ export function AddBillLineDialog({ open, onOpenChange, billId, billNumber }: Ad
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="quantity" className="text-[12.5px]">Quantity *</Label>
-              <Input
+              <NumericInput
                 id="quantity"
-                type="number"
-                min="0"
-                step="1"
                 inputMode="numeric"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onValueChange={(v) => setQuantity(v)}
                 placeholder="0"
                 className="h-9 text-sm font-mono text-right"
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="unit_price" className="text-[12.5px]">Unit Price *</Label>
-              <Input
+              <NumericInput
                 id="unit_price"
-                type="number"
-                min="0"
-                step="0.01"
                 inputMode="decimal"
                 value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
+                onValueChange={(v) => setUnitPrice(v)}
                 placeholder="0.00"
                 className="h-9 text-sm font-mono text-right"
               />

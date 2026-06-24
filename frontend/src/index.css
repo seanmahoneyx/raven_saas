@@ -554,3 +554,17 @@ table tbody tr {
     animation: none;
   }
 }
+
+/* ═══════════════════════════════════════════════
+   Numeric inputs — strip native spinner arrows app-wide.
+   Covers every <input type="number"> with zero per-file edits.
+   ═══════════════════════════════════════════════ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

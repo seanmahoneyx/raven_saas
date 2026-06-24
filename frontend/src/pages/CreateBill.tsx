@@ -6,6 +6,7 @@ import { ArrowLeft, Trash2, Plus } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Textarea } from '@/components/ui/textarea'
 import { useCreateBill } from '@/api/invoicing'
 import { useAllItems } from '@/api/items'
@@ -313,11 +314,10 @@ export default function CreateBill() {
                 </div>
                 <div>
                   <label className={labelClass} style={labelStyle}>PO # (optional)</label>
-                  <Input
-                    type="number"
+                  <NumericInput
                     inputMode="numeric"
                     value={formData.purchase_order}
-                    onChange={(e) => setFormData(prev => ({ ...prev, purchase_order: e.target.value }))}
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, purchase_order: v }))}
                     placeholder="—"
                     className="h-9 text-sm font-mono"
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
@@ -416,13 +416,10 @@ export default function CreateBill() {
                         </td>
                         {/* Qty */}
                         <td className="py-1.5 px-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
+                          <NumericInput
                             inputMode="numeric"
                             value={line.quantity}
-                            onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'quantity', v)}
                             className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0"
                             tabIndex={0}
@@ -430,13 +427,10 @@ export default function CreateBill() {
                         </td>
                         {/* Unit Price */}
                         <td className="py-1.5 px-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <NumericInput
                             inputMode="decimal"
                             value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                             className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0.00"
                             tabIndex={0}

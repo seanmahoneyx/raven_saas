@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import apiClient from '@/api/client'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -317,7 +318,7 @@ export default function ReceivePayment() {
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium" style={labelStyle}>Amount *</Label>
-                  <Input type="number" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="font-mono" style={inputStyle} />
+                  <NumericInput placeholder="0.00" value={amount} onValueChange={(v) => setAmount(v)} className="font-mono" style={inputStyle} />
                 </div>
 
                 <div className="space-y-2">
@@ -429,12 +430,10 @@ export default function ReceivePayment() {
                                   ${parseFloat(invoice.balance_due).toFixed(2)}
                                 </td>
                                 <td className="p-2">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
+                                  <NumericInput
                                     placeholder="0.00"
                                     value={appliedAmount}
-                                    onChange={(e) => handleApplicationChange(invoice.id, e.target.value)}
+                                    onValueChange={(v) => handleApplicationChange(invoice.id, v)}
                                     className="w-28 text-right font-mono"
                                     style={inputStyle}
                                   />

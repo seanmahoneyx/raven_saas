@@ -12,7 +12,7 @@ from .base import TenantModelSerializer
 # Allowed content types for collaboration
 ALLOWED_MODELS = {
     'salesorder', 'purchaseorder', 'estimate', 'rfq',
-    'contract', 'designrequest', 'invoice',
+    'contract', 'designrequest', 'invoice', 'vendorbill',
 }
 
 

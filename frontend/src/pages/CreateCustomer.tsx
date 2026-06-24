@@ -5,6 +5,7 @@ import { useCreateParty, useCreateCustomer, useCreateLocation, useUpdateCustomer
 import { useCreateContact } from '@/api/contacts'
 import { useUsers } from '@/api/users'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -425,7 +426,7 @@ export default function CreateCustomer() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="credit_limit" className={labelClass} style={labelStyle}>Credit Limit</Label>
-                  <Input id="credit_limit" type="number" step="0.01" min="0" value={formData.credit_limit} onChange={(e) => update('credit_limit', e.target.value)} placeholder="0.00" style={inputStyle} />
+                  <NumericInput id="credit_limit" value={formData.credit_limit} onValueChange={(v) => update('credit_limit', v)} placeholder="0.00" style={inputStyle} />
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">

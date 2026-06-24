@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Badge } from '@/components/ui/badge'
 import {
   ScanLine, Package, MapPin, Hash, ArrowRight, Check, RotateCcw, AlertTriangle,
@@ -334,12 +335,11 @@ export default function Scanner() {
             </div>
           ) : step === 'qty' ? (
             <div className="space-y-4">
-              <Input
+              <NumericInput
                 ref={inputRef}
-                type="number"
                 inputMode="decimal"
                 value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
+                onValueChange={(v) => setQuantity(v)}
                 onKeyDown={handleKeyDown}
                 placeholder="0"
                 className="h-16 text-3xl font-mono text-center bg-gray-800 border-gray-700 text-white"

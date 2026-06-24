@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import {
   Select,
   SelectContent,
@@ -344,12 +345,9 @@ export default function EstimateDetail() {
           </Select>
         )},
         { label: 'Tax Rate', value: `${formData.tax_rate}%`, empty: false, mono: true, editable: true, editNode: (
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
+          <NumericInput
             value={formData.tax_rate}
-            onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
+            onValueChange={(v) => setFormData({ ...formData, tax_rate: v })}
             className="h-9 text-sm font-mono border rounded-md px-2"
             style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
           />

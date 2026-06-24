@@ -435,6 +435,14 @@ class InvoiceLine(TenantMixin):
         related_name='invoice_lines',
         help_text="Source sales order line"
     )
+    pick_ticket_line = models.ForeignKey(
+        'inventory.PickTicketLine',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='invoice_lines',
+        help_text="Source pick-ticket line (set when invoicing from a pick).",
+    )
 
     class Meta:
         verbose_name = "Invoice Line"

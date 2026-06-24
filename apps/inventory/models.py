@@ -704,3 +704,189 @@ class ItemReceiptLine(TenantMixin, TimestampMixin):
     @property
     def quantity_remaining_to_bill(self):
         return max(self.quantity - (self.quantity_billed or 0), 0)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Pick Ticket → Partial Invoice (AR mirror of ItemReceipt → VendorBill)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# A PickTicket is a fulfillment document recording what was physically picked
+# for a customer (optionally against a SalesOrder). Picks do NO GL or inventory
+# posting — they are billing-source documents only. A pick's lines can be rolled
+# into one or more partial Invoices, with per-line quantity tracking that
+# prevents double-invoicing.
+
+
+class PickTicket(TenantMixin, TimestampMixin):
+    """
+    Header for a customer fulfillment pick.
+
+    Records who picked what, when, and against which SalesOrder (if any).
+    Picks feed partial Invoices via InvoicingService.create_invoice_from_picks.
+    Unlike receipts, picks post no inventory/GL — they are fulfillment +
+    billing-source documents.
+    """
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('partially_invoiced', 'Partially Invoiced'),
+        ('invoiced', 'Invoiced'),
+        ('void', 'Void'),
+    ]
+
+    pick_number = models.CharField(
+        max_length=50,
+        help_text="Pick ticket number (unique per tenant). Generated via TenantSequence.",
+    )
+    sales_order = models.ForeignKey(
+        'orders.SalesOrder',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='pick_tickets',
+        help_text="Originating SO (optional — direct picks without an SO are allowed)",
+    )
+    customer = models.ForeignKey(
+        'parties.Customer',
+        on_delete=models.PROTECT,
+        related_name='pick_tickets',
+        help_text="Customer the goods are picked for",
+    )
+    warehouse = models.ForeignKey(
+        'new_warehousing.Warehouse',
+        on_delete=models.PROTECT,
+        related_name='pick_tickets',
+        help_text="Warehouse the goods were picked from",
+    )
+    picked_date = models.DateField(
+        default=timezone.now,
+        help_text="Date goods were physically picked",
+    )
+    picked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='picked_pick_tickets',
+        help_text="User who recorded the pick",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft',
+    )
+    notes = models.TextField(blank=True)
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "Pick Ticket"
+        verbose_name_plural = "Pick Tickets"
+        unique_together = [('tenant', 'pick_number')]
+        ordering = ['-picked_date', '-id']
+        indexes = [
+            models.Index(fields=['tenant', 'pick_number']),
+            models.Index(fields=['tenant', 'customer', 'picked_date']),
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'sales_order']),
+        ]
+
+    def __str__(self):
+        return f"Pick {self.pick_number}"
+
+    @property
+    def subtotal(self):
+        """Sum of line amounts."""
+        return sum((ln.amount for ln in self.lines.all()), start=0) or 0
+
+    @property
+    def num_lines(self):
+        return self.lines.count()
+
+    @property
+    def all_lines_invoiced(self):
+        """True if every line is fully invoiced (quantity_invoiced >= quantity)."""
+        return all(
+            (ln.quantity_invoiced or 0) >= ln.quantity
+            for ln in self.lines.all()
+        )
+
+    @property
+    def any_line_invoiced(self):
+        return any((ln.quantity_invoiced or 0) > 0 for ln in self.lines.all())
+
+    def recompute_invoicing_status(self):
+        """Update status based on aggregate invoiced quantity on lines."""
+        if self.status in ('draft', 'void'):
+            return
+        if self.all_lines_invoiced:
+            self.status = 'invoiced'
+        elif self.any_line_invoiced:
+            self.status = 'partially_invoiced'
+        else:
+            self.status = 'posted'
+
+
+class PickTicketLine(TenantMixin, TimestampMixin):
+    """
+    A single line of picked goods on a PickTicket.
+
+    Each line is independently invoiceable. `quantity_invoiced` tracks how much
+    of this pick line has already been rolled into an InvoiceLine, so we can
+    prevent double-invoicing without locking the entire pick.
+    """
+    pick_ticket = models.ForeignKey(
+        PickTicket,
+        on_delete=models.CASCADE,
+        related_name='lines',
+    )
+    line_number = models.PositiveIntegerField(
+        help_text="Line sequence (10, 20, 30...)",
+    )
+    sales_order_line = models.ForeignKey(
+        'orders.SalesOrderLine',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pick_lines',
+        help_text="Source SO line (null for direct picks not against an SO)",
+    )
+    item = models.ForeignKey(
+        'items.Item',
+        on_delete=models.PROTECT,
+        related_name='pick_lines',
+    )
+    quantity = models.PositiveIntegerField(
+        help_text="Quantity picked (base units)",
+    )
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        help_text="Price per unit (for subtotal display; sourced from SO line or item)",
+    )
+    quantity_invoiced = models.PositiveIntegerField(
+        default=0,
+        help_text="Quantity already rolled into invoices",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Pick Ticket Line"
+        verbose_name_plural = "Pick Ticket Lines"
+        ordering = ['pick_ticket', 'line_number']
+        unique_together = [('pick_ticket', 'line_number')]
+        indexes = [
+            models.Index(fields=['tenant', 'pick_ticket']),
+            models.Index(fields=['tenant', 'sales_order_line']),
+        ]
+
+    def __str__(self):
+        return f"{self.pick_ticket.pick_number} L{self.line_number}: {self.item.sku} × {self.quantity}"
+
+    @property
+    def amount(self):
+        return self.quantity * self.unit_price
+
+    @property
+    def quantity_remaining_to_invoice(self):
+        return max(self.quantity - (self.quantity_invoiced or 0), 0)

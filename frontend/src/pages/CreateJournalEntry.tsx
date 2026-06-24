@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Plus, Trash2, Save } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -194,10 +195,10 @@ export default function CreateJournalEntry() {
                           <Input value={line.description} onChange={(e) => handleLineChange(index, 'description', e.target.value)} placeholder="Description..." style={inputStyle} />
                         </td>
                         <td className="p-2">
-                          <Input type="number" step="0.01" value={line.debit} onChange={(e) => handleLineChange(index, 'debit', e.target.value)} className="text-right font-mono" placeholder="0.00" style={inputStyle} />
+                          <NumericInput value={line.debit} onValueChange={(v) => handleLineChange(index, 'debit', v)} className="text-right font-mono" placeholder="0.00" style={inputStyle} />
                         </td>
                         <td className="p-2">
-                          <Input type="number" step="0.01" value={line.credit} onChange={(e) => handleLineChange(index, 'credit', e.target.value)} className="text-right font-mono" placeholder="0.00" style={inputStyle} />
+                          <NumericInput value={line.credit} onValueChange={(v) => handleLineChange(index, 'credit', v)} className="text-right font-mono" placeholder="0.00" style={inputStyle} />
                         </td>
                         <td className="p-2 text-center">
                           <button onClick={() => handleDeleteLine(index)} disabled={lines.length === 1}

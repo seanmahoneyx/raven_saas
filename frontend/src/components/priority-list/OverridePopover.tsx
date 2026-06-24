@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { usePriorityListStore } from './usePriorityListStore'
 import { useSetDailyOverride, useClearDailyOverride } from '@/api/priorityList'
 import { parseLocalDate } from '@/lib/dates'
+import { NumericInput } from "@/components/ui/numeric-input"
 import type { BoxType } from '@/types/api'
 import { toastApiError } from '@/lib/errors'
 
@@ -110,11 +111,9 @@ export const OverridePopover = memo(function OverridePopover({
           <label className="block text-sm font-medium text-foreground mb-1">
             Override Allotment
           </label>
-          <input
-            type="number"
-            min="0"
+          <NumericInput
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onValueChange={(v) => setValue(v)}
             className="w-full px-3 py-2 text-foreground bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter allotment"
           />

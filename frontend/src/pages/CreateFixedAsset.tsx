@@ -7,6 +7,7 @@ import { useAssetCategories } from '@/api/assets'
 import type { FixedAsset } from '@/api/assets'
 import { DEPRECIATION_METHODS } from '@/constants/assets'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -226,12 +227,9 @@ export default function CreateFixedAsset() {
                 </div>
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Acquisition Cost *</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <NumericInput
                     value={formData.acquisition_cost}
-                    onChange={(e) => update('acquisition_cost', e.target.value)}
+                    onValueChange={(v) => update('acquisition_cost', v)}
                     placeholder="0.00"
                     className="font-mono"
                     required
@@ -274,22 +272,17 @@ export default function CreateFixedAsset() {
                 </div>
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Useful Life (months)</Label>
-                  <Input
-                    type="number"
-                    min="1"
+                  <NumericInput
                     value={formData.useful_life_months}
-                    onChange={(e) => update('useful_life_months', e.target.value)}
+                    onValueChange={(v) => update('useful_life_months', v)}
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label style={{ color: 'var(--so-text-secondary)' }}>Salvage Value</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <NumericInput
                     value={formData.salvage_value}
-                    onChange={(e) => update('salvage_value', e.target.value)}
+                    onValueChange={(v) => update('salvage_value', v)}
                     className="font-mono"
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
@@ -18,6 +18,8 @@ export function useDesignRequests(params?: {
   status?: string
   customer?: number
   assigned_to?: number
+  checked_out_by?: number
+  mine?: boolean
 }) {
   return useQuery({
     queryKey: ['design-requests', params],
@@ -25,6 +27,44 @@ export function useDesignRequests(params?: {
       const { data } = await api.get<PaginatedResponse<DesignRequest>>('/design-requests/', { params })
       return data
     },
+  })
+}
+
+export interface DesignRequestsListParams {
+  search?: string
+  status?: string
+  customer?: number
+  assigned_to?: number
+  checked_out_by?: number
+  mine?: boolean
+  ordering?: string
+  page_size?: number
+}
+
+/**
+ * Server-side paginated Design Requests feed for the Design Center list page
+ * ("Load more" UX). Mirrors `useItemsInfinite`: search/status/mine/ordering all
+ * applied server-side so filters span ALL rows, not just loaded chunks.
+ * Flatten with `data.pages.flatMap(p => p.results)`; total is `data.pages[0]?.count`.
+ */
+export function useDesignRequestsInfinite(
+  params?: DesignRequestsListParams,
+  options?: { enabled?: boolean },
+) {
+  const pageSize = params?.page_size ?? 50
+  return useInfiniteQuery({
+    queryKey: ['design-requests', 'infinite', params],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const { data } = await api.get<PaginatedResponse<DesignRequest>>('/design-requests/', {
+        params: { ...params, page: pageParam, page_size: pageSize },
+      })
+      return data
+    },
+    getNextPageParam: (lastPage, allPages) => (lastPage.next ? allPages.length + 1 : undefined),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   })
 }
 

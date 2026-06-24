@@ -38,6 +38,9 @@ import {
   PenLine,
   ContactRound,
   Wrench,
+  ReceiptText,
+  Wallet,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
@@ -241,6 +244,7 @@ export default function TopNavbar() {
         { type: 'item', to: '/contracts', icon: ScrollText, label: 'Contracts' },
         { type: 'separator' },
         { type: 'item', to: '/customers/open-orders', icon: ShoppingCart, label: 'Sales Orders' },
+        { type: 'item', to: '/pick-tickets', icon: ClipboardList, label: 'Pick Tickets' },
         { type: 'separator' },
         { type: 'item', to: '/price-lists', icon: DollarSign, label: 'Price Lists' },
       ],
@@ -285,6 +289,7 @@ export default function TopNavbar() {
         { type: 'item', to: '/warehouse/cycle-counts', icon: ClipboardList, label: 'Cycle Counts' },
         { type: 'item', to: '/warehouse/print-labels', icon: Tags, label: 'Print Labels' },
         { type: 'separator' },
+        { type: 'item', to: '/warehouse/warehouses', icon: Warehouse, label: 'Warehouses' },
         { type: 'item', to: '/warehouse/locations', icon: MapPin, label: 'Locations & Lots' },
         { type: 'item', to: '/logistics', icon: Navigation, label: 'Logistics' },
         { type: 'item', to: '/logistics/manifest', icon: Truck, label: 'Driver Manifest' },
@@ -302,6 +307,9 @@ export default function TopNavbar() {
         { type: 'separator' },
         { type: 'item', to: '/invoices', icon: FileText, label: 'Invoices' },
         { type: 'item', to: '/receive-payment', icon: DollarSign, label: 'Receive Payments' },
+        { type: 'separator' },
+        { type: 'item', to: '/bills', icon: ReceiptText, label: 'Bills' },
+        { type: 'item', to: '/pay-bills', icon: Wallet, label: 'Pay Bills' },
         { type: 'separator' },
         { type: 'item', to: '/checks', icon: PenLine, label: 'Write Checks' },
         { type: 'item', to: '/other-names', icon: ContactRound, label: 'Other Names' },
@@ -334,6 +342,7 @@ export default function TopNavbar() {
       label: 'Tools',
       items: [
         { type: 'item', to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+        { type: 'item', to: '/messages', icon: MessageSquare, label: 'Messages' },
         { type: 'separator' },
         { type: 'item', to: '/pipeline', icon: GitBranchPlus, label: 'Pipeline' },
         { type: 'item', to: '/scheduler', icon: Calendar, label: 'Schedulizer' },
@@ -348,7 +357,7 @@ export default function TopNavbar() {
       icon: Palette,
       label: 'Design',
       items: [
-        { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Requests' },
+        { type: 'item', to: '/design-requests', icon: FileText, label: 'Design Center' },
       ],
     },
   ]

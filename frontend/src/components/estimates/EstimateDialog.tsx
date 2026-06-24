@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -251,13 +252,10 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tax_rate">Tax Rate (%)</Label>
-                <Input
+                <NumericInput
                   id="tax_rate"
-                  type="number"
-                  step="0.01"
-                  min="0"
                   value={formData.tax_rate}
-                  onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
+                  onValueChange={(v) => setFormData({ ...formData, tax_rate: v })}
                 />
               </div>
             </div>
@@ -396,11 +394,9 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Qty</Label>
-                        <Input
-                          type="number"
-                          min="1"
+                        <NumericInput
                           value={line.quantity}
-                          onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'quantity', v)}
                           className="h-9"
                         />
                       </div>
@@ -424,12 +420,9 @@ export function EstimateDialog({ open, onOpenChange, estimate, onSuccess }: Esti
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Price</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                        <NumericInput
                           value={line.unit_price}
-                          onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                           className="h-9"
                         />
                       </div>

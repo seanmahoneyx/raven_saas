@@ -18,16 +18,18 @@ from rest_framework.views import APIView
 from apps.inventory.models import (
     InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction,
     ItemReceipt, ItemReceiptLine,
+    PickTicket, PickTicketLine,
 )
-from apps.inventory.services import ReceivingService
-from apps.invoicing.services import VendorBillService
+from apps.inventory.services import ReceivingService, PickingService
+from apps.invoicing.services import VendorBillService, InvoicingService
 from apps.warehousing.models import Warehouse
 from apps.api.v1.serializers.inventory import (
     InventoryLotSerializer, InventoryLotListSerializer, InventoryLotDetailSerializer,
     InventoryPalletSerializer, InventoryBalanceSerializer, InventoryTransactionSerializer,
     ItemReceiptListSerializer, ItemReceiptDetailSerializer,
+    PickTicketListSerializer, PickTicketDetailSerializer,
 )
-from apps.api.v1.serializers.invoicing import VendorBillDetailSerializer
+from apps.api.v1.serializers.invoicing import VendorBillDetailSerializer, InvoiceDetailSerializer
 
 
 @extend_schema_view(
@@ -400,6 +402,227 @@ class ItemReceiptViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = VendorBillDetailSerializer(bill, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['inventory'], summary='List pick tickets'),
+    retrieve=extend_schema(tags=['inventory'], summary='Get pick ticket details'),
+)
+class PickTicketViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet for PickTicket (AR mirror of ItemReceiptViewSet).
+
+    Picks are fulfillment documents created via the `direct` action below (or
+    from SO fulfillment). They post no inventory/GL. A pick's lines can be
+    rolled into one or more partial Invoices via the `create-invoice` and
+    `create-multi-invoice` actions, with per-line quantity tracking that
+    prevents double-invoicing.
+    """
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'customer', 'sales_order', 'warehouse']
+    search_fields = [
+        'pick_number', 'customer__party__display_name',
+        'sales_order__order_number',
+    ]
+    ordering_fields = ['pick_number', 'picked_date', 'created_at']
+    ordering = ['-picked_date', '-id']
+
+    def get_queryset(self):
+        return PickTicket.objects.select_related(
+            'customer__party', 'warehouse', 'sales_order', 'picked_by',
+        ).prefetch_related('lines__item', 'lines__sales_order_line').all()
+
+    def get_serializer_class(self):
+        if self.action in ('retrieve', 'create_invoice', 'create_multi_invoice'):
+            return PickTicketDetailSerializer
+        return PickTicketListSerializer
+
+    @extend_schema(
+        tags=['inventory'],
+        summary='Create a direct pick ticket',
+        request=None,
+        responses={201: PickTicketDetailSerializer},
+    )
+    @action(detail=False, methods=['post'], url_path='direct')
+    def direct(self, request):
+        """
+        Create a pick ticket directly (fulfillment document, no GL/inventory).
+
+        Request body:
+            customer: int (Customer PK)
+            warehouse: int (Warehouse PK)
+            sales_order: int (SalesOrder PK, optional)
+            picked_date: 'YYYY-MM-DD' (optional)
+            notes: str (optional)
+            lines: [{item: int, quantity: int, unit_price: str (optional),
+                     sales_order_line: int (optional), notes: str (optional)}, ...]
+        """
+        from apps.parties.models import Customer
+        from apps.items.models import Item
+        from apps.orders.models import SalesOrder, SalesOrderLine
+
+        data = request.data
+        try:
+            customer = Customer.objects.get(pk=data['customer'])
+            warehouse = Warehouse.objects.get(pk=data['warehouse'])
+        except (KeyError, Customer.DoesNotExist, Warehouse.DoesNotExist) as e:
+            return Response({'error': f'Invalid customer or warehouse: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        sales_order = None
+        if data.get('sales_order'):
+            try:
+                sales_order = SalesOrder.objects.get(pk=data['sales_order'])
+            except SalesOrder.DoesNotExist:
+                return Response({'error': f'Invalid sales_order: {data.get("sales_order")}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        raw_lines = data.get('lines') or []
+        if not raw_lines:
+            return Response({'error': 'At least one line is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        line_dicts = []
+        for ln in raw_lines:
+            try:
+                item = Item.objects.get(pk=ln['item'])
+            except (KeyError, Item.DoesNotExist):
+                return Response({'error': f'Invalid item: {ln.get("item")}'}, status=status.HTTP_400_BAD_REQUEST)
+            so_line = None
+            if ln.get('sales_order_line'):
+                try:
+                    so_line = SalesOrderLine.objects.get(pk=ln['sales_order_line'])
+                except SalesOrderLine.DoesNotExist:
+                    return Response({'error': f'Invalid sales_order_line: {ln.get("sales_order_line")}'}, status=status.HTTP_400_BAD_REQUEST)
+            entry = {
+                'item': item,
+                'quantity': int(ln['quantity']),
+                'sales_order_line': so_line,
+                'notes': ln.get('notes', ''),
+            }
+            if ln.get('unit_price') is not None:
+                entry['unit_price'] = Decimal(str(ln['unit_price']))
+            line_dicts.append(entry)
+
+        svc = PickingService(request.tenant, request.user)
+        try:
+            pick = svc.create_pick_ticket(
+                customer=customer,
+                warehouse=warehouse,
+                lines=line_dicts,
+                sales_order=sales_order,
+                picked_date=data.get('picked_date'),
+                notes=data.get('notes', ''),
+            )
+        except DjangoValidationError as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = PickTicketDetailSerializer(pick, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        tags=['inventory'],
+        summary='Create a draft invoice from this pick ticket',
+        responses={201: InvoiceDetailSerializer},
+    )
+    @action(detail=True, methods=['post'], url_path='create-invoice')
+    def create_invoice(self, request, pk=None):
+        """
+        Convenience action: roll every uninvoiced line on this pick into a new
+        draft Invoice linked back via pick_ticket_line. Body may include
+        invoice_date / payment_terms / notes overrides.
+        """
+        pick = self.get_object()
+
+        pick_lines = [
+            {'pick_line': pl, 'quantity': pl.quantity_remaining_to_invoice, 'unit_price': pl.unit_price}
+            for pl in pick.lines.all()
+            if pl.quantity_remaining_to_invoice > 0
+        ]
+        if not pick_lines:
+            return Response(
+                {'detail': 'This pick has no uninvoiced lines remaining.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        body = request.data or {}
+        inv_svc = InvoicingService(request.tenant, request.user)
+        try:
+            invoice = inv_svc.create_invoice_from_picks(
+                customer=pick.customer,
+                pick_lines=pick_lines,
+                payment_terms=body.get('payment_terms', 'NET30'),
+                invoice_date=body.get('invoice_date'),
+                notes=body.get('notes') or f'Created from pick {pick.pick_number}',
+            )
+        except DjangoValidationError as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = InvoiceDetailSerializer(invoice, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        tags=['inventory'],
+        summary='Create a draft invoice rolling up multiple picks',
+        responses={201: InvoiceDetailSerializer},
+    )
+    @action(detail=False, methods=['post'], url_path='create-multi-invoice')
+    def create_multi_invoice(self, request):
+        """
+        Roll multiple PickTicketLines into one consolidated draft Invoice.
+
+        Request body:
+            customer: int (Customer PK)
+            payment_terms: str (optional, default NET30)
+            invoice_date: 'YYYY-MM-DD' (optional)
+            notes: str (optional)
+            lines: [{pick_line: int, quantity: int (optional), unit_price: str (optional)}]
+        """
+        from apps.parties.models import Customer
+
+        data = request.data
+        try:
+            customer = Customer.objects.get(pk=data['customer'])
+        except (KeyError, Customer.DoesNotExist) as e:
+            return Response({'error': f'Invalid customer: {e}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        raw_lines = data.get('lines') or []
+        if not raw_lines:
+            return Response({'error': 'At least one line is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        pick_lines = []
+        for ln in raw_lines:
+            try:
+                pl = PickTicketLine.objects.select_related(
+                    'pick_ticket__customer__party', 'pick_ticket__sales_order',
+                    'item', 'sales_order_line__uom',
+                ).get(pk=ln['pick_line'])
+            except (KeyError, PickTicketLine.DoesNotExist):
+                return Response(
+                    {'error': f'Invalid pick line: {ln.get("pick_line")}'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            entry = {'pick_line': pl}
+            if 'quantity' in ln:
+                entry['quantity'] = int(ln['quantity'])
+            if 'unit_price' in ln:
+                entry['unit_price'] = Decimal(str(ln['unit_price']))
+            pick_lines.append(entry)
+
+        inv_svc = InvoicingService(request.tenant, request.user)
+        try:
+            invoice = inv_svc.create_invoice_from_picks(
+                customer=customer,
+                pick_lines=pick_lines,
+                payment_terms=data.get('payment_terms', 'NET30'),
+                invoice_date=data.get('invoice_date'),
+                notes=data.get('notes', ''),
+            )
+        except DjangoValidationError as e:
+            msg = e.messages[0] if hasattr(e, 'messages') and e.messages else str(e)
+            return Response({'detail': msg}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = InvoiceDetailSerializer(invoice, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 

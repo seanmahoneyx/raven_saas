@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -247,14 +248,10 @@ export default function TaxZones() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="zone-rate">Rate (%)</Label>
-              <Input
+              <NumericInput
                 id="zone-rate"
-                type="number"
-                step="0.0001"
-                min="0"
-                max="100"
                 value={zoneForm.rate}
-                onChange={(e) => setZoneForm({ ...zoneForm, rate: e.target.value })}
+                onValueChange={(v) => setZoneForm({ ...zoneForm, rate: v })}
                 placeholder="e.g. 6.00"
               />
             </div>

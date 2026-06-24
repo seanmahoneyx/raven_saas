@@ -6,6 +6,7 @@ import { useCreateEstimate, useNextEstimateNumber } from '@/api/estimates'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -187,14 +188,10 @@ export default function CreateEstimate() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="tax_rate" style={{ color: 'var(--so-text-secondary)' }}>Tax Rate (%)</Label>
-                  <Input
+                  <NumericInput
                     id="tax_rate"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
                     value={formData.tax_rate}
-                    onChange={(e) => update('tax_rate', e.target.value)}
+                    onValueChange={(v) => update('tax_rate', v)}
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
@@ -360,11 +357,9 @@ export default function CreateEstimate() {
                         </div>
                         <div className="col-span-2 space-y-1">
                           <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Qty</Label>
-                          <Input
-                            type="number"
-                            min="1"
+                          <NumericInput
                             value={line.quantity}
-                            onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'quantity', v)}
                             className="h-9"
                             style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                           />
@@ -389,12 +384,9 @@ export default function CreateEstimate() {
                         </div>
                         <div className="col-span-2 space-y-1">
                           <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Price</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
+                          <NumericInput
                             value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                             className="h-9"
                             style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                           />

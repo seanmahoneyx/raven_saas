@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -241,13 +242,10 @@ export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: Sales
               </div>
               <div className="space-y-2">
                 <Label htmlFor="priority">Priority</Label>
-                <Input
+                <NumericInput
                   id="priority"
-                  type="number"
-                  min="1"
-                  max="10"
                   value={formData.priority}
-                  onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                  onValueChange={(v) => setFormData({ ...formData, priority: v })}
                 />
               </div>
             </div>
@@ -386,11 +384,9 @@ export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: Sales
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Qty</Label>
-                        <Input
-                          type="number"
-                          min="1"
+                        <NumericInput
                           value={line.quantity_ordered}
-                          onChange={(e) => handleLineChange(index, 'quantity_ordered', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'quantity_ordered', v)}
                           className="h-9"
                         />
                       </div>
@@ -414,12 +410,9 @@ export function SalesOrderDialog({ open, onOpenChange, order, onSuccess }: Sales
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Price</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                        <NumericInput
                           value={line.unit_price}
-                          onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                          onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                           className="h-9"
                         />
                       </div>

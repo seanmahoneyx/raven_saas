@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { formatCurrency } from '@/lib/format'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, ClipboardList, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -14,11 +15,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { useCreateInvoice } from '@/api/invoicing'
 import { useParties } from '@/api/parties'
 import { useAllItems } from '@/api/items'
+import {
+  usePickTickets,
+  usePickTicket,
+  useCreateMultiInvoiceFromPicks,
+} from '@/api/pickTickets'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { getStatusBadge } from '@/components/ui/StatusBadge'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -37,7 +51,11 @@ const TERMS_OPTIONS = [
   { value: 'COD', label: 'Cash on Delivery' },
 ]
 
-const EMPTY_LINE = { item: '', description: '', quantity: '', unit_price: '', notes: '' }
+// `pick_line` ties a line back to a PickTicketLine when the invoice is being
+// rolled from a pick ticket; '' for manually-added lines.
+const EMPTY_LINE = { item: '', description: '', quantity: '', unit_price: '', notes: '', pick_line: '' }
+
+type LineForm = { item: string; description: string; quantity: string; unit_price: string; notes: string; pick_line: string }
 
 const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
 const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
@@ -52,6 +70,7 @@ export default function CreateInvoice() {
   const prefill = (location.state as any) || {}
   usePageTitle('Create Invoice')
   const createInvoice = useCreateInvoice()
+  const createMultiInvoiceFromPicks = useCreateMultiInvoiceFromPicks()
 
   const [formData, setFormData] = useState({
     party: prefill.party ? String(prefill.party) : '',
@@ -61,7 +80,7 @@ export default function CreateInvoice() {
     notes: prefill.notes || '',
   })
 
-  const buildInitialLines = () => {
+  const buildInitialLines = (): LineForm[] => {
     if (prefill.lines?.length) {
       return prefill.lines.map((l: any) => ({
         item: l.item ? String(l.item) : '',
@@ -69,15 +88,20 @@ export default function CreateInvoice() {
         quantity: l.quantity ? String(l.quantity) : '',
         unit_price: l.unit_price ? String(l.unit_price) : '',
         notes: l.notes || '',
+        pick_line: l.pick_line ? String(l.pick_line) : '',
       }))
     }
     // Start with no lines — add them one at a time (matches estimate/contract/SO).
     return []
   }
 
-  const [linesFormData, setLinesFormData] = useState<
-    { item: string; description: string; quantity: string; unit_price: string; notes: string }[]
-  >(buildInitialLines)
+  const [linesFormData, setLinesFormData] = useState<LineForm[]>(buildInitialLines)
+
+  // Pick ticket the lines were pulled from (drives create-multi-invoice on submit).
+  const [sourcePickId, setSourcePickId] = useState<number | null>(
+    prefill.sourcePickId ? Number(prefill.sourcePickId) : null
+  )
+  const [pickDialogOpen, setPickDialogOpen] = useState(false)
 
   const [error, setError] = useState('')
 
@@ -120,6 +144,54 @@ export default function CreateInvoice() {
     setLinesFormData(prev => prev.filter((_, i) => i !== index))
   }
 
+  /* ---- Pull from Pick Ticket ---- */
+  const customerId = formData.party ? Number(formData.party) : null
+
+  // Candidate pick tickets for the chosen customer that still have something to invoice.
+  const { data: pickTicketsData, isLoading: picksLoading } = usePickTickets(
+    customerId ? { customer: customerId, ordering: '-picked_date' } : undefined
+  )
+  const candidatePicks = (pickTicketsData?.results ?? []).filter(
+    p => p.status !== 'void' && p.status !== 'cancelled' && p.status !== 'invoiced'
+  )
+
+  // Load the full detail of the pick ticket the user clicked (to read its lines).
+  const [pendingPickId, setPendingPickId] = useState<number | null>(null)
+  const { data: pendingPick } = usePickTicket(pendingPickId ?? 0)
+
+  // When the chosen pick ticket's detail arrives, populate the invoice lines.
+  useEffect(() => {
+    if (!pendingPickId || !pendingPick || pendingPick.id !== pendingPickId) return
+    const lines: LineForm[] = pendingPick.lines
+      .filter(l => l.quantity_remaining_to_invoice > 0)
+      .map(l => ({
+        item: String(l.item),
+        description: l.item_name || '',
+        quantity: String(l.quantity_remaining_to_invoice),
+        unit_price: l.unit_price,
+        notes: l.notes || '',
+        pick_line: String(l.id),
+      }))
+    if (lines.length === 0) {
+      toast.error('This pick ticket has no remaining quantity to invoice')
+    } else {
+      setLinesFormData(lines)
+      setSourcePickId(pendingPick.id)
+      toast.success(`Pulled ${lines.length} line${lines.length === 1 ? '' : 's'} from ${pendingPick.pick_number}`)
+    }
+    setPendingPickId(null)
+    setPickDialogOpen(false)
+  }, [pendingPick, pendingPickId])
+
+  const handleCustomerChange = (id: number | null) => {
+    setFormData(prev => ({ ...prev, party: id ? String(id) : '' }))
+    // A new customer invalidates any pick-ticket-sourced lines.
+    if (sourcePickId !== null) {
+      setSourcePickId(null)
+      setLinesFormData(prev => prev.map(l => ({ ...l, pick_line: '' })))
+    }
+  }
+
   /* ---- Computed ---- */
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity) || 0
@@ -127,7 +199,7 @@ export default function CreateInvoice() {
     return sum + qty * price
   }, 0)
 
-  const isPending = createInvoice.isPending
+  const isPending = createInvoice.isPending || createMultiInvoiceFromPicks.isPending
   const isMobile = useIsMobile()
 
   /* ---- Submit ---- */
@@ -174,24 +246,47 @@ export default function CreateInvoice() {
       }
     }
 
-    // Backend Invoice = AR (customer invoice). AP / VendorBill wired in Track C3.
-    const payload: any = {
-      customer: Number(formData.party),
-      invoice_date: formData.invoice_date,
-      due_date: formData.due_date,
-      payment_terms: formData.payment_terms,
-      notes: formData.notes || '',
-      lines: filledLines.map((line, idx) => ({
-        line_number: idx + 1,
-        item: Number(line.item),
-        description: line.description,
-        quantity: Number(line.quantity),
-        unit_price: line.unit_price,
-        notes: line.notes || '',
-      })),
-    }
+    // If these lines were pulled from a pick ticket (and remain pick-backed),
+    // roll them through the create-multi-invoice endpoint so the pick ticket's
+    // quantity_invoiced is updated and the invoice is linked.
+    const allFromPick =
+      sourcePickId !== null &&
+      filledLines.length > 0 &&
+      filledLines.every(line => line.pick_line)
 
     try {
+      if (allFromPick) {
+        const inv = await createMultiInvoiceFromPicks.mutateAsync({
+          customer: Number(formData.party),
+          payment_terms: formData.payment_terms,
+          invoice_date: formData.invoice_date,
+          notes: formData.notes || '',
+          lines: filledLines.map(line => ({
+            pick_line: Number(line.pick_line),
+            quantity: Number(line.quantity),
+            unit_price: line.unit_price,
+          })),
+        })
+        navigate(`/invoices/${inv.id}`)
+        return
+      }
+
+      // Manual AR invoice path (unchanged).
+      const payload: any = {
+        customer: Number(formData.party),
+        invoice_date: formData.invoice_date,
+        due_date: formData.due_date,
+        payment_terms: formData.payment_terms,
+        notes: formData.notes || '',
+        lines: filledLines.map((line, idx) => ({
+          line_number: idx + 1,
+          item: Number(line.item),
+          description: line.description,
+          quantity: Number(line.quantity),
+          unit_price: line.unit_price,
+          notes: line.notes || '',
+        })),
+      }
       const inv = await createInvoice.mutateAsync(payload)
       navigate(`/invoices/${inv.id}`)
     } catch (err: any) {
@@ -294,7 +389,7 @@ export default function CreateInvoice() {
                   <SearchableCombobox
                     entityType="customer"
                     value={formData.party ? Number(formData.party) : null}
-                    onChange={(id) => setFormData(prev => ({ ...prev, party: id ? String(id) : '' }))}
+                    onChange={handleCustomerChange}
                     placeholder="Select customer..."
                     allowClear
                   />
@@ -361,16 +456,39 @@ export default function CreateInvoice() {
 
             {/* ---- Line Items ---- */}
             <div className="px-6 py-4 flex items-center justify-between">
-              <span className="text-sm font-semibold">Line Items</span>
-              <button
-                type="button"
-                className={primaryBtnClass}
-                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
-                onClick={handleAddLine}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">Line Items</span>
+                {sourcePickId !== null && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                    style={{ background: 'var(--so-accent-light)', color: 'var(--so-accent)' }}
+                  >
+                    <ClipboardList className="h-3 w-3" />
+                    From Pick Ticket
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={outlineBtnClass + (customerId ? '' : ' opacity-50 pointer-events-none')}
+                  style={{ ...outlineBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                  onClick={() => setPickDialogOpen(true)}
+                  title={customerId ? 'Pull uninvoiced lines from a pick ticket' : 'Select a customer first'}
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Pull from Pick Ticket
+                </button>
+                <button
+                  type="button"
+                  className={primaryBtnClass}
+                  style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
+                  onClick={handleAddLine}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Line
+                </button>
+              </div>
             </div>
             {linesFormData.length === 0 ? (
               <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
@@ -433,13 +551,10 @@ export default function CreateInvoice() {
                         </td>
                         {/* Qty */}
                         <td className="py-1.5 px-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
+                          <NumericInput
                             inputMode="numeric"
                             value={line.quantity}
-                            onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'quantity', v)}
                             className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0"
                             tabIndex={0}
@@ -447,13 +562,10 @@ export default function CreateInvoice() {
                         </td>
                         {/* Unit Price */}
                         <td className="py-1.5 px-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                          <NumericInput
                             inputMode="decimal"
                             value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
+                            onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
                             className="h-9 text-right text-sm border shadow-none font-mono"
                             placeholder="0.00"
                             tabIndex={0}
@@ -538,6 +650,80 @@ export default function CreateInvoice() {
           </button>
         </div>
       )}
+
+      {/* ── Pick Ticket picker dialog ─────────────── */}
+      <Dialog open={pickDialogOpen} onOpenChange={setPickDialogOpen}>
+        <DialogContent className="max-w-xl" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+          <DialogHeader>
+            <DialogTitle>Pull from Pick Ticket</DialogTitle>
+            <DialogDescription>
+              Select a picked-but-uninvoiced ticket. Its remaining quantities will populate the invoice lines.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[55vh] overflow-y-auto -mx-2 px-2">
+            {!customerId ? (
+              <p className="text-[13px] py-6 text-center" style={{ color: 'var(--so-text-tertiary)' }}>
+                Select a customer first.
+              </p>
+            ) : picksLoading ? (
+              <p className="text-[13px] py-6 text-center" style={{ color: 'var(--so-text-tertiary)' }}>
+                Loading pick tickets…
+              </p>
+            ) : candidatePicks.length === 0 ? (
+              <p className="text-[13px] py-6 text-center" style={{ color: 'var(--so-text-tertiary)' }}>
+                No open pick tickets for this customer.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {candidatePicks.map(pick => (
+                  <button
+                    key={pick.id}
+                    type="button"
+                    onClick={() => setPendingPickId(pick.id)}
+                    className="w-full text-left rounded-lg border px-4 py-3 transition-colors cursor-pointer"
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-bg)' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--so-accent)')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--so-border)')}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
+                        {pick.pick_number}
+                      </span>
+                      {getStatusBadge(pick.status)}
+                    </div>
+                    <div className="mt-1 text-[12.5px] flex items-center gap-2 flex-wrap" style={{ color: 'var(--so-text-tertiary)' }}>
+                      <span>{pick.warehouse_code}</span>
+                      {pick.sales_order_number && (
+                        <>
+                          <span>·</span>
+                          <span className="font-mono">{pick.sales_order_number}</span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span>{pick.num_lines} {pick.num_lines === 1 ? 'line' : 'lines'}</span>
+                      <span>·</span>
+                      <span className="font-mono">{formatCurrency(pick.subtotal)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="button"
+              className={outlineBtnClass}
+              style={outlineBtnStyle}
+              onClick={() => setPickDialogOpen(false)}
+            >
+              <X className="h-3.5 w-3.5" />
+              Close
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

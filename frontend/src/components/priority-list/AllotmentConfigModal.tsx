@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from 'react'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { useVendorAllotments, useSetVendorAllotment } from '@/api/priorityList'
 import { useVendors } from '@/api/parties'
 import { BOX_TYPES } from './constants'
@@ -132,14 +133,12 @@ export const AllotmentConfigModal = memo(function AllotmentConfigModal({
                         <label className="block text-sm text-muted-foreground mb-1">
                           {boxType}
                         </label>
-                        <input
-                          type="number"
-                          min="0"
+                        <NumericInput
                           value={editValues[boxType]}
-                          onChange={(e) =>
+                          onValueChange={(v) =>
                             setEditValues((prev) => ({
                               ...prev,
-                              [boxType]: e.target.value,
+                              [boxType]: v,
                             }))
                           }
                           className="w-full px-3 py-2 text-foreground bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

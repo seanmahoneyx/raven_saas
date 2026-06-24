@@ -29,15 +29,23 @@ from apps.api.v1.serializers.design import (
 class DesignRequestViewSet(viewsets.ModelViewSet):
     """ViewSet for DesignRequest model."""
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'customer', 'assigned_to']
+    filterset_fields = ['status', 'customer', 'assigned_to', 'checked_out_by']
     search_fields = ['file_number', 'ident', 'style', 'customer__display_name']
     ordering_fields = ['file_number', 'created_at', 'status']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return DesignRequest.objects.select_related(
+        qs = DesignRequest.objects.select_related(
             'customer', 'requested_by', 'assigned_to', 'generated_item'
         ).all()
+        mine = self.request.query_params.get('mine')
+        if mine and mine.lower() in ('1', 'true', 'yes'):
+            user = self.request.user
+            if user and user.is_authenticated:
+                qs = qs.filter(checked_out_by=user)
+            else:
+                qs = qs.none()
+        return qs
 
     def get_serializer_class(self):
         if self.action == 'list':

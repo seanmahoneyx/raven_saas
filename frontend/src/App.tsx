@@ -86,10 +86,15 @@ const ItemReceiptDetail = lazy(() => import('@/pages/ItemReceiptDetail'))
 const Pipeline = lazy(() => import('@/pages/Pipeline'))
 const ContactDetail = lazy(() => import('@/pages/ContactDetail'))
 const InvoiceDetail = lazy(() => import('@/pages/InvoiceDetail'))
+const Bills = lazy(() => import('@/pages/Bills'))
+const Messages = lazy(() => import('@/pages/Messages'))
+const PickTickets = lazy(() => import('@/pages/PickTickets'))
 const Scanner = lazy(() => import('@/pages/warehouse/Scanner'))
 const CycleCounts = lazy(() => import('@/pages/warehouse/CycleCounts'))
 const PrintLabels = lazy(() => import('@/pages/warehouse/PrintLabels'))
 const WarehouseLocations = lazy(() => import('@/pages/warehouse/WarehouseLocations'))
+const Warehouses = lazy(() => import('@/pages/warehouse/Warehouses'))
+const WarehouseDetail = lazy(() => import('@/pages/warehouse/WarehouseDetail'))
 const Logistics = lazy(() => import('@/pages/Logistics'))
 const DriverManifest = lazy(() => import('@/pages/DriverManifest'))
 const OtherNames = lazy(() => import('@/pages/OtherNames'))
@@ -222,9 +227,11 @@ function App() {
                 <Route path="/invoices" element={<Invoices />} />
                 <Route path="/invoices/new" element={<CreateInvoice />} />
                 <Route path="/invoices/:id" element={<InvoiceDetail />} />
+                <Route path="/bills" element={<Bills />} />
                 <Route path="/bills/new" element={<CreateBill />} />
                 <Route path="/bills/:id" element={<BillDetail />} />
                 <Route path="/pay-bills" element={<PayBills />} />
+                <Route path="/pick-tickets" element={<PickTickets />} />
                 <Route path="/item-receipts" element={<ItemReceipts />} />
                 <Route path="/item-receipts/:id" element={<ItemReceiptDetail />} />
                 <Route path="/receive-payment" element={<ReceivePayment />} />
@@ -250,7 +257,10 @@ function App() {
                 <Route path="/warehouse/scanner" element={<Scanner />} />
                 <Route path="/warehouse/cycle-counts" element={<CycleCounts />} />
                 <Route path="/warehouse/print-labels" element={<PrintLabels />} />
+                <Route path="/warehouse/warehouses" element={<Warehouses />} />
+                <Route path="/warehouse/warehouses/:id" element={<WarehouseDetail />} />
                 <Route path="/warehouse/locations" element={<WarehouseLocations />} />
+                <Route path="/messages" element={<Messages />} />
                 <Route path="/logistics" element={<Logistics />} />
                 <Route path="/logistics/manifest" element={<DriverManifest />} />
                 <Route path="/users" element={<AdminRoute><UsersPage /></AdminRoute>} />

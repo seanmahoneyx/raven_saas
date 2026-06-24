@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -228,12 +229,12 @@ export default function CreateRFQ() {
                         placeholder="Select item..."
                       />
                       <Input placeholder="Line description" value={line.description} onChange={(e) => handleLineChange(line.id, 'description', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <Input type="number" min="0" step="1" placeholder="Qty" value={line.quantity} onChange={(e) => handleLineChange(line.id, 'quantity', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Qty" value={line.quantity} onValueChange={(v) => handleLineChange(line.id, 'quantity', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
                         <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}><SelectValue placeholder="UOM" /></SelectTrigger>
                         <SelectContent>{(uomData ?? []).map((uom) => (<SelectItem key={uom.id} value={String(uom.id)}>{uom.code}</SelectItem>))}</SelectContent>
                       </Select>
-                      <Input type="number" min="0" step="0.01" placeholder="Price" value={line.target_price} onChange={(e) => handleLineChange(line.id, 'target_price', e.target.value)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
+                      <NumericInput placeholder="Price" value={line.target_price} onValueChange={(v) => handleLineChange(line.id, 'target_price', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
                       <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer" style={{ color: 'var(--so-danger-text)' }}>
                         <Trash2 className="h-4 w-4" />
                       </button>

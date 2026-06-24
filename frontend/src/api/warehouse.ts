@@ -12,6 +12,33 @@ export interface Warehouse {
   code: string;
   name: string;
   is_active?: boolean;
+  is_default?: boolean;
+  pallet_capacity?: number | null;
+  location?: number | null;
+  location_name?: string | null;
+  bin_count?: number;
+  notes?: string;
+  bins?: Bin[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Bin {
+  id: number;
+  warehouse: number;
+  warehouse_code?: string;
+  code: string;
+  aisle?: string;
+  rack?: string;
+  level?: string;
+  bin_type?: string;
+  is_active?: boolean;
+  length?: string | null;
+  width?: string | null;
+  height?: string | null;
+  max_capacity?: number | null;
+  volume?: string | null;
+  full_location?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -81,6 +108,133 @@ export function useAllWarehouses(params?: { search?: string; is_active?: boolean
     queryKey: ['warehouses', 'all', params],
     queryFn: () => fetchAllPages<Warehouse>(api, '/warehouses/', params as Record<string, unknown> | undefined),
     staleTime: 60_000,
+  })
+}
+
+export function useWarehouse(id?: number) {
+  return useQuery({
+    queryKey: ['warehouses', id],
+    queryFn: async () => {
+      const { data } = await api.get<Warehouse>(`/warehouses/${id}/`)
+      return data
+    },
+    enabled: !!id,
+  })
+}
+
+export function useCreateWarehouse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (warehouse: Partial<Warehouse>) => {
+      const { data } = await api.post<Warehouse>('/warehouses/', warehouse)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Warehouse created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to create warehouse'))
+    },
+  })
+}
+
+export function useUpdateWarehouse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...warehouse }: Partial<Warehouse> & { id: number }) => {
+      const { data } = await api.patch<Warehouse>(`/warehouses/${id}/`, warehouse)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
+    },
+  })
+}
+
+export function useDeleteWarehouse() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/warehouses/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Warehouse deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to delete warehouse'))
+    },
+  })
+}
+
+// ==================== Bins ====================
+
+export function useBins(warehouseId?: number) {
+  return useQuery({
+    queryKey: ['bins', warehouseId],
+    queryFn: async () => {
+      const { data } = await api.get<PaginatedResponse<Bin>>('/bins/', {
+        params: warehouseId ? { warehouse: warehouseId } : undefined,
+      })
+      return data
+    },
+  })
+}
+
+export function useCreateBin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (bin: Partial<Bin>) => {
+      const { data } = await api.post<Bin>('/bins/', bin)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bins'] })
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Bin created')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to create bin'))
+    },
+  })
+}
+
+export function useUpdateBin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...bin }: Partial<Bin> & { id: number }) => {
+      const { data } = await api.patch<Bin>(`/bins/${id}/`, bin)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bins'] })
+      toast.success('Changes saved')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to save changes'))
+    },
+  })
+}
+
+export function useDeleteBin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await api.delete(`/bins/${id}/`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bins'] })
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] })
+      toast.success('Bin deleted')
+    },
+    onError: (error: ApiError) => {
+      toast.error(getApiErrorMessage(error, 'Failed to delete bin'))
+    },
   })
 }
 

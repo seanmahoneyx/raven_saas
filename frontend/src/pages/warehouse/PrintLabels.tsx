@@ -6,6 +6,7 @@ import { generateItemLabels, generateBinLabels } from '@/api/labels'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from "@/components/ui/numeric-input"
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -193,12 +194,9 @@ export default function PrintLabels() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Quantity</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={300}
+                  <NumericInput
                     value={labelQty}
-                    onChange={(e) => setLabelQty(e.target.value)}
+                    onValueChange={(v) => setLabelQty(v)}
                   />
                 </div>
                 <div className="space-y-2">

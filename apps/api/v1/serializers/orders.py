@@ -183,6 +183,9 @@ class SalesOrderLineSerializer(TenantModelSerializer):
     uom_code = serializers.CharField(source='uom.code', read_only=True)
     line_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     quantity_in_base_uom = serializers.IntegerField(read_only=True)
+    # Invoicing progress (Pick Ticket -> partial Invoice flow)
+    quantity_remaining_to_invoice = serializers.IntegerField(read_only=True)
+    is_fully_invoiced = serializers.BooleanField(read_only=True)
     # Contract reference fields (from linked ContractRelease)
     contract_number = serializers.CharField(
         source='contract_release.contract_line.contract.contract_number',
@@ -204,11 +207,12 @@ class SalesOrderLineSerializer(TenantModelSerializer):
             'item', 'item_sku', 'item_name',
             'quantity_ordered', 'uom', 'uom_code',
             'unit_price', 'line_total', 'quantity_in_base_uom',
+            'quantity_invoiced', 'quantity_remaining_to_invoice', 'is_fully_invoiced',
             'fulfillment_method',
             'notes', 'contract_number', 'contract_id',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['sales_order', 'created_at', 'updated_at']
+        read_only_fields = ['sales_order', 'quantity_invoiced', 'created_at', 'updated_at']
 
 
 class SalesOrderListSerializer(TenantModelSerializer):

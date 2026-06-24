@@ -655,6 +655,10 @@ export interface SalesOrderLine {
   unit_price: string
   line_total: string
   quantity_in_base_uom: number
+  // Invoicing progress (Pick Ticket -> partial Invoice flow)
+  quantity_invoiced?: number
+  quantity_remaining_to_invoice?: number
+  is_fully_invoiced?: boolean
   notes: string
   fulfillment_method: FulfillmentMethod | null
   // Contract reference (for lines released from contracts)

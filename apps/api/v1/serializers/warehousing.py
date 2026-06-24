@@ -11,6 +11,7 @@ class BinSerializer(TenantModelSerializer):
     """Serializer for Bin model."""
     warehouse_code = serializers.CharField(source='warehouse.code', read_only=True)
     full_location = serializers.CharField(read_only=True)
+    volume = serializers.DecimalField(max_digits=20, decimal_places=2, read_only=True)
 
     class Meta:
         model = Bin
@@ -18,6 +19,7 @@ class BinSerializer(TenantModelSerializer):
             'id', 'warehouse', 'warehouse_code', 'code',
             'aisle', 'rack', 'level', 'bin_type',
             'is_active', 'full_location',
+            'length', 'width', 'height', 'max_capacity', 'volume',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -45,7 +47,7 @@ class WarehouseSerializer(TenantModelSerializer):
         model = Warehouse
         fields = [
             'id', 'code', 'name', 'location', 'location_name',
-            'is_active', 'is_default', 'notes',
+            'is_active', 'is_default', 'pallet_capacity', 'notes',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
@@ -60,7 +62,7 @@ class WarehouseDetailSerializer(TenantModelSerializer):
         model = Warehouse
         fields = [
             'id', 'code', 'name', 'location', 'location_name',
-            'is_active', 'is_default', 'notes', 'bins',
+            'is_active', 'is_default', 'pallet_capacity', 'notes', 'bins',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']

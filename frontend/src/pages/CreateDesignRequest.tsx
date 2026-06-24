@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -314,13 +315,10 @@ export default function CreateDesignRequest() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4" style={{ paddingTop: '4px', borderTop: '1px solid var(--so-border-light)' }}>
                   <div className="space-y-1.5">
                     <Label htmlFor="sampleQty" style={{ color: 'var(--so-text-secondary)' }}>Number of Samples</Label>
-                    <Input
+                    <NumericInput
                       id="sampleQty"
-                      type="number"
-                      min="1"
-                      step="1"
                       value={sampleQuantity}
-                      onChange={(e) => setSampleQuantity(e.target.value)}
+                      onValueChange={(v) => setSampleQuantity(v)}
                       placeholder="# of samples"
                       style={inputStyle}
                     />

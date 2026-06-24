@@ -26,6 +26,8 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
+import { useCommentCounts } from '@/api/collaboration'
+import { CommentCountBadge } from '@/components/collaboration/CommentCountBadge'
 import { FolderTabs } from '@/components/ui/folder-tabs'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileCardList } from '@/components/ui/MobileCardList'
@@ -133,6 +135,12 @@ export default function Orders() {
   })
   const salesRows = salesList.rows
   const purchaseRows = purchaseList.rows
+
+  // Bulk comment counts for the visible rows (one query per tab, no N+1).
+  const salesIds = useMemo(() => salesRows.map(o => o.id), [salesRows])
+  const purchaseIds = useMemo(() => purchaseRows.map(o => o.id), [purchaseRows])
+  const { data: salesCommentCounts } = useCommentCounts('salesorder', salesIds)
+  const { data: purchaseCommentCounts } = useCommentCounts('purchaseorder', purchaseIds)
 
   const deleteSalesOrder = useDeleteSalesOrder()
   const deletePurchaseOrder = useDeletePurchaseOrder()
@@ -291,6 +299,17 @@ export default function Orders() {
         },
       },
       {
+        id: 'comments',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <CommentCountBadge
+            count={salesCommentCounts?.[String(row.original.id)] ?? 0}
+            onClick={() => navigate(`/orders/sales/${row.original.id}`)}
+          />
+        ),
+      },
+      {
         id: 'actions',
         cell: ({ row }) => {
           const order = row.original
@@ -325,7 +344,7 @@ export default function Orders() {
         },
       },
     ],
-    [deleteSalesOrder]
+    [deleteSalesOrder, salesCommentCounts, navigate]
   )
 
   const purchaseColumns: ColumnDef<PurchaseOrder>[] = useMemo(
@@ -394,6 +413,17 @@ export default function Orders() {
         ),
       },
       {
+        id: 'comments',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => (
+          <CommentCountBadge
+            count={purchaseCommentCounts?.[String(row.original.id)] ?? 0}
+            onClick={() => navigate(`/orders/purchase/${row.original.id}`)}
+          />
+        ),
+      },
+      {
         id: 'actions',
         cell: ({ row }) => {
           const order = row.original
@@ -432,7 +462,7 @@ export default function Orders() {
         },
       },
     ],
-    [deletePurchaseOrder]
+    [deletePurchaseOrder, purchaseCommentCounts, navigate]
   )
 
   const tabs = [

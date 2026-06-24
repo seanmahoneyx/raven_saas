@@ -8,6 +8,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -138,14 +139,11 @@ export function RecordBillPaymentDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="amount" className="text-[12.5px]">Amount</Label>
-              <Input
+              <NumericInput
                 id="amount"
-                type="number"
-                min="0"
-                step="0.01"
                 inputMode="decimal"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onValueChange={(v) => setAmount(v)}
                 placeholder="0.00"
                 className="h-9 text-sm font-mono text-right"
               />

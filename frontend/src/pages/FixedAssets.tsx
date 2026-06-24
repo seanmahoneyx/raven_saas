@@ -4,6 +4,7 @@ import { usePageTitle } from '@/hooks/usePageTitle'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Plus, Building2, FolderOpen, Calculator, Pencil } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable } from '@/components/ui/data-table'
@@ -538,11 +539,9 @@ export default function FixedAssets() {
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label style={{ color: 'var(--so-text-secondary)' }}>Useful Life (months)</Label>
-                <Input
-                  type="number"
-                  min="1"
+                <NumericInput
                   value={categoryForm.default_useful_life_months}
-                  onChange={(e) => setCategoryForm(p => ({ ...p, default_useful_life_months: e.target.value }))}
+                  onValueChange={(v) => setCategoryForm(p => ({ ...p, default_useful_life_months: v }))}
                   style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />
               </div>
@@ -564,13 +563,9 @@ export default function FixedAssets() {
               </div>
               <div className="space-y-1.5">
                 <Label style={{ color: 'var(--so-text-secondary)' }}>Salvage Rate (%)</Label>
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
+                <NumericInput
                   value={categoryForm.default_salvage_rate}
-                  onChange={(e) => setCategoryForm(p => ({ ...p, default_salvage_rate: e.target.value }))}
+                  onValueChange={(v) => setCategoryForm(p => ({ ...p, default_salvage_rate: v }))}
                   style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                 />
               </div>

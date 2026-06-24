@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
@@ -669,7 +670,13 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                       <span className="text-xs text-muted-foreground">Blank W</span>
                     </div>
                     <div>
-                      <Input {...register('out_per_rotary')} placeholder="#" type="number" />
+                      <Controller
+                        name="out_per_rotary"
+                        control={control}
+                        render={({ field }) => (
+                          <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="#" />
+                        )}
+                      />
                       <span className="text-xs text-muted-foreground"># Out</span>
                     </div>
                   </div>
@@ -784,7 +791,13 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                       </div>
                       {showPkgField('rolls_per_case', pkgSubType) && (
                         <div>
-                          <Input {...register('rolls_per_case')} placeholder="#" type="number" />
+                          <Controller
+                            name="rolls_per_case"
+                            control={control}
+                            render={({ field }) => (
+                              <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="#" />
+                            )}
+                          />
                           <span className="text-xs text-muted-foreground">Rolls/Case</span>
                         </div>
                       )}
@@ -804,13 +817,25 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                     {showPkgField('pieces_per_case', pkgSubType) && (
                       <div>
                         <Label className="text-xs">Pieces/Case</Label>
-                        <Input {...register('pieces_per_case')} type="number" placeholder="0" />
+                        <Controller
+                          name="pieces_per_case"
+                          control={control}
+                          render={({ field }) => (
+                            <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                          )}
+                        />
                       </div>
                     )}
                     {showPkgField('sheets_per_bundle', pkgSubType) && (
                       <div>
                         <Label className="text-xs">Sheets/Bundle</Label>
-                        <Input {...register('sheets_per_bundle')} type="number" placeholder="0" />
+                        <Controller
+                          name="sheets_per_bundle"
+                          control={control}
+                          render={({ field }) => (
+                            <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                          )}
+                        />
                       </div>
                     )}
                     {showPkgField('weight_capacity_lbs', pkgSubType) && (
@@ -920,11 +945,23 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                           <>
                             <div>
                               <Label className="text-xs">Cells Across (X)</Label>
-                              <Input {...register('cells_x')} type="number" placeholder="0" />
+                              <Controller
+                                name="cells_x"
+                                control={control}
+                                render={({ field }) => (
+                                  <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                                )}
+                              />
                             </div>
                             <div>
                               <Label className="text-xs">Cells Down (Y)</Label>
-                              <Input {...register('cells_y')} type="number" placeholder="0" />
+                              <Controller
+                                name="cells_y"
+                                control={control}
+                                render={({ field }) => (
+                                  <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                                )}
+                              />
                             </div>
                           </>
                         )}
@@ -982,7 +1019,13 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                         {showPkgField('stretch_pct', pkgSubType) && (
                           <div>
                             <Label className="text-xs">Pre-Stretch %</Label>
-                            <Input {...register('stretch_pct')} type="number" placeholder="0" />
+                            <Controller
+                              name="stretch_pct"
+                              control={control}
+                              render={({ field }) => (
+                                <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                              )}
+                            />
                           </div>
                         )}
                         {/* Tube */}
@@ -1029,7 +1072,13 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                         {showPkgField('labels_per_roll', pkgSubType) && (
                           <div>
                             <Label className="text-xs">Labels/Roll</Label>
-                            <Input {...register('labels_per_roll')} type="number" placeholder="0" />
+                            <Controller
+                              name="labels_per_roll"
+                              control={control}
+                              render={({ field }) => (
+                                <NumericInput value={field.value ?? ''} onValueChange={field.onChange} placeholder="0" />
+                              )}
+                            />
                           </div>
                         )}
                       </div>
@@ -1119,18 +1168,30 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="panels_printed">Panels Printed</Label>
-                          <Input
-                            {...register('panels_printed')}
-                            type="number"
-                            placeholder="0"
+                          <Controller
+                            name="panels_printed"
+                            control={control}
+                            render={({ field }) => (
+                              <NumericInput
+                                value={field.value ?? ''}
+                                onValueChange={field.onChange}
+                                placeholder="0"
+                              />
+                            )}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="colors_printed">Colors</Label>
-                          <Input
-                            {...register('colors_printed')}
-                            type="number"
-                            placeholder="0"
+                          <Controller
+                            name="colors_printed"
+                            control={control}
+                            render={({ field }) => (
+                              <NumericInput
+                                value={field.value ?? ''}
+                                onValueChange={field.onChange}
+                                placeholder="0"
+                              />
+                            )}
                           />
                         </div>
                       </div>
@@ -1232,26 +1293,44 @@ export function ItemDialog({ open, onOpenChange, item }: ItemDialogProps) {
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="units_per_layer">Units/Layer</Label>
-                    <Input
-                      {...register('units_per_layer')}
-                      type="number"
-                      placeholder="0"
+                    <Controller
+                      name="units_per_layer"
+                      control={control}
+                      render={({ field }) => (
+                        <NumericInput
+                          value={field.value ?? ''}
+                          onValueChange={field.onChange}
+                          placeholder="0"
+                        />
+                      )}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="layers_per_pallet">Layers/Pallet</Label>
-                    <Input
-                      {...register('layers_per_pallet')}
-                      type="number"
-                      placeholder="0"
+                    <Controller
+                      name="layers_per_pallet"
+                      control={control}
+                      render={({ field }) => (
+                        <NumericInput
+                          value={field.value ?? ''}
+                          onValueChange={field.onChange}
+                          placeholder="0"
+                        />
+                      )}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="units_per_pallet">Units/Pallet</Label>
-                    <Input
-                      {...register('units_per_pallet')}
-                      type="number"
-                      placeholder="0"
+                    <Controller
+                      name="units_per_pallet"
+                      control={control}
+                      render={({ field }) => (
+                        <NumericInput
+                          value={field.value ?? ''}
+                          onValueChange={field.onChange}
+                          placeholder="0"
+                        />
+                      )}
                     />
                   </div>
                 </div>

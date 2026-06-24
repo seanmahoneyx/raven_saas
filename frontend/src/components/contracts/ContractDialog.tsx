@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -340,11 +341,10 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
                         onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
                         placeholder="Select item..."
                       />
-                      <Input
-                        type="number"
+                      <NumericInput
                         placeholder="Qty"
                         value={line.blanket_qty}
-                        onChange={(e) => handleLineChange(line.id, 'blanket_qty', e.target.value)}
+                        onValueChange={(v) => handleLineChange(line.id, 'blanket_qty', v)}
                       />
                       <Select
                         value={line.uom}
@@ -361,12 +361,10 @@ export function ContractDialog({ open, onOpenChange, contract, onSuccess }: Cont
                           ))}
                         </SelectContent>
                       </Select>
-                      <Input
-                        type="number"
-                        step="0.01"
+                      <NumericInput
                         placeholder="Price"
                         value={line.unit_price}
-                        onChange={(e) => handleLineChange(line.id, 'unit_price', e.target.value)}
+                        onValueChange={(v) => handleLineChange(line.id, 'unit_price', v)}
                       />
                       <Button
                         type="button"

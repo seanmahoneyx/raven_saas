@@ -60,6 +60,14 @@ const statusConfigs: Record<string, { bg: string; border: string; text: string }
   pending_approval: { bg: 'var(--so-warning-bg)',  border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
   planned:          { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
   loading:          { bg: 'var(--so-info-bg)',     border: 'transparent',              text: 'var(--so-info-text)' },
+  // Invoicing progress (Pick Ticket -> partial Invoice flow). Keyed by label so
+  // getStatusBadge can render a friendly multi-word status string directly.
+  Unbilled:              { bg: 'var(--so-bg)',        border: 'var(--so-border)',         text: 'var(--so-text-tertiary)' },
+  'Partially Invoiced':  { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+  'Fully Invoiced':      { bg: 'var(--so-success-bg)', border: 'transparent',              text: 'var(--so-success-text)' },
+  partially_invoiced:    { bg: 'var(--so-warning-bg)', border: 'var(--so-warning-border)', text: 'var(--so-warning-text)' },
+  invoiced:              { bg: 'var(--so-success-bg)', border: 'transparent',              text: 'var(--so-success-text)' },
+  picked:                { bg: 'var(--so-info-bg)',    border: 'transparent',              text: 'var(--so-info-text)' },
 }
 
 export function getStatusBadge(status: string) {

@@ -8,6 +8,7 @@ import { useVendors } from '@/api/parties'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -243,23 +244,17 @@ export default function AgingReports() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Interval (days)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={365}
+                <NumericInput
                   value={arInterval}
-                  onChange={(e) => setArInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                  onValueChange={(v) => setArInterval(Math.max(1, parseInt(v) || 1))}
                   className="w-24 h-8"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Through (days)</Label>
-                <Input
-                  type="number"
-                  min={arInterval}
-                  max={3650}
+                <NumericInput
                   value={arThrough}
-                  onChange={(e) => setArThrough(Math.max(arInterval, parseInt(e.target.value) || arInterval))}
+                  onValueChange={(v) => setArThrough(Math.max(arInterval, parseInt(v) || arInterval))}
                   className="w-24 h-8"
                 />
               </div>
@@ -316,23 +311,17 @@ export default function AgingReports() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Interval (days)</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={365}
+                <NumericInput
                   value={apInterval}
-                  onChange={(e) => setApInterval(Math.max(1, parseInt(e.target.value) || 1))}
+                  onValueChange={(v) => setApInterval(Math.max(1, parseInt(v) || 1))}
                   className="w-24 h-8"
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Through (days)</Label>
-                <Input
-                  type="number"
-                  min={apInterval}
-                  max={3650}
+                <NumericInput
                   value={apThrough}
-                  onChange={(e) => setApThrough(Math.max(apInterval, parseInt(e.target.value) || apInterval))}
+                  onValueChange={(v) => setApThrough(Math.max(apInterval, parseInt(v) || apInterval))}
                   className="w-24 h-8"
                 />
               </div>

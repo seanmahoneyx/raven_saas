@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Q, Count
 from drf_spectacular.utils import extend_schema
 
 from apps.collaboration.models import Comment, Task, DirectMessage
@@ -18,6 +18,7 @@ from apps.api.v1.serializers.collaboration import (
     CommentSerializer, CommentCreateSerializer,
     TaskSerializer, TaskCreateSerializer, TaskUpdateSerializer,
     DirectMessageSerializer,
+    ALLOWED_MODELS,
 )
 
 User = get_user_model()
@@ -133,6 +134,65 @@ class CommentDetailView(APIView):
         comment.is_deleted = True
         comment.save(update_fields=['is_deleted', 'updated_at'])
         return Response({'status': 'deleted'})
+
+
+class CommentCountsView(APIView):
+    """
+    GET /api/v1/collaboration/comments/counts/?content_type=salesorder&object_ids=1,2,3
+
+    Returns a map of object_id -> non-deleted comment count for many records of a
+    single content type, resolved in ONE aggregate query (no N+1). Object ids that
+    have zero comments are simply absent from the response map.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(tags=['collaboration'], summary='Bulk comment counts for many records of one type')
+    def get(self, request):
+        ct_model = request.query_params.get('content_type')
+        ids_param = request.query_params.get('object_ids', '')
+
+        if not ct_model:
+            return Response(
+                {'error': 'content_type is a required query parameter'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ct_model = ct_model.lower()
+        if ct_model not in ALLOWED_MODELS:
+            return Response(
+                {'error': f"Invalid content_type '{ct_model}'. Allowed: {', '.join(sorted(ALLOWED_MODELS))}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            ct = ContentType.objects.get(model=ct_model)
+        except ContentType.DoesNotExist:
+            return Response({'error': f"Content type '{ct_model}' not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parse and dedupe the comma-separated id list. Ignore non-numeric junk.
+        object_ids = []
+        for raw in ids_param.split(','):
+            raw = raw.strip()
+            if raw.isdigit():
+                object_ids.append(int(raw))
+        object_ids = list(set(object_ids))
+
+        if not object_ids:
+            return Response({})
+
+        rows = (
+            Comment.objects.filter(
+                tenant=request.tenant,
+                content_type=ct,
+                object_id__in=object_ids,
+                is_deleted=False,
+            )
+            .values('object_id')
+            .annotate(count=Count('id'))
+        )
+
+        counts = {str(r['object_id']): r['count'] for r in rows}
+        return Response(counts)
 
 
 class TaskListCreateView(APIView):

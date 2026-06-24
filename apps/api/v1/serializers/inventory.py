@@ -7,6 +7,7 @@ from rest_framework import serializers
 from apps.inventory.models import (
     InventoryLot, InventoryPallet, InventoryBalance, InventoryTransaction,
     ItemReceipt, ItemReceiptLine,
+    PickTicket, PickTicketLine,
 )
 from .base import TenantModelSerializer
 
@@ -202,5 +203,82 @@ class ItemReceiptDetailSerializer(TenantModelSerializer):
         ]
         read_only_fields = [
             'receipt_number', 'status', 'journal_entry', 'received_by',
+            'created_at', 'updated_at',
+        ]
+
+
+# ─── Pick Ticket Serializers ─────────────────────────────────────────────────
+
+class PickTicketLineSerializer(TenantModelSerializer):
+    """Serializer for PickTicketLine."""
+    item_sku = serializers.CharField(source='item.sku', read_only=True)
+    item_name = serializers.CharField(source='item.name', read_only=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+    quantity_remaining_to_invoice = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = PickTicketLine
+        fields = [
+            'id', 'pick_ticket', 'line_number',
+            'sales_order_line',
+            'item', 'item_sku', 'item_name',
+            'quantity', 'unit_price', 'amount',
+            'quantity_invoiced', 'quantity_remaining_to_invoice',
+            'notes',
+        ]
+        read_only_fields = ['quantity_invoiced']
+
+
+class PickTicketListSerializer(TenantModelSerializer):
+    """Lightweight serializer for list views."""
+    customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    customer_code = serializers.CharField(source='customer.party.code', read_only=True)
+    warehouse_code = serializers.CharField(source='warehouse.code', read_only=True)
+    sales_order_number = serializers.CharField(
+        source='sales_order.order_number', read_only=True, allow_null=True,
+    )
+    num_lines = serializers.IntegerField(read_only=True)
+    subtotal = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = PickTicket
+        fields = [
+            'id', 'pick_number', 'status',
+            'customer', 'customer_name', 'customer_code',
+            'warehouse', 'warehouse_code',
+            'sales_order', 'sales_order_number',
+            'picked_date', 'num_lines', 'subtotal',
+        ]
+
+
+class PickTicketDetailSerializer(TenantModelSerializer):
+    """Full pick ticket with nested lines."""
+    customer_name = serializers.CharField(source='customer.party.display_name', read_only=True)
+    customer_code = serializers.CharField(source='customer.party.code', read_only=True)
+    warehouse_code = serializers.CharField(source='warehouse.code', read_only=True)
+    sales_order_number = serializers.CharField(
+        source='sales_order.order_number', read_only=True, allow_null=True,
+    )
+    picked_by_name = serializers.CharField(
+        source='picked_by.username', read_only=True, allow_null=True,
+    )
+    lines = PickTicketLineSerializer(many=True, read_only=True)
+    subtotal = serializers.DecimalField(max_digits=14, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = PickTicket
+        fields = [
+            'id', 'pick_number', 'status',
+            'customer', 'customer_name', 'customer_code',
+            'warehouse', 'warehouse_code',
+            'sales_order', 'sales_order_number',
+            'picked_date',
+            'picked_by', 'picked_by_name',
+            'notes',
+            'lines', 'subtotal',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'pick_number', 'status', 'picked_by',
             'created_at', 'updated_at',
         ]
