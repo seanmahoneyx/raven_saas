@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, X, Star, Clock } from 'lucide-react'
-import { useSuggestions, useAddFavorite, useRemoveFavorite, useFavorites } from '@/api/favorites'
-import type { EntityType, SuggestionItem } from '@/types/api'
+import { useSuggestions, useSuggestionsInfinite, useAddFavorite, useRemoveFavorite, useFavorites } from '@/api/favorites'
+import type { EntityType, SuggestionItem, SuggestionsResponse } from '@/types/api'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -15,6 +15,12 @@ interface SearchableComboboxProps {
   className?: string
   allowClear?: boolean
   initialLabel?: string
+  /**
+   * When true, the dropdown pages through the FULL record set via infinite
+   * scroll — the user can scroll every record without typing. Defaults to false
+   * (legacy type-to-search behavior) so existing call sites are unaffected.
+   */
+  browseAll?: boolean
 }
 
 // ── Debounce hook ────────────────────────────────────────────────────
@@ -47,6 +53,7 @@ export function SearchableCombobox({
   className = '',
   allowClear = false,
   initialLabel,
+  browseAll = false,
 }: SearchableComboboxProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -55,11 +62,33 @@ export function SearchableCombobox({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const debouncedSearch = useDebouncedValue(searchText, 300)
 
-  // Fetch suggestions (favorites + recents + search results)
-  const { data: suggestions } = useSuggestions(entityType, debouncedSearch, isOpen)
+  // Fetch suggestions (favorites + recents + search results).
+  // Only one of the two queries is enabled at a time depending on `browseAll`.
+  const { data: pagedSuggestions } = useSuggestions(entityType, debouncedSearch, isOpen && !browseAll)
+  const infinite = useSuggestionsInfinite(entityType, debouncedSearch, isOpen && browseAll)
+  const {
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = infinite
+
+  // Unify both query shapes into a single { favorites, recents, results } object.
+  // In browseAll mode favorites/recents come from page 1; results are flattened
+  // across every loaded page.
+  const suggestions: SuggestionsResponse | undefined = browseAll
+    ? infinite.data
+      ? {
+          favorites: infinite.data.pages[0]?.favorites ?? [],
+          recents: infinite.data.pages[0]?.recents ?? [],
+          results: infinite.data.pages.flatMap(p => p.results),
+        }
+      : undefined
+    : pagedSuggestions
 
   // Fetch full favorites list to cross-reference star state in results rows
   const { data: favoritesData } = useFavorites(entityType)
@@ -118,6 +147,33 @@ export function SearchableCombobox({
       setTimeout(() => searchInputRef.current?.focus(), 0)
     }
   }, [isOpen])
+
+  // Browse mode: reset the scroll position to the top whenever the search term
+  // changes so a new (re-keyed) result set starts from the first row.
+  useEffect(() => {
+    if (browseAll && listRef.current) {
+      listRef.current.scrollTop = 0
+    }
+  }, [debouncedSearch, browseAll])
+
+  // Browse mode: load the next page when the sentinel scrolls into view.
+  useEffect(() => {
+    if (!browseAll || !isOpen) return
+    const sentinel = sentinelRef.current
+    const root = listRef.current
+    if (!sentinel || !root) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { root, rootMargin: '120px' },
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [browseAll, isOpen, hasNextPage, isFetchingNextPage, fetchNextPage, suggestions])
 
   // ── Handlers ──────────────────────────────────────────────────────
 
@@ -510,6 +566,7 @@ export function SearchableCombobox({
         >
           {/* Rows */}
           <div
+            ref={listRef}
             style={{
               maxHeight: '280px',
               overflowY: 'auto',
@@ -517,6 +574,25 @@ export function SearchableCombobox({
             }}
           >
             {renderDropdownBody()}
+
+            {/* Infinite-scroll sentinel + loading row (browse mode only) */}
+            {browseAll && (
+              <>
+                <div ref={sentinelRef} style={{ height: '1px' }} />
+                {isFetchingNextPage && (
+                  <div
+                    style={{
+                      padding: '8px 10px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      color: 'var(--so-text-tertiary)',
+                    }}
+                  >
+                    Loading more…
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

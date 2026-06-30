@@ -679,6 +679,96 @@ class SuggestionsTests(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class SuggestionsBrowseTests(TestCase):
+    """GET /api/v1/suggestions/?page=N — infinite-scroll / browse mode."""
+
+    @classmethod
+    def setUpTestData(cls):
+        _setup_shared_fixture(cls, 'suggestions-browse-t')
+        set_current_tenant(cls.tenant)
+        # Create enough customers to span multiple small pages.
+        for i in range(7):
+            party = Party.objects.create(
+                tenant=cls.tenant, party_type='CUSTOMER',
+                code=f'BR-{i:02d}', display_name=f'Browse Customer {i:02d}',
+            )
+            Customer.objects.create(tenant=cls.tenant, party=party)
+
+    def setUp(self):
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        set_current_tenant(self.tenant)
+
+    def test_browse_no_search_returns_paginated_results(self):
+        """With ?page=1&page_size, results are returned without a search term."""
+        resp = self.client.get(
+            '/api/v1/suggestions/?entity_type=customer&page=1&page_size=3'
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertEqual(len(data['results']), 3)
+        self.assertIn('has_more', data)
+        self.assertIn('next_page', data)
+        self.assertTrue(data['has_more'])
+        self.assertEqual(data['next_page'], 2)
+
+    def test_browse_walks_all_pages_without_duplicates(self):
+        """Paging through every record yields the full set with no repeats."""
+        seen = []
+        page = 1
+        for _ in range(20):  # safety bound
+            resp = self.client.get(
+                f'/api/v1/suggestions/?entity_type=customer&page={page}&page_size=3'
+            )
+            self.assertEqual(resp.status_code, status.HTTP_200_OK)
+            data = resp.json()
+            seen.extend(r['id'] for r in data['results'])
+            if not data['has_more']:
+                break
+            page = data['next_page']
+            set_current_tenant(self.tenant)
+        # 8 customers total (1 from fixture + 7 created here)
+        self.assertEqual(len(seen), 8)
+        self.assertEqual(len(set(seen)), 8)  # no duplicates
+
+    def test_browse_favorites_only_on_first_page(self):
+        """Favorites/recents appear on page 1 but not on later pages."""
+        set_current_tenant(self.tenant)
+        UserFavorite.objects.create(
+            tenant=self.tenant, user=self.user,
+            entity_type='customer', object_id=self.customer.pk,
+            label='Test Customer Corp',
+        )
+        page1 = self.client.get(
+            '/api/v1/suggestions/?entity_type=customer&page=1&page_size=3'
+        ).json()
+        self.assertTrue(len(page1['favorites']) >= 1)
+        set_current_tenant(self.tenant)
+        page2 = self.client.get(
+            '/api/v1/suggestions/?entity_type=customer&page=2&page_size=3'
+        ).json()
+        self.assertEqual(page2['favorites'], [])
+        self.assertEqual(page2['recents'], [])
+
+    def test_legacy_call_omits_pagination_keys(self):
+        """A request without ?page keeps the original response contract."""
+        resp = self.client.get('/api/v1/suggestions/?entity_type=customer')
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertIn('results', data)
+        self.assertNotIn('has_more', data)
+        self.assertNotIn('next_page', data)
+
+    def test_browse_page_size_clamped_to_max(self):
+        """page_size above the max is clamped (no error)."""
+        resp = self.client.get(
+            '/api/v1/suggestions/?entity_type=customer&page=1&page_size=99999'
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # All 8 customers fit well under the 100-row clamp → single page.
+        self.assertFalse(resp.json()['has_more'])
+
+
 # =============================================================================
 # TENANT ISOLATION
 # =============================================================================

@@ -1354,3 +1354,9 @@ export interface SuggestionsResponse {
   recents: SuggestionItem[]
   results: SuggestionItem[]
 }
+
+/** One page of the paginated (infinite-scroll) suggestions response. */
+export interface SuggestionsInfinitePage extends SuggestionsResponse {
+  has_more: boolean
+  next_page: number | null
+}

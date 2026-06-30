@@ -161,16 +161,33 @@ class SuggestionsAPI(APIView):
     """
     Combined suggestions endpoint for combobox/autocomplete UI.
 
-    GET /suggestions/?entity_type=<type>[&search=<term>]
+    GET /suggestions/?entity_type=<type>[&search=<term>][&page=<n>&page_size=<n>]
 
-    Returns:
-      {
-        "favorites": [...],   # up to 10
-        "recents":   [...],   # up to 5, excluding favorites
-        "results":   [...],   # up to 20, always returned (filtered by search when provided)
-      }
+    Two modes:
+
+    1. Legacy / type-to-search (no ``page`` param): returns the first 20
+       matching results, with favorites + recents sections. Response shape:
+         {
+           "favorites": [...],   # up to 10
+           "recents":   [...],   # up to 5, excluding favorites
+           "results":   [...],   # up to 20, filtered by search when provided
+         }
+
+    2. Browse / infinite-scroll (``page`` param present): returns a paginated
+       slice of the FULL ordered queryset so the user can scroll through every
+       record without typing. ``page_size`` defaults to 50 (clamped 1..100).
+       Favorites + recents are only included on page 1. Response shape adds:
+         {
+           ...favorites/recents/results...,
+           "has_more": bool,       # is there a next page
+           "next_page": int|null,  # page number to request next, or null
+         }
     """
     permission_classes = [IsAuthenticated]
+
+    DEFAULT_PAGE_SIZE = 50
+    MAX_PAGE_SIZE = 100
+    LEGACY_RESULT_CAP = 20
 
     def get(self, request):
         entity_type = request.query_params.get('entity_type', '').strip()
@@ -182,43 +199,81 @@ class SuggestionsAPI(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 1. Favorites (max 10)
+        # Browse/infinite-scroll mode is signalled by the presence of ?page=.
+        # Callers that omit it keep the original (capped, single-shot) behavior.
+        page_param = request.query_params.get('page')
+        paginated = page_param is not None
+        if paginated:
+            try:
+                page = max(1, int(page_param))
+            except (TypeError, ValueError):
+                page = 1
+            try:
+                page_size = int(request.query_params.get('page_size', self.DEFAULT_PAGE_SIZE))
+            except (TypeError, ValueError):
+                page_size = self.DEFAULT_PAGE_SIZE
+            page_size = max(1, min(page_size, self.MAX_PAGE_SIZE))
+        else:
+            page = 1
+            page_size = self.LEGACY_RESULT_CAP
+
+        # 1. Favorites (max 10) — only surfaced on the first page.
         fav_qs = UserFavorite.objects.filter(
             user=request.user,
             entity_type=entity_type,
         ).order_by('-created_at')[:10]
-        favorites = [
-            {'id': f.object_id, 'label': f.label, 'is_favorite': True}
-            for f in fav_qs
-        ]
-        fav_ids = {f['id'] for f in favorites}
+        fav_records = list(fav_qs)
+        fav_ids = {f.object_id for f in fav_records}
 
-        # 2. Recents (max 5, exclude favorites)
+        # 2. Recents (max 5, exclude favorites) — only surfaced on the first page.
         recent_qs = UserRecentView.objects.filter(
             user=request.user,
             entity_type=entity_type,
         ).exclude(object_id__in=fav_ids).order_by('-last_viewed_at')[:5]
-        recents = [
-            {'id': r.object_id, 'label': r.label, 'is_favorite': False}
-            for r in recent_qs
-        ]
-        recent_ids = {r['id'] for r in recents}
+        recent_records = list(recent_qs)
+        recent_ids = {r.object_id for r in recent_records}
 
-        # 3. Search results (max 20) — always return results, filtered by search if provided
+        if page == 1:
+            favorites = [
+                {'id': f.object_id, 'label': f.label, 'is_favorite': True}
+                for f in fav_records
+            ]
+            recents = [
+                {'id': r.object_id, 'label': r.label, 'is_favorite': False}
+                for r in recent_records
+            ]
+        else:
+            favorites = []
+            recents = []
+
+        # 3. Results — a paginated slice of the full ordered queryset, with
+        # favorites/recents always excluded so they never duplicate the sections.
         exclude_ids = fav_ids | recent_ids
-        results = self._search_entities(request, entity_type, search, exclude_ids)
+        results, has_more = self._search_entities(
+            request, entity_type, search, exclude_ids, page, page_size,
+        )
 
-        return Response({
+        payload = {
             'favorites': favorites,
             'recents': recents,
             'results': results,
-        })
+        }
+        if paginated:
+            payload['has_more'] = has_more
+            payload['next_page'] = page + 1 if has_more else None
+        return Response(payload)
 
-    def _search_entities(self, request, entity_type, search, exclude_ids):
+    def _search_entities(self, request, entity_type, search, exclude_ids, page, page_size):
+        """
+        Return ``(results, has_more)`` for the given page/page_size window.
+
+        Slices the queryset at the DB level (LIMIT/OFFSET) and fetches one extra
+        row to detect a next page without a separate COUNT query.
+        """
         registry = self._get_registry()
         config = registry.get(entity_type)
         if not config:
-            return []
+            return [], False
 
         model_class, search_fields, label_func = config
         from django.db.models import Q
@@ -230,10 +285,19 @@ class SuggestionsAPI(APIView):
                 q |= Q(**{f'{field}__icontains': search})
             qs = qs.filter(q)
             # Surface names that START WITH the query ahead of substring-only
-            # matches, so the 20-row cap doesn't bury prefix matches.
+            # matches, so the cap doesn't bury prefix matches.
             from shared.search import prefix_ranked
             qs = prefix_ranked(qs, search_fields, search)
-        qs = qs[:20]
+        else:
+            # Browse mode: stable alphabetical ordering on the primary search
+            # field so users can scroll the full record set predictably.
+            qs = qs.order_by(search_fields[0])
+
+        offset = (page - 1) * page_size
+        # Fetch one extra row to determine whether another page exists.
+        window = list(qs[offset:offset + page_size + 1])
+        has_more = len(window) > page_size
+        window = window[:page_size]
 
         # Determine which results are already favorited
         existing_fav_ids = set(
@@ -243,14 +307,15 @@ class SuggestionsAPI(APIView):
             ).values_list('object_id', flat=True)
         )
 
-        return [
+        results = [
             {
                 'id': obj.id,
                 'label': label_func(obj),
                 'is_favorite': obj.id in existing_fav_ids,
             }
-            for obj in qs
+            for obj in window
         ]
+        return results, has_more
 
     def _get_registry(self):
         """

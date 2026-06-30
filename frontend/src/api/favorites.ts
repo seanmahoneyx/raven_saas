@@ -1,8 +1,8 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import api from './client'
 import { getApiErrorMessage } from '@/lib/errors'
-import type { EntityType, UserFavorite, UserRecentView, SuggestionsResponse, ApiError } from '@/types/api'
+import type { EntityType, UserFavorite, UserRecentView, SuggestionsResponse, SuggestionsInfinitePage, ApiError } from '@/types/api'
 
 // ── Query Keys ──────────────────────────────────────────────────────
 
@@ -11,6 +11,8 @@ export const favoritesKeys = {
   list: (entityType?: EntityType) => [...favoritesKeys.all, 'list', entityType] as const,
   suggestions: (entityType: EntityType, search: string) =>
     ['suggestions', entityType, search] as const,
+  suggestionsInfinite: (entityType: EntityType, search: string) =>
+    ['suggestions', 'infinite', entityType, search] as const,
   recents: (entityType?: EntityType) => ['recents', entityType] as const,
 }
 
@@ -109,5 +111,38 @@ export function useSuggestions(entityType: EntityType, search: string, enabled =
     },
     enabled,
     staleTime: 1000 * 30, // 30 seconds
+  })
+}
+
+// ── Suggestions (infinite scroll — browse all records) ──────────────
+
+const SUGGESTIONS_PAGE_SIZE = 50
+
+/**
+ * Infinite-scroll variant of {@link useSuggestions}. Pages through the FULL
+ * record set (no 20-row cap) so a combobox can let the user scroll every record
+ * without typing. Favorites + recents are returned on page 1 only. Pagination
+ * resets automatically when `search` changes because the query key includes it.
+ */
+export function useSuggestionsInfinite(entityType: EntityType, search: string, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: favoritesKeys.suggestionsInfinite(entityType, search),
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const params: Record<string, string> = {
+        entity_type: entityType,
+        page: String(pageParam),
+        page_size: String(SUGGESTIONS_PAGE_SIZE),
+      }
+      if (search) params.search = search
+      const { data } = await api.get<SuggestionsInfinitePage>('/suggestions/', { params })
+      return data
+    },
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more ? (lastPage.next_page ?? undefined) : undefined,
+    enabled,
+    // Always refetch fresh batches while scrolling so newly loaded pages aren't
+    // served stale from cache.
+    staleTime: 0,
   })
 }

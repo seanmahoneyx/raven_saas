@@ -143,6 +143,7 @@ export default function Pipeline() {
             }
             placeholder="Customer…"
             allowClear
+            browseAll
           />
         </div>
         <div style={{ width: 220 }}>

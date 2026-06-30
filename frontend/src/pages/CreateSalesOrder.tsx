@@ -508,6 +508,7 @@ export default function CreateSalesOrder() {
                     onChange={(id) => handleCustomerChange(id ? String(id) : '')}
                     placeholder="Select customer..."
                     allowClear
+                    browseAll
                   />
                 </div>
                 <div>
