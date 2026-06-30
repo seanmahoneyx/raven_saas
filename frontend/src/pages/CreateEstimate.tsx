@@ -37,6 +37,25 @@ interface EstimateLineForm {
   unit_price: string
 }
 
+// A fresh, untouched draft line. Quantity/price carry the canonical defaults so an
+// untouched draft contributes $0 to the subtotal and is recognized by isEmptyLine.
+const emptyLine = (): EstimateLineForm => ({
+  item: '',
+  description: '',
+  quantity: '1',
+  uom: '',
+  unit_price: '0.00',
+})
+
+// A line is "empty" (a draft "+ Add Line" affordance) when nothing meaningful has been
+// entered: no item/description/uom and quantity/price still at their defaults.
+const isEmptyLine = (line: EstimateLineForm): boolean =>
+  !line.item &&
+  !line.description &&
+  !line.uom &&
+  (line.quantity === '' || line.quantity === '1') &&
+  (line.unit_price === '' || line.unit_price === '0.00')
+
 export default function CreateEstimate() {
   usePageTitle('Create Estimate')
   const navigate = useNavigate()
@@ -60,7 +79,9 @@ export default function CreateEstimate() {
     notes: '',
   })
 
-  const [lines, setLines] = useState<EstimateLineForm[]>([])
+  // Always carry exactly one trailing empty draft row that reads as a "+ Add Line"
+  // affordance; populating it auto-spawns a fresh one beneath (see handleLineChange).
+  const [lines, setLines] = useState<EstimateLineForm[]>([emptyLine()])
 
   const customers = customersData ?? []
   const items = itemsData ?? []
@@ -88,12 +109,13 @@ export default function CreateEstimate() {
     return it ? `${it.sku} - ${it.name}` : ''
   }
 
-  const handleAddLine = () => {
-    setLines([...lines, { item: '', description: '', quantity: '1', uom: '', unit_price: '0.00' }])
-  }
-
   const handleRemoveLine = (index: number) => {
-    setLines(lines.filter((_, i) => i !== index))
+    const remaining = lines.filter((_, i) => i !== index)
+    // Never leave the table without a trailing draft row.
+    if (remaining.length === 0 || !isEmptyLine(remaining[remaining.length - 1])) {
+      remaining.push(emptyLine())
+    }
+    setLines(remaining)
   }
 
   const handleLineChange = (index: number, field: keyof EstimateLineForm, value: string) => {
@@ -107,6 +129,14 @@ export default function CreateEstimate() {
         newLines[index].description = selectedItem.sell_desc || selectedItem.name
       }
     }
+
+    // Maintain the invariant "exactly one trailing empty row": collapse any trailing
+    // empties, then append a single fresh draft. If the user just populated the last
+    // row, this spawns a new "+ Add Line" row directly beneath it.
+    while (newLines.length > 0 && isEmptyLine(newLines[newLines.length - 1])) {
+      newLines.pop()
+    }
+    newLines.push(emptyLine())
 
     setLines(newLines)
   }
@@ -126,14 +156,17 @@ export default function CreateEstimate() {
         customer_po: formData.customer_po,
         notes: formData.notes,
         tax_rate: formData.tax_rate,
-        lines: lines.map((line, index) => ({
-          line_number: (index + 1) * 10,
-          item: Number(line.item),
-          description: line.description,
-          quantity: Number(line.quantity),
-          uom: Number(line.uom),
-          unit_price: line.unit_price,
-        })),
+        // Drop trailing/draft empty rows so they're never sent to the API.
+        lines: lines
+          .filter((line) => !isEmptyLine(line))
+          .map((line, index) => ({
+            line_number: (index + 1) * 10,
+            item: Number(line.item),
+            description: line.description,
+            quantity: Number(line.quantity),
+            uom: Number(line.uom),
+            unit_price: line.unit_price,
+          })),
       })
 
       navigate('/estimates')
@@ -162,50 +195,15 @@ export default function CreateEstimate() {
           }
         />
 
-        <form id="create-estimate-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="create-estimate-form" onSubmit={handleSubmit} className="space-y-3">
 
-          {/* Estimate Details */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          {/* Estimate Details — Customer, Status, Dates & Tax consolidated into one dense header card */}
+          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}>
+            <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Estimate Details</span>
             </div>
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="status" style={{ color: 'var(--so-text-secondary)' }}>Status</Label>
-                  <Select value={formData.status} onValueChange={(v) => update('status', v)}>
-                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ESTIMATE_STATUSES.map((s) => (
-                        <SelectItem key={s.value} value={s.value}>
-                          {s.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="tax_rate" style={{ color: 'var(--so-text-secondary)' }}>Tax Rate (%)</Label>
-                  <NumericInput
-                    id="tax_rate"
-                    value={formData.tax_rate}
-                    onValueChange={(v) => update('tax_rate', v)}
-                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Customer */}
-          <div className="rounded-[14px] border animate-in delay-1" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)', position: 'relative', zIndex: 20 }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Customer</span>
-            </div>
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="px-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="customer" style={{ color: 'var(--so-text-secondary)' }}>Customer *</Label>
                   <SearchableCombobox
@@ -235,17 +233,21 @@ export default function CreateEstimate() {
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-              <span className="text-sm font-semibold">Dates</span>
-            </div>
-            <div className="px-6 py-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="status" style={{ color: 'var(--so-text-secondary)' }}>Status</Label>
+                  <Select value={formData.status} onValueChange={(v) => update('status', v)}>
+                    <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ESTIMATE_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="date" style={{ color: 'var(--so-text-secondary)' }}>Estimate Date *</Label>
                   <Input
@@ -267,16 +269,25 @@ export default function CreateEstimate() {
                     style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
                   />
                 </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tax_rate" style={{ color: 'var(--so-text-secondary)' }}>Tax Rate (%)</Label>
+                  <NumericInput
+                    id="tax_rate"
+                    value={formData.tax_rate}
+                    onValueChange={(v) => update('tax_rate', v)}
+                    style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
+                  />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Shipping & Billing */}
           <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Shipping &amp; Billing</span>
             </div>
-            <div className="px-6 py-5">
+            <div className="px-6 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="ship_to" style={{ color: 'var(--so-text-secondary)' }}>Ship To</Label>
@@ -324,25 +335,21 @@ export default function CreateEstimate() {
           {/* No `overflow-hidden` here: the line-item rows host SearchableCombobox dropdowns
               that must overflow the card downward instead of being clipped by it. */}
           <div className="rounded-[14px] border animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Line Items</span>
-              <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </button>
             </div>
-            <div className="px-6 py-5">
-              {lines.length === 0 ? (
-                <p className="text-[13px] text-center py-4" style={{ color: 'var(--so-text-tertiary)' }}>
-                  No lines added. Click "Add Line" to add items to this estimate.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {lines.map((line, index) => (
+            <div className="px-6 py-4">
+              <div className="space-y-2">
+                {lines.map((line, index) => {
+                  const empty = isEmptyLine(line)
+                  return (
                     <div
                       key={index}
                       className="rounded-[10px] p-3"
-                      style={{ background: 'var(--so-bg)', border: '1px solid var(--so-border-light)' }}
+                      style={{
+                        background: 'var(--so-bg)',
+                        border: empty ? '1px dashed var(--so-border)' : '1px solid var(--so-border-light)',
+                      }}
                     >
                       <div className="grid grid-cols-12 gap-2 items-end">
                         <div className="col-span-4 space-y-1">
@@ -352,7 +359,7 @@ export default function CreateEstimate() {
                             value={line.item ? Number(line.item) : null}
                             initialLabel={itemLabel(line.item)}
                             onChange={(id) => handleLineChange(index, 'item', id ? String(id) : '')}
-                            placeholder="Select item..."
+                            placeholder={empty ? '+ Add line — select an item…' : 'Select item...'}
                           />
                         </div>
                         <div className="col-span-2 space-y-1">
@@ -392,37 +399,44 @@ export default function CreateEstimate() {
                           />
                         </div>
                         <div className="col-span-2 flex justify-end">
-                          <button
-                            type="button"
-                            className={dangerBtnClass}
-                            style={{ ...dangerBtnStyle, padding: '6px 10px' }}
-                            onClick={() => handleRemoveLine(index)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          {empty ? (
+                            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
+                              <Plus className="h-3.5 w-3.5" />
+                              Add line
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={dangerBtnClass}
+                              style={{ ...dangerBtnStyle, padding: '6px 10px' }}
+                              onClick={() => handleRemoveLine(index)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       {line.description && (
                         <p className="text-xs mt-1.5 pl-1" style={{ color: 'var(--so-text-tertiary)' }}>{line.description}</p>
                       )}
                     </div>
-                  ))}
+                  )
+                })}
 
-                  <div className="flex justify-end pr-1 pt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                    <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal:</span>
-                    <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>${subtotal.toFixed(2)}</span>
-                  </div>
+                <div className="flex justify-end pr-1 pt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                  <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal:</span>
+                  <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>${subtotal.toFixed(2)}</span>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
           {/* Notes */}
           <div className="rounded-[14px] border overflow-hidden animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="px-6 py-3" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Notes</span>
             </div>
-            <div className="px-6 py-5">
+            <div className="px-6 py-4">
               <Textarea
                 id="notes"
                 value={formData.notes}
@@ -470,15 +484,6 @@ export default function CreateEstimate() {
           className="fixed bottom-16 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 shadow-lg"
           style={{ background: 'var(--so-surface)', borderTop: '1px solid var(--so-border)' }}
         >
-          <button
-            type="button"
-            className={outlineBtnClass}
-            style={{ ...outlineBtnStyle, minHeight: 44 }}
-            onClick={handleAddLine}
-          >
-            <Plus className="h-4 w-4" />
-            Add Line
-          </button>
           <span
             className="flex-1 text-center font-mono text-sm font-semibold"
             style={{ color: 'var(--so-text-primary)' }}
