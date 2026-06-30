@@ -18,6 +18,8 @@ import { FieldHistoryTab } from '@/components/common/FieldHistoryTab'
 import { format } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency as formatCurrencyShared } from '@/lib/format'
+import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 
 interface LineForm {
   id?: number
@@ -40,6 +42,9 @@ export default function PriceListDetail() {
   const { data: itemsData } = useAllItems()
 
   const [isEditing, setIsEditing] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const { data: attachments } = useAttachments('pricing', 'pricelisthead', priceListId)
+  const attachmentCount = attachments?.length ?? 0
   const [formData, setFormData] = useState({
     customer: '',
     item: '',
@@ -451,7 +456,16 @@ export default function PriceListDetail() {
           </div>
         </div>
 
+        {!isEditing && (
+          <AttachmentsActivityFooter
+            attachmentCount={attachmentCount}
+            onAttachmentsOpen={() => setAttachmentsOpen(true)}
+          />
+        )}
+
       </div>
+
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="pricing" modelName="pricelisthead" objectId={priceListId} />
     </div>
   )
 }

@@ -15,6 +15,8 @@ import { SearchableCombobox } from '@/components/common/SearchableCombobox'
 import { format } from 'date-fns'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency as formatCurrencyShared } from '@/lib/format'
+import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 
 interface LineForm {
   id?: number
@@ -35,6 +37,9 @@ export default function CostListDetail() {
   const updateCostList = useUpdateCostList()
 
   const [isEditing, setIsEditing] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const { data: attachments } = useAttachments('costing', 'costlisthead', costListId)
+  const attachmentCount = attachments?.length ?? 0
   const [formData, setFormData] = useState({
     vendor: '',
     item: '',
@@ -424,7 +429,16 @@ export default function CostListDetail() {
           </div>
         </div>
 
+        {!isEditing && (
+          <AttachmentsActivityFooter
+            attachmentCount={attachmentCount}
+            onAttachmentsOpen={() => setAttachmentsOpen(true)}
+          />
+        )}
+
       </div>
+
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="costing" modelName="costlisthead" objectId={costListId} />
     </div>
   )
 }

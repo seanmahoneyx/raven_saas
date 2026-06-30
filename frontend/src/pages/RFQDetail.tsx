@@ -782,7 +782,7 @@ export default function RFQDetail() {
           <DialogHeader>
             <DialogTitle>Attachments</DialogTitle>
           </DialogHeader>
-          <FileUpload appLabel="purchasing" modelName="rfq" objectId={rfqId} />
+          <FileUpload appLabel="orders" modelName="rfq" objectId={rfqId} />
         </DialogContent>
       </Dialog>
 

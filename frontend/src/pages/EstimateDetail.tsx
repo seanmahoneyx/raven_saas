@@ -900,7 +900,7 @@ export default function EstimateDetail() {
         )}
       </div>
 
-      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="estimates" modelName="estimate" objectId={estimateId} />
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="orders" modelName="estimate" objectId={estimateId} />
       <PanelToggleButton contentType="estimate" objectId={estimateId} onClick={togglePanel} isOpen={panelOpen} />
       <TransactionPanel contentType="estimate" objectId={estimateId} open={panelOpen} onClose={closePanel} label={estimate ? `Estimate ${estimate.estimate_number}` : 'Estimate'} />
 

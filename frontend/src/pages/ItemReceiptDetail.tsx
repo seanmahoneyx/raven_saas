@@ -8,6 +8,8 @@ import { useItemReceipt, useCreateBillFromReceipt } from '@/api/inventory'
 import { getStatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency } from '@/lib/format'
 import { primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+import { useAttachments } from '@/api/attachments'
+import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 
 export default function ItemReceiptDetail() {
   const { id } = useParams<{ id: string }>()
@@ -17,6 +19,9 @@ export default function ItemReceiptDetail() {
   const { data: receipt, isLoading } = useItemReceipt(receiptId)
   const createBill = useCreateBillFromReceipt()
   const [busy, setBusy] = useState(false)
+  const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+  const { data: attachments } = useAttachments('inventory', 'itemreceipt', receiptId)
+  const attachmentCount = attachments?.length ?? 0
 
   usePageTitle(receipt ? `Receipt ${receipt.receipt_number}` : 'Receipt')
 
@@ -234,7 +239,14 @@ export default function ItemReceiptDetail() {
             All lines on this receipt are fully billed.
           </div>
         )}
+
+        <AttachmentsActivityFooter
+          attachmentCount={attachmentCount}
+          onAttachmentsOpen={() => setAttachmentsOpen(true)}
+        />
       </div>
+
+      <AttachmentsDialog open={attachmentsOpen} onOpenChange={setAttachmentsOpen} appLabel="inventory" modelName="itemreceipt" objectId={receiptId} />
     </div>
   )
 }
