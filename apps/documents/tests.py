@@ -224,3 +224,43 @@ class ConvertCreatesDocumentLinkTestCase(TestCase):
         self.assertEqual(link.created_by, self.user)
         self.assertEqual(link.source, est)
         self.assertEqual(link.target, so)
+
+
+class AttachmentForObjectRouteTestCase(TestCase):
+    """Regression: GET /attachments/for-object/ must dispatch to the for_object
+    action, not be swallowed as a detail/retrieve lookup (pk='for-object') -> 404.
+    This URL is what every frontend page calls for the attachment count/list.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tenant = Tenant.objects.create(
+            name='Route Co', subdomain='test-route', is_default=True,
+        )
+        cls.user = User.objects.create_user(username='routeuser', password='pass')
+        set_current_tenant(cls.tenant)
+        cls.party = Party.objects.create(
+            tenant=cls.tenant, party_type='CUSTOMER',
+            code='ROUTE-PARTY', display_name='Route Party',
+        )
+
+    def setUp(self):
+        set_current_tenant(self.tenant)
+
+    def test_hyphen_url_dispatches_to_for_object_action(self):
+        from django.urls import resolve
+        match = resolve('/api/v1/attachments/for-object/')
+        self.assertEqual(match.func.actions.get('get'), 'for_object')
+
+    def test_for_object_returns_200_not_404(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+        ct = ContentType.objects.get_for_model(Party)
+        resp = client.get(
+            '/api/v1/attachments/for-object/',
+            {'app_label': ct.app_label, 'model': ct.model, 'object_id': self.party.pk},
+            HTTP_HOST='localhost',
+        )
+        self.assertEqual(resp.status_code, 200, resp.data if hasattr(resp, 'data') else resp.content)
+        self.assertIsInstance(resp.data, list)

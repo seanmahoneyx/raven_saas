@@ -75,7 +75,7 @@ class AttachmentViewSet(viewsets.ModelViewSet):
             },
         ],
     )
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], url_path='for-object')
     def for_object(self, request):
         """Get all attachments for a specific object by app_label, model, and object_id."""
         app_label = request.query_params.get('app_label')
