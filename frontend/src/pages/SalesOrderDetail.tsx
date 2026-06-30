@@ -15,6 +15,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
+import DocumentPipeline from '@/components/pipeline/DocumentPipeline'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -567,6 +568,18 @@ export default function SalesOrderDetail() {
             )}
           </div>
         </div>
+
+        {/* ── Transaction Pipeline ───────────────── */}
+        {!isEditing && (
+          <DocumentPipeline
+            appLabel="orders"
+            modelName="salesorder"
+            objectId={orderId}
+            selfType="orders.salesorder"
+            selfDocNumber={order.order_number}
+            className="mb-4 animate-in delay-2"
+          />
+        )}
 
         {/* ── Order Details Card ─────────────────── */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>

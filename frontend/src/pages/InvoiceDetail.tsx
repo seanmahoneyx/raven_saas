@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import PrintForm from '@/components/common/PrintForm'
+import DocumentPipeline from '@/components/pipeline/DocumentPipeline'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { getApiErrorMessage, toastApiError } from '@/lib/errors'
@@ -272,6 +273,16 @@ export default function InvoiceDetailPage() {
             )}
           </div>
         </div>
+
+        {/* ── Transaction Pipeline ─────────────────── */}
+        <DocumentPipeline
+          appLabel="invoicing"
+          modelName="invoice"
+          objectId={invoiceId}
+          selfType="invoicing.invoice"
+          selfDocNumber={invoice.invoice_number}
+          className="mb-4 animate-in delay-2"
+        />
 
         {/* ── Invoice Details Card ─────────────────── */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>

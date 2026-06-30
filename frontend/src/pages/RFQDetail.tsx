@@ -58,7 +58,7 @@ export default function RFQDetail() {
   const [priceListDialogOpen, setPriceListDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
-  const { data: attachments } = useAttachments('purchasing', 'rfq', rfqId)
+  const { data: attachments } = useAttachments('orders', 'rfq', rfqId)
   const attachmentCount = attachments?.length ?? 0
 
   const [formData, setFormData] = useState({

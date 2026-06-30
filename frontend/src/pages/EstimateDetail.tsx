@@ -13,6 +13,7 @@ import { useAttachments } from '@/api/attachments'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
+import DocumentPipeline from '@/components/pipeline/DocumentPipeline'
 import { Input } from '@/components/ui/input'
 import { NumericInput } from '@/components/ui/numeric-input'
 import {
@@ -66,7 +67,7 @@ export default function EstimateDetail() {
   const [fabOpen, setFabOpen] = useState(false)
   const [convertMenuOpen, setConvertMenuOpen] = useState(false)
   const [attachmentsOpen, setAttachmentsOpen] = useState(false)
-  const { data: attachments } = useAttachments('estimates', 'estimate', estimateId)
+  const { data: attachments } = useAttachments('orders', 'estimate', estimateId)
   const attachmentCount = attachments?.length ?? 0
   const [formData, setFormData] = useState({
     status: 'draft' as EstimateStatus,
@@ -545,6 +546,18 @@ export default function EstimateDetail() {
             )}
           </div>
         </div>
+
+        {/* ── Transaction Pipeline ─────────────────── */}
+        {!isEditing && (
+          <DocumentPipeline
+            appLabel="orders"
+            modelName="estimate"
+            objectId={estimateId}
+            selfType="orders.estimate"
+            selfDocNumber={estimate.estimate_number}
+            className="mb-4 animate-in delay-2"
+          />
+        )}
 
         {/* ── Estimate Details Card ────────────────── */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>

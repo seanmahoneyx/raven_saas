@@ -17,6 +17,7 @@ import {
 import { useAttachments } from '@/api/attachments'
 import { AttachmentsActivityFooter, AttachmentsDialog } from '@/components/common/AttachmentsActivityFooter'
 import PrintForm from '@/components/common/PrintForm'
+import DocumentPipeline from '@/components/pipeline/DocumentPipeline'
 import { Input } from '@/components/ui/input'
 import { NumericInput } from '@/components/ui/numeric-input'
 import {
@@ -654,6 +655,18 @@ export default function ContractDetail() {
             )}
           </div>
         </div>
+
+        {/* -- Transaction Pipeline ------------------------------ */}
+        {!isEditing && (
+          <DocumentPipeline
+            appLabel="contracts"
+            modelName="contract"
+            objectId={contractId}
+            selfType="contracts.contract"
+            selfDocNumber={contract.contract_number}
+            className="mb-4 animate-in delay-2"
+          />
+        )}
 
         {/* -- Contract Details Card ----------------------------- */}
         <div className="rounded-[14px] border overflow-hidden mb-4 animate-in delay-2" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
