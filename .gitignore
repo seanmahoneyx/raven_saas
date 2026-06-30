@@ -30,3 +30,6 @@ pack_code.py
 # Root-level node files (frontend has its own)
 /package.json
 /package-lock.json
+
+# Test/dev uploaded media
+media/

@@ -148,6 +148,10 @@ class InvoicingService:
             invoice.calculate_totals()
             invoice.save()
 
+            # Record document lineage: sales order produced this invoice
+            from apps.documents.models import record_link
+            record_link(sales_order, invoice, 'invoice_from_order', self.tenant, user=self.user)
+
             return invoice
 
     def create_invoice_from_shipment(
@@ -238,6 +242,10 @@ class InvoicingService:
 
             invoice.calculate_totals()
             invoice.save()
+
+            # Record document lineage: shipment produced this invoice
+            from apps.documents.models import record_link
+            record_link(shipment, invoice, 'invoice_from_shipment', self.tenant, user=self.user)
 
             return invoice
 
@@ -430,6 +438,17 @@ class InvoicingService:
                     sales_order_line=pl.sales_order_line,
                     pick_ticket_line=pl,
                 )
+
+            # Record document lineage: each source pick ticket produced this
+            # invoice. A consolidated invoice may draw from several picks.
+            from apps.documents.models import record_link
+            linked_pick_ids = set()
+            for entry in pick_lines:
+                pick = entry['pick_line'].pick_ticket
+                if pick.pk in linked_pick_ids:
+                    continue
+                linked_pick_ids.add(pick.pk)
+                record_link(pick, invoice, 'invoice_from_picks', self.tenant, user=self.user)
 
             return invoice
 

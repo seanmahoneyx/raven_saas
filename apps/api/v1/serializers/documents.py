@@ -4,8 +4,30 @@ Serializers for Document & Attachment models.
 """
 from rest_framework import serializers
 from django.contrib.contenttypes.models import ContentType
-from apps.documents.models import Attachment
+from apps.documents.models import Attachment, DocumentLink
 from .base import TenantModelSerializer
+
+
+# Common "number"/name fields used to build a friendly label for a linked
+# document, tried in order. Falls back to str(obj) when none are present.
+_LABEL_FIELDS = (
+    'estimate_number', 'order_number', 'po_number', 'rfq_number',
+    'contract_number', 'pick_number', 'bol_number', 'invoice_number',
+    'bill_number', 'receipt_number', 'shipment_number', 'reference_number',
+    'name', 'display_name', 'number',
+)
+
+
+def _document_label(obj, content_type):
+    """Build a human label like 'Estimate EST-1001' for a linked document."""
+    model_label = content_type.model_class()._meta.verbose_name.title() if content_type.model_class() else content_type.model.title()
+    if obj is None:
+        return model_label
+    for field in _LABEL_FIELDS:
+        value = getattr(obj, field, None)
+        if value:
+            return f"{model_label} {value}"
+    return f"{model_label} #{obj.pk}"
 
 
 class AttachmentSerializer(TenantModelSerializer):
@@ -74,6 +96,46 @@ class AttachmentUploadSerializer(TenantModelSerializer):
         if request:
             validated_data['uploaded_by'] = request.user
         return super().create(validated_data)
+
+
+class DocumentLinkSerializer(TenantModelSerializer):
+    """Serializer for DocumentLink lineage edges.
+
+    Exposes both ends (type + id), the relation, a human label for each end,
+    and audit metadata so the UI can render the full document chain.
+    """
+    relation_display = serializers.CharField(source='get_relation_display', read_only=True)
+
+    source_type = serializers.SerializerMethodField()
+    source_label = serializers.SerializerMethodField()
+    target_type = serializers.SerializerMethodField()
+    target_label = serializers.SerializerMethodField()
+
+    created_by_name = serializers.CharField(
+        source='created_by.username', read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = DocumentLink
+        fields = [
+            'id', 'relation', 'relation_display',
+            'source_content_type', 'source_object_id', 'source_type', 'source_label',
+            'target_content_type', 'target_object_id', 'target_type', 'target_label',
+            'created_by', 'created_by_name', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_source_type(self, obj):
+        return f"{obj.source_content_type.app_label}.{obj.source_content_type.model}"
+
+    def get_target_type(self, obj):
+        return f"{obj.target_content_type.app_label}.{obj.target_content_type.model}"
+
+    def get_source_label(self, obj):
+        return _document_label(obj.source, obj.source_content_type)
+
+    def get_target_label(self, obj):
+        return _document_label(obj.target, obj.target_content_type)
 
 
 class GeneratePDFSerializer(serializers.Serializer):

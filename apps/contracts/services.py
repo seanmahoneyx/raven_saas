@@ -128,6 +128,10 @@ class ContractService:
                 notes=notes,
             )
 
+            # Record document lineage: contract produced this sales order
+            from apps.documents.models import record_link
+            record_link(contract, sales_order, 'contract_release', self.tenant, user=self.user)
+
             return sales_order, release
 
     def create_multi_line_release(self, release_lines, ship_to=None, scheduled_date=None, notes='', customer_po=''):
@@ -244,6 +248,17 @@ class ContractService:
                     release_date=timezone.now().date(),
                     notes=notes,
                 )
+
+            # Record document lineage: each source contract produced this sales
+            # order. A multi-line release may draw from several contracts.
+            from apps.documents.models import record_link
+            linked_contract_ids = set()
+            for rl in release_lines:
+                contract = contract_lines[rl['contract_line_id']].contract
+                if contract.pk in linked_contract_ids:
+                    continue
+                linked_contract_ids.add(contract.pk)
+                record_link(contract, sales_order, 'contract_release', self.tenant, user=self.user)
 
             return sales_order
 

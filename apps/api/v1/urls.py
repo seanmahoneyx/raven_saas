@@ -61,7 +61,7 @@ from .views.priority_list import (
 )
 from .views.design import DesignRequestViewSet
 from .views.contacts import ContactViewSet
-from .views.documents import AttachmentViewSet
+from .views.documents import AttachmentViewSet, DocumentLinkViewSet
 from .views.reporting import (
     TrialBalanceView,
     IncomeStatementView,
@@ -245,6 +245,7 @@ router.register(r'contacts', ContactViewSet, basename='contact')
 
 # Documents & Attachments
 router.register(r'attachments', AttachmentViewSet, basename='attachment')
+router.register(r'document-links', DocumentLinkViewSet, basename='documentlink')
 
 urlpatterns = [
     # JWT Authentication endpoints (legacy - tokens in response body)

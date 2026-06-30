@@ -137,6 +137,10 @@ def convert_estimate_to_order(estimate, tenant, user=None):
         # Mark estimate as converted
         Estimate.objects.filter(pk=estimate.pk).update(status='converted')
 
+        # Record document lineage: estimate produced this sales order
+        from apps.documents.models import record_link
+        record_link(estimate, sales_order, 'estimate_to_sales_order', tenant, user=user)
+
         return sales_order
 
 
@@ -195,6 +199,10 @@ def convert_estimate_to_contract(estimate, tenant, user=None):
 
         # Mark estimate as converted
         Estimate.objects.filter(pk=estimate.pk).update(status='converted')
+
+        # Record document lineage: estimate produced this contract
+        from apps.documents.models import record_link
+        record_link(estimate, contract, 'estimate_to_contract', tenant, user=user)
 
         return contract
 
@@ -283,6 +291,10 @@ def convert_rfq_to_po(rfq, tenant, user=None):
 
         # Mark RFQ as converted
         RFQ.objects.filter(pk=rfq.pk).update(status='converted')
+
+        # Record document lineage: RFQ produced this purchase order
+        from apps.documents.models import record_link
+        record_link(rfq, purchase_order, 'rfq_to_purchase_order', tenant, user=user)
 
         return purchase_order
 

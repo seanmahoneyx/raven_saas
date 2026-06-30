@@ -456,6 +456,10 @@ class ShippingService:
             # Aggregate items from all orders
             self._generate_bol_lines(bol, shipment)
 
+            # Record document lineage: shipment produced this BOL
+            from apps.documents.models import record_link
+            record_link(shipment, bol, 'bol_from_shipment', self.tenant, user=self.user)
+
             return bol
 
     def _generate_bol_lines(self, bol, shipment):

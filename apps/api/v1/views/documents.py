@@ -5,16 +5,18 @@ ViewSets for Document & Attachment management.
 from rest_framework import viewsets, filters, status, parsers
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Q
 from django.contrib.contenttypes.models import ContentType
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from apps.api.v1.views.base import pdf_response
-from apps.documents.models import Attachment
+from apps.documents.models import Attachment, DocumentLink
 from apps.documents.pdf import PDFService
 from apps.documents.email import EmailService
 from apps.api.v1.serializers.documents import (
     AttachmentSerializer, AttachmentUploadSerializer, GeneratePDFSerializer,
+    DocumentLinkSerializer,
 )
 
 
@@ -100,6 +102,69 @@ class AttachmentViewSet(viewsets.ModelViewSet):
         serializer = AttachmentSerializer(
             attachments, many=True, context={'request': request}
         )
+        return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(tags=['documents'], summary='List document lineage links'),
+    retrieve=extend_schema(tags=['documents'], summary='Get a document link'),
+)
+class DocumentLinkViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only ViewSet exposing document lineage edges.
+
+    Use the ``for-object`` action to fetch the whole chain for a document:
+    all links where the document is either the source OR the target.
+    """
+    serializer_class = DocumentLinkSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['relation', 'source_content_type', 'target_content_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        return DocumentLink.objects.select_related(
+            'source_content_type', 'target_content_type', 'created_by'
+        ).all()
+
+    @extend_schema(
+        tags=['documents'],
+        summary='List lineage links for a specific object (source OR target)',
+        parameters=[
+            {'name': 'app_label', 'in': 'query', 'type': 'string',
+             'description': "App label (e.g., 'orders')"},
+            {'name': 'model', 'in': 'query', 'type': 'string',
+             'description': "Model name (e.g., 'salesorder')"},
+            {'name': 'object_id', 'in': 'query', 'type': 'integer',
+             'description': 'Object ID'},
+        ],
+    )
+    @action(detail=False, methods=['get'], url_path='for-object')
+    def for_object(self, request):
+        """Return all lineage links where the object is the source OR target."""
+        app_label = request.query_params.get('app_label')
+        model_name = request.query_params.get('model')
+        object_id = request.query_params.get('object_id')
+
+        if not all([app_label, model_name, object_id]):
+            return Response(
+                {'error': 'app_label, model, and object_id are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            ct = ContentType.objects.get(app_label=app_label, model=model_name)
+        except ContentType.DoesNotExist:
+            return Response(
+                {'error': f'Unknown model: {app_label}.{model_name}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        links = self.get_queryset().filter(
+            Q(source_content_type=ct, source_object_id=object_id)
+            | Q(target_content_type=ct, target_object_id=object_id)
+        )
+        serializer = self.get_serializer(links, many=True)
         return Response(serializer.data)
 
 
