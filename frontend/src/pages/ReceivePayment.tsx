@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useAllAccounts } from '@/api/accounting'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import apiClient from '@/api/client'
@@ -39,10 +39,12 @@ const labelStyle: React.CSSProperties = { color: 'var(--so-text-secondary)' }
 export default function ReceivePayment() {
   usePageTitle('Receive Payment')
   const navigate = useNavigate()
+  const location = useLocation()
+  const prefill = location.state as { customerId?: number; invoiceId?: number } | null
   const queryClient = useQueryClient()
 
   // State
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(prefill?.customerId ?? null)
   const [amount, setAmount] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<string>('CHECK')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -78,6 +80,23 @@ export default function ReceivePayment() {
     queryFn: () => apiClient.get(`/customer-payments/open-invoices/?customer=${selectedCustomerId}`).then(r => r.data),
     enabled: !!selectedCustomerId,
   })
+
+  // Auto-select a preselected invoice (from InvoiceDetail "Record Payment"), once.
+  const prefillApplied = useRef(false)
+  useEffect(() => {
+    if (prefillApplied.current) return
+    if (!prefill?.invoiceId || !openInvoices) return
+    const invoice = openInvoices.find((i: OpenInvoice) => i.id === prefill.invoiceId)
+    if (!invoice) return
+    prefillApplied.current = true
+    if (selectedInvoices.has(invoice.id)) return
+    const balance = parseFloat(invoice.balance_due)
+    setSelectedInvoices((prev) => new Set(prev).add(invoice.id))
+    if (balance > 0) {
+      setApplications((prev) => ({ ...prev, [invoice.id]: balance.toFixed(2) }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openInvoices])
 
   // Create draft mutation
   const createDraft = useMutation({

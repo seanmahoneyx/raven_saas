@@ -18,6 +18,7 @@ from django.contrib.contenttypes.models import ContentType
 from .models import CustomerPayment, PaymentApplication
 from apps.accounting.models import AccountingSettings, JournalEntry, JournalEntryLine
 from apps.accounting.services import AccountingService
+from apps.documents.models import record_link
 
 
 class PaymentService:
@@ -227,6 +228,15 @@ class PaymentService:
             # Update invoice amount_paid (plain arithmetic so save() status logic works)
             invoice.amount_paid += amount
             invoice.save()  # Triggers status auto-update (paid/partial)
+
+            # Record document-lineage link (Invoice → Payment). Idempotent get_or_create.
+            record_link(
+                source=payment,
+                target=invoice,
+                relation='payment_for_invoice',
+                tenant=payment.tenant,
+                user=self.user,
+            )
 
         # Calculate unapplied amount
         unapplied = payment.amount - total_applied

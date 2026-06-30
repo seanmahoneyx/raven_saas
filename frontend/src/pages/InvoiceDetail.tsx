@@ -7,7 +7,7 @@ import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
 import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
-  ArrowLeft, FileDown, Mail, Send, Ban, FileText,
+  ArrowLeft, FileDown, Mail, Send, Ban, FileText, DollarSign,
 } from 'lucide-react'
 import FileUpload from '@/components/common/FileUpload'
 import PrintForm from '@/components/common/PrintForm'
@@ -259,6 +259,16 @@ export default function InvoiceDetailPage() {
               <Mail className="h-3.5 w-3.5" />
               Email
             </button>
+            {balanceNum > 0 && invoice.status !== 'void' && invoice.status !== 'paid' && (
+              <button
+                className={primaryBtnClass}
+                style={primaryBtnStyle}
+                onClick={() => navigate('/receive-payment', { state: { customerId: invoice.customer, invoiceId: invoice.id } })}
+              >
+                <DollarSign className="h-3.5 w-3.5" />
+                Record Payment
+              </button>
+            )}
             {invoice.status === 'draft' && (
               <button className={primaryBtnClass} style={primaryBtnStyle} onClick={handleSend}>
                 <Send className="h-3.5 w-3.5" />
