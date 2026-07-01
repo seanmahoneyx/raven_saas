@@ -339,9 +339,8 @@ export default function Estimates() {
             {kpiStats.map((stat) => (
               <KpiCard
                 key={stat.label}
-                label={stat.label}
+                label={getStatusBadge(stat.status)}
                 value={stat.value}
-                hint={getStatusBadge(stat.status)}
               />
             ))}
           </KpiGrid>

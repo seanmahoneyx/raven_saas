@@ -24,7 +24,7 @@ export function KpiGrid({ children, columns = 4, className = '' }: KpiGridProps)
 }
 
 interface KpiCardProps {
-  label: string
+  label: React.ReactNode
   value: React.ReactNode
   hint?: React.ReactNode
   icon?: LucideIcon
