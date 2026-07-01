@@ -25,7 +25,8 @@ import {
 } from '@/components/ui/select'
 import { usePurchaseOrder, useUpdatePurchaseOrder, useReceivePurchaseOrder, useDeletePurchaseOrder } from '@/api/orders'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 import { useCostLookup } from '@/api/costLists'
 import type { OrderStatus } from '@/types/api'
 import { format } from 'date-fns'
@@ -204,6 +205,50 @@ export default function PurchaseOrderDetail() {
       setCostLookupLine(index)
     }
   }
+
+  // Route the grid's single onCellChange into the page's existing specialized
+  // handlers so no logic is lost: item change → UOM autofill + cost lookup;
+  // qty change → cost re-lookup; everything else (uom, cost, notes) → generic.
+  const handleCellChange = (index: number, key: string, value: string | number | null) => {
+    if (key === 'item') handleLineItemChange(index, value == null ? '' : String(value))
+    else if (key === 'quantity_ordered') handleLineQtyChange(index, String(value ?? ''))
+    else handleLineChange(index, key, String(value ?? ''))
+  }
+
+  type POEditLine = { item: string; quantity_ordered: string; uom: string; unit_cost: string; notes: string }
+
+  // Column config for the shared editable grid (edit mode only).
+  const lineColumns: LineItemColumn<POEditLine>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => itemLabel(row.item),
+    },
+    { key: 'quantity_ordered', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'select',
+      width: '110px',
+      placeholder: 'UOM',
+      options: () => uoms.map((u) => ({ value: String(u.id), label: u.code })),
+    },
+    { key: 'unit_cost', header: 'Cost', type: 'numeric', width: '110px', align: 'right' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      type: 'computed',
+      width: '110px',
+      align: 'right',
+      render: (row) =>
+        formatCurrency(((parseFloat(row.quantity_ordered) || 0) * (parseFloat(row.unit_cost) || 0)).toFixed(2)),
+    },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes...' },
+  ]
 
   const handleSave = async () => {
     if (!order) return
@@ -555,13 +600,9 @@ export default function PurchaseOrderDetail() {
         {/* -- Line Items Card ------------------------------------- */}
         <DetailCard
           title="Line Items"
-          headerRight={isEditing ? (
-            <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
-              <Plus className="h-3.5 w-3.5" /> Add Line
-            </button>
-          ) : (
+          headerRight={
             <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>
-          )}
+          }
           className="mb-4"
           animateDelay="delay-3"
           noOverflowClip
@@ -580,120 +621,18 @@ export default function PurchaseOrderDetail() {
                 onAdd={handleAddLine}
                 total={editTotal}
               />
-            ) : linesFormData.length === 0 ? (
-              <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                No lines. Click "Add Line" below to add items.
-              </div>
             ) : (
-              <div className="overflow-x-auto focus-within:overflow-visible">
-                <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      {[
-                        { label: 'Item', align: 'text-left', cls: 'pl-6 w-[35%]' },
-                        { label: 'Qty', align: 'text-right', cls: 'w-20' },
-                        { label: 'UOM', align: 'text-left', cls: 'w-20' },
-                        { label: 'Rate', align: 'text-right', cls: 'w-24' },
-                        { label: 'Amount', align: 'text-right', cls: 'w-28' },
-                        { label: 'Notes', align: 'text-left', cls: '' },
-                        { label: '', align: 'text-left', cls: 'pr-6 w-10' },
-                      ].map((col, i) => (
-                        <th
-                          key={col.label || `blank-${i}`}
-                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.align} ${col.cls}`}
-                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linesFormData.map((line, index) => {
-                      const selectedItem = items.find(i => String(i.id) === line.item)
-                      const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_cost) || 0)
-                      return (
-                        <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          {/* Item */}
-                          <td className="py-1 px-1 pl-6">
-                            <SearchableCombobox
-                              entityType="item"
-                              value={line.item ? Number(line.item) : null}
-                              initialLabel={itemLabel(line.item)}
-                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                              placeholder="Select item..."
-                            />
-                            {selectedItem && (
-                              <div className="px-3 -mt-1 mb-0.5 font-mono text-[11.5px]" style={{ color: 'var(--so-text-secondary)' }}>{selectedItem.sku}</div>
-                            )}
-                          </td>
-                          {/* Qty */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={line.quantity_ordered}
-                              onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                            />
-                          </td>
-                          {/* UOM */}
-                          <td className="py-1 px-1">
-                            <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
-                              <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
-                                <SelectValue placeholder="UOM" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {uoms.map((uom) => (
-                                  <SelectItem key={uom.id} value={String(uom.id)}>
-                                    {uom.code}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          {/* Rate (unit_cost) */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={line.unit_cost}
-                              onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                            />
-                            {costLookupLine === index && isCostFetching && (
-                              <span className="text-[11px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>Looking up...</span>
-                            )}
-                          </td>
-                          {/* Amount */}
-                          <td className="py-1 px-4 text-right font-mono text-[13px] font-semibold">
-                            {formatCurrency(lineAmount)}
-                          </td>
-                          {/* Notes */}
-                          <td className="py-1 px-1">
-                            <Input
-                              value={line.notes}
-                              onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                              className="h-9 text-[13px] border shadow-none"
-                              placeholder="Notes..."
-                            />
-                          </td>
-                          {/* Delete */}
-                          <td className="py-1.5 px-1 pr-6">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLine(index)}
-                              className="h-7 w-7 inline-flex items-center justify-center rounded transition-colors cursor-pointer"
-                              style={{ color: 'var(--so-danger-text)' }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="px-6 py-4">
+                <LineItemGrid
+                  lines={linesFormData}
+                  columns={lineColumns}
+                  onCellChange={handleCellChange}
+                  onAddLine={handleAddLine}
+                  onRemoveLine={handleRemoveLine}
+                />
+                {costLookupLine !== null && isCostFetching && (
+                  <div className="mt-2 text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Looking up cost…</div>
+                )}
               </div>
             )
           ) : (

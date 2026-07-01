@@ -5,7 +5,7 @@ import { useCollaborationPanel } from '@/hooks/useCollaborationPanel'
 import { TransactionPanel } from '@/components/collaboration/TransactionPanel'
 import { PanelToggleButton } from '@/components/collaboration/PanelToggleButton'
 import {
-  ArrowLeft, Paperclip, Clock, FileText, Send, ArrowRightLeft, ChevronDown, Plus, Trash2,
+  ArrowLeft, Paperclip, Clock, FileText, Send, ArrowRightLeft, ChevronDown,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,6 +18,8 @@ import {
 import { useRFQ, useUpdateRFQ, useConvertRFQ, useSendRFQ, useConvertRFQToPriceList } from '@/api/rfqs'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 import { useAttachments } from '@/api/attachments'
 import FileUpload from '@/components/common/FileUpload'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -38,6 +40,18 @@ const RFQ_STATUSES = [
 ]
 
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
+
+type RfqLineForm = {
+  item: string
+  item_name: string
+  item_sku: string
+  quantity: string
+  uom: string
+  uom_code: string
+  target_price: string
+  quoted_price: string
+  notes: string
+}
 
 /* ═══════════════════════════════════════════════════════ */
 export default function RFQDetail() {
@@ -66,9 +80,7 @@ export default function RFQDetail() {
     expected_date: '',
     notes: '',
   })
-  const [linesFormData, setLinesFormData] = useState<
-    { item: string; item_name: string; item_sku: string; quantity: string; uom: string; uom_code: string; target_price: string; quoted_price: string; notes: string }[]
-  >([])
+  const [linesFormData, setLinesFormData] = useState<RfqLineForm[]>([])
 
   const { data: itemsData } = useAllItems()
   const { data: uomData } = useAllUnitsOfMeasure()
@@ -129,6 +141,50 @@ export default function RFQDetail() {
       }
     }))
   }
+
+  // Adapter: LineItemGrid emits string | number | null. Route the item column to
+  // handleLineItemChange (auto-fills name/sku/uom) and everything else to the
+  // generic handleLineChange, coercing null → ''.
+  const handleCellChange = (index: number, key: string, value: string | number | null) => {
+    const strVal = String(value ?? '')
+    if (key === 'item') {
+      handleLineItemChange(index, strVal)
+    } else {
+      handleLineChange(index, key, strVal)
+    }
+  }
+
+  // Column config for the shared editable grid (edit mode only).
+  const lineColumns: LineItemColumn<RfqLineForm>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      initialLabel: (row) => (row.item_name ? `${row.item_sku} - ${row.item_name}` : undefined),
+      placeholder: 'Select item...',
+    },
+    { key: 'quantity', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'select',
+      width: '110px',
+      placeholder: 'UOM',
+      options: (row) => {
+        const list = uoms.map((u) => ({ value: String(u.id), label: u.code }))
+        // Preserve the denormalized uom_code fallback when the row's uom isn't in the list.
+        if (row.uom && row.uom_code && !uoms.some((u) => String(u.id) === row.uom)) {
+          return [{ value: row.uom, label: row.uom_code }, ...list]
+        }
+        return list
+      },
+    },
+    { key: 'target_price', header: 'Target Price', type: 'numeric', width: '110px', align: 'right' },
+    { key: 'quoted_price', header: 'Quoted Price', type: 'numeric', width: '110px', align: 'right' },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes...' },
+  ]
 
   const handleSave = async () => {
     if (!rfq) return
@@ -534,145 +590,22 @@ export default function RFQDetail() {
           {/* Card header */}
           <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
             <span className="text-sm font-semibold">Line Items</span>
-            {isEditing ? (
-              <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
-                <Plus className="h-3.5 w-3.5" /> Add Line
-              </button>
-            ) : (
-              <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-                {lineCount} {lineCount === 1 ? 'item' : 'items'}
-              </span>
-            )}
+            <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
+              {lineCount} {lineCount === 1 ? 'item' : 'items'}
+            </span>
           </div>
 
-          {/* ── EDIT MODE TABLE ──────────────────── */}
+          {/* ── EDIT MODE GRID (shared LineItemGrid) ── */}
           {isEditing ? (
-            linesFormData.length === 0 ? (
-              <div className="text-center py-8 px-6 text-sm" style={{ color: 'var(--so-text-tertiary)' }}>
-                No lines. Click "Add Line" below to add items.
-              </div>
-            ) : (
-              <div className="overflow-x-auto focus-within:overflow-visible">
-                <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      {[
-                        { label: 'Item', align: 'text-left', cls: 'pl-6 w-[30%]' },
-                        { label: 'Qty', align: 'text-right', cls: 'w-20' },
-                        { label: 'UOM', align: 'text-left', cls: 'w-20' },
-                        { label: 'Target Price', align: 'text-right', cls: 'w-28' },
-                        { label: 'Quoted Price', align: 'text-right', cls: 'w-28' },
-                        { label: 'Notes', align: 'text-left', cls: '' },
-                        { label: '', align: 'text-left', cls: 'pr-6 w-10' },
-                      ].map((col, i) => (
-                        <th
-                          key={col.label || `blank-${i}`}
-                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.align} ${col.cls}`}
-                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linesFormData.map((line, index) => {
-                      return (
-                        <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          {/* Item */}
-                          <td className="py-1 px-1 pl-6">
-                            <SearchableCombobox
-                              entityType="item"
-                              value={line.item ? Number(line.item) : null}
-                              initialLabel={line.item_name ? `${line.item_sku} - ${line.item_name}` : undefined}
-                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                              placeholder="Select item..."
-                            />
-                          </td>
-                          {/* Qty */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={line.quantity}
-                              onChange={(e) => handleLineChange(index, 'quantity', e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                            />
-                          </td>
-                          {/* UOM */}
-                          <td className="py-1 px-1">
-                            {(() => {
-                              const currentUomInList = uoms.some(u => String(u.id) === line.uom)
-                              return (
-                                <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
-                                  <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
-                                    <SelectValue placeholder="UOM" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {!currentUomInList && line.uom && line.uom_code && (
-                                      <SelectItem key={line.uom} value={line.uom}>
-                                        {line.uom_code}
-                                      </SelectItem>
-                                    )}
-                                    {uoms.map((uom) => (
-                                      <SelectItem key={uom.id} value={String(uom.id)}>
-                                        {uom.code}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              )
-                            })()}
-                          </td>
-                          {/* Target Price */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={line.target_price}
-                              onChange={(e) => handleLineChange(index, 'target_price', e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                              placeholder="0.00"
-                            />
-                          </td>
-                          {/* Quoted Price */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={line.quoted_price}
-                              onChange={(e) => handleLineChange(index, 'quoted_price', e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                              placeholder="0.00"
-                            />
-                          </td>
-                          {/* Notes */}
-                          <td className="py-1 px-1">
-                            <Input
-                              value={line.notes}
-                              onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                              className="h-9 text-[13px] border shadow-none"
-                              placeholder="Notes..."
-                            />
-                          </td>
-                          {/* Delete */}
-                          <td className="py-1.5 px-1 pr-6">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLine(index)}
-                              className="h-7 w-7 inline-flex items-center justify-center rounded transition-colors cursor-pointer"
-                              style={{ color: 'var(--so-danger-text)' }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )
+            <div className="px-6 py-4">
+              <LineItemGrid
+                lines={linesFormData}
+                columns={lineColumns}
+                onCellChange={handleCellChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
+            </div>
           ) : (
             /* ── READ-ONLY TABLE ─────────────────── */
             rfq.lines && rfq.lines.length > 0 ? (

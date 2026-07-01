@@ -18,9 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, Save, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Plus, Save, AlertTriangle } from 'lucide-react'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
 import type { OrderStatus, FulfillmentMethod } from '@/types/api'
@@ -66,6 +68,25 @@ interface CopyFromPurchaseOrderLine {
   fulfillment_method?: string
 }
 
+interface POLineForm {
+  item: string
+  quantity_ordered: string
+  uom: string
+  unit_cost: string
+  notes: string
+  fulfillment_method: string
+}
+
+// A fresh, blank line for the grid's explicit "+ Add Line" action.
+const emptyLine = (): POLineForm => ({
+  item: '',
+  quantity_ordered: '1',
+  uom: '',
+  unit_cost: '0.00',
+  notes: '',
+  fulfillment_method: '',
+})
+
 interface CopyFromPurchaseOrder {
   po_number?: string
   status?: string
@@ -109,16 +130,16 @@ export default function CreatePurchaseOrder() {
     scheduled_date: copyData?.scheduled_date || '',
     notes: copyData?.notes || '',
   })
-  const [linesFormData, setLinesFormData] = useState<
-    { item: string; quantity_ordered: string; uom: string; unit_cost: string; notes: string; fulfillment_method: string }[]
-  >(copyData?.lines?.map((l) => ({
-    item: l.item,
-    quantity_ordered: l.quantity_ordered,
-    uom: l.uom,
-    unit_cost: l.unit_cost,
-    notes: l.notes || '',
-    fulfillment_method: l.fulfillment_method || '',
-  })) || [])
+  const [linesFormData, setLinesFormData] = useState<POLineForm[]>(
+    copyData?.lines?.map((l) => ({
+      item: l.item,
+      quantity_ordered: l.quantity_ordered,
+      uom: l.uom,
+      unit_cost: l.unit_cost,
+      notes: l.notes || '',
+      fulfillment_method: l.fulfillment_method || '',
+    })) || [emptyLine()],
+  )
 
   const vendors = vendorsData ?? []
   const locations = locationsData ?? []
@@ -161,7 +182,7 @@ export default function CreatePurchaseOrder() {
   const isMobile = useIsMobile()
 
   const handleAddLine = () => {
-    setLinesFormData(prev => [...prev, { item: '', quantity_ordered: '1', uom: '', unit_cost: '0.00', notes: '', fulfillment_method: '' }])
+    setLinesFormData(prev => [...prev, emptyLine()])
   }
 
   const handleRemoveLine = (index: number) => {
@@ -221,6 +242,65 @@ export default function CreatePurchaseOrder() {
     (sum, line) => sum + calcLineAmount(line.quantity_ordered, line.unit_cost),
     0
   )
+
+  // Route the grid's single onCellChange into the page's existing specialized
+  // handlers so no logic is lost: item change → UOM autofill + cost lookup +
+  // similar-item warning; qty change → cost re-lookup; everything else → generic.
+  const handleCellChange = (index: number, key: string, value: string | number | null) => {
+    if (key === 'item') handleLineItemChange(index, value == null ? '' : String(value))
+    else if (key === 'quantity_ordered') handleLineQtyChange(index, String(value ?? ''))
+    else handleLineChange(index, key, String(value ?? ''))
+  }
+
+  // Column config for the shared editable grid.
+  const lineColumns: LineItemColumn<POLineForm>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => itemLabel(row.item),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      type: 'readonly',
+      width: '1.5fr',
+      render: (row) => items.find((i) => String(i.id) === row.item)?.name || '—',
+    },
+    {
+      key: 'fulfillment_method',
+      header: 'Fulfill',
+      type: 'select',
+      width: '120px',
+      placeholder: 'Fulfill',
+      options: (row) => {
+        const itemType = items.find((i) => String(i.id) === row.item)?.item_type
+        return itemType ? FULFILLMENT_OPTIONS[itemType] || [] : []
+      },
+    },
+    { key: 'quantity_ordered', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'readonly',
+      width: '80px',
+      render: (row) => items.find((i) => String(i.id) === row.item)?.base_uom_code ?? '—',
+    },
+    { key: 'unit_cost', header: 'Cost', type: 'numeric', width: '110px', align: 'right' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      type: 'computed',
+      width: '110px',
+      align: 'right',
+      render: (row) =>
+        row.item ? formatCurrency(calcLineAmount(row.quantity_ordered, row.unit_cost).toFixed(2)) : '—',
+    },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes...' },
+  ]
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -470,187 +550,53 @@ export default function CreatePurchaseOrder() {
                 total={editTotal}
               />
             ) : (
-            <>
-            <div className="px-6 py-4 flex items-center justify-between">
-              <span className="text-sm font-semibold">Line Items</span>
-              <button
-                type="button"
-                className={primaryBtnClass}
-                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
-                onClick={handleAddLine}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </button>
+            <div className="px-6 py-4">
+              <div className="mb-3">
+                <span className="text-sm font-semibold">Line Items</span>
+              </div>
+
+              <LineItemGrid
+                lines={linesFormData}
+                columns={lineColumns}
+                onCellChange={handleCellChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
+
+              {/* Similar-item warnings — still fired by handleLineItemChange, shown per line. */}
+              {linesFormData.map((line, index) => {
+                const warning = similarWarnings[index]
+                if (!warning) return null
+                const count = warning.exact_matches.length + warning.close_matches.length
+                return (
+                  <div
+                    key={index}
+                    className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]"
+                    style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-medium">
+                      {count} similar item{count !== 1 ? 's' : ''} found
+                    </span>
+                    <span className="mx-1">·</span>
+                    <a
+                      href={`/items/${line.item}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline font-medium"
+                      style={{ color: 'var(--so-warning-text)' }}
+                    >
+                      View similar items
+                    </a>
+                  </div>
+                )
+              })}
+
+              <div className="flex justify-end pr-1 pt-3 mt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Total:</span>
+                <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal.toFixed(2))}</span>
+              </div>
             </div>
-            {linesFormData.length === 0 ? (
-              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
-                No lines added. Click "Add Line" to add items to this order.
-              </p>
-            ) : (
-            // focus-within:overflow-visible lifts the clip while a cell is focused so the
-            // item-picker dropdown can extend past the table (overflow-x:auto would clip it).
-            <div className="overflow-x-auto focus-within:overflow-visible">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {[
-                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[22%]' },
-                      { label: 'Description', align: 'text-left', cls: 'w-[18%]' },
-                      { label: 'Fulfill', align: 'text-left', cls: 'w-[8%]' },
-                      { label: 'Qty', align: 'text-right', cls: 'w-[8%]' },
-                      { label: 'UOM', align: 'text-left', cls: 'w-[8%]' },
-                      { label: 'Rate', align: 'text-right', cls: 'w-[10%]' },
-                      { label: 'Amount', align: 'text-right', cls: 'w-[10%]' },
-                      { label: 'Notes', align: 'text-left', cls: 'w-[12%]' },
-                      { label: '', align: '', cls: 'pr-6 w-10' },
-                    ].map((col, i) => (
-                      <th
-                        key={col.label || `blank-${i}`}
-                        className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-3 ${col.align} ${col.cls}`}
-                        style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {linesFormData.map((line, index) => {
-                    const selectedItem = items.find(i => String(i.id) === line.item)
-                    const lineAmount = calcLineAmount(line.quantity_ordered, line.unit_cost)
-                    const warning = similarWarnings[index]
-                    return (
-                      <React.Fragment key={index}>
-                      <tr style={{ borderBottom: warning ? 'none' : '1px solid var(--so-border-light)' }}>
-                        {/* Item */}
-                        <td className="py-1.5 px-1 pl-6">
-                          <SearchableCombobox
-                            entityType="item"
-                            value={line.item ? Number(line.item) : null}
-                            initialLabel={itemLabel(line.item)}
-                            onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                            placeholder="Select item..."
-                          />
-                        </td>
-                        {/* Description (read-only) */}
-                        <td className="py-1.5 px-3 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                          {selectedItem?.name || '—'}
-                        </td>
-                        {/* Fulfillment */}
-                        <td className="py-1.5 px-1">
-                          {(() => {
-                            const itemType = selectedItem?.item_type
-                            if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
-                            if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
-                            const opts = FULFILLMENT_OPTIONS[itemType] || []
-                            return (
-                              <Select
-                                value={line.fulfillment_method || opts[0]?.value || ''}
-                                onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
-                              >
-                                <SelectTrigger className="h-9 text-sm border shadow-none bg-transparent">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            )
-                          })()}
-                        </td>
-                        {/* Qty */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            type="text"
-                            inputMode="numeric"
-                            value={line.quantity_ordered}
-                            onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                            className="h-9 text-sm text-right border shadow-none font-mono"
-                          />
-                        </td>
-                        {/* UOM — fixed to the item's base unit, not editable */}
-                        <td className="py-1.5 px-1">
-                          <div
-                            title="Unit of measure is fixed to the item's base unit"
-                            className="h-9 flex items-center justify-center text-sm rounded font-mono"
-                            style={{ color: 'var(--so-text-secondary)' }}
-                          >
-                            {selectedItem?.base_uom_code ?? '—'}
-                          </div>
-                        </td>
-                        {/* Rate */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={line.unit_cost}
-                            onChange={(e) => handleLineChange(index, 'unit_cost', e.target.value)}
-                            className="h-9 text-sm text-right border shadow-none font-mono"
-                          />
-                        </td>
-                        {/* Amount (read-only) */}
-                        <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                          {line.item ? formatCurrency(lineAmount.toFixed(2)) : '—'}
-                        </td>
-                        {/* Notes */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            value={line.notes}
-                            onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                            className="h-9 text-sm border shadow-none bg-transparent"
-                            placeholder="Notes..."
-                          />
-                        </td>
-                        {/* Delete */}
-                        <td className="py-1.5 px-1 pr-6">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLine(index)}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors cursor-pointer"
-                            style={{ color: 'var(--so-danger-text)' }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                      {warning && (
-                        <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          <td colSpan={9} className="px-6 py-2">
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                              <span className="font-medium">
-                                {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
-                              </span>
-                              <span className="mx-1">·</span>
-                              <a
-                                href={`/items/${line.item}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="underline font-medium"
-                                style={{ color: 'var(--so-warning-text)' }}
-                              >
-                                View similar items
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                    <td colSpan={6} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal.toFixed(2))}</td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            )}
-            </>
             )}
           </div>
         </form>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { formatCurrency } from '@/lib/format'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2, FileText, AlertTriangle, Plus } from 'lucide-react'
+import { ArrowLeft, FileText, AlertTriangle, Plus } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { MobileLineItemList } from '@/components/orders/MobileLineItemList'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,8 @@ import { useCreateSalesOrder, useNextSalesOrderNumber } from '@/api/orders'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import api from '@/api/client'
 import type { SimilarItemsResponse } from '@/api/items'
@@ -66,9 +68,6 @@ const FULFILLMENT_OPTIONS: Record<string, { value: string; label: string }[]> = 
   other_charge: [],
 }
 
-/** Column indices for keyboard navigation */
-const COL_COUNT = 6 // item, qty, uom, rate, notes, (contract is conditional but skip it for tab)
-
 const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
 const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
 
@@ -113,9 +112,9 @@ export default function CreateSalesOrder() {
     if (copyData?.lines?.length) {
       return copyData.lines.map((l: any) => ({ ...l, notes: l.notes || '', contract: '' }))
     }
-    // Start with no lines — the user adds them one at a time, matching the
-    // estimate/contract create screens (no pre-rendered blank rows).
-    return []
+    // Standard ERP grid: start with one blank row. Rows are added/removed via the
+    // grid's explicit "+ Add Line" button and per-row delete.
+    return [{ ...EMPTY_LINE }]
   }
 
   const [linesFormData, setLinesFormData] = useState<
@@ -179,58 +178,6 @@ export default function CreateSalesOrder() {
     }
     setPriceLookupLine(null)
   }, [priceData, priceLookupLine, linesFormData, isPriceFetching])
-
-  /* ---- Cell refs for Excel-style navigation ---- */
-  const cellRefs = useRef<(HTMLElement | null)[][]>([])
-
-  const setCellRef = useCallback((row: number, col: number, el: HTMLElement | null) => {
-    if (!cellRefs.current[row]) cellRefs.current[row] = []
-    cellRefs.current[row][col] = el
-  }, [])
-
-  const focusCell = useCallback((row: number, col: number) => {
-    const el = cellRefs.current[row]?.[col]
-    if (el) {
-      // For Select triggers, find the button inside
-      const focusable = el.querySelector('button') || el.querySelector('input') || el
-      ;(focusable as HTMLElement).focus?.()
-    }
-  }, [])
-
-  const ensureRowExists = useCallback((rowIndex: number) => {
-    setLinesFormData(prev => {
-      if (rowIndex < prev.length) return prev
-      const extra = Array.from({ length: rowIndex - prev.length + 1 }, () => ({ ...EMPTY_LINE }))
-      return [...prev, ...extra]
-    })
-  }, [])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent, rowIndex: number, colIndex: number) => {
-    if (e.key === 'Tab' && !e.shiftKey) {
-      if (colIndex < COL_COUNT - 1) {
-        // Move to next cell in same row
-        e.preventDefault()
-        focusCell(rowIndex, colIndex + 1)
-      } else {
-        // Last cell -> move to first cell of next row
-        e.preventDefault()
-        ensureRowExists(rowIndex + 1)
-        setTimeout(() => focusCell(rowIndex + 1, 0), 0)
-      }
-    } else if (e.key === 'Tab' && e.shiftKey) {
-      if (colIndex > 0) {
-        e.preventDefault()
-        focusCell(rowIndex, colIndex - 1)
-      } else if (rowIndex > 0) {
-        e.preventDefault()
-        focusCell(rowIndex - 1, COL_COUNT - 1)
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      ensureRowExists(rowIndex + 1)
-      setTimeout(() => focusCell(rowIndex + 1, colIndex), 0)
-    }
-  }, [focusCell, ensureRowExists])
 
   /* ---- Customer change with auto-populate ---- */
   const handleCustomerChange = (v: string) => {
@@ -316,6 +263,98 @@ export default function CreateSalesOrder() {
       }
     }))
   }
+
+  /* ---- Grid cell router: dispatch to the specialized handlers so price lookup,
+     contract selection, fulfillment defaults and the similar-item warning all
+     keep firing exactly as before. ---- */
+  const handleCellChange = (index: number, key: string, value: string | number | null) => {
+    if (key === 'item') {
+      handleLineItemChange(index, value == null ? '' : String(value))
+    } else if (key === 'contract') {
+      handleContractChange(index, value === 'none' ? '' : String(value ?? ''))
+    } else if (key === 'quantity_ordered') {
+      handleLineQtyChange(index, String(value ?? ''))
+    } else {
+      handleLineChange(index, key, String(value ?? ''))
+    }
+  }
+
+  const lineColumns: LineItemColumn<(typeof linesFormData)[number]>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => itemLabel(row.item),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      type: 'readonly',
+      width: '1.5fr',
+      render: (row) => {
+        const it = items.find((i) => String(i.id) === row.item)
+        return it?.name || '—'
+      },
+    },
+    {
+      key: 'contract',
+      header: 'Contract',
+      type: 'select',
+      width: '130px',
+      placeholder: 'None',
+      options: (row) => {
+        const itemContracts = row.item ? contractsByItem.get(Number(row.item)) : undefined
+        if (!itemContracts || itemContracts.length === 0) return []
+        return [
+          { value: 'none', label: 'No contract' },
+          ...itemContracts.map((c) => ({
+            value: c.contractNumber,
+            label: `${c.contractNumber} @ $${c.unitPrice} (${c.remainingQty.toLocaleString()} rem.)`,
+          })),
+        ]
+      },
+    },
+    {
+      key: 'fulfillment_method',
+      header: 'Fulfill',
+      type: 'select',
+      width: '120px',
+      placeholder: '—',
+      options: (row) => {
+        const selectedItem = items.find((i) => String(i.id) === row.item)
+        const itemType = selectedItem?.item_type
+        if (!itemType) return []
+        return FULFILLMENT_OPTIONS[itemType] || []
+      },
+    },
+    { key: 'quantity_ordered', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'readonly',
+      width: '80px',
+      render: (row) => {
+        const it = items.find((i) => String(i.id) === row.item)
+        return it?.base_uom_code ?? '—'
+      },
+    },
+    { key: 'unit_price', header: 'Rate', type: 'numeric', width: '110px', align: 'right' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      type: 'computed',
+      width: '110px',
+      align: 'right',
+      render: (row) => {
+        const amt = (parseFloat(row.quantity_ordered) || 0) * (parseFloat(row.unit_price) || 0)
+        return row.item ? formatCurrency(amt) : '—'
+      },
+    },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes...' },
+  ]
 
   const editTotal = linesFormData.reduce((sum, line) => {
     const qty = parseFloat(line.quantity_ordered) || 0
@@ -699,242 +738,63 @@ export default function CreateSalesOrder() {
                 total={editTotal}
               />
             ) : (
-            <>
-            <div className="px-6 py-4 flex items-center justify-between">
-              <span className="text-sm font-semibold">Line Items</span>
-              <button
-                type="button"
-                className={primaryBtnClass}
-                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
-                onClick={handleAddLine}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </button>
-            </div>
-            {linesFormData.length === 0 ? (
-              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
-                No lines added. Click "Add Line" to add items to this order.
-              </p>
-            ) : (
-            // focus-within:overflow-visible — `overflow-x: auto` forces overflow-y to auto,
-            // which clips the item-picker dropdown. While a cell is focused (combobox open) we
-            // drop the clip so the dropdown can extend past the table; otherwise horizontal
-            // scroll is preserved for the wide table.
-            <div className="overflow-x-auto focus-within:overflow-visible">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {[
-                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[20%]' },
-                      { label: 'Description', align: 'text-left', cls: 'flex-1' },
-                      { label: 'Contract', align: 'text-left', cls: 'w-[10%]' },
-                      { label: 'Fulfill', align: 'text-left', cls: 'w-[8%]' },
-                      { label: 'Qty', align: 'text-right', cls: 'w-[7%]' },
-                      { label: 'UOM', align: 'text-left', cls: 'w-[7%]' },
-                      { label: 'Rate', align: 'text-right', cls: 'w-[9%]' },
-                      { label: 'Amount', align: 'text-right', cls: 'w-[9%]' },
-                      { label: 'Notes', align: 'text-left', cls: 'w-[10%]' },
-                      { label: '', align: '', cls: 'pr-6 w-10' },
-                    ].map((col, i) => (
-                      <th
-                        key={col.label || `blank-${i}`}
-                        className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-3 ${col.align} ${col.cls}`}
-                        style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {linesFormData.map((line, index) => {
-                    const selectedItem = items.find(i => String(i.id) === line.item)
-                    const itemContracts = line.item ? contractsByItem.get(Number(line.item)) : undefined
-                    const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_price) || 0)
+            <div className="px-6 py-4">
+              <div className="mb-3">
+                <span className="text-sm font-semibold">Line Items</span>
+              </div>
 
-                    const warning = similarWarnings[index]
-                    return (
-                      <React.Fragment key={index}>
-                      <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                        {/* Item (col 0) */}
-                        <td className="py-1.5 px-1 pl-6">
-                          <div ref={(el) => setCellRef(index, 0, el)} onKeyDown={(e) => handleKeyDown(e, index, 0)}>
-                            <SearchableCombobox
-                              entityType="item"
-                              value={line.item ? Number(line.item) : null}
-                              initialLabel={itemLabel(line.item)}
-                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                              placeholder="Select item..."
-                            />
-                          </div>
-                        </td>
-                        {/* Description (read-only) */}
-                        <td className="py-1.5 px-3 text-[13px]" style={{ color: 'var(--so-text-secondary)' }}>
-                          {selectedItem?.name || '\u2014'}
-                        </td>
-                        {/* Contract */}
-                        <td className="py-1.5 px-1">
-                          {itemContracts && itemContracts.length > 0 ? (
-                            <Select
-                              value={line.contract || 'none'}
-                              onValueChange={(v) => handleContractChange(index, v === 'none' ? '' : v)}
-                            >
-                              <SelectTrigger
-                                className="h-9 text-sm border shadow-none"
-                                style={{ borderColor: 'var(--so-border)', background: 'transparent', color: 'var(--so-accent)' }}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">No contract</SelectItem>
-                                {itemContracts.map((c) => (
-                                  <SelectItem key={c.contractNumber} value={c.contractNumber}>
-                                    {c.contractNumber} @ ${c.unitPrice} ({c.remainingQty.toLocaleString()} rem.)
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-[13px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>{'\u2014'}</span>
-                          )}
-                        </td>
-                        {/* Fulfillment */}
-                        <td className="py-1.5 px-1">
-                          {(() => {
-                            const itemType = selectedItem?.item_type
-                            if (!itemType || itemType === 'other_charge') return <span className="text-[13px] px-2" style={{ color: 'var(--so-text-tertiary)' }}>—</span>
-                            if (itemType === 'crossdock') return <span className="text-[12px] px-2 font-medium" style={{ color: '#3b82f6' }}>Cross</span>
-                            const opts = FULFILLMENT_OPTIONS[itemType] || []
-                            return (
-                              <Select
-                                value={line.fulfillment_method || opts[0]?.value || ''}
-                                onValueChange={(v) => handleLineChange(index, 'fulfillment_method', v)}
-                              >
-                                <SelectTrigger className="h-9 text-sm border shadow-none" style={{ borderColor: 'var(--so-border)', background: 'transparent' }}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {opts.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                            )
-                          })()}
-                        </td>
-                        {/* Qty (col 1) */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            ref={(el) => setCellRef(index, 1, el as any)}
-                            type="text"
-                            inputMode="numeric"
-                            value={line.quantity_ordered}
-                            onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, index, 1)}
-                            className="h-9 text-right text-sm border shadow-none font-mono"
-                            placeholder="0"
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* UOM (col 2) — fixed to the item's base unit, not editable */}
-                        <td className="py-1.5 px-1">
-                          <div
-                            ref={(el) => setCellRef(index, 2, el)}
-                            onKeyDown={(e) => handleKeyDown(e, index, 2)}
-                            tabIndex={-1}
-                            title="Unit of measure is fixed to the item's base unit"
-                            className="h-9 flex items-center justify-center text-sm rounded outline-none font-mono"
-                            style={{ color: 'var(--so-text-secondary)' }}
-                          >
-                            {selectedItem?.base_uom_code ?? '—'}
-                          </div>
-                        </td>
-                        {/* Rate (col 3) */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            ref={(el) => setCellRef(index, 3, el as any)}
-                            type="text"
-                            inputMode="decimal"
-                            value={line.unit_price}
-                            onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, index, 3)}
-                            className="h-9 text-right text-sm border shadow-none font-mono"
-                            placeholder="0.00"
-                            tabIndex={0}
-                          />
-                          {priceLookupLine === index && isPriceFetching && (
-                            <span className="text-[11px]" style={{ color: 'var(--so-text-tertiary)' }}>Looking up...</span>
-                          )}
-                        </td>
-                        {/* Amount (read-only) */}
-                        <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                          {line.item ? `${formatCurrency(lineAmount)}` : '\u2014'}
-                        </td>
-                        {/* Notes (col 4) */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            ref={(el) => setCellRef(index, 4, el as any)}
-                            value={line.notes}
-                            onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(e, index, 4)}
-                            className="h-9 text-sm border shadow-none"
-                            placeholder="Notes..."
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* Delete (col 5 for keyboard, but button only) */}
-                        <td className="py-1.5 px-1 pr-6">
-                          <button
-                            ref={(el) => setCellRef(index, 5, el as any)}
-                            type="button"
-                            onClick={() => handleRemoveLine(index)}
-                            onKeyDown={(e) => handleKeyDown(e, index, 5)}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
-                            style={{ color: '#dc2626' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                            tabIndex={0}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                      {warning && (
-                        <tr style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          <td colSpan={10} className="px-6 py-2">
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px]" style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}>
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                              <span className="font-medium">
-                                {warning.exact_matches.length + warning.close_matches.length} similar item{warning.exact_matches.length + warning.close_matches.length !== 1 ? 's' : ''} found
-                              </span>
-                              <span className="mx-1">·</span>
-                              <a
-                                href={`/items/${line.item}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="underline font-medium"
-                                style={{ color: 'var(--so-warning-text)' }}
-                              >
-                                View similar items
-                              </a>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      </React.Fragment>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                    <td colSpan={7} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              </table>
+              {/* Shared editable grid — routes every cell edit through handleCellChange,
+                  which dispatches to the specialized price/contract/fulfillment handlers. */}
+              <LineItemGrid
+                lines={linesFormData}
+                columns={lineColumns}
+                onCellChange={handleCellChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
+
+              {/* Price-lookup indicator (grid has no per-cell slot for it). */}
+              {priceLookupLine !== null && isPriceFetching && (
+                <div className="text-[11px] mt-2" style={{ color: 'var(--so-text-tertiary)' }}>
+                  Looking up price…
+                </div>
+              )}
+
+              {/* Similar-item warnings — fired by handleLineItemChange, rendered below the grid. */}
+              {Object.entries(similarWarnings).map(([idx, warning]) => {
+                const line = linesFormData[Number(idx)]
+                if (!line) return null
+                const count = warning.exact_matches.length + warning.close_matches.length
+                return (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] mt-2"
+                    style={{ background: 'var(--so-warning-bg)', color: 'var(--so-warning-text)' }}
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-medium">
+                      Line {Number(idx) + 1}: {count} similar item{count !== 1 ? 's' : ''} found
+                    </span>
+                    <span className="mx-1">·</span>
+                    <a
+                      href={`/items/${line.item}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline font-medium"
+                      style={{ color: 'var(--so-warning-text)' }}
+                    >
+                      View similar items
+                    </a>
+                  </div>
+                )
+              })}
+
+              {/* Totals */}
+              <div className="flex justify-end pr-1 pt-3 mt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <span className="text-[11.5px] font-semibold uppercase tracking-widest mr-4 self-center" style={{ color: 'var(--so-text-tertiary)' }}>Total</span>
+                <span className="font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</span>
+              </div>
             </div>
-            )}
-            </>
             )}
           </div>
         </form>

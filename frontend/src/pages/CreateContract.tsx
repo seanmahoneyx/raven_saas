@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
-import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -12,22 +11,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
 import { useAllCustomers, useAllLocations } from '@/api/parties'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
 import { useCreateContract } from '@/api/contracts'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
+import { formatCurrency } from '@/lib/format'
 import { toast } from 'sonner'
 
 interface LineFormData {
-  id: string
   item: string
   blanket_qty: string
   uom: string
   unit_price: string
 }
+
+// A fresh, blank line for the grid's explicit "+ Add Line" action.
+const emptyLine = (): LineFormData => ({
+  item: '',
+  blanket_qty: '',
+  uom: '',
+  unit_price: '',
+})
 
 export default function CreateContract() {
   usePageTitle('Create Contract')
@@ -49,14 +57,12 @@ export default function CreateContract() {
     notes: '',
   })
 
-  const [lines, setLines] = useState<LineFormData[]>([])
+  // Standard ERP grid: starts with one blank row. Rows are added/removed only via
+  // the grid's explicit "+ Add Line" button and per-row delete (no auto-spawn).
+  const [lines, setLines] = useState<LineFormData[]>([emptyLine()])
 
   const customers = customersData ?? []
   const items = itemsData ?? []
-  const itemLabel = (val: string) => {
-    const it = items.find((i) => String(i.id) === val)
-    return it ? `${it.name} – ${it.sku}` : undefined
-  }
   const uoms = uomData ?? []
 
   const selectedCustomer = customers.find((c) => String(c.id) === formData.customer)
@@ -64,32 +70,67 @@ export default function CreateContract() {
   const { data: locationsData } = useAllLocations(selectedCustomer?.party)
   const customerLocations = selectedCustomer ? locationsData ?? [] : []
 
-  const handleAddLine = () => {
-    setLines([
-      ...lines,
-      { id: `new-${Date.now()}`, item: '', blanket_qty: '', uom: '', unit_price: '' },
-    ])
+  const handleAddLine = () => setLines((prev) => [...prev, emptyLine()])
+
+  const handleRemoveLine = (index: number) => {
+    // Allow removing down to zero rows; the "+ Add Line" button brings rows back.
+    setLines((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleRemoveLine = (id: string) => {
-    setLines(lines.filter((l) => l.id !== id))
-  }
+  const handleLineChange = (index: number, key: string, value: string | number | null) => {
+    setLines((prev) => {
+      const newLines = [...prev]
+      // The item combobox emits a numeric id (or null); everything else is a string.
+      const strVal = value == null ? '' : String(value)
+      const updated = { ...newLines[index], [key]: strVal } as LineFormData
 
-  const handleLineChange = (id: string, field: keyof LineFormData, value: string) => {
-    setLines(
-      lines.map((l) => {
-        if (l.id !== id) return l
-        const updated = { ...l, [field]: value }
-        if (field === 'item' && value) {
-          const selectedItem = items.find((item) => String(item.id) === value)
-          if (selectedItem?.base_uom) {
-            updated.uom = String(selectedItem.base_uom)
-          }
+      // Preserve item auto-fill: selecting an item populates UOM.
+      if (key === 'item' && strVal) {
+        const selectedItem = items.find((i) => String(i.id) === strVal)
+        if (selectedItem?.base_uom) {
+          updated.uom = String(selectedItem.base_uom)
         }
-        return updated
-      })
-    )
+      }
+
+      newLines[index] = updated
+      return newLines
+    })
   }
+
+  // Column config for the shared editable grid.
+  const lineColumns: LineItemColumn<LineFormData>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => {
+        const it = items.find((i) => String(i.id) === row.item)
+        return it ? `${it.name} – ${it.sku}` : undefined
+      },
+    },
+    { key: 'blanket_qty', header: 'Blanket Qty', type: 'numeric', width: '110px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'select',
+      width: '110px',
+      placeholder: 'UOM',
+      options: () => uoms.map((u) => ({ value: String(u.id), label: u.code })),
+    },
+    { key: 'unit_price', header: 'Unit Price', type: 'numeric', width: '120px', align: 'right' },
+    {
+      key: 'total',
+      header: 'Total',
+      type: 'computed',
+      width: '120px',
+      align: 'right',
+      render: (row) =>
+        formatCurrency((parseFloat(row.blanket_qty || '0') || 0) * (parseFloat(row.unit_price || '0') || 0)),
+    },
+  ]
 
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -244,56 +285,17 @@ export default function CreateContract() {
           {/* No `overflow-hidden` here: the line-item rows host SearchableCombobox dropdowns
               that must overflow the card downward instead of being clipped by it. */}
           <div className="rounded-[14px] border animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Contract Lines</span>
-              <button type="button" className={primaryBtnClass} style={primaryBtnStyle} onClick={handleAddLine}>
-                <Plus className="h-3.5 w-3.5" /> Add Line
-              </button>
             </div>
             <div className="px-6 py-5">
-              {lines.length === 0 ? (
-                <div className="text-center py-6 text-[13px] rounded-md" style={{ color: 'var(--so-text-tertiary)', border: '1px solid var(--so-border-light)' }}>
-                  No lines added yet. Click &quot;Add Line&quot; to add items to this contract.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 text-[11px] font-semibold uppercase tracking-widest px-1" style={{ color: 'var(--so-text-tertiary)' }}>
-                    <span>Item</span>
-                    <span>Qty</span>
-                    <span>UOM</span>
-                    <span>Unit Price</span>
-                    <span></span>
-                  </div>
-                  {lines.map((line) => (
-                    <div key={line.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
-                      <SearchableCombobox
-                        entityType="item"
-                        value={line.item ? Number(line.item) : null}
-                        initialLabel={itemLabel(line.item)}
-                        onChange={(id) => handleLineChange(line.id, 'item', id ? String(id) : '')}
-                        placeholder="Select item..."
-                      />
-                      <NumericInput placeholder="Qty" value={line.blanket_qty} onValueChange={(v) => handleLineChange(line.id, 'blanket_qty', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <Select value={line.uom} onValueChange={(v) => handleLineChange(line.id, 'uom', v)}>
-                        <SelectTrigger style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                          <SelectValue placeholder="UOM" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {uoms.map((uom) => (
-                            <SelectItem key={uom.id} value={String(uom.id)}>
-                              {uom.code}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <NumericInput placeholder="Price" value={line.unit_price} onValueChange={(v) => handleLineChange(line.id, 'unit_price', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer transition-colors" style={{ color: 'var(--so-danger-text)' }}>
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <LineItemGrid
+                lines={lines}
+                columns={lineColumns}
+                onCellChange={handleLineChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
             </div>
           </div>
 

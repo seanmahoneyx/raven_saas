@@ -2,20 +2,25 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Input } from '@/components/ui/input'
-import { NumericInput } from '@/components/ui/numeric-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Trash2 } from 'lucide-react'
 import { useCreatePriceList } from '@/api/priceLists'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 
 interface LineFormData {
-  id: string
   min_quantity: string
   unit_price: string
 }
+
+// A fresh, blank price break for the grid's explicit "+ Add Price Break" action.
+const emptyLine = (): LineFormData => ({
+  min_quantity: '',
+  unit_price: '0.00',
+})
 
 export default function CreatePriceList() {
   usePageTitle('Create Price List')
@@ -32,19 +37,30 @@ export default function CreatePriceList() {
     notes: '',
   })
 
-  const [lines, setLines] = useState<LineFormData[]>([])
+  // Standard ERP grid: starts with one blank row. Rows are added/removed only via
+  // the grid's explicit "+ Add Price Break" button and per-row delete.
+  const [lines, setLines] = useState<LineFormData[]>([emptyLine()])
 
-  const handleAddLine = () => {
-    setLines([...lines, { id: `new-${Date.now()}`, min_quantity: '', unit_price: '' }])
+  const handleAddLine = () => setLines((prev) => [...prev, emptyLine()])
+
+  const handleRemoveLine = (index: number) => {
+    setLines((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleRemoveLine = (id: string) => {
-    setLines(lines.filter((l) => l.id !== id))
+  const handleLineChange = (index: number, key: string, value: string | number | null) => {
+    setLines((prev) => {
+      const newLines = [...prev]
+      const strVal = value == null ? '' : String(value)
+      newLines[index] = { ...newLines[index], [key]: strVal }
+      return newLines
+    })
   }
 
-  const handleLineChange = (id: string, field: keyof LineFormData, value: string) => {
-    setLines(lines.map((l) => l.id !== id ? l : { ...l, [field]: value }))
-  }
+  // Column config for the shared editable grid (no item column — item is a header field).
+  const lineColumns: LineItemColumn<LineFormData>[] = [
+    { key: 'min_quantity', header: 'Min Quantity', type: 'numeric', width: '1fr' },
+    { key: 'unit_price', header: 'Unit Price', type: 'numeric', width: '1fr' },
+  ]
 
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -148,34 +164,19 @@ export default function CreatePriceList() {
           </div>
 
           {/* Price Break Lines */}
-          <div className="rounded-[14px] border overflow-hidden animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
-            <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
+          <div className="rounded-[14px] border animate-in delay-3" style={{ background: 'var(--so-surface)', borderColor: 'var(--so-border)' }}>
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--so-border-light)' }}>
               <span className="text-sm font-semibold">Price Break Lines</span>
-              <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
-                <Plus className="h-3.5 w-3.5" /> Add Break
-              </button>
             </div>
             <div className="px-6 py-5">
-              {lines.length === 0 ? (
-                <div className="text-center py-6 text-[13px] rounded-md" style={{ color: 'var(--so-text-tertiary)', border: '1px solid var(--so-border-light)' }}>
-                  No price breaks added yet. Click &quot;Add Break&quot; to define quantity-based pricing.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_1fr_auto] gap-2 text-[11px] font-semibold uppercase tracking-widest px-1" style={{ color: 'var(--so-text-tertiary)' }}>
-                    <span>Min Quantity</span><span>Unit Price</span><span></span>
-                  </div>
-                  {lines.map((line) => (
-                    <div key={line.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center rounded-lg p-3" style={{ background: 'var(--so-bg)' }}>
-                      <NumericInput placeholder="Minimum quantity" value={line.min_quantity} onValueChange={(v) => handleLineChange(line.id, 'min_quantity', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <NumericInput placeholder="Unit price" value={line.unit_price} onValueChange={(v) => handleLineChange(line.id, 'unit_price', v)} style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }} />
-                      <button type="button" onClick={() => handleRemoveLine(line.id)} className="inline-flex items-center justify-center h-8 w-8 rounded-md cursor-pointer" style={{ color: 'var(--so-danger-text)' }}>
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <LineItemGrid
+                lines={lines}
+                columns={lineColumns}
+                onCellChange={handleLineChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+                addLabel="+ Add Price Break"
+              />
             </div>
           </div>
 

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { formatCurrency } from '@/lib/format'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, Trash2, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -12,12 +12,23 @@ import { useCreateBill } from '@/api/invoicing'
 import { useAllItems } from '@/api/items'
 import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const EMPTY_LINE = { item: '', description: '', quantity: '', unit_price: '', notes: '' }
+type BillLineForm = { item: string; description: string; quantity: string; unit_price: string; notes: string }
+
+// A fresh, blank line for the grid's explicit "+ Add Line" action.
+const emptyLine = (): BillLineForm => ({
+  item: '',
+  description: '',
+  quantity: '1',
+  unit_price: '0.00',
+  notes: '',
+})
 
 const labelClass = 'block text-[11.5px] font-medium uppercase tracking-widest mb-1.5'
 const labelStyle: React.CSSProperties = { color: 'var(--so-text-tertiary)' }
@@ -42,7 +53,7 @@ export default function CreateBill() {
     notes: prefill.notes || '',
   })
 
-  const buildInitialLines = () => {
+  const buildInitialLines = (): BillLineForm[] => {
     if (prefill.lines?.length) {
       return prefill.lines.map((l: any) => ({
         item: l.item ? String(l.item) : '',
@@ -52,13 +63,11 @@ export default function CreateBill() {
         notes: l.notes || '',
       }))
     }
-    // Start with no lines — add them one at a time (matches estimate/contract/SO).
-    return []
+    // Standard ERP grid: start with one blank row (matches estimate/contract/SO).
+    return [emptyLine()]
   }
 
-  const [linesFormData, setLinesFormData] = useState<
-    { item: string; description: string; quantity: string; unit_price: string; notes: string }[]
-  >(buildInitialLines)
+  const [linesFormData, setLinesFormData] = useState<BillLineForm[]>(buildInitialLines)
 
   const [error, setError] = useState('')
 
@@ -71,31 +80,53 @@ export default function CreateBill() {
   }
 
   /* ---- Line handlers ---- */
-  const handleLineChange = (index: number, field: string, value: string) => {
-    setLinesFormData(prev => prev.map((line, i) =>
-      i === index ? { ...line, [field]: value } : line
-    ))
-  }
-
-  const handleLineItemChange = (index: number, value: string) => {
-    const selectedItem = items.find(i => String(i.id) === value)
+  const handleLineChange = (index: number, key: string, value: string | number | null) => {
+    // The item combobox emits a numeric id (or null); everything else is a string.
+    const strVal = value == null ? '' : String(value)
     setLinesFormData(prev => prev.map((line, i) => {
       if (i !== index) return line
-      return {
-        ...line,
-        item: value,
-        description: selectedItem?.name || line.description,
+      const updated = { ...line, [key]: strVal }
+      // Item auto-fill: selecting an item populates the description.
+      if (key === 'item' && strVal) {
+        const selectedItem = items.find(it => String(it.id) === strVal)
+        if (selectedItem) updated.description = selectedItem.name
       }
+      return updated
     }))
   }
 
   const handleAddLine = () => {
-    setLinesFormData(prev => [...prev, { ...EMPTY_LINE }])
+    setLinesFormData(prev => [...prev, emptyLine()])
   }
 
   const handleRemoveLine = (index: number) => {
     setLinesFormData(prev => prev.filter((_, i) => i !== index))
   }
+
+  // Column config for the shared editable grid.
+  const lineColumns: LineItemColumn<BillLineForm>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => itemLabel(row.item),
+    },
+    { key: 'description', header: 'Description', type: 'text', width: '2fr', placeholder: 'Description' },
+    { key: 'quantity', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    { key: 'unit_price', header: 'Unit Price', type: 'numeric', width: '120px', align: 'right' },
+    {
+      key: 'total',
+      header: 'Total',
+      type: 'computed',
+      width: '120px',
+      align: 'right',
+      render: (row) => formatCurrency((parseFloat(row.quantity || '0') || 0) * (parseFloat(row.unit_price || '0') || 0)),
+    },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes' },
+  ]
 
   /* ---- Computed ---- */
   const editTotal = linesFormData.reduce((sum, line) => {
@@ -345,139 +376,20 @@ export default function CreateBill() {
             {/* ---- Line Items ---- */}
             <div className="px-6 py-4 flex items-center justify-between">
               <span className="text-sm font-semibold">Line Items</span>
-              <button
-                type="button"
-                className={primaryBtnClass}
-                style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }}
-                onClick={handleAddLine}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Line
-              </button>
             </div>
-            {linesFormData.length === 0 ? (
-              <p className="text-[13px] text-center py-6 px-6" style={{ color: 'var(--so-text-tertiary)' }}>
-                No lines added. Click "Add Line" to add items to this bill.
-              </p>
-            ) : (
-            // focus-within:overflow-visible lifts the overflow clip while a cell is focused so
-            // the item-picker dropdown can extend past the table (overflow-x:auto would clip it).
-            <div className="overflow-x-auto focus-within:overflow-visible">
-              <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    {[
-                      { label: 'Item', align: 'text-left', cls: 'pl-6 w-[22%]' },
-                      { label: 'Description', align: 'text-left', cls: 'w-[25%]' },
-                      { label: 'Qty', align: 'text-right', cls: 'w-[10%]' },
-                      { label: 'Unit Price', align: 'text-right', cls: 'w-[12%]' },
-                      { label: 'Amount', align: 'text-right', cls: 'w-[12%]' },
-                      { label: 'Notes', align: 'text-left', cls: 'w-[14%]' },
-                      { label: '', align: '', cls: 'pr-6 w-10' },
-                    ].map((col, i) => (
-                      <th
-                        key={col.label || `blank-${i}`}
-                        className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-3 ${col.align} ${col.cls}`}
-                        style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {linesFormData.map((line, index) => {
-                    const lineAmount = (parseFloat(line.quantity) || 0) * (parseFloat(line.unit_price) || 0)
-
-                    return (
-                      <tr
-                        key={index}
-                        style={{ borderBottom: '1px solid var(--so-border-light)' }}
-                      >
-                        {/* Item */}
-                        <td className="py-1.5 px-1 pl-6">
-                          <SearchableCombobox
-                            entityType="item"
-                            value={line.item ? Number(line.item) : null}
-                            initialLabel={itemLabel(line.item)}
-                            onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                            placeholder="Select item..."
-                          />
-                        </td>
-                        {/* Description (auto-filled, editable) */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            value={line.description}
-                            onChange={(e) => handleLineChange(index, 'description', e.target.value)}
-                            className="h-9 text-sm border shadow-none"
-                            placeholder="Description..."
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* Qty */}
-                        <td className="py-1.5 px-1">
-                          <NumericInput
-                            inputMode="numeric"
-                            value={line.quantity}
-                            onValueChange={(v) => handleLineChange(index, 'quantity', v)}
-                            className="h-9 text-right text-sm border shadow-none font-mono"
-                            placeholder="0"
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* Unit Price */}
-                        <td className="py-1.5 px-1">
-                          <NumericInput
-                            inputMode="decimal"
-                            value={line.unit_price}
-                            onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
-                            className="h-9 text-right text-sm border shadow-none font-mono"
-                            placeholder="0.00"
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* Amount (read-only) */}
-                        <td className="py-1.5 px-3 text-right font-mono text-sm font-semibold" style={{ color: 'var(--so-text-primary)' }}>
-                          {line.item ? `${formatCurrency(lineAmount)}` : '—'}
-                        </td>
-                        {/* Notes */}
-                        <td className="py-1.5 px-1">
-                          <Input
-                            value={line.notes}
-                            onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                            className="h-9 text-sm border shadow-none"
-                            placeholder="Notes..."
-                            tabIndex={0}
-                          />
-                        </td>
-                        {/* Delete */}
-                        <td className="py-1.5 px-1 pr-6">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveLine(index)}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded transition-colors cursor-pointer"
-                            style={{ color: '#dc2626' }}
-                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--so-danger-bg)')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                            tabIndex={0}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--so-border)' }}>
-                    <td colSpan={4} className="py-3 px-3 text-right text-[11.5px] font-semibold uppercase tracking-widest" style={{ color: 'var(--so-text-tertiary)' }}>Total</td>
-                    <td className="py-3 px-3 text-right font-mono text-sm font-bold" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div className="px-6 pb-5">
+              <LineItemGrid
+                lines={linesFormData}
+                columns={lineColumns}
+                onCellChange={handleLineChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
+              <div className="flex justify-end pr-1 pt-3 mt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Total:</span>
+                <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>{formatCurrency(editTotal)}</span>
+              </div>
             </div>
-            )}
           </div>
         </form>
 

@@ -28,7 +28,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSalesOrder, useUpdateSalesOrder, useDeleteSalesOrder } from '@/api/orders'
 import { useCreateInvoice } from '@/api/invoicing'
 import { useAllItems, useAllUnitsOfMeasure } from '@/api/items'
-import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
 import { usePriceLookup } from '@/api/priceLists'
 import { useContractsByCustomer } from '@/api/contracts'
 import type { OrderStatus } from '@/types/api'
@@ -235,6 +236,70 @@ export default function SalesOrderDetail() {
       }
     }))
   }
+
+  /* ---- Grid cell router: dispatch to the specialized handlers so price lookup
+     and contract selection keep firing exactly as before. ---- */
+  const handleCellChange = (index: number, key: string, value: string | number | null) => {
+    if (key === 'item') {
+      handleLineItemChange(index, value == null ? '' : String(value))
+    } else if (key === 'contract') {
+      handleContractChange(index, value === 'none' ? '' : String(value ?? ''))
+    } else if (key === 'quantity_ordered') {
+      handleLineQtyChange(index, String(value ?? ''))
+    } else {
+      handleLineChange(index, key, String(value ?? ''))
+    }
+  }
+
+  const editLineColumns: LineItemColumn<(typeof linesFormData)[number]>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      placeholder: 'Select item...',
+      initialLabel: (row) => itemLabel(row.item),
+    },
+    {
+      key: 'contract',
+      header: 'Contract',
+      type: 'select',
+      width: '150px',
+      placeholder: 'None',
+      options: (row) => {
+        const itemContracts = row.item ? contractsByItem.get(Number(row.item)) : undefined
+        if (!itemContracts || itemContracts.length === 0) return []
+        return [
+          { value: 'none', label: 'No contract' },
+          ...itemContracts.map((c) => ({
+            value: c.contractNumber,
+            label: `${c.contractNumber} @ $${c.unitPrice} (${c.remainingQty.toLocaleString()} rem.)`,
+          })),
+        ]
+      },
+    },
+    { key: 'quantity_ordered', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'select',
+      width: '100px',
+      placeholder: 'UOM',
+      options: () => uoms.map((u) => ({ value: String(u.id), label: u.code })),
+    },
+    { key: 'unit_price', header: 'Rate', type: 'numeric', width: '110px', align: 'right' },
+    {
+      key: 'amount',
+      header: 'Amount',
+      type: 'computed',
+      width: '110px',
+      align: 'right',
+      render: (row) =>
+        formatCurrency((parseFloat(row.quantity_ordered) || 0) * (parseFloat(row.unit_price) || 0)),
+    },
+    { key: 'notes', header: 'Notes', type: 'text', width: '1.5fr', placeholder: 'Notes...' },
+  ]
 
   const handleSave = async () => {
     if (!order) return
@@ -681,13 +746,9 @@ export default function SalesOrderDetail() {
         {/* ── Line Items Card ────────────────────── */}
         <DetailCard
           title="Line Items"
-          headerRight={isEditing ? (
-            <button type="button" className={primaryBtnClass} style={{ ...primaryBtnStyle, padding: '4px 10px', fontSize: '12px' }} onClick={handleAddLine}>
-              <Plus className="h-3.5 w-3.5" /> Add Line
-            </button>
-          ) : (
+          headerRight={
             <span className="text-xs" style={{ color: 'var(--so-text-tertiary)' }}>{lineCount} {lineCount === 1 ? 'item' : 'items'}</span>
-          )}
+          }
           className="mb-4"
           animateDelay="delay-3"
           noOverflowClip
@@ -711,137 +772,20 @@ export default function SalesOrderDetail() {
                 No lines. Click "Add Line" below to add items.
               </div>
             ) : (
-              <div className="overflow-x-auto focus-within:overflow-visible">
-                <table className="w-full text-[13px]" style={{ borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      {[
-                        { label: 'Item', align: 'text-left', cls: 'pl-6 w-[30%]' },
-                        { label: 'Contract', align: 'text-left', cls: '' },
-                        { label: 'Qty', align: 'text-right', cls: 'w-20' },
-                        { label: 'UOM', align: 'text-left', cls: 'w-20' },
-                        { label: 'Rate', align: 'text-right', cls: 'w-24' },
-                        { label: 'Amount', align: 'text-right', cls: 'w-28' },
-                        { label: 'Notes', align: 'text-left', cls: '' },
-                        { label: '', align: 'text-left', cls: 'pr-6 w-10' },
-                      ].map((col, i) => (
-                        <th
-                          key={col.label || `blank-${i}`}
-                          className={`text-[11px] font-semibold uppercase tracking-widest py-2.5 px-4 ${col.align} ${col.cls}`}
-                          style={{ background: 'var(--so-bg)', color: 'var(--so-text-tertiary)' }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linesFormData.map((line, index) => {
-                      const selectedItem = items.find(i => String(i.id) === line.item)
-                      const itemContracts = line.item ? contractsByItem.get(Number(line.item)) : undefined
-                      const lineAmount = (parseFloat(line.quantity_ordered) || 0) * (parseFloat(line.unit_price) || 0)
-                      return (
-                        <tr key={index} style={{ borderBottom: '1px solid var(--so-border-light)' }}>
-                          {/* Item */}
-                          <td className="py-1 px-1 pl-6">
-                            <SearchableCombobox
-                              entityType="item"
-                              value={line.item ? Number(line.item) : null}
-                              initialLabel={itemLabel(line.item)}
-                              onChange={(id) => handleLineItemChange(index, id ? String(id) : '')}
-                              placeholder="Select item..."
-                            />
-                            {selectedItem && (
-                              <div className="px-3 -mt-1 mb-0.5 font-mono text-[11.5px]" style={{ color: 'var(--so-text-secondary)' }}>{selectedItem.sku}</div>
-                            )}
-                          </td>
-                          {/* Contract */}
-                          <td className="py-1 px-1">
-                            {itemContracts && itemContracts.length > 0 ? (
-                              <Select value={line.contract || 'none'} onValueChange={(v) => handleContractChange(index, v === 'none' ? '' : v)}>
-                                <SelectTrigger className="h-auto min-h-9 text-[13px] border shadow-none bg-transparent whitespace-normal text-left" style={{ color: 'var(--so-accent)' }}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">No contract</SelectItem>
-                                  {itemContracts.map((c) => (
-                                    <SelectItem key={c.contractNumber} value={c.contractNumber}>
-                                      {c.contractNumber} @ ${c.unitPrice} ({c.remainingQty.toLocaleString()} rem.)
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <span className="text-[13px] px-3 italic" style={{ color: 'var(--so-text-tertiary)' }}>{'—'}</span>
-                            )}
-                          </td>
-                          {/* Qty */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={line.quantity_ordered}
-                              onChange={(e) => handleLineQtyChange(index, e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                            />
-                          </td>
-                          {/* UOM */}
-                          <td className="py-1 px-1">
-                            <Select value={line.uom} onValueChange={(v) => handleLineChange(index, 'uom', v)}>
-                              <SelectTrigger className="h-9 text-[13px] border shadow-none bg-transparent">
-                                <SelectValue placeholder="UOM" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {uoms.map((uom) => (
-                                  <SelectItem key={uom.id} value={String(uom.id)}>
-                                    {uom.code}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          {/* Rate */}
-                          <td className="py-1 px-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={line.unit_price}
-                              onChange={(e) => handleLineChange(index, 'unit_price', e.target.value)}
-                              className="h-9 text-right text-[13px] border shadow-none font-mono"
-                            />
-                            {priceLookupLine === index && isPriceFetching && (
-                              <span className="text-[11px] px-3" style={{ color: 'var(--so-text-tertiary)' }}>Looking up...</span>
-                            )}
-                          </td>
-                          {/* Amount */}
-                          <td className="py-1 px-4 text-right font-mono text-[13px] font-semibold">
-                            {formatCurrency(lineAmount)}
-                          </td>
-                          {/* Notes */}
-                          <td className="py-1 px-1">
-                            <Input
-                              value={line.notes}
-                              onChange={(e) => handleLineChange(index, 'notes', e.target.value)}
-                              className="h-9 text-[13px] border shadow-none"
-                              placeholder="Notes..."
-                            />
-                          </td>
-                          {/* Delete */}
-                          <td className="py-1.5 px-1 pr-6">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveLine(index)}
-                              className="h-7 w-7 inline-flex items-center justify-center rounded transition-colors cursor-pointer"
-                              style={{ color: 'var(--so-danger-text)' }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="px-6 py-4">
+                {/* Shared editable grid — routes every cell edit through handleCellChange. */}
+                <LineItemGrid
+                  lines={linesFormData}
+                  columns={editLineColumns}
+                  onCellChange={handleCellChange}
+                  onAddLine={handleAddLine}
+                  onRemoveLine={handleRemoveLine}
+                />
+                {priceLookupLine !== null && isPriceFetching && (
+                  <div className="text-[11px] mt-2" style={{ color: 'var(--so-text-tertiary)' }}>
+                    Looking up price…
+                  </div>
+                )}
               </div>
             )
           ) : (
