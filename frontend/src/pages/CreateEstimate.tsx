@@ -16,10 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Trash2 } from 'lucide-react'
-import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle, dangerBtnClass, dangerBtnStyle } from '@/components/ui/button-styles'
+import { outlineBtnClass, outlineBtnStyle, primaryBtnClass, primaryBtnStyle } from '@/components/ui/button-styles'
 import { PageHeader } from '@/components/page'
 import { SearchableCombobox } from '@/components/common/SearchableCombobox'
+import { LineItemGrid } from '@/components/common/LineItemGrid'
+import type { LineItemColumn } from '@/components/common/LineItemGrid'
+import { formatCurrency } from '@/lib/format'
 import type { EstimateStatus } from '@/types/api'
 
 const ESTIMATE_STATUSES = [
@@ -37,8 +39,7 @@ interface EstimateLineForm {
   unit_price: string
 }
 
-// A fresh, untouched draft line. Quantity/price carry the canonical defaults so an
-// untouched draft contributes $0 to the subtotal and is recognized by isEmptyLine.
+// A fresh, blank line for the grid's explicit "+ Add Line" action.
 const emptyLine = (): EstimateLineForm => ({
   item: '',
   description: '',
@@ -46,15 +47,6 @@ const emptyLine = (): EstimateLineForm => ({
   uom: '',
   unit_price: '0.00',
 })
-
-// A line is "empty" (a draft "+ Add Line" affordance) when nothing meaningful has been
-// entered: no item/description/uom and quantity/price still at their defaults.
-const isEmptyLine = (line: EstimateLineForm): boolean =>
-  !line.item &&
-  !line.description &&
-  !line.uom &&
-  (line.quantity === '' || line.quantity === '1') &&
-  (line.unit_price === '' || line.unit_price === '0.00')
 
 export default function CreateEstimate() {
   usePageTitle('Create Estimate')
@@ -79,8 +71,8 @@ export default function CreateEstimate() {
     notes: '',
   })
 
-  // Always carry exactly one trailing empty draft row that reads as a "+ Add Line"
-  // affordance; populating it auto-spawns a fresh one beneath (see handleLineChange).
+  // Standard ERP grid: starts with one blank row. Rows are added/removed only via
+  // the grid's explicit "+ Add Line" button and per-row delete (no auto-spawn).
   const [lines, setLines] = useState<EstimateLineForm[]>([emptyLine()])
 
   const customers = customersData ?? []
@@ -102,44 +94,68 @@ export default function CreateEstimate() {
   const update = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }))
 
-  // Label for a selected item id (so the combobox shows it before its own search resolves).
-  const itemLabel = (id: string) => {
-    if (!id) return ''
-    const it = items.find((i) => String(i.id) === id)
-    return it ? `${it.sku} - ${it.name}` : ''
-  }
+  const handleAddLine = () => setLines((prev) => [...prev, emptyLine()])
 
   const handleRemoveLine = (index: number) => {
-    const remaining = lines.filter((_, i) => i !== index)
-    // Never leave the table without a trailing draft row.
-    if (remaining.length === 0 || !isEmptyLine(remaining[remaining.length - 1])) {
-      remaining.push(emptyLine())
-    }
-    setLines(remaining)
+    // Allow removing down to zero rows; the "+ Add Line" button brings rows back.
+    setLines((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleLineChange = (index: number, field: keyof EstimateLineForm, value: string) => {
-    const newLines = [...lines]
-    newLines[index] = { ...newLines[index], [field]: value }
+  const handleLineChange = (index: number, key: string, value: string | number | null) => {
+    setLines((prev) => {
+      const newLines = [...prev]
+      // The item combobox emits a numeric id (or null); everything else is a string.
+      const strVal = value == null ? '' : String(value)
+      const updated = { ...newLines[index], [key]: strVal } as EstimateLineForm
 
-    if (field === 'item' && value) {
-      const selectedItem = items.find((i) => String(i.id) === value)
-      if (selectedItem) {
-        newLines[index].uom = String(selectedItem.base_uom)
-        newLines[index].description = selectedItem.sell_desc || selectedItem.name
+      // Preserve item auto-fill: selecting an item populates UOM + description.
+      if (key === 'item' && strVal) {
+        const selectedItem = items.find((i) => String(i.id) === strVal)
+        if (selectedItem) {
+          updated.uom = String(selectedItem.base_uom)
+          updated.description = selectedItem.sell_desc || selectedItem.name
+        }
       }
-    }
 
-    // Maintain the invariant "exactly one trailing empty row": collapse any trailing
-    // empties, then append a single fresh draft. If the user just populated the last
-    // row, this spawns a new "+ Add Line" row directly beneath it.
-    while (newLines.length > 0 && isEmptyLine(newLines[newLines.length - 1])) {
-      newLines.pop()
-    }
-    newLines.push(emptyLine())
-
-    setLines(newLines)
+      newLines[index] = updated
+      return newLines
+    })
   }
+
+  // Column config for the shared editable grid.
+  const lineColumns: LineItemColumn<EstimateLineForm>[] = [
+    {
+      key: 'item',
+      header: 'Item',
+      type: 'item',
+      entityType: 'item',
+      width: '2fr',
+      initialLabel: (row) => {
+        const it = items.find((i) => String(i.id) === row.item)
+        return it ? `${it.sku} - ${it.name}` : undefined
+      },
+    },
+    { key: 'description', header: 'Description', type: 'text', width: '2fr', placeholder: 'Description' },
+    { key: 'quantity', header: 'Qty', type: 'numeric', width: '90px', align: 'right' },
+    {
+      key: 'uom',
+      header: 'UOM',
+      type: 'select',
+      width: '110px',
+      placeholder: 'UOM',
+      options: () => uoms.map((u) => ({ value: String(u.id), label: u.code })),
+    },
+    { key: 'unit_price', header: 'Unit Price', type: 'numeric', width: '120px', align: 'right' },
+    {
+      key: 'total',
+      header: 'Total',
+      type: 'computed',
+      width: '120px',
+      align: 'right',
+      render: (row) =>
+        formatCurrency(String((parseFloat(row.quantity || '0') * parseFloat(row.unit_price || '0')).toFixed(2))),
+    },
+  ]
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -156,9 +172,9 @@ export default function CreateEstimate() {
         customer_po: formData.customer_po,
         notes: formData.notes,
         tax_rate: formData.tax_rate,
-        // Drop trailing/draft empty rows so they're never sent to the API.
+        // Item is required — drop any rows without one so blanks aren't sent.
         lines: lines
-          .filter((line) => !isEmptyLine(line))
+          .filter((line) => line.item)
           .map((line, index) => ({
             line_number: (index + 1) * 10,
             item: Number(line.item),
@@ -339,94 +355,17 @@ export default function CreateEstimate() {
               <span className="text-sm font-semibold">Line Items</span>
             </div>
             <div className="px-6 py-4">
-              <div className="space-y-2">
-                {lines.map((line, index) => {
-                  const empty = isEmptyLine(line)
-                  return (
-                    <div
-                      key={index}
-                      className="rounded-[10px] p-3"
-                      style={{
-                        background: 'var(--so-bg)',
-                        border: empty ? '1px dashed var(--so-border)' : '1px solid var(--so-border-light)',
-                      }}
-                    >
-                      <div className="grid grid-cols-12 gap-2 items-end">
-                        <div className="col-span-4 space-y-1">
-                          <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Item</Label>
-                          <SearchableCombobox
-                            entityType="item"
-                            value={line.item ? Number(line.item) : null}
-                            initialLabel={itemLabel(line.item)}
-                            onChange={(id) => handleLineChange(index, 'item', id ? String(id) : '')}
-                            placeholder={empty ? '+ Add line — select an item…' : 'Select item...'}
-                          />
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Qty</Label>
-                          <NumericInput
-                            value={line.quantity}
-                            onValueChange={(v) => handleLineChange(index, 'quantity', v)}
-                            className="h-9"
-                            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                          />
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>UOM</Label>
-                          <Select
-                            value={line.uom}
-                            onValueChange={(v) => handleLineChange(index, 'uom', v)}
-                          >
-                            <SelectTrigger className="h-9" style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}>
-                              <SelectValue placeholder="UOM" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {uoms.map((uom) => (
-                                <SelectItem key={uom.id} value={String(uom.id)}>
-                                  {uom.code}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs" style={{ color: 'var(--so-text-secondary)' }}>Price</Label>
-                          <NumericInput
-                            value={line.unit_price}
-                            onValueChange={(v) => handleLineChange(index, 'unit_price', v)}
-                            className="h-9"
-                            style={{ borderColor: 'var(--so-border)', background: 'var(--so-surface)' }}
-                          />
-                        </div>
-                        <div className="col-span-2 flex justify-end">
-                          {empty ? (
-                            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--so-text-tertiary)' }}>
-                              <Plus className="h-3.5 w-3.5" />
-                              Add line
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              className={dangerBtnClass}
-                              style={{ ...dangerBtnStyle, padding: '6px 10px' }}
-                              onClick={() => handleRemoveLine(index)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      {line.description && (
-                        <p className="text-xs mt-1.5 pl-1" style={{ color: 'var(--so-text-tertiary)' }}>{line.description}</p>
-                      )}
-                    </div>
-                  )
-                })}
+              <LineItemGrid
+                lines={lines}
+                columns={lineColumns}
+                onCellChange={handleLineChange}
+                onAddLine={handleAddLine}
+                onRemoveLine={handleRemoveLine}
+              />
 
-                <div className="flex justify-end pr-1 pt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
-                  <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal:</span>
-                  <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>${subtotal.toFixed(2)}</span>
-                </div>
+              <div className="flex justify-end pr-1 pt-3 mt-3" style={{ borderTop: '1px solid var(--so-border-light)' }}>
+                <span className="text-[13px] mr-4" style={{ color: 'var(--so-text-tertiary)' }}>Subtotal:</span>
+                <span className="font-mono font-semibold text-sm" style={{ color: 'var(--so-text-primary)' }}>${subtotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
