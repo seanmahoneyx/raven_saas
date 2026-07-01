@@ -53,7 +53,7 @@ export function SearchableCombobox({
   className = '',
   allowClear = false,
   initialLabel,
-  browseAll = false,
+  browseAll = true,
 }: SearchableComboboxProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [searchText, setSearchText] = useState('')

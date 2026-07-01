@@ -35,6 +35,20 @@ class ResizeObserverMock {
 }
 globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver
 
+// Mock IntersectionObserver as a class (used by SearchableCombobox's
+// infinite-scroll sentinel in browse mode; absent in jsdom).
+class IntersectionObserverMock {
+  root = null
+  rootMargin = ''
+  thresholds = []
+  observe = vi.fn()
+  unobserve = vi.fn()
+  disconnect = vi.fn()
+  takeRecords = vi.fn(() => [])
+  constructor(_cb: unknown, _opts?: unknown) {}
+}
+globalThis.IntersectionObserver = IntersectionObserverMock as unknown as typeof IntersectionObserver
+
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn()
 

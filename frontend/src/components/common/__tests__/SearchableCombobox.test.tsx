@@ -16,6 +16,7 @@ const mockRemoveFavorite = vi.fn()
 
 vi.mock('@/api/favorites', () => ({
   useSuggestions: vi.fn(),
+  useSuggestionsInfinite: vi.fn(),
   useFavorites: vi.fn(),
   useAddFavorite: vi.fn(),
   useRemoveFavorite: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/api/favorites', () => ({
 // Import after mock so we can control return values per test
 import {
   useSuggestions,
+  useSuggestionsInfinite,
   useFavorites,
   useAddFavorite,
   useRemoveFavorite,
@@ -72,6 +74,16 @@ function setupMocks(
   favorites: UserFavorite[] = mockFavorites,
 ) {
   vi.mocked(useSuggestions).mockReturnValue({ data: suggestions } as ReturnType<typeof useSuggestions>)
+  // Component defaults to browseAll=true, which uses the infinite-query hook.
+  // Shape the same suggestions payload into a single-page infinite-query object.
+  vi.mocked(useSuggestionsInfinite).mockReturnValue({
+    data: suggestions
+      ? { pages: [{ ...suggestions, has_more: false, next_page: null }], pageParams: [1] }
+      : undefined,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  } as unknown as ReturnType<typeof useSuggestionsInfinite>)
   vi.mocked(useFavorites).mockReturnValue({ data: favorites } as ReturnType<typeof useFavorites>)
   vi.mocked(useAddFavorite).mockReturnValue({ mutate: mockAddFavorite } as unknown as ReturnType<typeof useAddFavorite>)
   vi.mocked(useRemoveFavorite).mockReturnValue({ mutate: mockRemoveFavorite } as unknown as ReturnType<typeof useRemoveFavorite>)
