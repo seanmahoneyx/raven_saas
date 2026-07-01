@@ -79,6 +79,7 @@ export function LineItemGrid<T>({
             onChange={(id) => onCellChange(index, col.key, id)}
             initialLabel={col.initialLabel?.(row)}
             placeholder={col.placeholder}
+            className="w-full"
             allowClear
           />
         )
@@ -122,24 +123,30 @@ export function LineItemGrid<T>({
             </SelectContent>
           </Select>
         )
-      case 'readonly':
+      case 'readonly': {
+        const content = col.render?.(row, index)
         return (
           <span
-            className="text-[13px]"
-            style={{ color: 'var(--so-text-secondary)' }}
+            className="block w-full truncate text-[13px]"
+            style={{ color: 'var(--so-text-secondary)', textAlign: textAlign(col.align) }}
+            title={typeof content === 'string' ? content : undefined}
           >
-            {col.render?.(row, index)}
+            {content}
           </span>
         )
-      case 'computed':
+      }
+      case 'computed': {
+        const content = col.render?.(row, index)
         return (
           <span
-            className="font-mono text-[13px]"
-            style={{ color: 'var(--so-text-primary)' }}
+            className="block w-full truncate font-mono text-[13px]"
+            style={{ color: 'var(--so-text-primary)', textAlign: textAlign(col.align) }}
+            title={typeof content === 'string' ? content : undefined}
           >
-            {col.render?.(row, index)}
+            {content}
           </span>
         )
+      }
       default:
         return null
     }
